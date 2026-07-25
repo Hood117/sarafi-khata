@@ -1,4 +1,4 @@
-// Prisma schema - models will be added in a later phase.
+// Prisma schema for Offline Sarafi Management System
 // https://pris.ly/d/prisma-schema
 
 generator client {
@@ -10,6 +10,10 @@ datasource db {
   provider = "sqlite"
 }
 
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
 enum Role {
   ADMIN
   MANAGER
@@ -18,15 +22,16 @@ enum Role {
 
 /// Local application users. Deactivate with isActive; do not hard-delete.
 model User {
-  id           String    @id @default(cuid())
-  fullName     String
-  username     String    @unique
-  passwordHash String
-  role         Role
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
+  id                  String        @id @default(cuid())
+  fullName            String
+  username            String        @unique
+  passwordHash        String
+  role                Role
+  isActive            Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  sessions            Session[]
+  createdTransactions Transaction[] @relation("TransactionCreatedBy")
 }
 
 /// Local offline sessions. Raw tokens are never stored — only hashes.
@@ -40,5 +45,179 @@ model Session {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@index([userId])
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Financial domain
+// ---------------------------------------------------------------------------
+
+enum WalletType {
+  VAULT
+  TILL
+  CUSTOMER
+  SYSTEM
+}
+
+enum TransactionType {
+  EXCHANGE
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  HAWALA
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+model Currency {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  name          String
+  symbol        String?
+  decimalPlaces Int       @default(2)
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  baseExchangeRates  ExchangeRate[] @relation("ExchangeRateBaseCurrency")
+  quoteExchangeRates ExchangeRate[] @relation("ExchangeRateQuoteCurrency")
+  ledgerEntries      LedgerEntry[]
+
+  @@index([isActive, deletedAt])
+  @@index([deletedAt])
+}
+
+model ExchangeRate {
+  id              String    @id @default(uuid())
+  baseCurrencyId  String
+  quoteCurrencyId String
+  /// Quote units per 1 base unit. Store as Decimal; enforce scale in services.
+  rate            Decimal
+  effectiveAt     DateTime
+  source          String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  baseCurrency  Currency      @relation("ExchangeRateBaseCurrency", fields: [baseCurrencyId], references: [id], onDelete: Restrict)
+  quoteCurrency Currency      @relation("ExchangeRateQuoteCurrency", fields: [quoteCurrencyId], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+
+  @@index([baseCurrencyId, quoteCurrencyId, effectiveAt])
+  @@index([quoteCurrencyId, baseCurrencyId, effectiveAt])
+  @@index([effectiveAt])
+  @@index([deletedAt])
+}
+
+model Customer {
+  id        String    @id @default(uuid())
+  code      String?   @unique
+  fullName  String
+  phone     String?
+  notes     String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  wallets      Wallet[]
+  transactions Transaction[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([isActive, deletedAt])
+  @@index([deletedAt])
+}
+
+model Wallet {
+  id         String     @id @default(uuid())
+  name       String
+  type       WalletType
+  customerId String?
+  isActive   Boolean    @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  /// Restrict hard-delete so historical wallets stay linked for audit.
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+
+  @@index([type, isActive, deletedAt])
+  @@index([name, type])
+  @@index([customerId])
+  @@index([deletedAt])
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  reference   String            @unique
+  type        TransactionType
+  status      TransactionStatus @default(DRAFT)
+  customerId  String?
+  description String?
+  valueDate   DateTime
+  postedAt    DateTime?
+  createdById String?
+  deletedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  /// Restrict hard-delete to preserve financial document history.
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy     User?         @relation("TransactionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+
+  @@index([status, valueDate])
+  @@index([type, status])
+  @@index([customerId, valueDate])
+  @@index([createdById])
+  @@index([deletedAt])
+  @@index([postedAt])
+}
+
+/// Key/value application settings for offline defaults.
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Append-only ledger line. Do not update or delete posted entries.
+model LedgerEntry {
+  id             String          @id @default(uuid())
+  transactionId  String
+  walletId       String
+  currencyId     String
+  direction      LedgerDirection
+  /// Always store absolute positive amounts; sign is via direction.
+  amount         Decimal
+  exchangeRateId String?
+  memo           String?
+  createdAt      DateTime        @default(now())
+
+  transaction  Transaction   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  wallet       Wallet        @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  currency     Currency      @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  exchangeRate ExchangeRate? @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId, createdAt])
+  @@index([walletId, currencyId, createdAt])
+  @@index([currencyId, createdAt])
+  @@index([exchangeRateId])
 }

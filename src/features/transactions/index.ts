@@ -3,4 +3,14 @@
  * Import from this module only — do not reach into internal folders.
  */
 
-export {};
+export {
+  createTransaction,
+  findTransactionById,
+  findTransactionByReference,
+  listTransactions,
+  updateTransaction,
+  softDeleteTransaction,
+  type CreateTransactionData,
+  type UpdateTransactionData,
+  type TransactionListOptions,
+} from "@/features/transactions/repositories/transaction-repository";
