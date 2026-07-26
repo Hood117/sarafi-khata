@@ -5,15 +5,23 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { pageTitles } from "@/components/layout/nav-config";
+import { UserSessionMenu } from "@/components/layout/user-session-menu";
 import { Input } from "@/components/ui/input";
+import type { AuthenticatedUser } from "@/features/auth/domain/types";
 
 type AppHeaderProps = {
   title?: string;
   description?: string;
   actions?: ReactNode;
+  user: AuthenticatedUser;
 };
 
-export function AppHeader({ title, description, actions }: AppHeaderProps) {
+export function AppHeader({
+  title,
+  description,
+  actions,
+  user,
+}: AppHeaderProps) {
   const pathname = usePathname();
   const resolvedTitle = title ?? pageTitles[pathname] ?? "Saraf";
 
@@ -40,6 +48,7 @@ export function AppHeader({ title, description, actions }: AppHeaderProps) {
             readOnly
           />
         </div>
+        <UserSessionMenu user={user} />
       </div>
     </header>
   );
