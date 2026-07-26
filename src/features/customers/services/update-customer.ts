@@ -15,6 +15,17 @@ import {
 
 export type UpdateCustomerResult = Customer;
 
+function isUniqueConstraintError(
+  error: unknown,
+): error is { code: string; meta?: { target?: string | string[] } } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
+}
+
 export async function updateCustomerRecord(
   id: string,
   input: unknown,
@@ -47,7 +58,7 @@ export async function updateCustomerRecord(
   }
 
   try {
-    // Prisma `@updatedAt` refreshes `updatedAt`; `createdAt` is intentionally omitted.
+    // Prisma `@updatedAt` refreshes `updatedAt`; `createdAt` and `code` are never updated.
     return await updateCustomer(id, {
       fullName: data.fullName,
       phone: data.phone,
@@ -56,12 +67,7 @@ export async function updateCustomerRecord(
       notes: data.notes,
     });
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
+    if (isUniqueConstraintError(error)) {
       throw new CustomerError(
         "DUPLICATE_PHONE",
         "A customer with this phone number already exists.",

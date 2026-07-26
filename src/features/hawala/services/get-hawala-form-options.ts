@@ -1,5 +1,6 @@
 import "server-only";
 
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { listCustomers } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import type { HawalaFormOptions } from "@/features/hawala/domain/types";
@@ -39,7 +40,9 @@ export async function getHawalaFormOptions(): Promise<HawalaFormOptions> {
   return {
     customers: customers.map((customer) => ({
       id: customer.id,
-      label: customer.fullName,
+      label: formatCustomerLabel(customer.fullName, customer.code),
+      fullName: customer.fullName,
+      phone: customer.phone,
     })),
     cashWallets,
     clearingWallets,

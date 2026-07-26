@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { HawalaEmptyState } from "@/features/hawala/components/hawala-empty-state";
 import type { HawalaListItem } from "@/features/hawala/domain/types";
@@ -83,39 +86,45 @@ export function HawalaTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transfers.map((transfer) => (
-                <TableRow key={transfer.id}>
-                  <TableCell className="font-medium font-mono text-xs sm:text-sm">
-                    {transfer.reference}
-                  </TableCell>
-                  <TableCell>{transfer.senderName}</TableCell>
-                  <TableCell>{transfer.receiverName}</TableCell>
-                  <TableCell>{transfer.partnerSarafi}</TableCell>
-                  <TableCell>{transfer.originDisplay}</TableCell>
-                  <TableCell>{transfer.destinationDisplay}</TableCell>
-                  <TableCell>{transfer.currencyCode}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {transfer.amountDisplay}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      status={transfer.status}
-                      label={transfer.statusLabel}
-                    />
-                  </TableCell>
-                  <TableCell>{formatValueDate(transfer.valueDate)}</TableCell>
-                  <TableCell>{displayValue(transfer.operatorName)}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      render={<Link href={`/hawala/${transfer.id}`} />}
-                    >
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {transfers.map((transfer) => {
+                const detailHref = `/hawala/${transfer.id}`;
+
+                return (
+                  <ClickableTableRow key={transfer.id} href={detailHref}>
+                    <TableCell className="font-medium font-mono text-xs sm:text-sm">
+                      {transfer.reference}
+                    </TableCell>
+                    <TableCell>{transfer.senderName}</TableCell>
+                    <TableCell>{transfer.receiverName}</TableCell>
+                    <TableCell>{transfer.partnerSarafi}</TableCell>
+                    <TableCell>{transfer.originDisplay}</TableCell>
+                    <TableCell>{transfer.destinationDisplay}</TableCell>
+                    <TableCell>{transfer.currencyCode}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {transfer.amountDisplay}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        status={transfer.status}
+                        label={transfer.statusLabel}
+                      />
+                    </TableCell>
+                    <TableCell>{formatValueDate(transfer.valueDate)}</TableCell>
+                    <TableCell>
+                      {displayValue(transfer.operatorName)}
+                    </TableCell>
+                    <TableCell data-row-click-ignore>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        render={<Link href={detailHref} />}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </ClickableTableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

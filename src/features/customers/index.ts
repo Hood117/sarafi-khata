@@ -8,6 +8,7 @@ export {
   findCustomerById,
   findCustomerByCode,
   findCustomerByPhone,
+  listCustomerCodes,
   listCustomers,
   updateCustomer,
   softDeleteCustomer,
@@ -32,6 +33,12 @@ export type {
   CustomerProfile,
 } from "@/features/customers/domain/types";
 export { CustomerError, isCustomerError } from "@/features/customers/domain/errors";
+export {
+  CUSTOMER_CODE_START,
+  computeNextCustomerCode,
+  parseCustomerCodeSequence,
+} from "@/features/customers/domain/customer-code";
+export { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 export {
   buildCustomerHistoryHref,
   buildCustomerHistoryHrefFromFilters,

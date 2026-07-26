@@ -150,9 +150,11 @@ model Customer {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  wallets         Wallet[]
-  transactions    Transaction[]
-  hawalaTransfers HawalaTransfer[]
+  wallets              Wallet[]
+  transactions         Transaction[]
+  hawalaTransfers      HawalaTransfer[]  @relation("HawalaLocalCustomer")
+  hawalaAsSender       HawalaTransfer[]  @relation("HawalaSenderCustomer")
+  hawalaAsReceiver     HawalaTransfer[]  @relation("HawalaReceiverCustomer")
 
   @@index([fullName])
   @@index([phone])
@@ -230,7 +232,12 @@ model HawalaTransfer {
   /// Absolute positive major-unit amount; enforce scale in services.
   amount             Decimal
   notes              String?
+  /// Optional primary local customer for the posted Transaction (derived from sender/receiver links).
   customerId         String?
+  /// Optional registered local customer for the sender party.
+  senderCustomerId   String?
+  /// Optional registered local customer for the receiver party.
+  receiverCustomerId String?
   /// Vault/till used for the cash leg when completing.
   cashWalletId       String
   /// SYSTEM clearing wallet used for the contra leg when completing.
@@ -245,16 +252,20 @@ model HawalaTransfer {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
-  currency       Currency     @relation(fields: [currencyId], references: [id], onDelete: Restrict)
-  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  cashWallet     Wallet       @relation("HawalaCashWallet", fields: [cashWalletId], references: [id], onDelete: Restrict)
-  clearingWallet Wallet       @relation("HawalaClearingWallet", fields: [clearingWalletId], references: [id], onDelete: Restrict)
-  transaction    Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  createdBy      User         @relation("HawalaCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  currency         Currency     @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  customer         Customer?    @relation("HawalaLocalCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  senderCustomer   Customer?    @relation("HawalaSenderCustomer", fields: [senderCustomerId], references: [id], onDelete: Restrict)
+  receiverCustomer Customer?    @relation("HawalaReceiverCustomer", fields: [receiverCustomerId], references: [id], onDelete: Restrict)
+  cashWallet       Wallet       @relation("HawalaCashWallet", fields: [cashWalletId], references: [id], onDelete: Restrict)
+  clearingWallet   Wallet       @relation("HawalaClearingWallet", fields: [clearingWalletId], references: [id], onDelete: Restrict)
+  transaction      Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  createdBy        User         @relation("HawalaCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([status, valueDate])
   @@index([direction, status])
   @@index([customerId, valueDate])
+  @@index([senderCustomerId])
+  @@index([receiverCustomerId])
   @@index([createdById])
   @@index([currencyId])
   @@index([deletedAt])

@@ -1,3 +1,5 @@
+"use client";
+
 import type { TransactionStatus } from "@/generated/prisma/client";
 import Link from "next/link";
 
@@ -10,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { TransactionsEmptyState } from "@/features/transactions/components/transactions-empty-state";
 import {
@@ -17,6 +20,7 @@ import {
   TRANSACTION_TYPE_LABELS,
 } from "@/features/transactions/domain/labels";
 import type { TransactionListItem } from "@/features/transactions/domain/types";
+import { hrefWithReturnTo } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 type TransactionsTableProps = {
@@ -75,41 +79,48 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell className="font-medium">
-                    {transaction.reference}
-                  </TableCell>
-                  <TableCell>
-                    {TRANSACTION_TYPE_LABELS[transaction.type]}
-                  </TableCell>
-                  <TableCell>
-                    {displayValue(transaction.customerName)}
-                  </TableCell>
-                  <TableCell>{transaction.currencyDisplay}</TableCell>
-                  <TableCell className="tabular-nums">
-                    {transaction.amountDisplay}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={transaction.status} />
-                  </TableCell>
-                  <TableCell>
-                    {displayValue(transaction.operatorName)}
-                  </TableCell>
-                  <TableCell>
-                    {formatValueDate(transaction.valueDate)}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      render={<Link href={`/transactions/${transaction.id}`} />}
-                    >
-                      View
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {transactions.map((transaction) => {
+                const detailHref = hrefWithReturnTo(
+                  `/transactions/${transaction.id}`,
+                  "/transactions",
+                );
+
+                return (
+                  <ClickableTableRow key={transaction.id} href={detailHref}>
+                    <TableCell className="font-medium">
+                      {transaction.reference}
+                    </TableCell>
+                    <TableCell>
+                      {TRANSACTION_TYPE_LABELS[transaction.type]}
+                    </TableCell>
+                    <TableCell>
+                      {displayValue(transaction.customerName)}
+                    </TableCell>
+                    <TableCell>{transaction.currencyDisplay}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {transaction.amountDisplay}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={transaction.status} />
+                    </TableCell>
+                    <TableCell>
+                      {displayValue(transaction.operatorName)}
+                    </TableCell>
+                    <TableCell>
+                      {formatValueDate(transaction.valueDate)}
+                    </TableCell>
+                    <TableCell data-row-click-ignore>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        render={<Link href={detailHref} />}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </ClickableTableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

@@ -12,6 +12,8 @@ export type WalletListItem = {
   id: string;
   name: string;
   type: WalletType;
+  /** Display-only note for known system/operating wallets. */
+  description: string | null;
   customerId: string | null;
   customerName: string | null;
   isActive: boolean;

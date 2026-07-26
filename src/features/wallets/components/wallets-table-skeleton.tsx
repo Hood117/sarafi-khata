@@ -18,26 +18,27 @@ export function WalletsTableSkeleton() {
 
       <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
         <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Wallet Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[160px]">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Array.from({ length: SKELETON_ROWS }, (_, index) => (
-              <TableRow key={index} className="hover:bg-transparent">
-                {Array.from({ length: 5 }, (__, cellIndex) => (
-                  <TableCell key={cellIndex}>
-                    <div className="bg-muted h-4 w-full max-w-[7rem] animate-pulse rounded-md" />
-                  </TableCell>
-                ))}
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Wallet Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[160px]">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+                <TableRow key={index} className="hover:bg-transparent">
+                  {Array.from({ length: 6 }, (__, cellIndex) => (
+                    <TableCell key={cellIndex}>
+                      <div className="bg-muted h-4 w-full max-w-[7rem] animate-pulse rounded-md" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
         </Table>
       </div>
     </div>

@@ -6,6 +6,7 @@ import type {
   WalletDetail,
   WalletFormData,
 } from "@/features/wallets/domain/types";
+import { getWalletDescription } from "@/features/wallets/domain/wallet-descriptions";
 import { findWalletById } from "@/features/wallets/repositories/wallet-repository";
 
 export async function getWalletById(
@@ -32,6 +33,7 @@ export async function getWalletById(
     id: wallet.id,
     name: wallet.name,
     type: wallet.type,
+    description: getWalletDescription(wallet.name),
     customerId: wallet.customerId,
     customerName,
     isActive: wallet.isActive,

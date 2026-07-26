@@ -19,6 +19,7 @@ export {
 export type {
   HawalaDirection,
   HawalaStatus,
+  HawalaPartySource,
   HawalaPartyInput,
   SendHawalaInput,
   ReceiveHawalaInput,

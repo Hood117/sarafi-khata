@@ -19,7 +19,12 @@ export type CustomerMutationActionResult =
     }
   | {
       ok: false;
-      code: "VALIDATION" | "DUPLICATE_PHONE" | "NOT_FOUND" | "UNKNOWN";
+      code:
+        | "VALIDATION"
+        | "DUPLICATE_PHONE"
+        | "DUPLICATE_CODE"
+        | "NOT_FOUND"
+        | "UNKNOWN";
       message: string;
       fieldErrors?: CreateCustomerFieldErrors;
     };

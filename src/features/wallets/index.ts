@@ -17,6 +17,10 @@ export {
 
 export { WalletError, isWalletError } from "@/features/wallets/domain/errors";
 export type { WalletErrorCode, WalletField } from "@/features/wallets/domain/errors";
+export {
+  getWalletDescription,
+  SYSTEM_WALLET_DESCRIPTIONS,
+} from "@/features/wallets/domain/wallet-descriptions";
 export { normalizeWalletInput } from "@/features/wallets/domain/wallet-rules";
 export type {
   CustomerWalletBalanceRow,

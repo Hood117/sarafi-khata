@@ -1,4 +1,13 @@
 /**
+ * Builds a detail href with a safe same-app `returnTo` query param.
+ */
+export function hrefWithReturnTo(pathname: string, returnTo: string): string {
+  const params = new URLSearchParams();
+  params.set("returnTo", returnTo);
+  return `${pathname}?${params.toString()}`;
+}
+
+/**
  * Accepts only same-origin relative paths for post-navigation return links.
  * Rejects protocol-relative and absolute URLs.
  */

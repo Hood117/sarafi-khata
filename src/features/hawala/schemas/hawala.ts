@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isKnownCountry, isValidLocationPair } from "@/lib/locations";
+
 function requiredText(label: string, maxLength = 200) {
   return z
     .string()
@@ -8,6 +10,20 @@ function requiredText(label: string, maxLength = 200) {
     .max(maxLength, {
       error: `${label} must be at most ${maxLength} characters.`,
     });
+}
+
+function requiredCountry(label: string) {
+  return z
+    .string()
+    .trim()
+    .min(1, { error: `${label} is required.` })
+    .refine((value) => isKnownCountry(value), {
+      error: `${label} must be selected from the list.`,
+    });
+}
+
+function requiredCity(label: string) {
+  return z.string().trim().min(1, { error: `${label} is required.` });
 }
 
 function optionalText(maxLength = 2000) {
@@ -85,25 +101,72 @@ const optionalCustomerIdSchema = z.preprocess(
   z.string().nullable(),
 );
 
-export const hawalaPartySchema = z.object({
-  senderName: requiredText("Sender name", 200),
-  senderPhone: optionalPhone(),
-  receiverName: requiredText("Receiver name", 200),
-  receiverPhone: optionalPhone(),
-  partnerSarafi: requiredText("Partner sarafi", 200),
-  originCity: requiredText("Origin city", 120),
-  originCountry: requiredText("Origin country", 120),
-  destinationCity: requiredText("Destination city", 120),
-  destinationCountry: requiredText("Destination country", 120),
-  reference: referenceSchema,
-  currencyCode: currencyCodeSchema,
-  amount: amountSchema,
-  notes: optionalText(2000),
-  customerId: optionalCustomerIdSchema.optional(),
-  cashWalletId: walletIdSchema,
-  clearingWalletId: walletIdSchema,
-  valueDate: valueDateSchema.optional(),
-});
+export const hawalaPartySchema = z
+  .object({
+    senderName: z.string().trim().max(200).optional().default(""),
+    senderPhone: optionalPhone(),
+    receiverName: z.string().trim().max(200).optional().default(""),
+    receiverPhone: optionalPhone(),
+    senderCustomerId: optionalCustomerIdSchema.optional(),
+    receiverCustomerId: optionalCustomerIdSchema.optional(),
+    partnerSarafi: requiredText("Partner sarafi", 200),
+    originCountry: requiredCountry("Origin country"),
+    originCity: requiredCity("Origin city"),
+    destinationCountry: requiredCountry("Destination country"),
+    destinationCity: requiredCity("Destination city"),
+    reference: referenceSchema,
+    currencyCode: currencyCodeSchema,
+    amount: amountSchema,
+    notes: optionalText(2000),
+    customerId: optionalCustomerIdSchema.optional(),
+    cashWalletId: walletIdSchema,
+    clearingWalletId: walletIdSchema,
+    valueDate: valueDateSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    const senderCustomerId = data.senderCustomerId ?? null;
+    const receiverCustomerId = data.receiverCustomerId ?? null;
+
+    if (!senderCustomerId && !data.senderName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["senderName"],
+        message: "Select a local customer or enter the sender name.",
+      });
+    }
+
+    if (!receiverCustomerId && !data.receiverName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["receiverName"],
+        message: "Select a local customer or enter the receiver name.",
+      });
+    }
+
+    if (
+      data.originCountry &&
+      data.originCity &&
+      !isValidLocationPair(data.originCountry, data.originCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["originCity"],
+        message: "Origin city must match the selected country.",
+      });
+    }
+
+    if (
+      data.destinationCountry &&
+      data.destinationCity &&
+      !isValidLocationPair(data.destinationCountry, data.destinationCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["destinationCity"],
+        message: "Destination city must match the selected country.",
+      });
+    }
+  });
 
 export const sendHawalaSchema = hawalaPartySchema;
 export const receiveHawalaSchema = hawalaPartySchema;
@@ -115,9 +178,7 @@ export type HawalaFieldErrors = Partial<
   Record<keyof HawalaPartySchemaOutput, string>
 >;
 
-export function toHawalaFieldErrors(
-  error: z.ZodError,
-): HawalaFieldErrors {
+export function toHawalaFieldErrors(error: z.ZodError): HawalaFieldErrors {
   const fieldErrors: HawalaFieldErrors = {};
 
   for (const issue of error.issues) {

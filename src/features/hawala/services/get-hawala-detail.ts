@@ -1,5 +1,7 @@
 import "server-only";
 
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
+import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { findCurrencyById } from "@/features/ledger/repositories/currency-repository";
 import {
   HAWALA_DIRECTION_LABELS,
@@ -52,7 +54,6 @@ function buildTimeline(input: {
     });
   }
 
-  // If still pending with only the create event, surface current status clearly.
   if (input.status === "PENDING" && events.length === 1) {
     events[0] = {
       ...events[0],
@@ -68,6 +69,15 @@ function buildTimeline(input: {
   return events;
 }
 
+function customerDisplay(
+  customer: { fullName: string; code: string | null } | null,
+): string | null {
+  if (!customer) {
+    return null;
+  }
+  return formatCustomerLabel(customer.fullName, customer.code);
+}
+
 /**
  * Loads hawala business details and reuses getTransactionDetail for the
  * related posted document + ledger lines (no duplicate financial aggregation).
@@ -78,13 +88,23 @@ export async function getHawalaDetail(id: string): Promise<HawalaDetail> {
     throw new HawalaError("NOT_FOUND", "Hawala transfer was not found.");
   }
 
-  const [currency, operator] = await Promise.all([
-    findCurrencyById(hawala.currencyId, { includeDeleted: true }),
-    prisma.user.findUnique({
-      where: { id: hawala.createdById },
-      select: { fullName: true, username: true },
-    }),
-  ]);
+  const [currency, operator, customer, senderCustomer, receiverCustomer] =
+    await Promise.all([
+      findCurrencyById(hawala.currencyId, { includeDeleted: true }),
+      prisma.user.findUnique({
+        where: { id: hawala.createdById },
+        select: { fullName: true, username: true },
+      }),
+      hawala.customerId
+        ? findCustomerById(hawala.customerId, { includeDeleted: true })
+        : Promise.resolve(null),
+      hawala.senderCustomerId
+        ? findCustomerById(hawala.senderCustomerId, { includeDeleted: true })
+        : Promise.resolve(null),
+      hawala.receiverCustomerId
+        ? findCustomerById(hawala.receiverCustomerId, { includeDeleted: true })
+        : Promise.resolve(null),
+    ]);
 
   const amountDisplay = currency
     ? (formatPrismaAmount(hawala.amount, currency) ?? hawala.amount.toString())
@@ -98,7 +118,6 @@ export async function getHawalaDetail(id: string): Promise<HawalaDetail> {
       if (!(isTransactionError(error) && error.code === "NOT_FOUND")) {
         throw error;
       }
-      // Linked id missing — show hawala without related financial section.
       relatedTransaction = null;
     }
   }
@@ -112,14 +131,20 @@ export async function getHawalaDetail(id: string): Promise<HawalaDetail> {
     statusLabel: HAWALA_STATUS_LABELS[hawala.status],
     senderName: hawala.senderName,
     senderPhone: hawala.senderPhone,
+    senderCustomerId: hawala.senderCustomerId,
+    senderCustomerDisplay: customerDisplay(senderCustomer),
     receiverName: hawala.receiverName,
     receiverPhone: hawala.receiverPhone,
+    receiverCustomerId: hawala.receiverCustomerId,
+    receiverCustomerDisplay: customerDisplay(receiverCustomer),
     partnerSarafi: hawala.partnerSarafi,
     originDisplay: `${hawala.originCity}, ${hawala.originCountry}`,
     destinationDisplay: `${hawala.destinationCity}, ${hawala.destinationCountry}`,
     currencyCode: currency?.code ?? "—",
     amountDisplay,
     notes: hawala.notes,
+    customerId: hawala.customerId,
+    customerDisplay: customerDisplay(customer),
     operatorName: operator
       ? operator.fullName.trim() || operator.username
       : null,

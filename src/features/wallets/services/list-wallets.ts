@@ -1,11 +1,13 @@
 import "server-only";
 
 import type { WalletType } from "@/generated/prisma/client";
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { listCustomers } from "@/features/customers/repositories/customer-repository";
 import type {
   WalletArchiveFilter,
   WalletListItem,
 } from "@/features/wallets/domain/types";
+import { getWalletDescription } from "@/features/wallets/domain/wallet-descriptions";
 import { listWallets } from "@/features/wallets/repositories/wallet-repository";
 
 export type GetWalletListOptions = {
@@ -17,7 +19,12 @@ export type GetWalletListOptions = {
 async function buildCustomerNameMap(): Promise<Map<string, string>> {
   const customers = await listCustomers({ includeDeleted: true });
   return new Map(
-    customers.map((customer) => [customer.id, customer.fullName] as const),
+    customers.map((customer) =>
+      [
+        customer.id,
+        formatCustomerLabel(customer.fullName, customer.code),
+      ] as const,
+    ),
   );
 }
 
@@ -29,6 +36,7 @@ function toWalletListItem(
     id: wallet.id,
     name: wallet.name,
     type: wallet.type,
+    description: getWalletDescription(wallet.name),
     customerId: wallet.customerId,
     customerName: wallet.customerId
       ? (customerNames.get(wallet.customerId) ?? null)

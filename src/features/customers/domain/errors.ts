@@ -1,13 +1,19 @@
 export type CustomerErrorCode =
   | "DUPLICATE_PHONE"
+  | "DUPLICATE_CODE"
   | "VALIDATION"
   | "NOT_FOUND";
 
+export type CustomerField =
+  | "fullName"
+  | "phone"
+  | "address"
+  | "nationalId"
+  | "notes";
+
 export class CustomerError extends Error {
   readonly code: CustomerErrorCode;
-  readonly fieldErrors?: Partial<
-    Record<"fullName" | "phone" | "address" | "nationalId" | "notes", string>
-  >;
+  readonly fieldErrors?: Partial<Record<CustomerField, string>>;
 
   constructor(
     code: CustomerErrorCode,

@@ -10,12 +10,19 @@ import type {
 
 export type { HawalaDirection, HawalaStatus };
 
+/** How a hawala party is captured in the UI. */
+export type HawalaPartySource = "customer" | "external";
+
 /** Business fields shared by send and receive hawala requests. */
 export type HawalaPartyInput = {
   senderName: string;
   senderPhone?: string | null;
   receiverName: string;
   receiverPhone?: string | null;
+  /** When set, sender is an existing local customer (name/phone resolved server-side). */
+  senderCustomerId?: string | null;
+  /** When set, receiver is an existing local customer (name/phone resolved server-side). */
+  receiverCustomerId?: string | null;
   partnerSarafi: string;
   originCity: string;
   originCountry: string;
@@ -26,7 +33,10 @@ export type HawalaPartyInput = {
   /** Major-unit decimal string, e.g. "100.50". */
   amount: string;
   notes?: string | null;
-  /** Optional local customer linked on the posted Transaction. */
+  /**
+   * Optional primary local customer for the posted Transaction.
+   * Derived from sender/receiver customer links when omitted.
+   */
   customerId?: string | null;
   /** Vault/till for the cash leg. */
   cashWalletId: string;
@@ -66,6 +76,8 @@ export type HawalaListItem = {
 export type HawalaCustomerOption = {
   id: string;
   label: string;
+  fullName: string;
+  phone: string | null;
 };
 
 export type HawalaWalletOption = {
@@ -112,14 +124,21 @@ export type HawalaDetail = {
   statusLabel: string;
   senderName: string;
   senderPhone: string | null;
+  senderCustomerId: string | null;
+  senderCustomerDisplay: string | null;
   receiverName: string;
   receiverPhone: string | null;
+  receiverCustomerId: string | null;
+  receiverCustomerDisplay: string | null;
   partnerSarafi: string;
   originDisplay: string;
   destinationDisplay: string;
   currencyCode: string;
   amountDisplay: string;
   notes: string | null;
+  customerId: string | null;
+  /** Primary local customer label when linked for the posted document. */
+  customerDisplay: string | null;
   operatorName: string | null;
   valueDate: string;
   createdAt: string;

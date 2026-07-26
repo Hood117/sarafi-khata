@@ -69,6 +69,16 @@ export async function findCustomerByCode(
   });
 }
 
+/**
+ * All customer codes including archived — used for safe auto-sequence allocation.
+ */
+export async function listCustomerCodes(): Promise<Array<string | null>> {
+  const rows = await prisma.customer.findMany({
+    select: { code: true },
+  });
+  return rows.map((row) => row.code);
+}
+
 export async function findCustomerByPhone(
   phone: string,
   options: { includeDeleted?: boolean } = {},

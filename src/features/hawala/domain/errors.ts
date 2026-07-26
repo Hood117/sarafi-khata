@@ -21,6 +21,8 @@ export type HawalaField =
   | "amount"
   | "notes"
   | "customerId"
+  | "senderCustomerId"
+  | "receiverCustomerId"
   | "cashWalletId"
   | "clearingWalletId"
   | "valueDate"

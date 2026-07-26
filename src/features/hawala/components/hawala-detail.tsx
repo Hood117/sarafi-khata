@@ -80,9 +80,17 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function partyDisplay(name: string, phone: string | null): string {
+function partyDisplay(
+  name: string,
+  phone: string | null,
+  customerDisplay: string | null,
+): string {
   const phoneTrimmed = phone?.trim();
-  return phoneTrimmed ? `${name} (${phoneTrimmed})` : name;
+  const base = phoneTrimmed ? `${name} (${phoneTrimmed})` : name;
+  if (customerDisplay) {
+    return `${base} · Local customer: ${customerDisplay}`;
+  }
+  return `${base} · External`;
 }
 
 export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
@@ -123,11 +131,19 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
         <dl className="space-y-4">
           <InfoRow
             label="Sender"
-            value={partyDisplay(hawala.senderName, hawala.senderPhone)}
+            value={partyDisplay(
+              hawala.senderName,
+              hawala.senderPhone,
+              hawala.senderCustomerDisplay,
+            )}
           />
           <InfoRow
             label="Receiver"
-            value={partyDisplay(hawala.receiverName, hawala.receiverPhone)}
+            value={partyDisplay(
+              hawala.receiverName,
+              hawala.receiverPhone,
+              hawala.receiverCustomerDisplay,
+            )}
           />
           <InfoRow label="Partner Sarafi" value={hawala.partnerSarafi} />
           <InfoRow label="Origin" value={hawala.originDisplay} />

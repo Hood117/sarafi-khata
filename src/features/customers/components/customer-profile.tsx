@@ -134,6 +134,7 @@ export function CustomerProfileView({
         <Typography variant="h4">Customer information</Typography>
 
         <dl className="space-y-4">
+          <InfoRow label="Customer code" value={displayValue(customer.code)} />
           <InfoRow label="Phone" value={displayValue(customer.phone)} />
           <InfoRow label="Address" value={displayValue(customer.address)} />
           <InfoRow

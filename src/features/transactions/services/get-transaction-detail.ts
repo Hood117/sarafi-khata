@@ -1,5 +1,6 @@
 import "server-only";
 
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import { listLedgerEntriesByTransaction } from "@/features/ledger/repositories/ledger-repository";
@@ -96,7 +97,9 @@ export async function getTransactionDetail(
     status: transaction.status,
     statusLabel: TRANSACTION_STATUS_LABELS[transaction.status],
     customerId: transaction.customerId,
-    customerName: customer?.fullName ?? null,
+    customerName: customer
+      ? formatCustomerLabel(customer.fullName, customer.code)
+      : null,
     walletDisplay: walletNames.length > 0 ? walletNames.join(", ") : "—",
     currencyDisplay: summary.currencyDisplay,
     amountDisplay: summary.amountDisplay,

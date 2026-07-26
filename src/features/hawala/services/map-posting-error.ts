@@ -10,6 +10,8 @@ const POSTING_FIELDS = new Set<HawalaField>([
   "valueDate",
   "notes",
   "customerId",
+  "senderCustomerId",
+  "receiverCustomerId",
   "cashWalletId",
   "clearingWalletId",
   "entries",

@@ -43,6 +43,15 @@ function mapFieldErrors(
   return fieldErrors;
 }
 
+function parseValueDate(value: string): Date | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = new Date(`${trimmed}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 export function SendHawalaDialog({
   customers,
   cashWallets,
@@ -69,10 +78,20 @@ export function SendHawalaDialog({
 
   async function handleSubmit(values: HawalaFormValues) {
     const result = await sendHawalaAction({
-      senderName: values.senderName,
+      senderName:
+        values.senderSource === "external" ? values.senderName : "",
       senderPhone: values.senderPhone || null,
-      receiverName: values.receiverName,
+      receiverName:
+        values.receiverSource === "external" ? values.receiverName : "",
       receiverPhone: values.receiverPhone || null,
+      senderCustomerId:
+        values.senderSource === "customer"
+          ? values.senderCustomerId || null
+          : null,
+      receiverCustomerId:
+        values.receiverSource === "customer"
+          ? values.receiverCustomerId || null
+          : null,
       partnerSarafi: values.partnerSarafi,
       originCity: values.originCity,
       originCountry: values.originCountry,
@@ -82,9 +101,9 @@ export function SendHawalaDialog({
       currencyCode: values.currencyCode,
       amount: values.amount,
       notes: values.notes.trim() === "" ? null : values.notes.trim(),
-      customerId: values.customerId || null,
       cashWalletId: values.cashWalletId,
       clearingWalletId: values.clearingWalletId,
+      valueDate: parseValueDate(values.valueDate),
     });
 
     if (!result.ok) {
@@ -95,10 +114,9 @@ export function SendHawalaDialog({
       };
     }
 
+    onSuccess?.(result.message);
+    router.push(`/hawala/${result.hawalaId}`);
     router.refresh();
-    window.setTimeout(() => {
-      handleOpenChange(false);
-    }, 700);
 
     return {
       ok: true as const,
@@ -133,7 +151,6 @@ export function SendHawalaDialog({
           errorFallbackMessage="Unable to send hawala. Please try again."
           onCancel={() => handleOpenChange(false)}
           onSubmit={handleSubmit}
-          onSuccess={onSuccess}
         />
       </DialogContent>
     </Dialog>

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { listCustomers } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import { listLedgerEntries } from "@/features/ledger/repositories/ledger-repository";
@@ -24,7 +25,12 @@ export async function getTransactionList(): Promise<TransactionListItem[]> {
     currencies.map((currency) => [currency.id, currency] as const),
   );
   const customerNames = new Map(
-    customers.map((customer) => [customer.id, customer.fullName] as const),
+    customers.map((customer) =>
+      [
+        customer.id,
+        formatCustomerLabel(customer.fullName, customer.code),
+      ] as const,
+    ),
   );
   const operatorNames = new Map(
     users.map(

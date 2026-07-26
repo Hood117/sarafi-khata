@@ -25,6 +25,8 @@ export type CreateHawalaTransferData = {
   amount: Prisma.Decimal | string | number;
   notes?: string | null;
   customerId?: string | null;
+  senderCustomerId?: string | null;
+  receiverCustomerId?: string | null;
   cashWalletId: string;
   clearingWalletId: string;
   createdById: string;
@@ -63,6 +65,8 @@ export async function createHawalaTransfer(
       amount: data.amount,
       notes: data.notes ?? null,
       customerId: data.customerId ?? null,
+      senderCustomerId: data.senderCustomerId ?? null,
+      receiverCustomerId: data.receiverCustomerId ?? null,
       cashWalletId: data.cashWalletId,
       clearingWalletId: data.clearingWalletId,
       createdById: data.createdById,

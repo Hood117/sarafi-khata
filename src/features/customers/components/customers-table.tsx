@@ -1,4 +1,4 @@
-import Link from "next/link";
+"use client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { CustomersEmptyState } from "@/features/customers/components/customers-empty-state";
 import { EditCustomerDialog } from "@/features/customers/components/edit-customer-dialog";
@@ -98,17 +99,15 @@ export function CustomersTable({
             </TableHeader>
             <TableBody>
               {customers.map((customer) => (
-                <TableRow key={customer.id}>
+                <ClickableTableRow
+                  key={customer.id}
+                  href={`/customers/${customer.id}`}
+                >
                   <TableCell className="font-medium">
                     {displayValue(customer.code)}
                   </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      className="hover:text-primary font-medium underline-offset-4 hover:underline"
-                    >
-                      {customer.fullName}
-                    </Link>
+                  <TableCell className="font-medium">
+                    {customer.fullName}
                   </TableCell>
                   <TableCell>{displayValue(customer.phone)}</TableCell>
                   <TableCell className="max-w-[14rem] truncate">
@@ -121,7 +120,7 @@ export function CustomersTable({
                       isArchived={customer.isArchived}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-row-click-ignore>
                     {customer.isArchived ? (
                       <Button variant="ghost" size="sm" disabled>
                         Edit
@@ -133,7 +132,7 @@ export function CustomersTable({
                       />
                     )}
                   </TableCell>
-                </TableRow>
+                </ClickableTableRow>
               ))}
             </TableBody>
           </Table>

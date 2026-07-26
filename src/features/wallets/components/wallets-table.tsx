@@ -1,4 +1,8 @@
+"use client";
+
 import type { WalletType } from "@/generated/prisma/client";
+
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import {
   Table,
   TableBody,
@@ -64,6 +68,35 @@ function StatusBadge({
   );
 }
 
+function WalletActionsCell({
+  wallet,
+  customerOptions,
+  onWalletChanged,
+}: {
+  wallet: WalletListItem;
+  customerOptions: WalletCustomerOption[];
+  onWalletChanged?: (message: string) => void;
+}) {
+  if (wallet.isArchived) {
+    return <Typography variant="muted">—</Typography>;
+  }
+
+  return (
+    <div className="flex items-center gap-1" data-row-click-ignore>
+      <EditWalletDialog
+        walletId={wallet.id}
+        customerOptions={customerOptions}
+        onSuccess={onWalletChanged}
+      />
+      <ArchiveWalletButton
+        walletId={wallet.id}
+        walletName={wallet.name}
+        onSuccess={onWalletChanged}
+      />
+    </div>
+  );
+}
+
 export function WalletsTable({
   wallets,
   customerOptions,
@@ -82,43 +115,55 @@ export function WalletsTable({
               <TableRow className="hover:bg-transparent">
                 <TableHead>Wallet Name</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[160px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {wallets.map((wallet) => (
-                <TableRow key={wallet.id}>
-                  <TableCell className="font-medium">{wallet.name}</TableCell>
-                  <TableCell>{TYPE_LABELS[wallet.type]}</TableCell>
-                  <TableCell>{displayValue(wallet.customerName)}</TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      isActive={wallet.isActive}
-                      isArchived={wallet.isArchived}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {wallet.isArchived ? (
-                      <Typography variant="muted">—</Typography>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <EditWalletDialog
-                          walletId={wallet.id}
-                          customerOptions={customerOptions}
-                          onSuccess={onWalletChanged}
-                        />
-                        <ArchiveWalletButton
-                          walletId={wallet.id}
-                          walletName={wallet.name}
-                          onSuccess={onWalletChanged}
-                        />
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {wallets.map((wallet) => {
+                const detailHref = wallet.customerId
+                  ? `/customers/${wallet.customerId}`
+                  : null;
+
+                const cells = (
+                  <>
+                    <TableCell className="font-medium">{wallet.name}</TableCell>
+                    <TableCell>{TYPE_LABELS[wallet.type]}</TableCell>
+                    <TableCell className="text-muted-foreground max-w-[18rem]">
+                      {displayValue(wallet.description)}
+                    </TableCell>
+                    <TableCell>
+                      {displayValue(wallet.customerName)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        isActive={wallet.isActive}
+                        isArchived={wallet.isArchived}
+                      />
+                    </TableCell>
+                    <TableCell data-row-click-ignore>
+                      <WalletActionsCell
+                        wallet={wallet}
+                        customerOptions={customerOptions}
+                        onWalletChanged={onWalletChanged}
+                      />
+                    </TableCell>
+                  </>
+                );
+
+                // No wallet detail route — CUSTOMER wallets reuse customer profile.
+                if (detailHref) {
+                  return (
+                    <ClickableTableRow key={wallet.id} href={detailHref}>
+                      {cells}
+                    </ClickableTableRow>
+                  );
+                }
+
+                return <TableRow key={wallet.id}>{cells}</TableRow>;
+              })}
             </TableBody>
           </Table>
         )}

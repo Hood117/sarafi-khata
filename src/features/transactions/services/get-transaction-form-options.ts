@@ -1,5 +1,6 @@
 import "server-only";
 
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { listCustomers } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import type { TransactionFormOptions } from "@/features/transactions/domain/types";
@@ -15,7 +16,7 @@ export async function getTransactionFormOptions(): Promise<TransactionFormOption
   return {
     customers: customers.map((customer) => ({
       id: customer.id,
-      label: customer.fullName,
+      label: formatCustomerLabel(customer.fullName, customer.code),
     })),
     wallets: wallets.map((wallet) => ({
       id: wallet.id,

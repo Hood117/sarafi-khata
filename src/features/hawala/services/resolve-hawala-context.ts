@@ -18,7 +18,7 @@ import {
 import type { HawalaPartySchemaOutput } from "@/features/hawala/schemas/hawala";
 import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { findWalletById } from "@/features/wallets/repositories/wallet-repository";
-import type { Currency, Wallet } from "@/generated/prisma/client";
+import type { Currency, Customer, Wallet } from "@/generated/prisma/client";
 
 export type ResolvedHawalaContext = {
   data: HawalaPartySchemaOutput;
@@ -28,9 +28,41 @@ export type ResolvedHawalaContext = {
   amountMajor: string;
   cashWallet: Wallet;
   clearingWallet: Wallet;
+  senderName: string;
+  senderPhone: string | null;
+  receiverName: string;
+  receiverPhone: string | null;
+  senderCustomerId: string | null;
+  receiverCustomerId: string | null;
+  /** Primary local customer for the posted Transaction. */
   customerId: string | null;
   valueDate: Date;
 };
+
+async function resolvePartyCustomer(
+  customerId: string | null,
+  field: "senderCustomerId" | "receiverCustomerId",
+): Promise<Customer | null> {
+  if (!customerId) {
+    return null;
+  }
+
+  const customer = await findCustomerById(customerId);
+  if (!customer) {
+    throw new HawalaError("NOT_FOUND", "Customer was not found.", {
+      [field]: "Customer was not found.",
+    });
+  }
+  if (!customer.isActive || customer.deletedAt) {
+    throw new HawalaError(
+      "INACTIVE",
+      "Customer is inactive and cannot be used.",
+      { [field]: "Customer is inactive." },
+    );
+  }
+
+  return customer;
+}
 
 export async function resolveHawalaContext(
   data: HawalaPartySchemaOutput,
@@ -100,15 +132,56 @@ export async function resolveHawalaContext(
     throw error;
   }
 
-  const customerId = data.customerId ?? null;
-  if (customerId) {
-    const customer = await findCustomerById(customerId);
-    if (!customer) {
+  const senderCustomerId = data.senderCustomerId ?? null;
+  const receiverCustomerId = data.receiverCustomerId ?? null;
+
+  const [senderCustomer, receiverCustomer] = await Promise.all([
+    resolvePartyCustomer(senderCustomerId, "senderCustomerId"),
+    resolvePartyCustomer(receiverCustomerId, "receiverCustomerId"),
+  ]);
+
+  const senderName = senderCustomer
+    ? senderCustomer.fullName.trim()
+    : data.senderName.trim();
+  const senderPhone = senderCustomer
+    ? (senderCustomer.phone?.trim() || null)
+    : (data.senderPhone ?? null);
+
+  const receiverName = receiverCustomer
+    ? receiverCustomer.fullName.trim()
+    : data.receiverName.trim();
+  const receiverPhone = receiverCustomer
+    ? (receiverCustomer.phone?.trim() || null)
+    : (data.receiverPhone ?? null);
+
+  if (!senderName) {
+    throw new HawalaError(
+      "VALIDATION",
+      "Select a local customer or enter the sender name.",
+      { senderName: "Select a local customer or enter the sender name." },
+    );
+  }
+
+  if (!receiverName) {
+    throw new HawalaError(
+      "VALIDATION",
+      "Select a local customer or enter the receiver name.",
+      { receiverName: "Select a local customer or enter the receiver name." },
+    );
+  }
+
+  // Primary customer for the posted Transaction: explicit override, else sender, else receiver.
+  const customerId =
+    data.customerId ?? senderCustomerId ?? receiverCustomerId ?? null;
+
+  if (customerId && customerId !== senderCustomerId && customerId !== receiverCustomerId) {
+    const primary = await findCustomerById(customerId);
+    if (!primary) {
       throw new HawalaError("NOT_FOUND", "Customer was not found.", {
         customerId: "Customer was not found.",
       });
     }
-    if (!customer.isActive) {
+    if (!primary.isActive || primary.deletedAt) {
       throw new HawalaError(
         "INACTIVE",
         "Customer is inactive and cannot be used.",
@@ -125,6 +198,12 @@ export async function resolveHawalaContext(
     amountMajor: moneyToMajorUnitString(money, currencyRecord.decimalPlaces),
     cashWallet,
     clearingWallet,
+    senderName,
+    senderPhone,
+    receiverName,
+    receiverPhone,
+    senderCustomerId,
+    receiverCustomerId,
     customerId,
     valueDate: data.valueDate ?? new Date(),
   };
