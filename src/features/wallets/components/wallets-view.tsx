@@ -30,7 +30,7 @@ export function WalletsView({ wallets, customerOptions }: WalletsViewProps) {
   }, [successMessage]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <WalletsPageHeader
         customerOptions={customerOptions}
         onSuccess={setSuccessMessage}

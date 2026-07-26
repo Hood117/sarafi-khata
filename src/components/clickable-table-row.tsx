@@ -73,7 +73,7 @@ export function ClickableTableRow({
       role="link"
       tabIndex={0}
       className={cn(
-        "hover:bg-muted/70 cursor-pointer transition-colors",
+        "hover:bg-primary/5 cursor-pointer transition-colors",
         className,
       )}
       onClick={handleClick}

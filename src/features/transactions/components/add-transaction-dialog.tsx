@@ -138,26 +138,28 @@ export function AddTransactionDialog({
         New Transaction
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(90dvh,44rem)] w-full flex-col gap-4 overflow-hidden sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle>New Transaction</DialogTitle>
           <DialogDescription>
             Post a deposit, withdrawal, or manual adjustment.
           </DialogDescription>
         </DialogHeader>
 
-        <TransactionForm
-          key={formKey}
-          initialValues={emptyTransactionFormValues}
-          customers={customers}
-          wallets={wallets}
-          currencies={currencies}
-          submitLabel="Post Transaction"
-          errorFallbackMessage="Unable to post transaction. Please try again."
-          onCancel={() => handleOpenChange(false)}
-          onSubmit={handleSubmit}
-          onSuccess={onSuccess}
-        />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          <TransactionForm
+            key={formKey}
+            initialValues={emptyTransactionFormValues}
+            customers={customers}
+            wallets={wallets}
+            currencies={currencies}
+            submitLabel="Post Transaction"
+            errorFallbackMessage="Unable to post transaction. Please try again."
+            onCancel={() => handleOpenChange(false)}
+            onSubmit={handleSubmit}
+            onSuccess={onSuccess}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

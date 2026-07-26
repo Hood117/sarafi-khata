@@ -16,7 +16,7 @@ export function WalletsTableSkeleton() {
         <div className="bg-muted h-8 w-28 animate-pulse rounded-lg" />
       </div>
 
-      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">

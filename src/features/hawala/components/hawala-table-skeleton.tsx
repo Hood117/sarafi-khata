@@ -14,13 +14,13 @@ export function HawalaTableSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Loading hawala">
       <div className="flex flex-wrap justify-end gap-2">
-        <div className="bg-muted h-8 w-28 animate-pulse rounded-lg" />
-        <div className="bg-muted h-8 w-32 animate-pulse rounded-lg" />
+        <div className="bg-muted h-9 w-28 animate-pulse rounded-lg" />
+        <div className="bg-muted h-9 w-32 animate-pulse rounded-lg" />
       </div>
 
-      <div className="bg-muted h-8 w-full max-w-md animate-pulse rounded-lg" />
+      <div className="bg-muted h-10 w-full max-w-md animate-pulse rounded-lg" />
 
-      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+      <div className="overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">

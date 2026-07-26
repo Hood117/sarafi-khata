@@ -36,7 +36,7 @@ export function AppShell({
           />
         </div>
 
-        <ScrollArea className="bg-card min-h-0 flex-1 rounded-[28px] shadow-sm print:overflow-visible print:rounded-none print:shadow-none">
+        <ScrollArea className="bg-card min-h-0 flex-1 rounded-[28px] shadow-md ring-1 ring-foreground/5 print:overflow-visible print:rounded-none print:shadow-none print:ring-0">
           <div className="p-6 md:p-8 print:p-0">{children}</div>
         </ScrollArea>
       </div>

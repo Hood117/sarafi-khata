@@ -4,6 +4,10 @@ import type { WalletType } from "@/generated/prisma/client";
 
 import { ClickableTableRow } from "@/components/clickable-table-row";
 import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
+import {
   Table,
   TableBody,
   TableCell,
@@ -19,7 +23,6 @@ import type {
   WalletCustomerOption,
   WalletListItem,
 } from "@/features/wallets/domain/types";
-import { cn } from "@/lib/utils";
 
 type WalletsTableProps = {
   wallets: WalletListItem[];
@@ -39,33 +42,18 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  isActive,
-  isArchived,
-}: {
-  isActive: boolean;
-  isArchived: boolean;
-}) {
-  if (isArchived) {
-    return (
-      <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium">
-        Archived
-      </span>
-    );
+function walletStatusTone(wallet: WalletListItem) {
+  if (wallet.isArchived) {
+    return toneForRecordStatus("ARCHIVED");
   }
+  return toneForRecordStatus(wallet.isActive ? "ACTIVE" : "INACTIVE");
+}
 
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        isActive
-          ? "bg-success/15 text-success"
-          : "bg-muted text-muted-foreground",
-      )}
-    >
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
+function walletStatusLabel(wallet: WalletListItem) {
+  if (wallet.isArchived) {
+    return "Archived";
+  }
+  return wallet.isActive ? "Active" : "Inactive";
 }
 
 function WalletActionsCell({
@@ -106,7 +94,7 @@ export function WalletsTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+      <div className="bg-card overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         {total === 0 ? (
           <WalletsEmptyState />
         ) : (
@@ -129,9 +117,9 @@ export function WalletsTable({
 
                 const cells = (
                   <>
-                    <TableCell className="font-medium">{wallet.name}</TableCell>
+                    <TableCell className="font-semibold">{wallet.name}</TableCell>
                     <TableCell>{TYPE_LABELS[wallet.type]}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-[18rem]">
+                    <TableCell className="text-muted-foreground max-w-[18rem] whitespace-normal">
                       {displayValue(wallet.description)}
                     </TableCell>
                     <TableCell>
@@ -139,8 +127,8 @@ export function WalletsTable({
                     </TableCell>
                     <TableCell>
                       <StatusBadge
-                        isActive={wallet.isActive}
-                        isArchived={wallet.isArchived}
+                        label={walletStatusLabel(wallet)}
+                        tone={walletStatusTone(wallet)}
                       />
                     </TableCell>
                     <TableCell data-row-click-ignore>
@@ -153,7 +141,6 @@ export function WalletsTable({
                   </>
                 );
 
-                // No wallet detail route — CUSTOMER wallets reuse customer profile.
                 if (detailHref) {
                   return (
                     <ClickableTableRow key={wallet.id} href={detailHref}>

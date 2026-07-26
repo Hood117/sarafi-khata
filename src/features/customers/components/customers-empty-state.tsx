@@ -21,16 +21,18 @@ export function CustomersEmptyState({
     ? "Try a different name, phone, or customer code."
     : viewingArchived
       ? "Archived customers will appear here."
-      : "Customer records will appear here once they are added.";
+      : "Add a customer to start managing wallets, deposits, and hawala transfers.";
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-        <Users className="size-5" aria-hidden />
+    <div className="flex flex-col items-center justify-center gap-4 px-6 py-16 text-center sm:py-20">
+      <div className="bg-primary/10 text-primary flex size-14 items-center justify-center rounded-full">
+        <Users className="size-6" aria-hidden />
       </div>
-      <div className="space-y-1">
-        <Typography variant="h4">{title}</Typography>
-        <Typography variant="muted" className="max-w-sm">
+      <div className="space-y-1.5">
+        <Typography variant="h4" className="font-bold">
+          {title}
+        </Typography>
+        <Typography variant="muted" className="max-w-md">
           {description}
         </Typography>
       </div>

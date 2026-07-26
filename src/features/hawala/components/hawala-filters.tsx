@@ -1,12 +1,11 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchInput } from "@/components/ui/search-input";
 
 type HawalaFiltersProps = {
   search: string;
@@ -39,21 +38,19 @@ export function HawalaFilters({ search }: HawalaFiltersProps) {
       className="flex flex-col gap-3 sm:flex-row sm:items-end"
     >
       <div className="min-w-0 flex-1 space-y-1.5">
-        <Label htmlFor="hawala-search">Search</Label>
-        <div className="relative">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            id="hawala-search"
-            name="q"
-            value={query}
-            placeholder="Reference, sender, receiver, partner, city…"
-            className="pl-8"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+        <Label htmlFor="hawala-search" className="font-semibold">
+          Search
+        </Label>
+        <SearchInput
+          id="hawala-search"
+          name="q"
+          value={query}
+          placeholder="Search by reference, sender, receiver, partner, city…"
+          onChange={(event) => setQuery(event.target.value)}
+        />
       </div>
 
-      <Button type="submit" variant="outline">
+      <Button type="submit" variant="outline" className="h-10">
         Search
       </Button>
     </form>

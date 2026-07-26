@@ -2,6 +2,10 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
 import { Typography } from "@/design-system/typography";
 import { ArchiveCustomerButton } from "@/features/customers/components/archive-customer-button";
 import { CustomerHistorySection } from "@/features/customers/components/customer-history-section";
@@ -10,7 +14,6 @@ import { EditCustomerDialog } from "@/features/customers/components/edit-custome
 import type { CustomerProfile } from "@/features/customers/domain/types";
 import type { CustomerHistoryResult } from "@/features/transactions";
 import type { CustomerWalletBalanceRow } from "@/features/wallets";
-import { cn } from "@/lib/utils";
 
 type CustomerProfileViewProps = {
   customer: CustomerProfile;
@@ -33,40 +36,11 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  isActive,
-  isArchived,
-}: {
-  isActive: boolean;
-  isArchived: boolean;
-}) {
-  if (isArchived) {
-    return (
-      <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium">
-        Archived
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        isActive
-          ? "bg-success/15 text-success"
-          : "bg-muted text-muted-foreground",
-      )}
-    >
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[10rem_1fr] sm:gap-4">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="text-sm whitespace-pre-wrap">{value}</dd>
+      <dt className="text-muted-foreground text-sm font-medium">{label}</dt>
+      <dd className="text-sm font-medium whitespace-pre-wrap">{value}</dd>
     </div>
   );
 }
@@ -104,8 +78,20 @@ export function CustomerProfileView({
                 {customer.fullName}
               </Typography>
               <StatusBadge
-                isActive={customer.isActive}
-                isArchived={customer.isArchived}
+                label={
+                  customer.isArchived
+                    ? "Archived"
+                    : customer.isActive
+                      ? "Active"
+                      : "Inactive"
+                }
+                tone={toneForRecordStatus(
+                  customer.isArchived
+                    ? "ARCHIVED"
+                    : customer.isActive
+                      ? "ACTIVE"
+                      : "INACTIVE",
+                )}
               />
             </div>
             <Typography variant="muted">
@@ -130,8 +116,10 @@ export function CustomerProfileView({
         )}
       </div>
 
-      <section className="ring-foreground/10 space-y-5 rounded-xl p-6 ring-1">
-        <Typography variant="h4">Customer information</Typography>
+      <section className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+        <Typography variant="h4" className="font-bold">
+          Customer information
+        </Typography>
 
         <dl className="space-y-4">
           <InfoRow label="Customer code" value={displayValue(customer.code)} />

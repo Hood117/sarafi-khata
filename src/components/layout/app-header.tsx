@@ -36,24 +36,26 @@ export function AppHeader({
 
   return (
     <header className="flex items-start justify-between gap-6 px-2 pt-1">
-      <div className="min-w-0 space-y-1">
-        <h1 className="text-foreground text-3xl font-semibold tracking-tight">
+      <div className="min-w-0 space-y-1.5">
+        <h1 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
           {resolvedTitle}
         </h1>
         {description ? (
-          <p className="text-muted-foreground text-sm">{description}</p>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {description}
+          </p>
         ) : null}
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
         {actions}
-        <div className="relative w-64">
+        <div className="relative hidden w-64 md:block">
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <Input
             type="search"
-            placeholder="Search"
+            placeholder="Search…"
             aria-label="Search"
-            className="bg-card border-border h-11 rounded-full pr-4 pl-10 shadow-sm"
+            className="bg-card border-border h-10 rounded-full pr-4 pl-9 shadow-sm"
             readOnly
           />
         </div>

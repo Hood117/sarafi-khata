@@ -3,6 +3,10 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
+import {
   Table,
   TableBody,
   TableCell,
@@ -50,32 +54,11 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  status,
-  label,
-}: {
-  status: HawalaDetailModel["status"];
-  label: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        status === "COMPLETED" && "bg-success/15 text-success",
-        status === "PENDING" && "bg-muted text-muted-foreground",
-        status === "CANCELLED" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[10rem_1fr] sm:gap-4">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="text-sm whitespace-pre-wrap">{value}</dd>
+      <dt className="text-muted-foreground text-sm font-medium">{label}</dt>
+      <dd className="text-sm font-medium whitespace-pre-wrap">{value}</dd>
     </div>
   );
 }
@@ -118,15 +101,20 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
               <Typography variant="h3" as="h2">
                 {hawala.reference}
               </Typography>
-              <StatusBadge status={hawala.status} label={hawala.statusLabel} />
+              <StatusBadge
+                label={hawala.statusLabel}
+                tone={toneForRecordStatus(hawala.status)}
+              />
             </div>
             <Typography variant="muted">{hawala.directionLabel} hawala</Typography>
           </div>
         </div>
       </div>
 
-      <section className="ring-foreground/10 space-y-5 rounded-xl p-4 ring-1 sm:p-6">
-        <Typography variant="h4">Hawala information</Typography>
+      <section className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+        <Typography variant="h4" className="font-bold">
+          Hawala information
+        </Typography>
 
         <dl className="space-y-4">
           <InfoRow
@@ -159,10 +147,10 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
       </section>
 
       <section
-        className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6"
+        className="bg-card ring-foreground/10 space-y-4 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
         aria-labelledby="hawala-timeline-heading"
       >
-        <Typography variant="h4" id="hawala-timeline-heading">
+        <Typography variant="h4" id="hawala-timeline-heading" className="font-bold">
           Timeline
         </Typography>
 
@@ -190,8 +178,8 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
                     </Typography>
                     {event.status && event.statusLabel ? (
                       <StatusBadge
-                        status={event.status}
                         label={event.statusLabel}
+                        tone={toneForRecordStatus(event.status)}
                       />
                     ) : null}
                   </div>
@@ -253,7 +241,7 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
             No ledger entries are linked to this hawala transfer.
           </Typography>
         ) : (
-          <div className="overflow-x-auto rounded-xl ring-1 ring-foreground/10">
+          <div className="overflow-x-auto rounded-xl shadow-sm ring-1 ring-foreground/10">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

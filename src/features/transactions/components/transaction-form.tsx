@@ -11,6 +11,13 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   TransactionCurrencyOption,
@@ -125,6 +132,19 @@ export function TransactionForm({
 
   const offsetWalletLabel = isAdjustment ? "Credit Wallet" : "Cash Wallet";
 
+  const walletPlaceholder = !isAdjustment && !form.customerId
+    ? "Select a customer first"
+    : walletOptions.length === 0
+      ? "No wallets available"
+      : "Select a wallet";
+
+  function customerWalletsFor(customerId: string): TransactionWalletOption[] {
+    return wallets.filter(
+      (wallet) =>
+        wallet.type === "CUSTOMER" && wallet.customerId === customerId,
+    );
+  }
+
   function updateField<K extends keyof TransactionFormValues>(
     key: K,
     value: TransactionFormValues[K],
@@ -139,11 +159,18 @@ export function TransactionForm({
           // customer optional for adjustments
         } else if (!next.customerId) {
           next.customerId = "";
+        } else {
+          const options = customerWalletsFor(next.customerId);
+          next.walletId = options.length === 1 ? options[0].id : "";
         }
       }
 
       if (key === "customerId" && next.type !== "ADJUSTMENT") {
-        next.walletId = "";
+        const options =
+          typeof value === "string" && value
+            ? customerWalletsFor(value)
+            : [];
+        next.walletId = options.length === 1 ? options[0].id : "";
       }
 
       if (key === "walletId" && next.offsetWalletId === value) {
@@ -208,6 +235,8 @@ export function TransactionForm({
   }
 
   const disabled = isBusy || isSubmitting;
+  const walletSelectEnabled =
+    !disabled && (isAdjustment || Boolean(form.customerId));
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
@@ -265,26 +294,35 @@ export function TransactionForm({
           <FieldLabel htmlFor="transaction-walletId">
             {isAdjustment ? "Debit Wallet" : "Wallet"}
           </FieldLabel>
-          <select
-            id="transaction-walletId"
-            name="walletId"
-            value={form.walletId}
-            disabled={disabled || (!isAdjustment && !form.customerId)}
-            aria-invalid={fieldErrors.walletId ? true : undefined}
-            className={selectClassName}
-            onChange={(event) => updateField("walletId", event.target.value)}
+          <Select
+            value={form.walletId || null}
+            onValueChange={(value) =>
+              updateField("walletId", typeof value === "string" ? value : "")
+            }
+            disabled={!walletSelectEnabled || walletOptions.length === 0}
           >
-            <option value="">
-              {!isAdjustment && !form.customerId
-                ? "Select a customer first"
-                : "Select a wallet"}
-            </option>
-            {walletOptions.map((wallet) => (
-              <option key={wallet.id} value={wallet.id}>
-                {wallet.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              id="transaction-walletId"
+              size="default"
+              className="w-full min-w-0"
+              aria-invalid={fieldErrors.walletId ? true : undefined}
+            >
+              <SelectValue placeholder={walletPlaceholder} />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
+              {walletOptions.map((wallet) => (
+                <SelectItem key={wallet.id} value={wallet.id}>
+                  {wallet.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!isAdjustment && form.customerId && walletOptions.length === 0 ? (
+            <FieldError>
+              This customer has no wallets. Create a Customer wallet on the
+              Wallets page, then try again.
+            </FieldError>
+          ) : null}
           {fieldErrors.walletId ? (
             <FieldError>{fieldErrors.walletId}</FieldError>
           ) : null}

@@ -1,6 +1,10 @@
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
 import { Typography } from "@/design-system/typography";
 import { CustomerHistoryEmptyState } from "@/features/customers/components/customer-history-empty-state";
 import { CustomerHistoryFiltersForm } from "@/features/customers/components/customer-history-filters";
@@ -59,27 +63,6 @@ function DirectionBadge({
   );
 }
 
-function StatusBadge({
-  status,
-  label,
-}: {
-  status: CustomerHistoryEvent["status"];
-  label: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        status === "POSTED" && "bg-success/15 text-success",
-        status === "DRAFT" && "bg-muted text-muted-foreground",
-        status === "VOIDED" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
 function HistoryEventItem({
   event,
   isLast,
@@ -130,7 +113,10 @@ function HistoryEventItem({
 
           <div className="flex flex-wrap items-center gap-2">
             <DirectionBadge direction={event.direction} />
-            <StatusBadge status={event.status} label={event.statusLabel} />
+            <StatusBadge
+              label={event.statusLabel}
+              tone={toneForRecordStatus(event.status)}
+            />
           </div>
         </div>
       </Link>

@@ -3,6 +3,10 @@ import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
+import {
   Table,
   TableBody,
   TableCell,
@@ -14,7 +18,6 @@ import { Typography } from "@/design-system/typography";
 import { PrintReceiptButton } from "@/features/transactions/components/print-receipt-button";
 import { TransactionReceipt } from "@/features/transactions/components/transaction-receipt";
 import type { TransactionDetail as TransactionDetailModel } from "@/features/transactions/domain/types";
-import { cn } from "@/lib/utils";
 
 type TransactionDetailViewProps = {
   transaction: TransactionDetailModel;
@@ -46,32 +49,11 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  status,
-  label,
-}: {
-  status: TransactionDetailModel["status"];
-  label: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        status === "POSTED" && "bg-success/15 text-success",
-        status === "DRAFT" && "bg-muted text-muted-foreground",
-        status === "VOIDED" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 sm:grid-cols-[10rem_1fr] sm:gap-4">
-      <dt className="text-muted-foreground text-sm">{label}</dt>
-      <dd className="text-sm whitespace-pre-wrap">{value}</dd>
+      <dt className="text-muted-foreground text-sm font-medium">{label}</dt>
+      <dd className="text-sm font-medium whitespace-pre-wrap">{value}</dd>
     </div>
   );
 }
@@ -101,8 +83,8 @@ export function TransactionDetailView({
                 {transaction.reference}
               </Typography>
               <StatusBadge
-                status={transaction.status}
                 label={transaction.statusLabel}
+                tone={toneForRecordStatus(transaction.status)}
               />
             </div>
             <Typography variant="muted">{transaction.typeLabel}</Typography>
@@ -112,8 +94,10 @@ export function TransactionDetailView({
         <PrintReceiptButton />
       </div>
 
-      <section className="print:hidden ring-foreground/10 space-y-5 rounded-xl p-6 ring-1">
-        <Typography variant="h4">Transaction Information</Typography>
+      <section className="bg-card print:hidden ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+        <Typography variant="h4" className="font-bold">
+          Transaction Information
+        </Typography>
 
         <dl className="space-y-4">
           <InfoRow label="Reference" value={transaction.reference} />

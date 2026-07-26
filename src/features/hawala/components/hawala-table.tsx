@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Button } from "@/components/ui/button";
+import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -11,11 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { HawalaEmptyState } from "@/features/hawala/components/hawala-empty-state";
 import type { HawalaListItem } from "@/features/hawala/domain/types";
-import { cn } from "@/lib/utils";
 
 type HawalaTableProps = {
   transfers: HawalaListItem[];
@@ -35,27 +38,6 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  status,
-  label,
-}: {
-  status: HawalaListItem["status"];
-  label: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        status === "COMPLETED" && "bg-success/15 text-success",
-        status === "PENDING" && "bg-muted text-muted-foreground",
-        status === "CANCELLED" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
 export function HawalaTable({
   transfers,
   hasSearch = false,
@@ -64,7 +46,7 @@ export function HawalaTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl ring-1 ring-foreground/10">
+      <div className="bg-card overflow-x-auto rounded-xl shadow-sm ring-1 ring-foreground/10">
         {total === 0 ? (
           <HawalaEmptyState hasSearch={hasSearch} />
         ) : (
@@ -91,7 +73,7 @@ export function HawalaTable({
 
                 return (
                   <ClickableTableRow key={transfer.id} href={detailHref}>
-                    <TableCell className="font-medium font-mono text-xs sm:text-sm">
+                    <TableCell className="font-mono text-sm font-semibold">
                       {transfer.reference}
                     </TableCell>
                     <TableCell>{transfer.senderName}</TableCell>
@@ -100,13 +82,13 @@ export function HawalaTable({
                     <TableCell>{transfer.originDisplay}</TableCell>
                     <TableCell>{transfer.destinationDisplay}</TableCell>
                     <TableCell>{transfer.currencyCode}</TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="tabular-nums font-medium">
                       {transfer.amountDisplay}
                     </TableCell>
                     <TableCell>
                       <StatusBadge
-                        status={transfer.status}
                         label={transfer.statusLabel}
+                        tone={toneForRecordStatus(transfer.status)}
                       />
                     </TableCell>
                     <TableCell>{formatValueDate(transfer.valueDate)}</TableCell>

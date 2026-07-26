@@ -1,6 +1,11 @@
 "use client";
 
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Button } from "@/components/ui/button";
+import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -9,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { CustomersEmptyState } from "@/features/customers/components/customers-empty-state";
 import { EditCustomerDialog } from "@/features/customers/components/edit-customer-dialog";
@@ -17,7 +21,6 @@ import type {
   CustomerArchiveFilter,
   CustomerListItem,
 } from "@/features/customers/domain/types";
-import { cn } from "@/lib/utils";
 
 type CustomersTableProps = {
   customers: CustomerListItem[];
@@ -39,33 +42,18 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({
-  isActive,
-  isArchived,
-}: {
-  isActive: boolean;
-  isArchived: boolean;
-}) {
-  if (isArchived) {
-    return (
-      <span className="bg-muted text-muted-foreground inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium">
-        Archived
-      </span>
-    );
+function customerStatusTone(customer: CustomerListItem) {
+  if (customer.isArchived) {
+    return toneForRecordStatus("ARCHIVED");
   }
+  return toneForRecordStatus(customer.isActive ? "ACTIVE" : "INACTIVE");
+}
 
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        isActive
-          ? "bg-success/15 text-success"
-          : "bg-muted text-muted-foreground",
-      )}
-    >
-      {isActive ? "Active" : "Inactive"}
-    </span>
-  );
+function customerStatusLabel(customer: CustomerListItem) {
+  if (customer.isArchived) {
+    return "Archived";
+  }
+  return customer.isActive ? "Active" : "Inactive";
 }
 
 export function CustomersTable({
@@ -78,7 +66,7 @@ export function CustomersTable({
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+      <div className="bg-card overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         {total === 0 ? (
           <CustomersEmptyState
             hasFilters={hasFilters}
@@ -103,7 +91,7 @@ export function CustomersTable({
                   key={customer.id}
                   href={`/customers/${customer.id}`}
                 >
-                  <TableCell className="font-medium">
+                  <TableCell className="font-semibold">
                     {displayValue(customer.code)}
                   </TableCell>
                   <TableCell className="font-medium">
@@ -116,8 +104,8 @@ export function CustomersTable({
                   <TableCell>{formatCreatedDate(customer.createdAt)}</TableCell>
                   <TableCell>
                     <StatusBadge
-                      isActive={customer.isActive}
-                      isArchived={customer.isArchived}
+                      label={customerStatusLabel(customer)}
+                      tone={customerStatusTone(customer)}
                     />
                   </TableCell>
                   <TableCell data-row-click-ignore>

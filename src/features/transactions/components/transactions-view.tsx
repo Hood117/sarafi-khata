@@ -39,7 +39,7 @@ export function TransactionsView({
   }, [successMessage]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <TransactionsPageHeader
         customers={customers}
         wallets={wallets}

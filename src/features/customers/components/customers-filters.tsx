@@ -1,12 +1,11 @@
 "use client";
 
-import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchInput } from "@/components/ui/search-input";
 import type { CustomerArchiveFilter } from "@/features/customers/domain/types";
 
 type CustomersFiltersProps = {
@@ -59,27 +58,27 @@ export function CustomersFilters({
       className="flex flex-col gap-3 sm:flex-row sm:items-end"
     >
       <div className="min-w-0 flex-1 space-y-1.5">
-        <Label htmlFor="customer-search">Search</Label>
-        <div className="relative">
-          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-          <Input
-            id="customer-search"
-            name="q"
-            value={query}
-            placeholder="Name, phone, or customer code"
-            className="pl-8"
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+        <Label htmlFor="customer-search" className="font-semibold">
+          Search
+        </Label>
+        <SearchInput
+          id="customer-search"
+          name="q"
+          value={query}
+          placeholder="Search by name, phone, or customer code…"
+          onChange={(event) => setQuery(event.target.value)}
+        />
       </div>
 
       <div className="space-y-1.5 sm:w-48">
-        <Label htmlFor="customer-status">Status</Label>
+        <Label htmlFor="customer-status" className="font-semibold">
+          Status
+        </Label>
         <select
           id="customer-status"
           name="status"
           value={status}
-          className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-3"
+          className="border-input bg-background focus-visible:border-primary-light focus-visible:ring-primary-light/40 h-10 w-full rounded-lg border px-2.5 text-sm shadow-sm outline-none focus-visible:ring-3"
           onChange={(event) => {
             const nextStatus = event.target.value as CustomerArchiveFilter;
             setStatus(nextStatus);
@@ -91,7 +90,7 @@ export function CustomersFilters({
         </select>
       </div>
 
-      <Button type="submit" variant="outline">
+      <Button type="submit" variant="outline" className="h-10">
         Search
       </Button>
     </form>

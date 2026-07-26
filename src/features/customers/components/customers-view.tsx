@@ -37,7 +37,7 @@ export function CustomersView({
   }, [successMessage]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <CustomersPageHeader
         onSuccess={setSuccessMessage}
         successMessage={successMessage}

@@ -3,7 +3,12 @@
 import type { TransactionStatus } from "@/generated/prisma/client";
 import Link from "next/link";
 
+import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Button } from "@/components/ui/button";
+import {
+  StatusBadge,
+  toneForRecordStatus,
+} from "@/components/ui/status-badge";
 import {
   Table,
   TableBody,
@@ -12,7 +17,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ClickableTableRow } from "@/components/clickable-table-row";
 import { Typography } from "@/design-system/typography";
 import { TransactionsEmptyState } from "@/features/transactions/components/transactions-empty-state";
 import {
@@ -21,7 +25,6 @@ import {
 } from "@/features/transactions/domain/labels";
 import type { TransactionListItem } from "@/features/transactions/domain/types";
 import { hrefWithReturnTo } from "@/lib/navigation";
-import { cn } from "@/lib/utils";
 
 type TransactionsTableProps = {
   transactions: TransactionListItem[];
@@ -40,18 +43,12 @@ function displayValue(value: string | null | undefined): string {
   return trimmed ? trimmed : "—";
 }
 
-function StatusBadge({ status }: { status: TransactionStatus }) {
+function TransactionStatusBadge({ status }: { status: TransactionStatus }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-        status === "POSTED" && "bg-success/15 text-success",
-        status === "DRAFT" && "bg-muted text-muted-foreground",
-        status === "VOIDED" && "bg-destructive/10 text-destructive",
-      )}
-    >
-      {TRANSACTION_STATUS_LABELS[status]}
-    </span>
+    <StatusBadge
+      label={TRANSACTION_STATUS_LABELS[status]}
+      tone={toneForRecordStatus(status)}
+    />
   );
 }
 
@@ -60,7 +57,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+      <div className="bg-card overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         {total === 0 ? (
           <TransactionsEmptyState />
         ) : (
@@ -87,7 +84,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
 
                 return (
                   <ClickableTableRow key={transaction.id} href={detailHref}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-mono text-sm font-semibold">
                       {transaction.reference}
                     </TableCell>
                     <TableCell>
@@ -97,11 +94,11 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
                       {displayValue(transaction.customerName)}
                     </TableCell>
                     <TableCell>{transaction.currencyDisplay}</TableCell>
-                    <TableCell className="tabular-nums">
+                    <TableCell className="tabular-nums font-medium">
                       {transaction.amountDisplay}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={transaction.status} />
+                      <TransactionStatusBadge status={transaction.status} />
                     </TableCell>
                     <TableCell>
                       {displayValue(transaction.operatorName)}
