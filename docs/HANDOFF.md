@@ -2,7 +2,7 @@
 
 **Audience:** Next AI agent / developer continuing this codebase  
 **Product:** Offline Sarafi (money exchange) Management System for Windows  
-**Handoff date:** 2026-07-26 (Day 11 Currency / Rates / Settings reviewed; Currency Exchange not started)  
+**Handoff date:** 2026-07-26 (Currency Exchange complete; Customer Transfer not started)  
 **Do not treat this file as source of truth over code** — verify against the repo when unsure.
 
 **Related:** `docs/ROADMAP.md`, `docs/DECISIONS.md`
@@ -11,7 +11,7 @@
 
 ## 1. Current project status
 
-Greenfield offline-first desktop app. **Day 10 Hawala** and **UX polish** are on `main`. **Day 11** (currencies, exchange rates, Settings) is implemented in the working tree (**uncommitted** — see §17).
+Greenfield offline-first desktop app. **Day 10 Hawala**, **UX polish**, and **Day 11** (currencies / rates / Settings) are on `main`. **Currency Exchange** is implemented in the working tree (**uncommitted** — see §18).
 
 | Layer | Status |
 |---|---|
@@ -30,10 +30,11 @@ Greenfield offline-first desktop app. **Day 10 Hawala** and **UX polish** are on
 | **Hawala (Day 10)** | **Done** (**committed**) |
 | Clickable list-row navigation | **Done** (**committed**) |
 | Location catalog (country/city selects) | **Done** (**committed**) |
-| **Currencies (Day 11)** | **Done** (uncommitted — `/settings/currencies`) |
-| **Exchange rates (Day 11)** | **Done** (uncommitted — `/settings/exchange-rates`) |
-| **Settings / app prefs (Day 11)** | **Done** (uncommitted — `/settings`) |
-| Currency exchange / customer transfer UI | **Not started** |
+| **Currencies (Day 11)** | **Done** (**committed** — `/settings/currencies`) |
+| **Exchange rates (Day 11)** | **Done** (**committed** — `/settings/exchange-rates`) |
+| **Settings / app prefs (Day 11)** | **Done** (**committed** — `/settings`) |
+| **Currency Exchange** | **Done** (uncommitted — `/exchange`) |
+| Customer transfer UI | **Not started** |
 
 **Runtime model:** Tauri window → local Next.js server → Server Actions / server code → Prisma → SQLite file. No cloud APIs.
 
@@ -52,7 +53,7 @@ npm run dev            # web
 
 ---
 
-## 2. Completed features (through Day 11)
+## 2. Completed features (through Currency Exchange)
 
 ### Foundation
 - Next.js 16 App Router, TypeScript strict, Tailwind 4, ESLint + Prettier
@@ -64,7 +65,7 @@ npm run dev            # web
 
 ### UX shell
 - Desktop shell: dark sidebar, header, main content panel
-- Real UI: Dashboard (stub), **Customers**, **Wallets**, **Transactions**, **Hawala**, **Settings** (+ Currencies, Exchange Rates)
+- Real UI: Dashboard (stub), **Customers**, **Wallets**, **Transactions**, **Exchange**, **Hawala**, **Settings** (+ Currencies, Exchange Rates)
 - Placeholders: Reports, Audit Logs, Backup & Restore, Users
 - Login at `/login`
 - Shared **`ClickableTableRow`** for list → detail navigation
@@ -144,6 +145,15 @@ npm run dev            # web
 - Receipt preferences UI placeholder (not persisted yet)
 - Uses existing `system-setting-repository` + new services/actions
 
+### Currency Exchange
+- Desk UI module `src/features/exchange/` + movement service `exchangeFunds` in `features/transactions`
+- Money only via `createExchangeAction` → `exchangeFunds` → `postTransaction` (`type: EXCHANGE`)
+- Legs: CREDIT from / from-currency, DEBIT to / to-currency, plus **Exchange Difference** balancing legs (per currency)
+- Rate: latest active Settings rate by default (direct or inverted pair); optional manual override via `EXCHANGE_BUSINESS_RULES.allowManualRateOverride`
+- Historical accuracy: inactive `ExchangeRate` snapshot (`source` `transaction-snapshot…`) linked on every ledger line; description/memo also store the deal rate
+- UI: `/exchange` create form + history (`?q=`); `/exchange/[id]` detail (reuses `getTransactionDetail` for related txn + ledger)
+- Nav: primary **Exchange** item; detail header title “Exchange Details”
+
 ---
 
 ## 3. Current architecture
@@ -169,7 +179,7 @@ src/features/<name>/
   index.ts      # public barrel
 ```
 
-Active feature modules: `auth`, `customers`, `wallets`, `transactions`, `hawala`, `ledger` (domain + repos), `currencies`, `exchange-rates`, `settings`. Placeholders: `reports`, `audit`, `backup`, `users`, `dashboard`.
+Active feature modules: `auth`, `customers`, `wallets`, `transactions`, `exchange`, `hawala`, `ledger` (domain + repos), `currencies`, `exchange-rates`, `settings`. Placeholders: `reports`, `audit`, `backup`, `users`, `dashboard`.
 
 ### Current architecture rules (non-negotiable)
 1. **`postTransaction` is the ONLY component allowed to create financial postings.**
@@ -241,7 +251,7 @@ Active feature modules: `auth`, `customers`, `wallets`, `transactions`, `hawala`
 UI (dialog / form)
   → Server Action (auth/permission stub + Zod)
     → Domain movement service
-         depositFunds / withdrawFunds / adjustFunds
+         depositFunds / withdrawFunds / adjustFunds / exchangeFunds
          OR sendHawala / receiveHawala / completeHawala
               → postHawalaMovement (builds balanced HAWALA legs only)
       → postTransaction          ← ONLY financial write entry point
@@ -257,16 +267,17 @@ UI (dialog / form)
 | Deposit | DEBIT customer wallet, CREDIT cash (vault/till) |
 | Withdrawal | CREDIT customer wallet, DEBIT cash |
 | Adjustment | explicit DEBIT wallet + CREDIT wallet |
+| Exchange | CREDIT fromWallet/fromCcy, DEBIT toWallet/toCcy; Exchange Difference balances each currency |
 | Hawala SEND | DEBIT cash, CREDIT Hawala Clearing |
 | Hawala RECEIVE | DEBIT Hawala Clearing, CREDIT cash |
 
-### Integrity (verified after Day 10 + UX polish session)
+### Integrity (verified through Currency Exchange)
 - Only `postTransaction` calls `tx.ledgerEntry.createMany`.
-- Hawala does **not** bypass the ledger; feature code has no `ledgerEntry.create*`.
-- Deposit/withdraw/adjust/hawala only build balanced input — no duplicate posting engines.
+- Hawala / Exchange do **not** bypass the ledger; feature code has no `ledgerEntry.create*`.
+- Deposit/withdraw/adjust/hawala/exchange only build balanced input — no duplicate posting engines.
 - Low-level `createLedgerEntry` / `createTransaction` helpers exist in repos but are **unused** by feature services and **not exported** from public barrels as write APIs.
 - Cancel hawala is status-only; it does not reverse ledger rows (void/reversal is later).
-- **UX polish session:** `post-transaction.ts` and `src/features/ledger/**` were **not** in the dirty tree.
+- Exchange links inactive rate snapshots via `exchangeRateId` (posting allows soft-deleted rate ids for history).
 
 ### Read paths (not writers)
 - Wallet balances → `createBalanceCalculator` over ledger lines
@@ -356,6 +367,8 @@ saraf/
 | Currencies | `src/features/currencies/` · `/settings/currencies` |
 | Exchange rates | `src/features/exchange-rates/` · `/settings/exchange-rates` |
 | Settings | `src/features/settings/` · `/settings` |
+| Currency Exchange UI | `src/features/exchange/` · `/exchange`, `/exchange/[id]` |
+| Exchange movement | `src/features/transactions/services/exchange.ts` · `createExchangeAction` |
 | Schema / seed | `prisma/schema.prisma`, `prisma/seed.ts` |
 | Hawala migrations | `…/20260726090000_add_hawala_transfers/`, `…/20260726095000_hawala_party_customers/` |
 | Docs | `docs/HANDOFF.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md` |
@@ -364,7 +377,7 @@ saraf/
 
 ## 9. Known issues
 
-1. **Uncommitted Day 11** — currencies, exchange rates, Settings; do not commit `prisma/dev.db*` WAL/SHM.
+1. **Uncommitted Currency Exchange** — see §18; do not commit `prisma/dev.db*` WAL/SHM.
 2. **Tauri production build** — static export conflicts with Prisma/Server Actions; sidecar architecture not implemented.
 3. **Rust may be missing** — `dev:desktop` / `build:desktop` need rustup.
 4. **`argon2` still in package.json** while auth/seed use **bcrypt**.
@@ -373,10 +386,11 @@ saraf/
 7. **Placeholder pages** — reports, users, audit, backup, dashboard (Settings is live).
 8. **SQLite `@db.Decimal(p,s)` unsupported** — enforce scale in services (posting does).
 9. **Hawala cancel UI** not wired (Server Action exists).
-10. **Seed Hawala Clearing** — run `npm run db:seed` on existing DBs after pull.
+10. **Seed Hawala Clearing / Exchange Difference** — run `npm run db:seed` on existing DBs after pull.
 11. **Receipt** is browser `window.print` only — no Tauri printer SDK.
 12. **Create-then-post hawala** can leave `PENDING` if post fails (recover via complete/cancel).
 13. **Older customers** created before auto-codes may still have `code = null`.
+14. **Exchange rate snapshots** (`transaction-snapshot*`) appear as inactive rows if Settings list includes inactive — optional filter later.
 
 ---
 
@@ -384,13 +398,13 @@ saraf/
 
 | Item | Notes |
 |---|---|
-| Uncommitted Day 11 | Commit currencies / rates / Settings + docs before Currency Exchange |
+| Uncommitted Currency Exchange | Commit exchange module + docs; exclude `prisma/dev.db*` |
 | Low-level ledger/transaction create helpers | Unused; risk if called outside posting — keep unused or eventually remove/gate |
 | Permission enforcement | Catalog exists; not enforced |
-| Dual currency repositories | `features/currencies` owns CRUD; `features/ledger` currency repo still used by txn/hawala reads — consolidate later if desired |
+| Dual currency repositories | `features/currencies` owns CRUD; `features/ledger` currency repo still used by txn/hawala/exchange reads — consolidate later if desired |
 | Exchange rate active via `deletedAt` | No `isActive` column; fine for Day 11; optional dedicated flag later |
 | No void/reversal | Completed hawala/transactions cannot be financially undone yet |
-| No integration tests | Auth, posting balance, hawala |
+| No integration tests | Auth, posting balance, hawala, exchange |
 | No CI smoke | lint + typecheck + migrate + seed |
 | Customer status `<select>` | Native token-styled, not shadcn Select |
 | i18n / RTL | Not started (Dari/Pashto later) |
@@ -402,12 +416,11 @@ saraf/
 
 See `docs/ROADMAP.md`. Immediate order:
 
-1. **Commit** Day 11 (currencies + exchange rates + Settings + docs). Exclude `prisma/dev.db*`.
-2. **Currency exchange flow** — must reuse `postTransaction`; use Exchange Difference wallet for FX P/L.
-3. **Customer transfer** — must reuse `postTransaction`.
-4. Later: reports, audit, backup, permission enforcement, users admin, Tauri packaging, void/reversal, i18n/RTL.
+1. **Commit** Currency Exchange + docs. Exclude `prisma/dev.db*`.
+2. **Customer transfer** — must reuse `postTransaction` (`type: TRANSFER`).
+3. Later: reports, audit, backup, permission enforcement, users admin, Tauri packaging, void/reversal, i18n/RTL.
 
-**Do not** begin Currency Exchange until Day 11 is committed and rates can be entered.  
+**Do not** begin Customer Transfer until Currency Exchange is committed.  
 **Do not** bypass `postTransaction` for any money movement.
 
 ---
@@ -416,19 +429,26 @@ See `docs/ROADMAP.md`. Immediate order:
 
 ```text
 Branch: main
-HEAD:   8737a20 feat(ui): complete UI polish - bold tables, status badges, search icons
+HEAD:   6b8fcb4 feat(settings): add currencies, exchange rates, and app preferences
 
-Committed (includes Day 10 + UX polish):
+Committed (includes Day 10 + UX polish + Day 11):
+  - feat(settings): currencies, exchange rates, app preferences
   - feat(ui): complete UI polish …
   - Day 10 / hawala stack
   - auth + financial DB foundation
 
-Uncommitted (Day 11 — see §17):
-  src/features/currencies/**
-  src/features/exchange-rates/**
-  src/features/settings/** (services, actions, schemas, domain, UI; repo pre-existed)
-  src/app/(app)/settings/** (page, loading, currencies/, exchange-rates/)
-  src/components/layout/nav-config.ts
+Uncommitted (Currency Exchange — see §18):
+  src/features/exchange/**
+  src/app/(app)/exchange/**
+  src/features/transactions/services/exchange.ts
+  src/features/transactions/services/resolve-deal-exchange-rate.ts
+  src/features/transactions/services/resolve-exchange-difference-wallet.ts
+  src/features/transactions/domain/exchange-rate-math.ts
+  src/features/transactions/actions/transaction-actions.ts (+ related schemas/types/index)
+  src/features/transactions/services/post-transaction.ts (allow linking soft-deleted rate snapshots)
+  src/components/layout/nav-config.ts, app-header.tsx
+  src/lib/navigation.ts
+  src/features/wallets/domain/wallet-descriptions.ts (+ barrel)
   docs/HANDOFF.md, docs/ROADMAP.md, docs/DECISIONS.md
 
 Do not commit:
@@ -440,12 +460,13 @@ Do not commit:
 
 ## 13. Last completed task
 
-**Day 11 review (2026-07-26):**
-- Currency CRUD + UI, exchange-rate CRUD + UI, Settings prefs verified in code
-- Integrity: `postTransaction`, `src/features/ledger/**`, wallet balance read path **unchanged**
+**Currency Exchange (2026-07-26):**
+- Service `exchangeFunds` → `postTransaction`; Server Action `createExchangeAction`
+- UI: `/exchange` form + history; `/exchange/[id]` detail
+- Rates from Settings; inactive deal-rate snapshots on ledger lines
 - `npm run lint` — pass
 - `npm run typecheck` — pass
-- Docs updated; **Currency Exchange not started**
+- Docs updated; **Customer Transfer not started**
 
 ---
 
@@ -556,27 +577,57 @@ Code review + quality gates. Manual browser click-through not required for this 
 | `post-transaction.ts` | **Unchanged** vs HEAD |
 | `src/features/ledger/**` | **Unchanged** vs HEAD |
 | Wallet balance logic (`get-customer-wallets`) | **Unchanged** vs HEAD |
-| Currency exchange transaction UI | **Not started** (correct) |
+| Currency exchange transaction UI | **Started after Day 11 commit** — see §18 |
 
 ### Existing modules
 - Customers, wallets, transactions, hawala, auth: no Day 11 edits to posting or ledger write paths
 - Txn/hawala still read currencies via ledger currency repository (parallel to currencies feature CRUD)
 
+### Exact next step (historical)
+Day 11 committed as `6b8fcb4`; Currency Exchange implemented next — see §18.
+
+---
+
+## 18. Currency Exchange review (2026-07-26)
+
+### Delivered
+| Area | Routes / module | Capabilities |
+|---|---|---|
+| Exchange service | `exchangeFunds` · `createExchangeAction` | Build EXCHANGE legs → `postTransaction` only |
+| Exchange desk | `/exchange` · `features/exchange` | Create form, history search, empty/loading, pagination-ready |
+| Exchange detail | `/exchange/[id]` | FX summary + related transaction + ledger (via `getTransactionDetail`) |
+
+### Verification
+| Check | Result |
+|---|---|
+| Currency Exchange works | **Pass** — form → action → `exchangeFunds` → `postTransaction` |
+| Exchange History works | **Pass** — `getExchangeHistory` + table/`?q=` |
+| Exchange Detail works | **Pass** — reuses transaction detail ledger; links to `/transactions/[id]` |
+| Current rates from Settings | **Pass** — `findLatestExchangeRate` / form options from active catalog |
+| Historical rates unchanged | **Pass** — inactive `transaction-snapshot` rows linked on ledger lines |
+| Posting Service reused | **Pass** — no feature-level `LedgerEntry` creates |
+| `npm run typecheck` | **Pass** |
+| `npm run lint` | **Pass** |
+| Design system | **Pass** — Field/FormSection/Table/ClickableTableRow/StatusBadge patterns |
+
+### Posting change (intentional, minimal)
+- `post-transaction.ts` allows linking soft-deleted `ExchangeRate` ids so deal snapshots remain attachable without becoming live market rates.
+
 ### Exact next step
-1. **Commit** Day 11 (exclude `prisma/dev.db*`).  
-2. **Then** Currency Exchange UI — must reuse `postTransaction`.  
+1. **Commit** Currency Exchange + docs (exclude `prisma/dev.db*`).  
+2. **Then** Customer Transfer — must reuse `postTransaction`.  
    Do **not** invent a second posting path.
 
 ---
 
 ## Quick pointers for the next agent
 
-1. **Commit** Day 11 first (exclude DB WAL/SHM).  
+1. **Commit** Currency Exchange first (exclude DB WAL/SHM).  
 2. Never invent cloud auth or bypass **`postTransaction`**.  
-3. After commit: **Currency exchange**, then **customer transfer**.  
+3. After commit: **Customer transfer** (`TRANSFER`).  
 4. Prefer extending `features/*` over new top-level packages.  
 5. Do not modify posting/ledger unless a bug requires it.  
-6. Read `docs/DECISIONS.md` (ADR-014, ADR-019–022) before financial work.
+6. Read `docs/DECISIONS.md` (ADR-014, ADR-019–023) before financial work.
 
 ---
 

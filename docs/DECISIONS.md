@@ -1,6 +1,6 @@
 # Saraf — Architecture / Product Decisions
 
-**Last updated:** 2026-07-26 (end of Day 11 — Currency / rates / Settings)  
+**Last updated:** 2026-07-26 (Currency Exchange complete)  
 **Related:** `docs/HANDOFF.md`, `docs/ROADMAP.md`
 
 Record of intentional decisions. Prefer appending new entries over rewriting history; mark superseded decisions clearly.
@@ -31,8 +31,9 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-018 | Transaction detail back navigation via safe `returnTo` |
 | ADR-019 | Hawala is a business document that posts through posting |
 | ADR-020 | Currencies are Settings master data (not ledger writes) |
-| ADR-021 | Exchange rates are master data; quote-per-base convention |
+| ADR-021 | Exchange rates are Settings master data; quote-per-base convention |
 | ADR-022 | App Settings use SystemSetting keys |
+| ADR-023 | Currency Exchange posts through posting; snapshots deal rate |
 
 ---
 
@@ -179,11 +180,12 @@ See ADR-004, ADR-014, ADR-015, ADR-019–022.
   - One interactive `prisma.$transaction()` creates the `Transaction` (`POSTED`) and all `LedgerEntry` rows.
   - Append-only ledger; no wallet balance column updates.
 - **Movement services** that only build balanced `PostTransactionInput` and call posting:
-  - `depositFunds`, `withdrawFunds`, `adjustFunds`
+  - `depositFunds`, `withdrawFunds`, `adjustFunds`, `exchangeFunds`
   - `postHawalaMovement` (used by send/receive/complete hawala)
 - **Public API:** `@/features/transactions` and `@/features/ledger` barrels do **not** export low-level `createTransaction` / `createLedgerEntry*` writers.
-- **Why:** Prevent bypasses and keep a single integrity gate for every future exchange, transfer, and hawala flow.
+- **Why:** Prevent bypasses and keep a single integrity gate for every future transfer and related flow.
 - **Consequence:** New financial features must reuse `postTransaction`; never open parallel write paths.
+- **Posting note (Exchange):** `postTransaction` may link `LedgerEntry.exchangeRateId` to soft-deleted `ExchangeRate` rows so historical deal snapshots remain attachable without becoming live Settings market rates.
 
 ---
 
@@ -259,16 +261,16 @@ See ADR-004, ADR-014, ADR-015, ADR-019–022.
 
 ---
 
-## ADR-021 — Exchange rates are master data; quote-per-base convention
+## ADR-021 — Exchange rates are Settings master data; quote-per-base convention
 
 - **Decision:** Exchange rates live in `src/features/exchange-rates/` with UI at `/settings/exchange-rates`. Rate means **quote units per 1 base unit** (example: base USD, quote AFN, rate `70` → `1 USD = 70 AFN`).
 - **Rules:**
   - Base and quote must differ; both currencies must exist.
   - Rate must be positive; enforce decimal scale in services (max 8).
   - Active status maps to `ExchangeRate.deletedAt` (null = active) — no new column in Day 11.
-  - Create/update/activate only; **no** exchange transaction calculation or posting in this slice.
-- **Why:** Enter usable rates before building Currency Exchange; keep ADR-014 intact.
-- **Consequence:** Future exchange flow must look up rates and still post only through `postTransaction` (optional `LedgerEntry.exchangeRateId` already supported by posting).
+  - Settings CRUD does not post ledger entries.
+- **Why:** Shop-managed market rates for Currency Exchange; keep ADR-014 intact.
+- **Consequence:** Currency Exchange looks up active rates (`findLatestExchangeRate`) and still posts only through `postTransaction`. Editing a Settings rate later must not rewrite past deals (see ADR-023 snapshots).
 
 ---
 
@@ -282,6 +284,23 @@ See ADR-004, ADR-014, ADR-015, ADR-019–022.
 - **UI:** `/settings` form + catalog links to Currencies and Exchange Rates. Receipt preference toggles are **placeholders** (not persisted yet).
 - **Why:** Reuse seeded settings model; avoid new tables for simple prefs.
 - **Consequence:** Changing base currency does not rewrite ledger history; it only affects defaults such as empty-balance display. Permission gate uses `settings.manage` stub.
+
+---
+
+## ADR-023 — Currency Exchange posts through posting; snapshots deal rate
+
+- **Decision:** Currency Exchange is a desk workflow in `src/features/exchange/` (UI) + `exchangeFunds` in `src/features/transactions/services/exchange.ts`. Money moves only via `createExchangeAction` → `exchangeFunds` → `postTransaction` with `type: EXCHANGE`.
+- **Inputs:** customer, from/to wallets, from/to currencies, amount (from currency), optional notes; rate from active Settings catalog by default; optional manual override when `EXCHANGE_BUSINESS_RULES.allowManualRateOverride` is true.
+- **Deal rate convention:** to-currency units per 1 from-currency unit (may invert a Settings base/quote pair).
+- **Ledger legs (asset convention, balanced per currency):**
+  - CREDIT fromWallet / fromCurrency (original amount)
+  - DEBIT toWallet / toCurrency (converted amount)
+  - DEBIT Exchange Difference / fromCurrency
+  - CREDIT Exchange Difference / toCurrency
+- **Historical rate:** before posting, create an inactive (`deletedAt` set) `ExchangeRate` snapshot (`source` prefix `transaction-snapshot`) with the exact deal rate; link `exchangeRateId` on every ledger line. Also store rate text in transaction description / memos. Snapshots are never selected by `findLatestExchangeRate`.
+- **UI:** `/exchange` form + history (`?q=`); `/exchange/[id]` detail reuses `getTransactionDetail` for related transaction + ledger lines (no second financial aggregation).
+- **Why:** Core sarafi UX while preserving ADR-014 and immutable deal rates after Settings rates change.
+- **Consequence:** Never write `LedgerEntry` from exchange UI/actions; never treat Exchange Difference as a from/to wallet; customer transfer remains a separate later flow (`TRANSFER`).
 
 ---
 

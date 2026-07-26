@@ -3,10 +3,13 @@
  * Does not persist to the database or change wallet behavior.
  */
 
+/** Seeded SYSTEM wallet used for FX balancing / P/L legs. */
+export const EXCHANGE_DIFFERENCE_WALLET_NAME = "Exchange Difference";
+
 export const SYSTEM_WALLET_DESCRIPTIONS = {
   "Main Vault": "Primary cash storage.",
   "Cash Till": "Daily operating cash.",
-  "Exchange Difference": "Currency exchange profit/loss tracking.",
+  [EXCHANGE_DIFFERENCE_WALLET_NAME]: "Currency exchange profit/loss tracking.",
   "Hawala Clearing": "Settlement wallet for Hawala operations.",
 } as const;
 

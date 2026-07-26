@@ -18,6 +18,7 @@ export {
 export { WalletError, isWalletError } from "@/features/wallets/domain/errors";
 export type { WalletErrorCode, WalletField } from "@/features/wallets/domain/errors";
 export {
+  EXCHANGE_DIFFERENCE_WALLET_NAME,
   getWalletDescription,
   SYSTEM_WALLET_DESCRIPTIONS,
 } from "@/features/wallets/domain/wallet-descriptions";

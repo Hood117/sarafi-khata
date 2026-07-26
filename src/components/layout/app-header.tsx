@@ -32,7 +32,9 @@ export function AppHeader({
         ? "Transaction Details"
         : pathname.startsWith("/hawala/")
           ? "Hawala Details"
-          : "Saraf");
+          : pathname.startsWith("/exchange/")
+            ? "Exchange Details"
+            : "Saraf");
 
   return (
     <header className="flex items-start justify-between gap-6 px-2 pt-1">

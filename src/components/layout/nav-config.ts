@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BarChart3,
+  Coins,
   HardDrive,
   LayoutGrid,
   Send,
@@ -23,6 +24,7 @@ export const primaryNav: AppNavItem[] = [
   { href: "/customers", label: "Customers", icon: Users },
   { href: "/wallets", label: "Wallets", icon: Wallet },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { href: "/exchange", label: "Exchange", icon: Coins },
   { href: "/hawala", label: "Hawala", icon: Send },
   { href: "/reports", label: "Reports", icon: BarChart3 },
 ];
@@ -39,6 +41,7 @@ export const pageTitles: Record<string, string> = {
   "/customers": "Customers",
   "/wallets": "Wallets",
   "/transactions": "Transactions",
+  "/exchange": "Exchange",
   "/hawala": "Hawala",
   "/reports": "Reports",
   "/audit": "Audit Logs",

@@ -8,11 +8,13 @@ import {
 } from "@/features/transactions/domain/transaction-errors";
 import type {
   DepositInput,
+  ExchangeInput,
   ManualAdjustmentInput,
   WithdrawalInput,
 } from "@/features/transactions/schemas/money-movement";
 import { adjustFunds } from "@/features/transactions/services/adjust";
 import { depositFunds } from "@/features/transactions/services/deposit";
+import { exchangeFunds } from "@/features/transactions/services/exchange";
 import { withdrawFunds } from "@/features/transactions/services/withdraw";
 
 export type TransactionFieldErrors = Partial<Record<TransactionField, string>>;
@@ -34,10 +36,12 @@ export type TransactionMutationActionResult =
 export type DepositActionInput = DepositInput;
 export type WithdrawalActionInput = WithdrawalInput;
 export type ManualAdjustmentActionInput = ManualAdjustmentInput;
+export type CreateExchangeActionInput = ExchangeInput;
 
 export type DepositActionResult = TransactionMutationActionResult;
 export type WithdrawalActionResult = TransactionMutationActionResult;
 export type ManualAdjustmentActionResult = TransactionMutationActionResult;
+export type CreateExchangeActionResult = TransactionMutationActionResult;
 
 function toMutationFailure(
   error: unknown,
@@ -130,6 +134,35 @@ export async function manualAdjustmentAction(
     return toMutationFailure(
       error,
       "Unable to post adjustment. Please try again.",
+    );
+  }
+}
+
+/**
+ * Create a currency exchange. Calls `exchangeFunds` only — never posts ledger
+ * lines directly from the action/UI layer.
+ */
+export async function createExchangeAction(
+  input: CreateExchangeActionInput,
+): Promise<CreateExchangeActionResult> {
+  const user = await requirePermission("transactions.manage");
+
+  try {
+    const result = await exchangeFunds({
+      ...input,
+      createdById: user.id,
+    });
+
+    return {
+      ok: true,
+      message: `Exchange ${result.transaction.reference} was posted successfully.`,
+      transactionId: result.transaction.id,
+      reference: result.transaction.reference,
+    };
+  } catch (error) {
+    return toMutationFailure(
+      error,
+      "Unable to post exchange. Please try again.",
     );
   }
 }

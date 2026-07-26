@@ -1,6 +1,6 @@
 # Saraf — Product / Engineering Roadmap
 
-**Last updated:** 2026-07-26 (end of Day 11 — Currency / rates / Settings complete)  
+**Last updated:** 2026-07-26 (Currency Exchange complete)  
 **Related:** `docs/HANDOFF.md`, `docs/DECISIONS.md`
 
 Suggested implementation order. Adjust when product priorities change.
@@ -15,13 +15,13 @@ Suggested implementation order. Adjust when product priorities change.
 | Customers + wallets | Done |
 | Transactions / posting + history | Done |
 | **Day 10 — Hawala** | **Done** |
-| **Day 11 — Currency / rates + Settings** | **Done** (working tree — commit next) |
-| Currency exchange | **Next** (after Day 11 commit) |
-| Customer transfer | After exchange (unless reprioritized) |
+| **Day 11 — Currency / rates + Settings** | **Done** (committed) |
+| **Currency exchange** | **Done** (working tree — commit next) |
+| Customer transfer | **Next** |
 
 ---
 
-## Done (through Day 11)
+## Done (through Currency Exchange)
 
 - [x] App foundation (Next.js 16, Tailwind 4, shadcn, design tokens, Tauri scaffold)
 - [x] Prisma 7 + SQLite + LibSQL adapter + migrations + seed
@@ -42,43 +42,43 @@ Suggested implementation order. Adjust when product priorities change.
   - [x] Feature module `features/exchange-rates`
   - [x] `/settings/exchange-rates` list + create/edit + activate/deactivate
   - [x] Rate convention: quote units per 1 base (e.g. 1 USD = 70 AFN)
-  - [x] No exchange transaction posting in this slice
 - [x] **Day 11 — Settings**
   - [x] `/settings` shop prefs via `SystemSetting` (`app.name`, `app.baseCurrencyCode`, `app.locale`)
   - [x] Catalog links to Currencies / Exchange Rates
   - [x] Receipt preferences placeholder (not persisted)
+- [x] **Currency Exchange**
+  - [x] `exchangeFunds` → `postTransaction` (`type: EXCHANGE`) via Exchange Difference legs
+  - [x] Rates from Settings catalog; inactive deal-rate snapshots on ledger lines
+  - [x] `/exchange` form + history; `/exchange/[id]` detail (reuses transaction detail data)
 
 ---
 
 ## Next (near-term)
 
-1. **Commit** Day 11 + docs. Exclude `prisma/dev.db*`.
-2. **Currency exchange flow** (core sarafi UX)
-   - Must reuse `postTransaction`
-   - Use Exchange Difference wallet for FX gain/loss legs as designed
-   - Consume rates entered in Settings → Exchange Rates
-3. **Customer transfer** flow — must reuse `postTransaction`
+1. **Commit** Currency Exchange + docs. Exclude `prisma/dev.db*`.
+2. **Customer transfer** flow — must reuse `postTransaction` (`type: TRANSFER`)
 
 ---
 
 ## Later
 
-4. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
-5. **Reports** — daily position, customer statement, FX gain/loss
-6. **Audit log** (separate from auth sessions)
-7. **Backup / restore** via Tauri filesystem commands
-8. **Enforce `requirePermission`** on routes/actions + role-filtered nav
-9. **Users admin UI** — create cashiers/managers, reset passwords
-10. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
-11. **i18n / RTL** (Dari/Pashto) when product-ready — locale setting already stubbed
-12. Remove unused **`argon2`** dependency if still present
-13. Optional: **restore archived customers / wallets**
-14. Transaction **void** / reversing entries
-15. Transaction list **filters**
-16. OS/Tauri **printer integration** (beyond browser print); wire receipt preference settings
-17. CI: lint + typecheck + migrate + seed smoke
-18. Integration tests for auth, customers, wallets, posting balancing, hawala, rates
-19. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
+3. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
+4. **Reports** — daily position, customer statement, FX gain/loss
+5. **Audit log** (separate from auth sessions)
+6. **Backup / restore** via Tauri filesystem commands
+7. **Enforce `requirePermission`** on routes/actions + role-filtered nav
+8. **Users admin UI** — create cashiers/managers, reset passwords
+9. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
+10. **i18n / RTL** (Dari/Pashto) when product-ready — locale setting already stubbed
+11. Remove unused **`argon2`** dependency if still present
+12. Optional: **restore archived customers / wallets**
+13. Transaction **void** / reversing entries
+14. Transaction list **filters**
+15. OS/Tauri **printer integration** (beyond browser print); wire receipt preference settings
+16. CI: lint + typecheck + migrate + seed smoke
+17. Integration tests for auth, customers, wallets, posting balancing, hawala, rates, exchange
+18. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
+19. Optional: hide `transaction-snapshot` rates from Settings inactive list
 
 ---
 
@@ -89,7 +89,6 @@ Suggested implementation order. Adjust when product priorities change.
 - Storing wallet balances as mutable columns (always derive from ledger)
 - Bypassing `postTransaction` for money movement
 - Static-export-only Next packaging without a Prisma sidecar plan
-- Starting Currency Exchange before Day 11 is committed
 
 ---
 

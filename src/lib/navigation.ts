@@ -40,5 +40,13 @@ export function backLabelForReturnTo(returnTo: string): string {
     return "Back to hawala";
   }
 
+  if (
+    returnTo === "/exchange" ||
+    returnTo.startsWith("/exchange?") ||
+    returnTo.startsWith("/exchange/")
+  ) {
+    return "Back to exchange";
+  }
+
   return "Back to transactions";
 }

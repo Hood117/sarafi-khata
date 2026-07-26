@@ -178,10 +178,11 @@ export async function postTransaction(
       ];
 
       if (exchangeRateIds.length > 0) {
+        // Allow soft-deleted rates so EXCHANGE can link immutable historical
+        // snapshots (inactive) without treating them as live market rates.
         const rates = await tx.exchangeRate.findMany({
           where: {
             id: { in: exchangeRateIds },
-            deletedAt: null,
           },
         });
 

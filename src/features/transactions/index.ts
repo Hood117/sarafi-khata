@@ -2,8 +2,8 @@
  * Public API for the transactions feature.
  * Import from this module only — do not reach into internal folders.
  *
- * Money movements must go through `postTransaction` (or deposit/withdraw/adjust
- * services that call it). Transaction/ledger writes are not exported here.
+ * Money movements must go through `postTransaction` (or deposit/withdraw/adjust/
+ * exchange services that call it). Transaction/ledger writes are not exported here.
  */
 
 export {
@@ -17,6 +17,11 @@ export { postTransaction } from "@/features/transactions/services/post-transacti
 export { depositFunds } from "@/features/transactions/services/deposit";
 export { withdrawFunds } from "@/features/transactions/services/withdraw";
 export { adjustFunds } from "@/features/transactions/services/adjust";
+export {
+  exchangeFunds,
+  type ExchangeParams,
+  type ExchangeFundsResult,
+} from "@/features/transactions/services/exchange";
 
 export type {
   PostingLineInput,
@@ -86,15 +91,19 @@ export {
   depositSchema,
   withdrawalSchema,
   manualAdjustmentSchema,
+  exchangeSchema,
   toDepositFieldErrors,
   toWithdrawalFieldErrors,
   toManualAdjustmentFieldErrors,
+  toExchangeFieldErrors,
   type DepositInput,
   type WithdrawalInput,
   type ManualAdjustmentInput,
+  type ExchangeInput,
   type DepositFieldErrors,
   type WithdrawalFieldErrors,
   type ManualAdjustmentFieldErrors,
+  type ExchangeFieldErrors,
 } from "@/features/transactions/schemas/money-movement";
 
 export {
@@ -110,12 +119,15 @@ export {
   depositAction,
   withdrawalAction,
   manualAdjustmentAction,
+  createExchangeAction,
   type DepositActionInput,
   type WithdrawalActionInput,
   type ManualAdjustmentActionInput,
+  type CreateExchangeActionInput,
   type DepositActionResult,
   type WithdrawalActionResult,
   type ManualAdjustmentActionResult,
+  type CreateExchangeActionResult,
   type TransactionMutationActionResult,
   type TransactionFieldErrors,
 } from "@/features/transactions/actions/transaction-actions";
