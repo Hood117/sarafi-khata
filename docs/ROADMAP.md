@@ -1,6 +1,6 @@
 # Saraf — Product / Engineering Roadmap
 
-**Last updated:** 2026-07-26 (end of Day 10 — Hawala complete)  
+**Last updated:** 2026-07-26 (end of Day 11 — Currency / rates / Settings complete)  
 **Related:** `docs/HANDOFF.md`, `docs/DECISIONS.md`
 
 Suggested implementation order. Adjust when product priorities change.
@@ -11,95 +11,74 @@ Suggested implementation order. Adjust when product priorities change.
 
 | Day / slice | Status |
 |---|---|
-| Foundation + auth + financial DB | Done (auth polish committed) |
-| Customers + wallets | Done (working tree) |
-| Transactions / posting + history | Done (working tree) |
-| **Day 10 — Hawala** | **Done** (working tree) |
-| **Day 11 — Currency / rates + Settings** | **Next** |
-| Currency exchange | After Day 11 |
+| Foundation + auth + financial DB | Done |
+| Customers + wallets | Done |
+| Transactions / posting + history | Done |
+| **Day 10 — Hawala** | **Done** |
+| **Day 11 — Currency / rates + Settings** | **Done** (working tree — commit next) |
+| Currency exchange | **Next** (after Day 11 commit) |
 | Customer transfer | After exchange (unless reprioritized) |
 
 ---
 
-## Done (through Day 10)
+## Done (through Day 11)
 
 - [x] App foundation (Next.js 16, Tailwind 4, shadcn, design tokens, Tauri scaffold)
 - [x] Prisma 7 + SQLite + LibSQL adapter + migrations + seed
 - [x] Local auth (users, sessions, login/logout, route guards)
-- [x] Auth shell polish (header user + role + logout) — **committed**
+- [x] Auth shell polish (header user + role + logout)
 - [x] Financial models + repositories + ledger domain
 - [x] **Customer management**
-  - [x] List + empty/loading + pagination-ready layout
-  - [x] Add customer (Zod + Server Actions)
-  - [x] Edit customer (shared form)
-  - [x] Profile page (info + edit/archive)
-  - [x] Search (name / phone / code)
-  - [x] Soft archive + archived filter (no hard delete)
-  - [x] Customer profile wallets section (derived balances)
 - [x] **Wallet management**
-  - [x] List `/wallets` + empty/loading
-  - [x] Add / Edit / Archive (Zod + Server Actions)
-  - [x] CUSTOMER requires customer; VAULT/TILL/SYSTEM forbid customer
-  - [x] Soft archive only; balances never stored on Wallet
-  - [x] Profile balance rows via ledger `createBalanceCalculator`
-- [x] **Transactions / posting**
-  - [x] `postTransaction` single write entry point + one `$transaction`
-  - [x] Deposit / Withdrawal / Manual Adjustment (services + Server Actions)
-  - [x] Shared transaction form (Zod → actions → posting)
-  - [x] List `/transactions` + empty/loading + pagination-ready
-  - [x] Detail `/transactions/[id]` + ledger entries
-  - [x] Printable receipt (`window.print`; no printer SDK)
-  - [x] Public barrels do not export low-level ledger/transaction create APIs
-- [x] **Customer history**
-  - [x] `getCustomerHistory` read-only service (ledger events + transaction metadata)
-  - [x] Timeline UI on customer profile (design-system badges/typography)
-  - [x] Filters: date range, type, currency, reference (URL-driven)
-  - [x] Sort: newest / oldest first
-  - [x] Pagination (Previous/Next; preserves filters)
-  - [x] Navigation to existing transaction detail with `returnTo` (filters preserved)
-- [x] **Hawala (Day 10)**
-  - [x] `HawalaTransfer` model + migration + Hawala Clearing seed wallet
-  - [x] Send / Receive domain services posting via `postTransaction`
-  - [x] Complete / Cancel status workflow (PENDING → COMPLETED | CANCELLED)
-  - [x] Server Actions (`sendHawalaAction`, `receiveHawalaAction`, `cancelHawalaAction`)
-  - [x] List `/hawala` + search + empty/loading + pagination-ready
-  - [x] Send / Receive forms
-  - [x] Detail `/hawala/[id]` (timeline + related transaction/ledger via `getTransactionDetail`)
+- [x] **Transactions / posting** (`postTransaction` sole writer)
+- [x] **Customer history** (read-only ledger events)
+- [x] **Hawala (Day 10)** — posts via `postTransaction`
+- [x] UX polish (clickable rows, auto codes, hawala parties/locations, wallet descriptions)
+- [x] **Day 11 — Currencies**
+  - [x] Feature module `features/currencies` (Zod + services + Server Actions + UI)
+  - [x] `/settings/currencies` list + create/edit + activate/deactivate
+  - [x] Code immutable after create; protect base currency from deactivation
+- [x] **Day 11 — Exchange rates**
+  - [x] Feature module `features/exchange-rates`
+  - [x] `/settings/exchange-rates` list + create/edit + activate/deactivate
+  - [x] Rate convention: quote units per 1 base (e.g. 1 USD = 70 AFN)
+  - [x] No exchange transaction posting in this slice
+- [x] **Day 11 — Settings**
+  - [x] `/settings` shop prefs via `SystemSetting` (`app.name`, `app.baseCurrencyCode`, `app.locale`)
+  - [x] Catalog links to Currencies / Exchange Rates
+  - [x] Receipt preferences placeholder (not persisted)
 
 ---
 
-## Next (near-term) — Day 11 and after
+## Next (near-term)
 
-1. **Commit** pending modules + docs (if still uncommitted). Exclude `prisma/dev.db*`.
-2. **Day 11 — Currency / exchange-rate services + Settings UI**
-   - Manage currencies and enter FX rates
-   - Use `app.baseCurrencyCode` (seeded `AFN`)
-   - Build on existing `Currency` / `ExchangeRate` / `SystemSetting` repositories
-   - Do **not** start the exchange transaction UI in the same slice unless rates entry is already usable
-3. **Currency exchange flow** (core sarafi UX)
+1. **Commit** Day 11 + docs. Exclude `prisma/dev.db*`.
+2. **Currency exchange flow** (core sarafi UX)
    - Must reuse `postTransaction`
    - Use Exchange Difference wallet for FX gain/loss legs as designed
-4. **Customer transfer** flow — must reuse `postTransaction`
+   - Consume rates entered in Settings → Exchange Rates
+3. **Customer transfer** flow — must reuse `postTransaction`
 
 ---
 
 ## Later
 
-5. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
-6. **Reports** — daily position, customer statement, FX gain/loss
-7. **Audit log** (separate from auth sessions)
-8. **Backup / restore** via Tauri filesystem commands
-9. **Enforce `requirePermission`** on routes/actions + role-filtered nav
-10. **Users admin UI** — create cashiers/managers, reset passwords
-11. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
-12. **i18n / RTL** (Dari/Pashto) when product-ready
-13. Remove unused **`argon2`** dependency if still present
-14. Optional: **restore archived customers / wallets**
-15. Transaction **void** / reversing entries
-16. Transaction list **filters**
-17. OS/Tauri **printer integration** (beyond browser print)
-18. CI: lint + typecheck + migrate + seed smoke
-19. Integration tests for auth, customers, wallets, posting balancing, hawala
+4. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
+5. **Reports** — daily position, customer statement, FX gain/loss
+6. **Audit log** (separate from auth sessions)
+7. **Backup / restore** via Tauri filesystem commands
+8. **Enforce `requirePermission`** on routes/actions + role-filtered nav
+9. **Users admin UI** — create cashiers/managers, reset passwords
+10. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
+11. **i18n / RTL** (Dari/Pashto) when product-ready — locale setting already stubbed
+12. Remove unused **`argon2`** dependency if still present
+13. Optional: **restore archived customers / wallets**
+14. Transaction **void** / reversing entries
+15. Transaction list **filters**
+16. OS/Tauri **printer integration** (beyond browser print); wire receipt preference settings
+17. CI: lint + typecheck + migrate + seed smoke
+18. Integration tests for auth, customers, wallets, posting balancing, hawala, rates
+19. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
 
 ---
 
@@ -110,7 +89,7 @@ Suggested implementation order. Adjust when product priorities change.
 - Storing wallet balances as mutable columns (always derive from ledger)
 - Bypassing `postTransaction` for money movement
 - Static-export-only Next packaging without a Prisma sidecar plan
-- Starting Currency Exchange before currency/rate services + Settings exist
+- Starting Currency Exchange before Day 11 is committed
 
 ---
 

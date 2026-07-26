@@ -1,10 +1,7 @@
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+import { getSettingsPageData, SettingsView } from "@/features/settings";
 
-export default function SettingsPage() {
-  return (
-    <PagePlaceholder
-      title="Settings"
-      description="Application and shop preferences will appear here."
-    />
-  );
+export default async function SettingsPage() {
+  const { settings, currencies } = await getSettingsPageData();
+
+  return <SettingsView settings={settings} currencies={currencies} />;
 }

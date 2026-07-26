@@ -45,4 +45,6 @@ export const pageTitles: Record<string, string> = {
   "/backup": "Backup & Restore",
   "/users": "Users",
   "/settings": "Settings",
+  "/settings/currencies": "Currencies",
+  "/settings/exchange-rates": "Exchange Rates",
 };

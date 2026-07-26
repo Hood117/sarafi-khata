@@ -1,6 +1,6 @@
 # Saraf — Architecture / Product Decisions
 
-**Last updated:** 2026-07-26 (end of Day 10 — Hawala complete)  
+**Last updated:** 2026-07-26 (end of Day 11 — Currency / rates / Settings)  
 **Related:** `docs/HANDOFF.md`, `docs/ROADMAP.md`
 
 Record of intentional decisions. Prefer appending new entries over rewriting history; mark superseded decisions clearly.
@@ -30,6 +30,9 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-017 | Customer history is read-only ledger events |
 | ADR-018 | Transaction detail back navigation via safe `returnTo` |
 | ADR-019 | Hawala is a business document that posts through posting |
+| ADR-020 | Currencies are Settings master data (not ledger writes) |
+| ADR-021 | Exchange rates are master data; quote-per-base convention |
+| ADR-022 | App Settings use SystemSetting keys |
 
 ---
 
@@ -47,7 +50,7 @@ These rules override convenience shortcuts:
 8. Preserve append-only ledger history; never permanently delete financial records.
 9. Extend the existing architecture only; do not refactor completed modules unless required to fix a bug or satisfy an explicit requirement.
 
-See ADR-004, ADR-014, ADR-015, ADR-019.
+See ADR-004, ADR-014, ADR-015, ADR-019–022.
 
 ---
 
@@ -243,6 +246,46 @@ See ADR-004, ADR-014, ADR-015, ADR-019.
 
 ---
 
+## ADR-020 — Currencies are Settings master data (not ledger writes)
+
+- **Decision:** Currency CRUD lives in `src/features/currencies/` with Zod + Server Actions + Settings UI at `/settings/currencies`.
+- **Rules:**
+  - Code immutable after create.
+  - Activate/deactivate via `Currency.isActive` (not soft-delete of code for Day 11 UI).
+  - Cannot deactivate the currency matching `app.baseCurrencyCode`.
+  - `decimalPlaces` defaults to 2 on create (not exposed in Day 11 form).
+- **Why:** Shop must manage currencies before exchange; keep master-data edits out of the posting path.
+- **Consequence:** Feature owns a Prisma currency repository for CRUD. Existing txn/hawala readers may still use `features/ledger` currency repository — do not merge unless planned. Currency changes never write `LedgerEntry`.
+
+---
+
+## ADR-021 — Exchange rates are master data; quote-per-base convention
+
+- **Decision:** Exchange rates live in `src/features/exchange-rates/` with UI at `/settings/exchange-rates`. Rate means **quote units per 1 base unit** (example: base USD, quote AFN, rate `70` → `1 USD = 70 AFN`).
+- **Rules:**
+  - Base and quote must differ; both currencies must exist.
+  - Rate must be positive; enforce decimal scale in services (max 8).
+  - Active status maps to `ExchangeRate.deletedAt` (null = active) — no new column in Day 11.
+  - Create/update/activate only; **no** exchange transaction calculation or posting in this slice.
+- **Why:** Enter usable rates before building Currency Exchange; keep ADR-014 intact.
+- **Consequence:** Future exchange flow must look up rates and still post only through `postTransaction` (optional `LedgerEntry.exchangeRateId` already supported by posting).
+
+---
+
+## ADR-022 — App Settings use SystemSetting keys
+
+- **Decision:** Shop preferences persist via existing `SystemSetting` key/value rows managed by `features/settings` services/actions.
+- **Keys (Day 11):**
+  - `app.name` — business name (receipts / branding)
+  - `app.baseCurrencyCode` — default/base currency (e.g. AFN)
+  - `app.locale` — default language (`en` only for now; Dari/Pashto placeholders in UI)
+- **UI:** `/settings` form + catalog links to Currencies and Exchange Rates. Receipt preference toggles are **placeholders** (not persisted yet).
+- **Why:** Reuse seeded settings model; avoid new tables for simple prefs.
+- **Consequence:** Changing base currency does not rewrite ledger history; it only affects defaults such as empty-balance display. Permission gate uses `settings.manage` stub.
+
+---
+
 ## Superseded notes
 
 - Earlier handoff text implied customer soft-delete **releases** unique `code`/`phone` by nulling them. **Superseded by ADR-006** for customers: preserve fields + partial unique indexes so archived history remains searchable and reusable values can be used by new *active* customers.
+- Roadmap text that said “do not start Day 11 until UX polish is committed” is **historical** — UX polish is on `main`; Day 11 is the current uncommitted slice.
