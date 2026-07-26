@@ -22,6 +22,10 @@ function notDeleted(): Prisma.TransactionWhereInput {
   return { deletedAt: null };
 }
 
+/**
+ * Low-level create. Financial posting must use `postTransaction` instead —
+ * not exported from the public transactions barrel.
+ */
 export async function createTransaction(
   data: CreateTransactionData,
 ): Promise<Transaction> {

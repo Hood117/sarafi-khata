@@ -1,10 +1,21 @@
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+import {
+  getTransactionFormOptions,
+  getTransactionList,
+  TransactionsView,
+} from "@/features/transactions";
 
-export default function TransactionsPage() {
+export default async function TransactionsPage() {
+  const [transactions, formOptions] = await Promise.all([
+    getTransactionList(),
+    getTransactionFormOptions(),
+  ]);
+
   return (
-    <PagePlaceholder
-      title="Transactions"
-      description="Exchange and payment transactions will appear here."
+    <TransactionsView
+      transactions={transactions}
+      customers={formOptions.customers}
+      wallets={formOptions.wallets}
+      currencies={formOptions.currencies}
     />
   );
 }

@@ -15,6 +15,9 @@ export type LedgerEntryListOptions = {
 /**
  * Append-only ledger data access.
  * Provides create/read only — no update or delete.
+ *
+ * Prefer `postTransaction` for financial writes. These helpers are low-level
+ * and are not part of the public `@/features/ledger` barrel.
  */
 export async function createLedgerEntry(
   data: CreateLedgerEntryData,

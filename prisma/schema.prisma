@@ -30,8 +30,9 @@ model User {
   isActive            Boolean       @default(true)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
-  sessions            Session[]
-  createdTransactions Transaction[] @relation("TransactionCreatedBy")
+  sessions               Session[]
+  createdTransactions    Transaction[]    @relation("TransactionCreatedBy")
+  createdHawalaTransfers HawalaTransfer[] @relation("HawalaCreatedBy")
 }
 
 /// Local offline sessions. Raw tokens are never stored — only hashes.
@@ -81,6 +82,17 @@ enum LedgerDirection {
   CREDIT
 }
 
+enum HawalaDirection {
+  SEND
+  RECEIVE
+}
+
+enum HawalaStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 model Currency {
   id            String    @id @default(uuid())
   code          String    @unique
@@ -92,9 +104,10 @@ model Currency {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  baseExchangeRates  ExchangeRate[] @relation("ExchangeRateBaseCurrency")
-  quoteExchangeRates ExchangeRate[] @relation("ExchangeRateQuoteCurrency")
+  baseExchangeRates  ExchangeRate[]   @relation("ExchangeRateBaseCurrency")
+  quoteExchangeRates ExchangeRate[]   @relation("ExchangeRateQuoteCurrency")
   ledgerEntries      LedgerEntry[]
+  hawalaTransfers    HawalaTransfer[]
 
   @@index([isActive, deletedAt])
   @@index([deletedAt])
@@ -123,21 +136,27 @@ model ExchangeRate {
 }
 
 model Customer {
-  id        String    @id @default(uuid())
-  code      String?   @unique
-  fullName  String
-  phone     String?
-  notes     String?
-  isActive  Boolean   @default(true)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  /// Unique among active (non-archived) customers via partial DB index.
+  code       String?
+  fullName   String
+  /// Required in app validation. Unique among active customers via partial DB index.
+  phone      String?
+  address    String?
+  nationalId String?
+  notes      String?
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  wallets      Wallet[]
-  transactions Transaction[]
+  wallets         Wallet[]
+  transactions    Transaction[]
+  hawalaTransfers HawalaTransfer[]
 
   @@index([fullName])
   @@index([phone])
+  @@index([code])
   @@index([isActive, deletedAt])
   @@index([deletedAt])
 }
@@ -155,6 +174,8 @@ model Wallet {
   /// Restrict hard-delete so historical wallets stay linked for audit.
   customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   ledgerEntries LedgerEntry[]
+  hawalaCashTransfers     HawalaTransfer[] @relation("HawalaCashWallet")
+  hawalaClearingTransfers HawalaTransfer[] @relation("HawalaClearingWallet")
 
   @@index([type, isActive, deletedAt])
   @@index([name, type])
@@ -180,6 +201,7 @@ model Transaction {
   customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   createdBy     User?         @relation("TransactionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   ledgerEntries LedgerEntry[]
+  hawalaTransfer HawalaTransfer?
 
   @@index([status, valueDate])
   @@index([type, status])
@@ -187,6 +209,56 @@ model Transaction {
   @@index([createdById])
   @@index([deletedAt])
   @@index([postedAt])
+}
+
+/// Hawala business document. Financial legs are posted only via postTransaction.
+model HawalaTransfer {
+  id                 String          @id @default(uuid())
+  reference          String          @unique
+  direction          HawalaDirection
+  status             HawalaStatus    @default(PENDING)
+  senderName         String
+  senderPhone        String?
+  receiverName       String
+  receiverPhone      String?
+  partnerSarafi      String
+  originCity         String
+  originCountry      String
+  destinationCity    String
+  destinationCountry String
+  currencyId         String
+  /// Absolute positive major-unit amount; enforce scale in services.
+  amount             Decimal
+  notes              String?
+  customerId         String?
+  /// Vault/till used for the cash leg when completing.
+  cashWalletId       String
+  /// SYSTEM clearing wallet used for the contra leg when completing.
+  clearingWalletId   String
+  /// Posted financial document created by the posting service (null while PENDING).
+  transactionId      String?         @unique
+  createdById        String
+  valueDate          DateTime
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  currency       Currency     @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  cashWallet     Wallet       @relation("HawalaCashWallet", fields: [cashWalletId], references: [id], onDelete: Restrict)
+  clearingWallet Wallet       @relation("HawalaClearingWallet", fields: [clearingWalletId], references: [id], onDelete: Restrict)
+  transaction    Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  createdBy      User         @relation("HawalaCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status, valueDate])
+  @@index([direction, status])
+  @@index([customerId, valueDate])
+  @@index([createdById])
+  @@index([currencyId])
+  @@index([deletedAt])
+  @@index([completedAt])
 }
 
 /// Key/value application settings for offline defaults.

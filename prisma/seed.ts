@@ -32,6 +32,7 @@ const DEFAULT_SYSTEM_WALLETS = [
   { name: "Main Vault", type: WalletType.VAULT },
   { name: "Cash Till", type: WalletType.TILL },
   { name: "Exchange Difference", type: WalletType.SYSTEM },
+  { name: "Hawala Clearing", type: WalletType.SYSTEM },
 ] as const;
 
 function normalizeUsername(username: string) {

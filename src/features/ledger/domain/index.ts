@@ -9,6 +9,7 @@ export {
 export {
   createMoney,
   moneyFromMajorUnits,
+  moneyToMajorUnitString,
   addMoney,
   subtractMoney,
   negateMoney,

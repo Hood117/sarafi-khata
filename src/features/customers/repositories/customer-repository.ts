@@ -6,13 +6,37 @@ import { prisma } from "@/server/db";
 export type CreateCustomerData = Prisma.CustomerCreateInput;
 export type UpdateCustomerData = Prisma.CustomerUpdateInput;
 
+export type CustomerArchiveFilter = "active" | "archived" | "all";
+
 export type CustomerListOptions = {
-  includeDeleted?: boolean;
+  /** Case-insensitive match against name, phone, or customer code. */
+  search?: string;
+  /** Defaults to active (non-archived) customers. */
+  archiveFilter?: CustomerArchiveFilter;
   isActive?: boolean;
+  includeDeleted?: boolean;
 };
 
 function notDeleted(): Prisma.CustomerWhereInput {
   return { deletedAt: null };
+}
+
+function onlyDeleted(): Prisma.CustomerWhereInput {
+  return { deletedAt: { not: null } };
+}
+
+function archiveWhere(
+  archiveFilter: CustomerArchiveFilter = "active",
+): Prisma.CustomerWhereInput {
+  switch (archiveFilter) {
+    case "archived":
+      return onlyDeleted();
+    case "all":
+      return {};
+    case "active":
+    default:
+      return notDeleted();
+  }
 }
 
 export async function createCustomer(
@@ -45,14 +69,45 @@ export async function findCustomerByCode(
   });
 }
 
+export async function findCustomerByPhone(
+  phone: string,
+  options: { includeDeleted?: boolean } = {},
+): Promise<Customer | null> {
+  return prisma.customer.findFirst({
+    where: {
+      phone,
+      ...(options.includeDeleted ? {} : notDeleted()),
+    },
+  });
+}
+
 export async function listCustomers(
   options: CustomerListOptions = {},
 ): Promise<Customer[]> {
+  const archiveFilter =
+    options.archiveFilter ??
+    (options.includeDeleted ? "all" : "active");
+
+  const search = options.search?.trim();
+
   const where: Prisma.CustomerWhereInput = {
-    ...(options.includeDeleted ? {} : notDeleted()),
-    ...(typeof options.isActive === "boolean"
-      ? { isActive: options.isActive }
-      : {}),
+    AND: [
+      archiveWhere(archiveFilter),
+      ...(typeof options.isActive === "boolean"
+        ? [{ isActive: options.isActive }]
+        : []),
+      ...(search
+        ? [
+            {
+              OR: [
+                { fullName: { contains: search } },
+                { phone: { contains: search } },
+                { code: { contains: search } },
+              ],
+            },
+          ]
+        : []),
+    ],
   };
 
   return prisma.customer.findMany({
@@ -72,13 +127,12 @@ export async function updateCustomer(
 }
 
 export async function softDeleteCustomer(id: string): Promise<Customer> {
-  // Release unique `code` so a new customer can reuse it after soft delete.
+  // Soft-archive only — keep phone/code/notes and related history intact.
   return prisma.customer.update({
     where: { id },
     data: {
       deletedAt: new Date(),
       isActive: false,
-      code: null,
     },
   });
 }

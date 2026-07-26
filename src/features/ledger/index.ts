@@ -1,6 +1,9 @@
 /**
  * Public API for the ledger feature.
  * Import from this module only — do not reach into internal folders.
+ *
+ * Ledger writes are not exported — use `@/features/transactions` `postTransaction`
+ * as the only financial posting entry point.
  */
 
 export {
@@ -13,6 +16,7 @@ export {
   // Money
   createMoney,
   moneyFromMajorUnits,
+  moneyToMajorUnitString,
   addMoney,
   subtractMoney,
   negateMoney,
@@ -50,14 +54,10 @@ export {
 } from "@/features/ledger/domain";
 
 export {
-  createLedgerEntry,
-  createLedgerEntries,
   findLedgerEntryById,
   listLedgerEntriesByTransaction,
   listLedgerEntriesByWallet,
   listLedgerEntries,
-  type CreateLedgerEntryData,
-  type CreateLedgerEntryManyData,
   type LedgerEntryListOptions,
 } from "@/features/ledger/repositories/ledger-repository";
 

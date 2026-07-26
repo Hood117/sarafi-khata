@@ -1,10 +1,18 @@
-import { PagePlaceholder } from "@/components/layout/page-placeholder";
+import { getCustomerList } from "@/features/customers";
+import { getWalletList, WalletsView } from "@/features/wallets";
 
-export default function WalletsPage() {
+export default async function WalletsPage() {
+  const [wallets, customers] = await Promise.all([
+    getWalletList(),
+    getCustomerList(),
+  ]);
+
+  const customerOptions = customers.map((customer) => ({
+    id: customer.id,
+    label: customer.fullName,
+  }));
+
   return (
-    <PagePlaceholder
-      title="Wallets"
-      description="Cash and currency wallet balances will appear here."
-    />
+    <WalletsView wallets={wallets} customerOptions={customerOptions} />
   );
 }

@@ -201,3 +201,14 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  .receipt-print-root {
+    max-width: none !important;
+  }
+}

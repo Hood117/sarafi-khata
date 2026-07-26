@@ -21,19 +21,23 @@ export function AppShell({
   actions,
 }: AppShellProps) {
   return (
-    <div className="bg-background flex h-screen min-h-[720px] min-w-[1100px] p-4">
-      <AppSidebar />
+    <div className="bg-background flex h-screen min-h-[720px] min-w-[1100px] p-4 print:block print:h-auto print:min-h-0 print:min-w-0 print:p-0">
+      <div className="print:hidden">
+        <AppSidebar />
+      </div>
 
-      <div className="ml-4 flex min-w-0 flex-1 flex-col gap-5">
-        <AppHeader
-          title={title}
-          description={description}
-          actions={actions}
-          user={user}
-        />
+      <div className="ml-4 flex min-w-0 flex-1 flex-col gap-5 print:ml-0 print:block">
+        <div className="print:hidden">
+          <AppHeader
+            title={title}
+            description={description}
+            actions={actions}
+            user={user}
+          />
+        </div>
 
-        <ScrollArea className="bg-card min-h-0 flex-1 rounded-[28px] shadow-sm">
-          <div className="p-6 md:p-8">{children}</div>
+        <ScrollArea className="bg-card min-h-0 flex-1 rounded-[28px] shadow-sm print:overflow-visible print:rounded-none print:shadow-none">
+          <div className="p-6 md:p-8 print:p-0">{children}</div>
         </ScrollArea>
       </div>
     </div>

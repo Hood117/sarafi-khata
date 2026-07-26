@@ -23,7 +23,14 @@ export function AppHeader({
   user,
 }: AppHeaderProps) {
   const pathname = usePathname();
-  const resolvedTitle = title ?? pageTitles[pathname] ?? "Saraf";
+  const resolvedTitle =
+    title ??
+    pageTitles[pathname] ??
+    (pathname.startsWith("/customers/")
+      ? "Customer Profile"
+      : pathname.startsWith("/transactions/")
+        ? "Transaction Details"
+        : "Saraf");
 
   return (
     <header className="flex items-start justify-between gap-6 px-2 pt-1">

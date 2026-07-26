@@ -68,6 +68,45 @@ export function moneyFromMajorUnits(
   return createMoney(negative ? -minor : minor, currency.code);
 }
 
+/**
+ * Convert Money minor units to a major-unit decimal string for Prisma Decimal persistence.
+ * Ledger amounts must be non-negative; scale is taken from the currency record.
+ */
+export function moneyToMajorUnitString(
+  money: Money,
+  decimalPlaces: number,
+): string {
+  if (
+    !Number.isInteger(decimalPlaces) ||
+    decimalPlaces < 0 ||
+    decimalPlaces > 8
+  ) {
+    throw new LedgerDomainError(
+      "INVALID_MONEY",
+      "decimalPlaces must be an integer between 0 and 8.",
+    );
+  }
+
+  if (money.amountMinor < BigInt(0)) {
+    throw new LedgerDomainError(
+      "INVALID_MONEY",
+      "Cannot persist a negative ledger amount; use direction for sign.",
+    );
+  }
+
+  const digits = money.amountMinor
+    .toString()
+    .padStart(decimalPlaces + 1, "0");
+
+  if (decimalPlaces === 0) {
+    return digits;
+  }
+
+  const whole = digits.slice(0, -decimalPlaces) || "0";
+  const fraction = digits.slice(-decimalPlaces);
+  return `${whole}.${fraction}`;
+}
+
 export function assertSameCurrency(left: Money, right: Money): void {
   assertSameCurrencyCode(left.currency, right.currency);
 }
