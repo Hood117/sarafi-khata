@@ -7,5 +7,6 @@ export {
   pageTitles,
   primaryNav,
   secondaryNav,
+  type AppNavIcon,
   type AppNavItem,
 } from "@/components/layout/nav-config";

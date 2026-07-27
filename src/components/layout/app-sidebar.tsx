@@ -1,10 +1,27 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
+import {
+  ArrowLeftRight,
+  ArrowRightLeft,
+  Banknote,
+  BarChart3,
+  Coins,
+  HardDrive,
+  LayoutGrid,
+  Send,
+  Settings,
+  Shield,
+  UserCog,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import type { AppNavItem } from "@/components/layout/nav-config";
+import type {
+  AppNavIcon,
+  AppNavItem,
+} from "@/components/layout/nav-config";
 import {
   Tooltip,
   TooltipContent,
@@ -12,6 +29,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+const navIcons: Record<AppNavIcon, LucideIcon> = {
+  LayoutGrid,
+  Banknote,
+  Users,
+  ArrowLeftRight,
+  ArrowRightLeft,
+  Coins,
+  Send,
+  BarChart3,
+  Shield,
+  HardDrive,
+  UserCog,
+  Settings,
+};
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/") {
@@ -24,14 +56,16 @@ function isActivePath(pathname: string, href: string) {
 function SidebarNavLink({
   href,
   label,
-  icon: Icon,
+  icon,
   active,
 }: {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: AppNavIcon;
   active: boolean;
 }) {
+  const Icon = navIcons[icon];
+
   return (
     <Tooltip>
       <TooltipTrigger
