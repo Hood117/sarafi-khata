@@ -24,6 +24,8 @@ const POSTING_FIELDS = new Set<TransactionField>([
   "description",
   "notes",
   "customerId",
+  "senderCustomerId",
+  "receiverCustomerId",
   "entries",
 ]);
 

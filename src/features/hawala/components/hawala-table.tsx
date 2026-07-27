@@ -20,9 +20,13 @@ import { Typography } from "@/design-system/typography";
 import { HawalaEmptyState } from "@/features/hawala/components/hawala-empty-state";
 import type { HawalaListItem } from "@/features/hawala/domain/types";
 
+import { hrefWithReturnTo } from "@/lib/navigation";
+
 type HawalaTableProps = {
   transfers: HawalaListItem[];
   hasSearch?: boolean;
+  /** When set, detail links include returnTo for back navigation. */
+  returnTo?: string;
 };
 
 function formatValueDate(isoDate: string): string {
@@ -41,6 +45,7 @@ function displayValue(value: string | null | undefined): string {
 export function HawalaTable({
   transfers,
   hasSearch = false,
+  returnTo,
 }: HawalaTableProps) {
   const total = transfers.length;
 
@@ -69,7 +74,9 @@ export function HawalaTable({
             </TableHeader>
             <TableBody>
               {transfers.map((transfer) => {
-                const detailHref = `/hawala/${transfer.id}`;
+                const detailHref = returnTo
+                  ? hrefWithReturnTo(`/hawala/${transfer.id}`, returnTo)
+                  : `/hawala/${transfer.id}`;
 
                 return (
                   <ClickableTableRow key={transfer.id} href={detailHref}>

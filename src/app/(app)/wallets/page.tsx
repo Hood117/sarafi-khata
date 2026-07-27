@@ -1,18 +1,6 @@
-import { formatCustomerLabel, getCustomerList } from "@/features/customers";
-import { getWalletList, WalletsView } from "@/features/wallets";
+import { redirect } from "next/navigation";
 
-export default async function WalletsPage() {
-  const [wallets, customers] = await Promise.all([
-    getWalletList(),
-    getCustomerList(),
-  ]);
-
-  const customerOptions = customers.map((customer) => ({
-    id: customer.id,
-    label: formatCustomerLabel(customer.fullName, customer.code),
-  }));
-
-  return (
-    <WalletsView wallets={wallets} customerOptions={customerOptions} />
-  );
+/** Wallet management lives under Settings → System. */
+export default function WalletsPage() {
+  redirect("/settings/wallets");
 }

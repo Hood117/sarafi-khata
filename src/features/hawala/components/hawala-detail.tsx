@@ -29,6 +29,8 @@ function buildRelatedTransactionHref(
 
 type HawalaDetailViewProps = {
   hawala: HawalaDetailModel;
+  backHref?: string;
+  backLabel?: string;
 };
 
 function formatDate(isoDate: string): string {
@@ -76,7 +78,11 @@ function partyDisplay(
   return `${base} · External`;
 }
 
-export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
+export function HawalaDetailView({
+  hawala,
+  backHref = "/hawala",
+  backLabel = "Back to hawala",
+}: HawalaDetailViewProps) {
   const returnTo = `/hawala/${hawala.id}`;
   const relatedTransactionHref = hawala.relatedTransaction
     ? buildRelatedTransactionHref(hawala.relatedTransaction.id, returnTo)
@@ -89,11 +95,11 @@ export function HawalaDetailView({ hawala }: HawalaDetailViewProps) {
           <Button
             variant="ghost"
             size="sm"
-            render={<Link href="/hawala" />}
+            render={<Link href={backHref} />}
             className="text-muted-foreground -ml-2 w-fit"
           >
             <ArrowLeft data-icon="inline-start" />
-            Back to hawala
+            {backLabel}
           </Button>
 
           <div className="space-y-2">

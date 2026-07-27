@@ -91,16 +91,33 @@ export async function findCustomerByPhone(
   });
 }
 
-export async function listCustomers(
-  options: CustomerListOptions = {},
+/** Batch read by id — empty `ids` returns [] without querying. */
+export async function listCustomersByIds(
+  ids: readonly string[],
+  options: { includeDeleted?: boolean } = {},
 ): Promise<Customer[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+
+  return prisma.customer.findMany({
+    where: {
+      id: { in: [...ids] },
+      ...(options.includeDeleted ? {} : notDeleted()),
+    },
+  });
+}
+
+function customerListWhere(
+  options: CustomerListOptions = {},
+): Prisma.CustomerWhereInput {
   const archiveFilter =
     options.archiveFilter ??
     (options.includeDeleted ? "all" : "active");
 
   const search = options.search?.trim();
 
-  const where: Prisma.CustomerWhereInput = {
+  return {
     AND: [
       archiveWhere(archiveFilter),
       ...(typeof options.isActive === "boolean"
@@ -119,10 +136,23 @@ export async function listCustomers(
         : []),
     ],
   };
+}
 
+export async function listCustomers(
+  options: CustomerListOptions = {},
+): Promise<Customer[]> {
   return prisma.customer.findMany({
-    where,
+    where: customerListWhere(options),
     orderBy: { fullName: "asc" },
+  });
+}
+
+/** Read-only count using the same filters as `listCustomers`. */
+export async function countCustomers(
+  options: CustomerListOptions = {},
+): Promise<number> {
+  return prisma.customer.count({
+    where: customerListWhere(options),
   });
 }
 

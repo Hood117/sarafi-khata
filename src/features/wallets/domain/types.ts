@@ -46,3 +46,17 @@ export type CustomerWalletBalanceRow = {
   isActive: boolean;
   isArchived: boolean;
 };
+
+/**
+ * Balance for one currency, aggregated from ledger entries.
+ * Used for customer profiles and business cash overview.
+ */
+export type CurrencyBalanceDisplay = {
+  currencyCode: string;
+  /** Formatted major units with grouping, e.g. "25,000" or "500.50". */
+  balanceDisplay: string;
+};
+
+export type CustomerCurrencyBalance = CurrencyBalanceDisplay;
+
+export type BusinessCashBalance = CurrencyBalanceDisplay;

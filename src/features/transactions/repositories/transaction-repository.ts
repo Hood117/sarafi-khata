@@ -16,10 +16,39 @@ export type TransactionListOptions = {
   status?: TransactionStatus;
   type?: TransactionType;
   customerId?: string;
+  /** Posted-by user id. */
+  createdById?: string;
+  /** Inclusive lower bound on `valueDate`. */
+  valueDateFrom?: Date;
+  /** Exclusive upper bound on `valueDate`. */
+  valueDateTo?: Date;
+  /** Max rows after orderBy (newest first). */
+  take?: number;
 };
 
 function notDeleted(): Prisma.TransactionWhereInput {
   return { deletedAt: null };
+}
+
+function transactionListWhere(
+  options: TransactionListOptions,
+): Prisma.TransactionWhereInput {
+  const valueDateFilter: Prisma.DateTimeFilter | undefined =
+    options.valueDateFrom || options.valueDateTo
+      ? {
+          ...(options.valueDateFrom ? { gte: options.valueDateFrom } : {}),
+          ...(options.valueDateTo ? { lt: options.valueDateTo } : {}),
+        }
+      : undefined;
+
+  return {
+    ...(options.includeDeleted ? {} : notDeleted()),
+    ...(options.status ? { status: options.status } : {}),
+    ...(options.type ? { type: options.type } : {}),
+    ...(options.customerId ? { customerId: options.customerId } : {}),
+    ...(options.createdById ? { createdById: options.createdById } : {}),
+    ...(valueDateFilter ? { valueDate: valueDateFilter } : {}),
+  };
 }
 
 /**
@@ -59,17 +88,27 @@ export async function findTransactionByReference(
 export async function listTransactions(
   options: TransactionListOptions = {},
 ): Promise<Transaction[]> {
-  const where: Prisma.TransactionWhereInput = {
-    ...(options.includeDeleted ? {} : notDeleted()),
-    ...(options.status ? { status: options.status } : {}),
-    ...(options.type ? { type: options.type } : {}),
-    ...(options.customerId ? { customerId: options.customerId } : {}),
-  };
-
   return prisma.transaction.findMany({
-    where,
+    where: transactionListWhere(options),
     orderBy: [{ valueDate: "desc" }, { createdAt: "desc" }],
+    ...(typeof options.take === "number" && options.take > 0
+      ? { take: Math.floor(options.take) }
+      : {}),
   });
+}
+
+/**
+ * Lightweight type column read for dashboard KPI grouping.
+ * Uses the same filters as `listTransactions` — no ledger join.
+ */
+export async function listTransactionTypes(
+  options: Omit<TransactionListOptions, "take"> = {},
+): Promise<TransactionType[]> {
+  const rows = await prisma.transaction.findMany({
+    where: transactionListWhere(options),
+    select: { type: true },
+  });
+  return rows.map((row) => row.type);
 }
 
 export async function updateTransaction(

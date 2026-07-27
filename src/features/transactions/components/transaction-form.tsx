@@ -30,6 +30,10 @@ import {
   transactionFormSchema,
   type TransactionFormFieldErrors,
 } from "@/features/transactions/schemas/transaction-form";
+import {
+  resolveCashWalletId,
+  resolveCustomerWalletId,
+} from "@/features/wallets/domain/resolve-form-wallets";
 
 export type TransactionFormValues = {
   type: TransactionFormType;
@@ -84,6 +88,11 @@ type TransactionFormProps = {
   onSuccess?: (message: string) => void;
 };
 
+function defaultCashWalletId(wallets: TransactionWalletOption[]): string {
+  const resolved = resolveCashWalletId(wallets);
+  return resolved.ok ? resolved.walletId : "";
+}
+
 export function TransactionForm({
   customers,
   wallets,
@@ -96,7 +105,13 @@ export function TransactionForm({
   onSubmit,
   onSuccess,
 }: TransactionFormProps) {
-  const [form, setForm] = useState<TransactionFormValues>(initialValues);
+  const [form, setForm] = useState<TransactionFormValues>(() => {
+    const seed = { ...initialValues };
+    if (seed.type !== "ADJUSTMENT" && !seed.offsetWalletId) {
+      seed.offsetWalletId = defaultCashWalletId(wallets);
+    }
+    return seed;
+  });
   const [fieldErrors, setFieldErrors] = useState<TransactionFormFieldErrors>(
     {},
   );
@@ -138,11 +153,9 @@ export function TransactionForm({
       ? "No wallets available"
       : "Select a wallet";
 
-  function customerWalletsFor(customerId: string): TransactionWalletOption[] {
-    return wallets.filter(
-      (wallet) =>
-        wallet.type === "CUSTOMER" && wallet.customerId === customerId,
-    );
+  function resolveCustomerWallet(customerId: string): string {
+    const resolved = resolveCustomerWalletId(wallets, customerId);
+    return resolved.ok ? resolved.walletId : "";
   }
 
   function updateField<K extends keyof TransactionFormValues>(
@@ -156,21 +169,23 @@ export function TransactionForm({
         next.walletId = "";
         next.offsetWalletId = "";
         if (value === "ADJUSTMENT") {
-          // customer optional for adjustments
-        } else if (!next.customerId) {
-          next.customerId = "";
+          // Operators pick wallets for adjustments.
         } else {
-          const options = customerWalletsFor(next.customerId);
-          next.walletId = options.length === 1 ? options[0].id : "";
+          next.offsetWalletId = defaultCashWalletId(wallets);
+          if (next.customerId) {
+            next.walletId = resolveCustomerWallet(next.customerId);
+          }
         }
       }
 
       if (key === "customerId" && next.type !== "ADJUSTMENT") {
-        const options =
+        next.walletId =
           typeof value === "string" && value
-            ? customerWalletsFor(value)
-            : [];
-        next.walletId = options.length === 1 ? options[0].id : "";
+            ? resolveCustomerWallet(value)
+            : "";
+        if (!next.offsetWalletId) {
+          next.offsetWalletId = defaultCashWalletId(wallets);
+        }
       }
 
       if (key === "walletId" && next.offsetWalletId === value) {
@@ -200,7 +215,34 @@ export function TransactionForm({
     setIsSubmitting(true);
 
     try {
-      const parsed = transactionFormSchema.safeParse(form);
+      let values: TransactionFormValues = { ...form };
+
+      if (values.type !== "ADJUSTMENT") {
+        const customerWallet = resolveCustomerWalletId(
+          wallets,
+          values.customerId,
+        );
+        if (!customerWallet.ok) {
+          setFieldErrors({ customerId: customerWallet.message });
+          setFormError(customerWallet.message);
+          return;
+        }
+
+        const cashWallet = resolveCashWalletId(wallets);
+        if (!cashWallet.ok) {
+          setFormError(cashWallet.message);
+          return;
+        }
+
+        values = {
+          ...values,
+          walletId: customerWallet.walletId,
+          offsetWalletId: cashWallet.walletId,
+        };
+        setForm(values);
+      }
+
+      const parsed = transactionFormSchema.safeParse(values);
 
       if (!parsed.success) {
         setFieldErrors(toTransactionFormFieldErrors(parsed.error));
@@ -290,70 +332,72 @@ export function TransactionForm({
           ) : null}
         </Field>
 
-        <Field data-invalid={fieldErrors.walletId ? true : undefined}>
-          <FieldLabel htmlFor="transaction-walletId">
-            {isAdjustment ? "Debit Wallet" : "Wallet"}
-          </FieldLabel>
-          <Select
-            value={form.walletId || null}
-            onValueChange={(value) =>
-              updateField("walletId", typeof value === "string" ? value : "")
-            }
-            disabled={!walletSelectEnabled || walletOptions.length === 0}
-          >
-            <SelectTrigger
-              id="transaction-walletId"
-              size="default"
-              className="w-full min-w-0"
-              aria-invalid={fieldErrors.walletId ? true : undefined}
-            >
-              <SelectValue placeholder={walletPlaceholder} />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
-              {walletOptions.map((wallet) => (
-                <SelectItem key={wallet.id} value={wallet.id}>
-                  {wallet.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!isAdjustment && form.customerId && walletOptions.length === 0 ? (
-            <FieldError>
-              This customer has no wallets. Create a Customer wallet on the
-              Wallets page, then try again.
-            </FieldError>
-          ) : null}
-          {fieldErrors.walletId ? (
-            <FieldError>{fieldErrors.walletId}</FieldError>
-          ) : null}
-        </Field>
+        {isAdjustment ? (
+          <>
+            <Field data-invalid={fieldErrors.walletId ? true : undefined}>
+              <FieldLabel htmlFor="transaction-walletId">Debit Wallet</FieldLabel>
+              <Select
+                value={form.walletId || null}
+                onValueChange={(value) =>
+                  updateField("walletId", typeof value === "string" ? value : "")
+                }
+                disabled={!walletSelectEnabled || walletOptions.length === 0}
+              >
+                <SelectTrigger
+                  id="transaction-walletId"
+                  size="default"
+                  className="w-full min-w-0"
+                  aria-invalid={fieldErrors.walletId ? true : undefined}
+                >
+                  <SelectValue placeholder={walletPlaceholder} />
+                </SelectTrigger>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  side="bottom"
+                  align="start"
+                >
+                  {walletOptions.map((wallet) => (
+                    <SelectItem key={wallet.id} value={wallet.id}>
+                      {wallet.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.walletId ? (
+                <FieldError>{fieldErrors.walletId}</FieldError>
+              ) : null}
+            </Field>
 
-        <Field data-invalid={fieldErrors.offsetWalletId ? true : undefined}>
-          <FieldLabel htmlFor="transaction-offsetWalletId">
-            {offsetWalletLabel}
-          </FieldLabel>
-          <select
-            id="transaction-offsetWalletId"
-            name="offsetWalletId"
-            value={form.offsetWalletId}
-            disabled={disabled}
-            aria-invalid={fieldErrors.offsetWalletId ? true : undefined}
-            className={selectClassName}
-            onChange={(event) =>
-              updateField("offsetWalletId", event.target.value)
-            }
-          >
-            <option value="">Select {offsetWalletLabel.toLowerCase()}</option>
-            {offsetWalletOptions.map((wallet) => (
-              <option key={wallet.id} value={wallet.id}>
-                {wallet.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.offsetWalletId ? (
-            <FieldError>{fieldErrors.offsetWalletId}</FieldError>
-          ) : null}
-        </Field>
+            <Field data-invalid={fieldErrors.offsetWalletId ? true : undefined}>
+              <FieldLabel htmlFor="transaction-offsetWalletId">
+                {offsetWalletLabel}
+              </FieldLabel>
+              <select
+                id="transaction-offsetWalletId"
+                name="offsetWalletId"
+                value={form.offsetWalletId}
+                disabled={disabled}
+                aria-invalid={fieldErrors.offsetWalletId ? true : undefined}
+                className={selectClassName}
+                onChange={(event) =>
+                  updateField("offsetWalletId", event.target.value)
+                }
+              >
+                <option value="">
+                  Select {offsetWalletLabel.toLowerCase()}
+                </option>
+                {offsetWalletOptions.map((wallet) => (
+                  <option key={wallet.id} value={wallet.id}>
+                    {wallet.label}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.offsetWalletId ? (
+                <FieldError>{fieldErrors.offsetWalletId}</FieldError>
+              ) : null}
+            </Field>
+          </>
+        ) : null}
 
         <Field data-invalid={fieldErrors.currencyCode ? true : undefined}>
           <FieldLabel htmlFor="transaction-currencyCode">Currency</FieldLabel>

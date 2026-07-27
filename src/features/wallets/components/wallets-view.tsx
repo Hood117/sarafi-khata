@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { Typography } from "@/design-system/typography";
 import { WalletsPageHeader } from "@/features/wallets/components/wallets-page-header";
 import { WalletsTable } from "@/features/wallets/components/wallets-table";
 import type {
@@ -31,6 +33,19 @@ export function WalletsView({ wallets, customerOptions }: WalletsViewProps) {
 
   return (
     <div className="space-y-6">
+      <nav aria-label="Breadcrumb">
+        <Typography variant="muted" as="p">
+          <Link
+            href="/settings"
+            className="hover:text-foreground underline-offset-4 hover:underline"
+          >
+            Settings
+          </Link>
+          <span aria-hidden> / </span>
+          <span className="text-foreground">Wallets</span>
+        </Typography>
+      </nav>
+
       <WalletsPageHeader
         customerOptions={customerOptions}
         onSuccess={setSuccessMessage}

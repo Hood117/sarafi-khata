@@ -12,7 +12,11 @@ import {
   type LedgerEntryInput,
 } from "@/features/ledger";
 import { getSystemSetting } from "@/features/settings";
-import type { CustomerWalletBalanceRow } from "@/features/wallets/domain/types";
+import type {
+  CustomerCurrencyBalance,
+  CustomerWalletBalanceRow,
+} from "@/features/wallets/domain/types";
+import { deriveCurrencyBalancesForWallets } from "@/features/wallets/services/derive-currency-balances";
 import { listWallets } from "@/features/wallets/repositories/wallet-repository";
 
 function formatMinorUnits(amountMinor: bigint, decimalPlaces: number): string {
@@ -160,4 +164,25 @@ export async function getCustomerWalletBalanceRows(
   });
 
   return rows;
+}
+
+/**
+ * Customer balances by currency, derived from ledger entries across the
+ * customer's wallets. Does not read or write a stored balance field.
+ * Active currencies with no activity appear as zero.
+ */
+export async function getCustomerCurrencyBalances(
+  customerId: string,
+  options: { includeArchived?: boolean } = {},
+): Promise<CustomerCurrencyBalance[]> {
+  const wallets = options.includeArchived
+    ? (
+        await listWallets({
+          customerId,
+          includeDeleted: true,
+        })
+      ).filter((wallet) => wallet.customerId === customerId)
+    : await listWallets({ customerId });
+
+  return deriveCurrencyBalancesForWallets(wallets.map((wallet) => wallet.id));
 }

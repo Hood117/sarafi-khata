@@ -18,12 +18,25 @@ export {
 export { WalletError, isWalletError } from "@/features/wallets/domain/errors";
 export type { WalletErrorCode, WalletField } from "@/features/wallets/domain/errors";
 export {
+  CASH_TILL_WALLET_NAME,
   EXCHANGE_DIFFERENCE_WALLET_NAME,
+  HAWALA_CLEARING_WALLET_NAME,
+  MAIN_VAULT_WALLET_NAME,
   getWalletDescription,
   SYSTEM_WALLET_DESCRIPTIONS,
 } from "@/features/wallets/domain/wallet-descriptions";
+export {
+  resolveCashWalletId,
+  resolveCustomerWalletId,
+  resolveHawalaClearingWalletId,
+  type FormWalletOption,
+  type WalletResolveResult,
+} from "@/features/wallets/domain/resolve-form-wallets";
 export { normalizeWalletInput } from "@/features/wallets/domain/wallet-rules";
 export type {
+  BusinessCashBalance,
+  CurrencyBalanceDisplay,
+  CustomerCurrencyBalance,
   CustomerWalletBalanceRow,
   WalletArchiveFilter,
   WalletCustomerOption,
@@ -53,7 +66,11 @@ export {
   getWalletForForm,
 } from "@/features/wallets/services/get-wallet";
 export { archiveWalletRecord } from "@/features/wallets/services/archive-wallet";
-export { getCustomerWalletBalanceRows } from "@/features/wallets/services/get-customer-wallets";
+export {
+  getCustomerCurrencyBalances,
+  getCustomerWalletBalanceRows,
+} from "@/features/wallets/services/get-customer-wallets";
+export { getBusinessCashBalances } from "@/features/wallets/services/get-business-cash-balances";
 
 export {
   createWalletAction,

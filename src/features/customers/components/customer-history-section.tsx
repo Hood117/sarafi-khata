@@ -159,7 +159,11 @@ export function CustomerHistorySection({
       className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6"
       aria-labelledby="customer-history-heading"
     >
-      <Typography variant="h4" id="customer-history-heading">
+      <Typography
+        variant="h4"
+        id="customer-history-heading"
+        className="font-bold"
+      >
         Customer History
       </Typography>
 

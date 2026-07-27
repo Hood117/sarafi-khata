@@ -25,6 +25,10 @@ import {
   toHawalaFieldErrors,
   type HawalaFieldErrors,
 } from "@/features/hawala/schemas/hawala";
+import {
+  resolveCashWalletId,
+  resolveHawalaClearingWalletId,
+} from "@/features/wallets/domain/resolve-form-wallets";
 import { listCityOptions, listCountryOptions } from "@/lib/locations";
 import { cn } from "@/lib/utils";
 
@@ -217,11 +221,6 @@ export function HawalaForm({
     submitLabel ??
     (direction === "SEND" ? "Send Hawala" : "Receive Hawala");
 
-  const walletHelp =
-    direction === "SEND"
-      ? "Send posts cash into the clearing wallet (debit cash, credit clearing)."
-      : "Receive posts cash out of the clearing wallet (debit clearing, credit cash).";
-
   function updateField<K extends keyof HawalaFormValues>(
     key: K,
     value: HawalaFormValues[K],
@@ -349,38 +348,73 @@ export function HawalaForm({
     setFormError(null);
     setSuccessMessage(null);
 
+    const cashWallet = resolveCashWalletId(cashWallets);
+    if (!cashWallet.ok) {
+      setFieldErrors({ cashWalletId: cashWallet.message });
+      setFormError(cashWallet.message);
+      return;
+    }
+
+    const clearingWallet = resolveHawalaClearingWalletId(clearingWallets);
+    if (!clearingWallet.ok) {
+      setFieldErrors({ clearingWalletId: clearingWallet.message });
+      setFormError(clearingWallet.message);
+      return;
+    }
+
+    const resolvedForm: HawalaFormValues = {
+      ...form,
+      cashWalletId: cashWallet.walletId,
+      clearingWalletId: clearingWallet.walletId,
+    };
+    setForm(resolvedForm);
+
     const payload = {
-      senderName: form.senderSource === "external" ? form.senderName : "",
-      senderPhone: form.senderPhone,
-      receiverName: form.receiverSource === "external" ? form.receiverName : "",
-      receiverPhone: form.receiverPhone,
+      senderName:
+        resolvedForm.senderSource === "external"
+          ? resolvedForm.senderName
+          : "",
+      senderPhone: resolvedForm.senderPhone,
+      receiverName:
+        resolvedForm.receiverSource === "external"
+          ? resolvedForm.receiverName
+          : "",
+      receiverPhone: resolvedForm.receiverPhone,
       senderCustomerId:
-        form.senderSource === "customer" ? form.senderCustomerId || null : null,
-      receiverCustomerId:
-        form.receiverSource === "customer"
-          ? form.receiverCustomerId || null
+        resolvedForm.senderSource === "customer"
+          ? resolvedForm.senderCustomerId || null
           : null,
-      partnerSarafi: form.partnerSarafi,
-      originCity: form.originCity,
-      originCountry: form.originCountry,
-      destinationCity: form.destinationCity,
-      destinationCountry: form.destinationCountry,
-      reference: form.reference,
-      currencyCode: form.currencyCode,
-      amount: form.amount,
-      notes: form.notes,
-      cashWalletId: form.cashWalletId,
-      clearingWalletId: form.clearingWalletId,
-      valueDate: form.valueDate || undefined,
+      receiverCustomerId:
+        resolvedForm.receiverSource === "customer"
+          ? resolvedForm.receiverCustomerId || null
+          : null,
+      partnerSarafi: resolvedForm.partnerSarafi,
+      originCity: resolvedForm.originCity,
+      originCountry: resolvedForm.originCountry,
+      destinationCity: resolvedForm.destinationCity,
+      destinationCountry: resolvedForm.destinationCountry,
+      reference: resolvedForm.reference,
+      currencyCode: resolvedForm.currencyCode,
+      amount: resolvedForm.amount,
+      notes: resolvedForm.notes,
+      cashWalletId: resolvedForm.cashWalletId,
+      clearingWalletId: resolvedForm.clearingWalletId,
+      valueDate: resolvedForm.valueDate || undefined,
     };
 
-    if (form.senderSource === "customer" && !form.senderCustomerId) {
+    if (
+      resolvedForm.senderSource === "customer" &&
+      !resolvedForm.senderCustomerId
+    ) {
       setFieldErrors({ senderCustomerId: "Select a local customer." });
       setFormError("Please correct the highlighted fields.");
       return;
     }
 
-    if (form.receiverSource === "customer" && !form.receiverCustomerId) {
+    if (
+      resolvedForm.receiverSource === "customer" &&
+      !resolvedForm.receiverCustomerId
+    ) {
       setFieldErrors({ receiverCustomerId: "Select a local customer." });
       setFormError("Please correct the highlighted fields.");
       return;
@@ -396,7 +430,7 @@ export function HawalaForm({
 
     setIsSubmitting(true);
     try {
-      const result = await onSubmit(form);
+      const result = await onSubmit(resolvedForm);
       if (!result.ok) {
         setFieldErrors(result.fieldErrors ?? {});
         setFormError(result.message || errorFallbackMessage);
@@ -729,7 +763,7 @@ export function HawalaForm({
           </div>
         </FormSection>
 
-        <FormSection title="Amount & wallets" description={walletHelp}>
+        <FormSection title="Amount">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field data-invalid={fieldErrors.reference ? true : undefined}>
               <FieldLabel htmlFor="hawala-reference">Reference number</FieldLabel>
@@ -791,53 +825,12 @@ export function HawalaForm({
               </select>
               <FieldError>{fieldErrors.currencyCode}</FieldError>
             </Field>
-
-            <Field data-invalid={fieldErrors.cashWalletId ? true : undefined}>
-              <FieldLabel htmlFor="hawala-cash-wallet">Cash wallet</FieldLabel>
-              <select
-                id="hawala-cash-wallet"
-                className={selectClassName}
-                value={form.cashWalletId}
-                onChange={(event) =>
-                  updateField("cashWalletId", event.target.value)
-                }
-                disabled={isSubmitting}
-              >
-                <option value="">Select vault or till</option>
-                {cashWallets.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError>{fieldErrors.cashWalletId}</FieldError>
-            </Field>
-
-            <Field
-              data-invalid={fieldErrors.clearingWalletId ? true : undefined}
-            >
-              <FieldLabel htmlFor="hawala-clearing-wallet">
-                Clearing wallet
-              </FieldLabel>
-              <select
-                id="hawala-clearing-wallet"
-                className={selectClassName}
-                value={form.clearingWalletId}
-                onChange={(event) =>
-                  updateField("clearingWalletId", event.target.value)
-                }
-                disabled={isSubmitting}
-              >
-                <option value="">Select system wallet</option>
-                {clearingWallets.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.label}
-                  </option>
-                ))}
-              </select>
-              <FieldError>{fieldErrors.clearingWalletId}</FieldError>
-            </Field>
           </div>
+          {fieldErrors.cashWalletId || fieldErrors.clearingWalletId ? (
+            <p className="text-destructive text-sm" role="alert">
+              {fieldErrors.cashWalletId ?? fieldErrors.clearingWalletId}
+            </p>
+          ) : null}
         </FormSection>
 
         <FormSection title="Notes">

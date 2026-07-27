@@ -3,13 +3,15 @@
  * Import from this module only — do not reach into internal folders.
  *
  * Money movements must go through `postTransaction` (or deposit/withdraw/adjust/
- * exchange services that call it). Transaction/ledger writes are not exported here.
+ * exchange/transfer services that call it). Transaction/ledger writes are not
+ * exported here.
  */
 
 export {
   findTransactionById,
   findTransactionByReference,
   listTransactions,
+  listTransactionTypes,
   type TransactionListOptions,
 } from "@/features/transactions/repositories/transaction-repository";
 
@@ -22,6 +24,10 @@ export {
   type ExchangeParams,
   type ExchangeFundsResult,
 } from "@/features/transactions/services/exchange";
+export {
+  transferFunds,
+  type TransferParams,
+} from "@/features/transactions/services/transfer";
 
 export type {
   PostingLineInput,
@@ -47,7 +53,10 @@ export {
   TRANSACTION_STATUS_LABELS,
 } from "@/features/transactions/domain/labels";
 
-export { getTransactionList } from "@/features/transactions/services/list-transactions";
+export {
+  getTransactionList,
+  type GetTransactionListOptions,
+} from "@/features/transactions/services/list-transactions";
 export { getTransactionDetail } from "@/features/transactions/services/get-transaction-detail";
 export { getCustomerHistory } from "@/features/transactions/services/get-customer-history";
 export { getTransactionFormOptions } from "@/features/transactions/services/get-transaction-form-options";
@@ -92,18 +101,22 @@ export {
   withdrawalSchema,
   manualAdjustmentSchema,
   exchangeSchema,
+  transferSchema,
   toDepositFieldErrors,
   toWithdrawalFieldErrors,
   toManualAdjustmentFieldErrors,
   toExchangeFieldErrors,
+  toTransferFieldErrors,
   type DepositInput,
   type WithdrawalInput,
   type ManualAdjustmentInput,
   type ExchangeInput,
+  type TransferInput,
   type DepositFieldErrors,
   type WithdrawalFieldErrors,
   type ManualAdjustmentFieldErrors,
   type ExchangeFieldErrors,
+  type TransferFieldErrors,
 } from "@/features/transactions/schemas/money-movement";
 
 export {
@@ -120,14 +133,17 @@ export {
   withdrawalAction,
   manualAdjustmentAction,
   createExchangeAction,
+  createTransferAction,
   type DepositActionInput,
   type WithdrawalActionInput,
   type ManualAdjustmentActionInput,
   type CreateExchangeActionInput,
+  type CreateTransferActionInput,
   type DepositActionResult,
   type WithdrawalActionResult,
   type ManualAdjustmentActionResult,
   type CreateExchangeActionResult,
+  type CreateTransferActionResult,
   type TransactionMutationActionResult,
   type TransactionFieldErrors,
 } from "@/features/transactions/actions/transaction-actions";

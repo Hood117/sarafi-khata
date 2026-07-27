@@ -32,6 +32,10 @@ export function resolveSafeReturnTo(
 }
 
 export function backLabelForReturnTo(returnTo: string): string {
+  if (returnTo === "/" || returnTo.startsWith("/?")) {
+    return "Back to dashboard";
+  }
+
   if (returnTo.startsWith("/customers/")) {
     return "Back to customer";
   }
@@ -46,6 +50,22 @@ export function backLabelForReturnTo(returnTo: string): string {
     returnTo.startsWith("/exchange/")
   ) {
     return "Back to exchange";
+  }
+
+  if (
+    returnTo === "/transfers" ||
+    returnTo.startsWith("/transfers?") ||
+    returnTo.startsWith("/transfers/")
+  ) {
+    return "Back to transfers";
+  }
+
+  if (
+    returnTo === "/reports" ||
+    returnTo.startsWith("/reports?") ||
+    returnTo.startsWith("/reports/")
+  ) {
+    return "Back to reports";
   }
 
   return "Back to transactions";

@@ -8,6 +8,8 @@ export type CreateLedgerEntryManyData = Prisma.LedgerEntryCreateManyInput;
 
 export type LedgerEntryListOptions = {
   transactionId?: string;
+  /** Batch filter — ignored when empty (avoids invalid SQL `IN ()`). */
+  transactionIds?: readonly string[];
   walletId?: string;
   currencyId?: string;
 };
@@ -65,8 +67,17 @@ export async function listLedgerEntriesByWallet(
 export async function listLedgerEntries(
   options: LedgerEntryListOptions = {},
 ): Promise<LedgerEntry[]> {
+  const transactionIds = options.transactionIds?.filter(Boolean) ?? [];
+
+  if (options.transactionIds && transactionIds.length === 0) {
+    return [];
+  }
+
   const where: Prisma.LedgerEntryWhereInput = {
     ...(options.transactionId ? { transactionId: options.transactionId } : {}),
+    ...(transactionIds.length > 0
+      ? { transactionId: { in: [...transactionIds] } }
+      : {}),
     ...(options.walletId ? { walletId: options.walletId } : {}),
     ...(options.currencyId ? { currencyId: options.currencyId } : {}),
   };

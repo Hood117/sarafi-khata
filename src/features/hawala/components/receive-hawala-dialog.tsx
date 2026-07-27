@@ -28,6 +28,10 @@ import type {
   HawalaWalletOption,
 } from "@/features/hawala/domain/types";
 import type { HawalaFieldErrors } from "@/features/hawala/schemas/hawala";
+import {
+  resolveCashWalletId,
+  resolveHawalaClearingWalletId,
+} from "@/features/wallets/domain/resolve-form-wallets";
 
 type ReceiveHawalaDialogProps = {
   customers: HawalaCustomerOption[];
@@ -63,9 +67,11 @@ export function ReceiveHawalaDialog({
   const [open, setOpen] = useState(false);
   const [formKey, setFormKey] = useState(0);
 
+  const cashWallet = resolveCashWalletId(cashWallets);
+  const clearingWallet = resolveHawalaClearingWalletId(clearingWallets);
   const initialValues = emptyHawalaFormValues({
-    cashWalletId: cashWallets[0]?.id,
-    clearingWalletId: clearingWallets[0]?.id,
+    cashWalletId: cashWallet.ok ? cashWallet.walletId : "",
+    clearingWalletId: clearingWallet.ok ? clearingWallet.walletId : "",
     currencyCode: currencies[0]?.code,
   });
 
@@ -135,8 +141,8 @@ export function ReceiveHawalaDialog({
         <DialogHeader>
           <DialogTitle>Receive Hawala</DialogTitle>
           <DialogDescription>
-            Record a receive transfer and post cash out from the clearing
-            wallet.
+            Record a receive transfer. Internal cash and clearing accounts are
+            applied automatically.
           </DialogDescription>
         </DialogHeader>
 

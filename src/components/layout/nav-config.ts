@@ -1,5 +1,7 @@
 import {
   ArrowLeftRight,
+  ArrowRightLeft,
+  Banknote,
   BarChart3,
   Coins,
   HardDrive,
@@ -9,7 +11,6 @@ import {
   Shield,
   UserCog,
   Users,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -21,9 +22,10 @@ export type AppNavItem = {
 
 export const primaryNav: AppNavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutGrid },
+  { href: "/cash", label: "Cash", icon: Banknote },
   { href: "/customers", label: "Customers", icon: Users },
-  { href: "/wallets", label: "Wallets", icon: Wallet },
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { href: "/transfers", label: "Transfers", icon: ArrowRightLeft },
   { href: "/exchange", label: "Exchange", icon: Coins },
   { href: "/hawala", label: "Hawala", icon: Send },
   { href: "/reports", label: "Reports", icon: BarChart3 },
@@ -38,9 +40,10 @@ export const secondaryNav: AppNavItem[] = [
 
 export const pageTitles: Record<string, string> = {
   "/": "Dashboard",
+  "/cash": "Business Cash Overview",
   "/customers": "Customers",
-  "/wallets": "Wallets",
   "/transactions": "Transactions",
+  "/transfers": "Transfers",
   "/exchange": "Exchange",
   "/hawala": "Hawala",
   "/reports": "Reports",
@@ -50,4 +53,5 @@ export const pageTitles: Record<string, string> = {
   "/settings": "Settings",
   "/settings/currencies": "Currencies",
   "/settings/exchange-rates": "Exchange Rates",
+  "/settings/wallets": "Wallets",
 };

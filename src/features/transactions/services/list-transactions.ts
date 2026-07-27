@@ -1,35 +1,79 @@
 import "server-only";
 
 import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
-import { listCustomers } from "@/features/customers/repositories/customer-repository";
+import { listCustomersByIds } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import { listLedgerEntries } from "@/features/ledger/repositories/ledger-repository";
 import type { TransactionListItem } from "@/features/transactions/domain/types";
-import { listTransactions } from "@/features/transactions/repositories/transaction-repository";
+import {
+  listTransactions,
+  type TransactionListOptions,
+} from "@/features/transactions/repositories/transaction-repository";
 import { summarizeDebitTotals } from "@/features/transactions/services/ledger-amount-display";
 import { prisma } from "@/server/db";
 
-export async function getTransactionList(): Promise<TransactionListItem[]> {
-  const [transactions, entries, currencies, customers, users] =
-    await Promise.all([
-      listTransactions(),
-      listLedgerEntries(),
-      listCurrencies({ includeDeleted: true }),
-      listCustomers({ includeDeleted: true }),
-      prisma.user.findMany({
-        select: { id: true, fullName: true, username: true },
-      }),
-    ]);
+export type GetTransactionListOptions = Pick<
+  TransactionListOptions,
+  | "status"
+  | "type"
+  | "customerId"
+  | "createdById"
+  | "valueDateFrom"
+  | "valueDateTo"
+  | "take"
+  | "includeDeleted"
+>;
+
+/**
+ * Read-only transaction list rows for UI / dashboard.
+ * Loads ledger lines only for the selected transactions (not the full ledger).
+ */
+export async function getTransactionList(
+  options: GetTransactionListOptions = {},
+): Promise<TransactionListItem[]> {
+  const transactions = await listTransactions(options);
+  if (transactions.length === 0) {
+    return [];
+  }
+
+  const transactionIds = transactions.map((transaction) => transaction.id);
+  const customerIds = [
+    ...new Set(
+      transactions
+        .map((transaction) => transaction.customerId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const operatorIds = [
+    ...new Set(
+      transactions
+        .map((transaction) => transaction.createdById)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const [entries, currencies, customers, users] = await Promise.all([
+    listLedgerEntries({ transactionIds }),
+    listCurrencies({ includeDeleted: true }),
+    listCustomersByIds(customerIds, { includeDeleted: true }),
+    operatorIds.length === 0
+      ? Promise.resolve([])
+      : prisma.user.findMany({
+          where: { id: { in: operatorIds } },
+          select: { id: true, fullName: true, username: true },
+        }),
+  ]);
 
   const currenciesById = new Map(
     currencies.map((currency) => [currency.id, currency] as const),
   );
   const customerNames = new Map(
-    customers.map((customer) =>
-      [
-        customer.id,
-        formatCustomerLabel(customer.fullName, customer.code),
-      ] as const,
+    customers.map(
+      (customer) =>
+        [
+          customer.id,
+          formatCustomerLabel(customer.fullName, customer.code),
+        ] as const,
     ),
   );
   const operatorNames = new Map(

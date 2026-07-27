@@ -155,11 +155,41 @@ export const exchangeSchema = z
     }
   });
 
+const customerIdSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "Customer is required." });
+
+/**
+ * Customer-to-customer transfer (same currency).
+ * Notes map to `description` for posting (same as other money movements).
+ */
+export const transferSchema = z
+  .object({
+    reference: referenceSchema,
+    senderCustomerId: customerIdSchema,
+    receiverCustomerId: customerIdSchema,
+    currencyCode: currencyCodeSchema,
+    amount: amountSchema,
+    valueDate: valueDateSchema.optional(),
+    description: optionalText(2000),
+  })
+  .superRefine((data, context) => {
+    if (data.senderCustomerId === data.receiverCustomerId) {
+      context.addIssue({
+        code: "custom",
+        path: ["receiverCustomerId"],
+        message: "Receiver must be different from the sender.",
+      });
+    }
+  });
+
 /** Action/form input shape (preprocess defaults applied on parse). */
 export type DepositInput = z.input<typeof depositSchema>;
 export type WithdrawalInput = z.input<typeof withdrawalSchema>;
 export type ManualAdjustmentInput = z.input<typeof manualAdjustmentSchema>;
 export type ExchangeInput = z.input<typeof exchangeSchema>;
+export type TransferInput = z.input<typeof transferSchema>;
 
 export type DepositFieldErrors = Partial<
   Record<keyof z.infer<typeof depositSchema>, string>
@@ -172,6 +202,9 @@ export type ManualAdjustmentFieldErrors = Partial<
 >;
 export type ExchangeFieldErrors = Partial<
   Record<keyof z.infer<typeof exchangeSchema>, string>
+>;
+export type TransferFieldErrors = Partial<
+  Record<keyof z.infer<typeof transferSchema>, string>
 >;
 
 function toFieldErrors<T extends string>(
@@ -207,4 +240,8 @@ export function toManualAdjustmentFieldErrors(
 
 export function toExchangeFieldErrors(error: z.ZodError): ExchangeFieldErrors {
   return toFieldErrors<keyof ExchangeInput>(error);
+}
+
+export function toTransferFieldErrors(error: z.ZodError): TransferFieldErrors {
+  return toFieldErrors<keyof TransferInput>(error);
 }

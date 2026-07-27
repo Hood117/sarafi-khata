@@ -28,6 +28,8 @@ import { hrefWithReturnTo } from "@/lib/navigation";
 
 type TransactionsTableProps = {
   transactions: TransactionListItem[];
+  /** When set, detail links return here instead of `/transactions`. */
+  returnTo?: string;
 };
 
 function formatValueDate(isoDate: string): string {
@@ -52,7 +54,10 @@ function TransactionStatusBadge({ status }: { status: TransactionStatus }) {
   );
 }
 
-export function TransactionsTable({ transactions }: TransactionsTableProps) {
+export function TransactionsTable({
+  transactions,
+  returnTo = "/transactions",
+}: TransactionsTableProps) {
   const total = transactions.length;
 
   return (
@@ -79,7 +84,7 @@ export function TransactionsTable({ transactions }: TransactionsTableProps) {
               {transactions.map((transaction) => {
                 const detailHref = hrefWithReturnTo(
                   `/transactions/${transaction.id}`,
-                  "/transactions",
+                  returnTo,
                 );
 
                 return (

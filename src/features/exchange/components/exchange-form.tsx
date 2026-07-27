@@ -37,6 +37,7 @@ import {
   createExchangeAction,
   type TransactionFieldErrors,
 } from "@/features/transactions/actions/transaction-actions";
+import { resolveCustomerWalletId } from "@/features/wallets/domain/resolve-form-wallets";
 
 const selectClassName =
   "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50";
@@ -79,10 +80,14 @@ function mapActionFieldErrors(
     return undefined;
   }
 
+  // Wallet fields are hidden — surface wallet issues on the customer field.
   return {
-    customerId: fieldErrors.customerId,
-    fromWalletId: fieldErrors.fromWalletId,
-    toWalletId: fieldErrors.toWalletId,
+    customerId:
+      fieldErrors.customerId ??
+      fieldErrors.fromWalletId ??
+      fieldErrors.toWalletId,
+    fromWalletId: undefined,
+    toWalletId: undefined,
     fromCurrencyCode: fieldErrors.fromCurrencyCode,
     toCurrencyCode: fieldErrors.toCurrencyCode,
     amount: fieldErrors.amount,
@@ -113,36 +118,6 @@ export function ExchangeForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fromWalletOptions = useMemo(() => {
-    return wallets.filter((wallet) => {
-      if (wallet.type === "VAULT" || wallet.type === "TILL") {
-        return true;
-      }
-      if (wallet.type !== "CUSTOMER") {
-        return false;
-      }
-      if (!form.customerId) {
-        return false;
-      }
-      return wallet.customerId === form.customerId;
-    });
-  }, [form.customerId, wallets]);
-
-  const toWalletOptions = useMemo(() => {
-    return wallets.filter((wallet) => {
-      if (wallet.type === "VAULT" || wallet.type === "TILL") {
-        return true;
-      }
-      if (wallet.type !== "CUSTOMER") {
-        return false;
-      }
-      if (!form.customerId) {
-        return false;
-      }
-      return wallet.customerId === form.customerId;
-    });
-  }, [form.customerId, wallets]);
 
   const fromCurrency = currencyByCode(currencies, form.fromCurrencyCode);
   const toCurrency = currencyByCode(currencies, form.toCurrencyCode);
@@ -179,11 +154,25 @@ export function ExchangeForm({
     );
   }, [effectiveRate, form.amount, fromCurrency, toCurrency]);
 
-  function customerWalletsFor(customerId: string): ExchangeWalletOption[] {
-    return wallets.filter(
-      (wallet) =>
-        wallet.type === "CUSTOMER" && wallet.customerId === customerId,
-    );
+  function applyCustomerWallet(customerId: string): {
+    fromWalletId: string;
+    toWalletId: string;
+    error: string | null;
+  } {
+    if (!customerId) {
+      return { fromWalletId: "", toWalletId: "", error: null };
+    }
+
+    const resolved = resolveCustomerWalletId(wallets, customerId);
+    if (!resolved.ok) {
+      return { fromWalletId: "", toWalletId: "", error: resolved.message };
+    }
+
+    return {
+      fromWalletId: resolved.walletId,
+      toWalletId: resolved.walletId,
+      error: null,
+    };
   }
 
   function updateField<K extends keyof ExchangeFormValues>(
@@ -202,13 +191,11 @@ export function ExchangeForm({
       const next = { ...current, [key]: value };
 
       if (key === "customerId") {
-        const options =
-          typeof value === "string" && value
-            ? customerWalletsFor(value)
-            : [];
-        const defaultWalletId = options.length === 1 ? options[0].id : "";
-        next.fromWalletId = defaultWalletId;
-        next.toWalletId = defaultWalletId;
+        const applied = applyCustomerWallet(
+          typeof value === "string" ? value : "",
+        );
+        next.fromWalletId = applied.fromWalletId;
+        next.toWalletId = applied.toWalletId;
       }
 
       if (key === "fromCurrencyCode" || key === "toCurrencyCode") {
@@ -247,10 +234,22 @@ export function ExchangeForm({
     setIsSubmitting(true);
 
     try {
-      const parsed = exchangeFormSchema.safeParse({
+      const applied = applyCustomerWallet(form.customerId);
+      if (applied.error) {
+        setFieldErrors({ customerId: applied.error });
+        setFormError(applied.error);
+        return;
+      }
+
+      const values: ExchangeFormValues = {
         ...form,
+        fromWalletId: applied.fromWalletId,
+        toWalletId: applied.toWalletId,
         exchangeRate: effectiveRate,
-      });
+      };
+      setForm(values);
+
+      const parsed = exchangeFormSchema.safeParse(values);
 
       if (!parsed.success) {
         setFieldErrors(toExchangeFormFieldErrors(parsed.error));
@@ -298,7 +297,6 @@ export function ExchangeForm({
   }
 
   const disabled = isSubmitting;
-  const walletsEnabled = Boolean(form.customerId);
   const rateReadOnly = !allowManualRateOverride;
   const rateHint =
     form.fromCurrencyCode &&
@@ -313,7 +311,7 @@ export function ExchangeForm({
     <form onSubmit={handleSubmit} noValidate className="space-y-8">
       <FormSection
         title="Currency exchange"
-        description="Convert one currency into another. Rates load from Settings; posting goes through the exchange service."
+        description="Convert one currency into another. Rates load from Settings; the customer’s account is updated automatically."
       >
         <FieldGroup>
           <Field data-invalid={fieldErrors.customerId ? true : undefined}>
@@ -340,66 +338,6 @@ export function ExchangeForm({
               <FieldError>{fieldErrors.customerId}</FieldError>
             ) : null}
           </Field>
-
-          <FormGrid columns={2}>
-            <Field data-invalid={fieldErrors.fromWalletId ? true : undefined}>
-              <FieldLabel htmlFor="exchange-fromWalletId">From Wallet</FieldLabel>
-              <select
-                id="exchange-fromWalletId"
-                name="fromWalletId"
-                value={form.fromWalletId}
-                disabled={disabled || !walletsEnabled}
-                aria-invalid={fieldErrors.fromWalletId ? true : undefined}
-                className={selectClassName}
-                onChange={(event) =>
-                  updateField("fromWalletId", event.target.value)
-                }
-              >
-                <option value="">
-                  {walletsEnabled
-                    ? "Select from wallet"
-                    : "Select a customer first"}
-                </option>
-                {fromWalletOptions.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.label}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.fromWalletId ? (
-                <FieldError>{fieldErrors.fromWalletId}</FieldError>
-              ) : null}
-            </Field>
-
-            <Field data-invalid={fieldErrors.toWalletId ? true : undefined}>
-              <FieldLabel htmlFor="exchange-toWalletId">To Wallet</FieldLabel>
-              <select
-                id="exchange-toWalletId"
-                name="toWalletId"
-                value={form.toWalletId}
-                disabled={disabled || !walletsEnabled}
-                aria-invalid={fieldErrors.toWalletId ? true : undefined}
-                className={selectClassName}
-                onChange={(event) =>
-                  updateField("toWalletId", event.target.value)
-                }
-              >
-                <option value="">
-                  {walletsEnabled
-                    ? "Select to wallet"
-                    : "Select a customer first"}
-                </option>
-                {toWalletOptions.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.label}
-                  </option>
-                ))}
-              </select>
-              {fieldErrors.toWalletId ? (
-                <FieldError>{fieldErrors.toWalletId}</FieldError>
-              ) : null}
-            </Field>
-          </FormGrid>
 
           <FormGrid columns={2}>
             <Field

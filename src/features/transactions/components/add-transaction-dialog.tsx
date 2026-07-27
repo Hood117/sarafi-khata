@@ -40,22 +40,40 @@ type AddTransactionDialogProps = {
 
 function mapActionFieldErrors(
   fieldErrors?: TransactionFieldErrors,
+  type?: TransactionFormValues["type"],
 ): TransactionFormFieldErrors | undefined {
   if (!fieldErrors) {
     return undefined;
   }
 
+  const walletId =
+    fieldErrors.customerWalletId ??
+    fieldErrors.debitWalletId ??
+    fieldErrors.walletId;
+  const offsetWalletId =
+    fieldErrors.cashWalletId ??
+    fieldErrors.creditWalletId ??
+    fieldErrors.offsetWalletId;
+
+  // Deposit/withdrawal hide wallet fields — surface those errors on customer.
+  if (type === "DEPOSIT" || type === "WITHDRAWAL") {
+    return {
+      type: undefined,
+      customerId: fieldErrors.customerId ?? walletId ?? offsetWalletId,
+      walletId: undefined,
+      offsetWalletId: undefined,
+      currencyCode: fieldErrors.currencyCode,
+      amount: fieldErrors.amount,
+      reference: fieldErrors.reference,
+      notes: fieldErrors.description ?? fieldErrors.notes,
+    };
+  }
+
   return {
     type: undefined,
     customerId: fieldErrors.customerId,
-    walletId:
-      fieldErrors.customerWalletId ??
-      fieldErrors.debitWalletId ??
-      fieldErrors.walletId,
-    offsetWalletId:
-      fieldErrors.cashWalletId ??
-      fieldErrors.creditWalletId ??
-      fieldErrors.offsetWalletId,
+    walletId,
+    offsetWalletId,
     currencyCode: fieldErrors.currencyCode,
     amount: fieldErrors.amount,
     reference: fieldErrors.reference,
@@ -116,7 +134,7 @@ export function AddTransactionDialog({
       return {
         ok: false as const,
         message: result.message,
-        fieldErrors: mapActionFieldErrors(result.fieldErrors),
+        fieldErrors: mapActionFieldErrors(result.fieldErrors, values.type),
       };
     }
 
@@ -142,7 +160,7 @@ export function AddTransactionDialog({
         <DialogHeader className="shrink-0">
           <DialogTitle>New Transaction</DialogTitle>
           <DialogDescription>
-            Post a deposit, withdrawal, or manual adjustment.
+            Post a deposit or withdrawal for a customer, or a manual adjustment.
           </DialogDescription>
         </DialogHeader>
 

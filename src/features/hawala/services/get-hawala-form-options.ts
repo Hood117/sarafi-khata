@@ -4,7 +4,17 @@ import { formatCustomerLabel } from "@/features/customers/domain/format-customer
 import { listCustomers } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import type { HawalaFormOptions } from "@/features/hawala/domain/types";
+import {
+  CASH_TILL_WALLET_NAME,
+  HAWALA_CLEARING_WALLET_NAME,
+  MAIN_VAULT_WALLET_NAME,
+} from "@/features/wallets/domain/wallet-descriptions";
 import { listWallets } from "@/features/wallets/repositories/wallet-repository";
+
+function preferWalletNameScore(label: string, preferred: string[]): number {
+  const index = preferred.indexOf(label);
+  return index === -1 ? preferred.length : index;
+}
 
 export async function getHawalaFormOptions(): Promise<HawalaFormOptions> {
   const [customers, wallets, currencies] = await Promise.all([
@@ -27,10 +37,30 @@ export async function getHawalaFormOptions(): Promise<HawalaFormOptions> {
       label: wallet.name,
     }));
 
+  // Prefer Cash Till / Main Vault so UI defaults hide wallet choice.
+  cashWallets.sort((left, right) => {
+    const leftScore = preferWalletNameScore(left.label, [
+      CASH_TILL_WALLET_NAME,
+      MAIN_VAULT_WALLET_NAME,
+    ]);
+    const rightScore = preferWalletNameScore(right.label, [
+      CASH_TILL_WALLET_NAME,
+      MAIN_VAULT_WALLET_NAME,
+    ]);
+    if (leftScore !== rightScore) {
+      return leftScore - rightScore;
+    }
+    return left.label.localeCompare(right.label);
+  });
+
   // Prefer Hawala Clearing as the first option when present.
   clearingWallets.sort((left, right) => {
-    const leftScore = left.label === "Hawala Clearing" ? 0 : 1;
-    const rightScore = right.label === "Hawala Clearing" ? 0 : 1;
+    const leftScore = preferWalletNameScore(left.label, [
+      HAWALA_CLEARING_WALLET_NAME,
+    ]);
+    const rightScore = preferWalletNameScore(right.label, [
+      HAWALA_CLEARING_WALLET_NAME,
+    ]);
     if (leftScore !== rightScore) {
       return leftScore - rightScore;
     }

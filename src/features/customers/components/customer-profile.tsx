@@ -8,16 +8,16 @@ import {
 } from "@/components/ui/status-badge";
 import { Typography } from "@/design-system/typography";
 import { ArchiveCustomerButton } from "@/features/customers/components/archive-customer-button";
+import { CustomerBalancesSection } from "@/features/customers/components/customer-balances-section";
 import { CustomerHistorySection } from "@/features/customers/components/customer-history-section";
-import { CustomerWalletsSection } from "@/features/customers/components/customer-wallets-section";
 import { EditCustomerDialog } from "@/features/customers/components/edit-customer-dialog";
 import type { CustomerProfile } from "@/features/customers/domain/types";
 import type { CustomerHistoryResult } from "@/features/transactions";
-import type { CustomerWalletBalanceRow } from "@/features/wallets";
+import type { CustomerCurrencyBalance } from "@/features/wallets";
 
 type CustomerProfileViewProps = {
   customer: CustomerProfile;
-  wallets: CustomerWalletBalanceRow[];
+  balances: CustomerCurrencyBalance[];
   history: CustomerHistoryResult;
 };
 
@@ -47,7 +47,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 export function CustomerProfileView({
   customer,
-  wallets,
+  balances,
   history,
 }: CustomerProfileViewProps) {
   return (
@@ -116,9 +116,16 @@ export function CustomerProfileView({
         )}
       </div>
 
-      <section className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
-        <Typography variant="h4" className="font-bold">
-          Customer information
+      <section
+        className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+        aria-labelledby="customer-information-heading"
+      >
+        <Typography
+          variant="h4"
+          id="customer-information-heading"
+          className="font-bold"
+        >
+          Customer Information
         </Typography>
 
         <dl className="space-y-4">
@@ -141,7 +148,7 @@ export function CustomerProfileView({
         </dl>
       </section>
 
-      <CustomerWalletsSection wallets={wallets} />
+      <CustomerBalancesSection balances={balances} />
 
       <CustomerHistorySection customerId={customer.id} history={history} />
     </div>

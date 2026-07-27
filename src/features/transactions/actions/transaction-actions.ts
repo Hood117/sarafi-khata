@@ -10,11 +10,13 @@ import type {
   DepositInput,
   ExchangeInput,
   ManualAdjustmentInput,
+  TransferInput,
   WithdrawalInput,
 } from "@/features/transactions/schemas/money-movement";
 import { adjustFunds } from "@/features/transactions/services/adjust";
 import { depositFunds } from "@/features/transactions/services/deposit";
 import { exchangeFunds } from "@/features/transactions/services/exchange";
+import { transferFunds } from "@/features/transactions/services/transfer";
 import { withdrawFunds } from "@/features/transactions/services/withdraw";
 
 export type TransactionFieldErrors = Partial<Record<TransactionField, string>>;
@@ -37,11 +39,13 @@ export type DepositActionInput = DepositInput;
 export type WithdrawalActionInput = WithdrawalInput;
 export type ManualAdjustmentActionInput = ManualAdjustmentInput;
 export type CreateExchangeActionInput = ExchangeInput;
+export type CreateTransferActionInput = TransferInput;
 
 export type DepositActionResult = TransactionMutationActionResult;
 export type WithdrawalActionResult = TransactionMutationActionResult;
 export type ManualAdjustmentActionResult = TransactionMutationActionResult;
 export type CreateExchangeActionResult = TransactionMutationActionResult;
+export type CreateTransferActionResult = TransactionMutationActionResult;
 
 function toMutationFailure(
   error: unknown,
@@ -163,6 +167,35 @@ export async function createExchangeAction(
     return toMutationFailure(
       error,
       "Unable to post exchange. Please try again.",
+    );
+  }
+}
+
+/**
+ * Create a customer-to-customer transfer. Calls `transferFunds` only — never
+ * calls `postTransaction` or writes ledger lines from the action/UI layer.
+ */
+export async function createTransferAction(
+  input: CreateTransferActionInput,
+): Promise<CreateTransferActionResult> {
+  const user = await requirePermission("transactions.manage");
+
+  try {
+    const transaction = await transferFunds({
+      ...input,
+      createdById: user.id,
+    });
+
+    return {
+      ok: true,
+      message: `Transfer ${transaction.reference} was posted successfully.`,
+      transactionId: transaction.id,
+      reference: transaction.reference,
+    };
+  } catch (error) {
+    return toMutationFailure(
+      error,
+      "Unable to post transfer. Please try again.",
     );
   }
 }

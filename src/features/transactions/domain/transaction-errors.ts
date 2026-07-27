@@ -25,6 +25,8 @@ export type TransactionField =
   | "description"
   | "notes"
   | "customerId"
+  | "senderCustomerId"
+  | "receiverCustomerId"
   | "entries";
 
 export class TransactionError extends Error {

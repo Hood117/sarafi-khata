@@ -10,6 +10,8 @@ export {
   findCustomerByPhone,
   listCustomerCodes,
   listCustomers,
+  listCustomersByIds,
+  countCustomers,
   updateCustomer,
   softDeleteCustomer,
   type CreateCustomerData,
@@ -80,7 +82,7 @@ export { CustomersView } from "@/features/customers/components/customers-view";
 export { CustomerForm } from "@/features/customers/components/customer-form";
 export { CustomerProfileView } from "@/features/customers/components/customer-profile";
 export { CustomerProfileSkeleton } from "@/features/customers/components/customer-profile-skeleton";
-export { CustomerWalletsSection } from "@/features/customers/components/customer-wallets-section";
+export { CustomerBalancesSection } from "@/features/customers/components/customer-balances-section";
 export { CustomerHistorySection } from "@/features/customers/components/customer-history-section";
 export { CustomerHistoryEmptyState } from "@/features/customers/components/customer-history-empty-state";
 export { CustomerHistoryFiltersForm } from "@/features/customers/components/customer-history-filters";

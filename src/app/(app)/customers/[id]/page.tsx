@@ -10,7 +10,7 @@ import {
   type CustomerHistorySort,
   type GetCustomerHistoryOptions,
 } from "@/features/transactions";
-import { getCustomerWalletBalanceRows } from "@/features/wallets";
+import { getCustomerCurrencyBalances } from "@/features/wallets";
 
 type CustomerProfilePageProps = {
   params: Promise<{ id: string }>;
@@ -92,8 +92,8 @@ export default async function CustomerProfilePage({
     throw error;
   }
 
-  const [wallets, history] = await Promise.all([
-    getCustomerWalletBalanceRows(customer.id, {
+  const [balances, history] = await Promise.all([
+    getCustomerCurrencyBalances(customer.id, {
       includeArchived: customer.isArchived,
     }),
     getCustomerHistory(customer.id, historyOptions),
@@ -102,7 +102,7 @@ export default async function CustomerProfilePage({
   return (
     <CustomerProfileView
       customer={customer}
-      wallets={wallets}
+      balances={balances}
       history={history}
     />
   );
