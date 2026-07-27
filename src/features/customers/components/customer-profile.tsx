@@ -51,7 +51,7 @@ export function CustomerProfileView({
   history,
 }: CustomerProfileViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <Button
@@ -117,7 +117,7 @@ export function CustomerProfileView({
       </div>
 
       <section
-        className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+        className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
         aria-labelledby="customer-information-heading"
       >
         <Typography

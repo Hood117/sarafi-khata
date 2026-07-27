@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requirePermission } from "@/features/auth/permissions/authorize";
 import { countCustomers } from "@/features/customers/repositories/customer-repository";
 import {
   countTodayByType,
@@ -23,6 +24,8 @@ import { getBusinessCashBalances } from "@/features/wallets/services/get-busines
 export async function getDashboardStats(
   options: GetDashboardStatsOptions = {},
 ): Promise<DashboardStats> {
+  await requirePermission("dashboard.view");
+
   const now = options.now ?? new Date();
   const { start, end, dateOnly } = localCalendarDayBounds(now);
   const recentLimit = normalizeRecentLimit(options.recentLimit);

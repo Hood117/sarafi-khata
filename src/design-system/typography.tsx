@@ -9,9 +9,9 @@ const typographyVariants = cva("text-foreground", {
       display: "font-heading text-4xl font-bold tracking-tight",
       h1: "font-heading text-3xl font-bold tracking-tight",
       h2: "font-heading text-2xl font-bold tracking-tight",
-      h3: "font-heading text-xl font-semibold tracking-tight",
-      h4: "font-heading text-lg font-semibold tracking-tight",
-      body: "text-base leading-relaxed",
+      h3: "font-heading text-lg font-semibold tracking-tight",
+      h4: "font-heading text-base font-semibold tracking-tight",
+      body: "text-sm leading-relaxed",
       bodySm: "text-sm leading-relaxed",
       caption: "text-xs leading-normal text-muted-foreground",
       overline:

@@ -28,7 +28,7 @@ export function CurrenciesView({ currencies }: CurrenciesViewProps) {
   }, [successMessage]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <nav aria-label="Breadcrumb">
         <Typography variant="muted" as="p">
           <Link

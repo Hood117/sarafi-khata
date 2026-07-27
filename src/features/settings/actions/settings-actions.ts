@@ -1,9 +1,17 @@
 "use server";
 
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_MODULES,
+  auditAction,
+  toSettingsAuditValues,
+} from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import { isSettingsError } from "@/features/settings/domain/errors";
 import type { AppSettings } from "@/features/settings/domain/types";
 import type { AppSettingsFieldErrors } from "@/features/settings/schemas/app-settings";
+import { getAppSettings } from "@/features/settings/services/get-app-settings";
 import { updateAppSettingsRecord } from "@/features/settings/services/update-app-settings";
 
 export type SettingsFieldErrors = AppSettingsFieldErrors;
@@ -30,13 +38,24 @@ export type UpdateAppSettingsActionInput = {
 export async function updateAppSettingsAction(
   input: UpdateAppSettingsActionInput,
 ): Promise<UpdateAppSettingsActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
 
   try {
+    const before = await getAppSettings();
     const settings = await updateAppSettingsRecord({
       businessName: input.businessName,
       baseCurrencyCode: input.baseCurrencyCode,
       locale: input.locale,
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.SETTINGS_UPDATE,
+      module: AUDIT_MODULES.SETTINGS,
+      entityType: AUDIT_ENTITY_TYPES.SYSTEM_SETTING,
+      entityId: "app",
+      beforeValues: toSettingsAuditValues(before),
+      afterValues: toSettingsAuditValues(settings),
     });
 
     return {

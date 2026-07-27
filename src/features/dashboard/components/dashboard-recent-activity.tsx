@@ -46,7 +46,7 @@ export function DashboardRecentActivity({
 }: DashboardRecentActivityProps) {
   return (
     <section
-      className="space-y-4"
+      className="space-y-2"
       aria-labelledby="dashboard-recent-heading"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">

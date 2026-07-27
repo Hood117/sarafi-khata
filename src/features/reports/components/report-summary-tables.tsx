@@ -27,7 +27,7 @@ export function CountSummaryTable({
       </Typography>
       <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
         {rows.length === 0 ? (
-          <div className="px-4 py-6">
+          <div className="px-2 py-3">
             <Typography variant="muted">{emptyLabel}</Typography>
           </div>
         ) : (
@@ -73,7 +73,7 @@ export function CurrencyTotalTable({
       </Typography>
       <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
         {rows.length === 0 ? (
-          <div className="px-4 py-6">
+          <div className="px-2 py-3">
             <Typography variant="muted">{emptyLabel}</Typography>
           </div>
         ) : (

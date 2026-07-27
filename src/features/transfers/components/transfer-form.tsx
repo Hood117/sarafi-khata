@@ -148,7 +148,7 @@ export function TransferForm({
   const disabled = isSubmitting;
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8">
+    <form onSubmit={handleSubmit} noValidate className="space-y-2">
       <FormSection
         title="Customer transfer"
         description="Move money from one customer account to another in the same currency. Accounts update automatically."

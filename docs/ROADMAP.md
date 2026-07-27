@@ -1,6 +1,6 @@
 # Saraf — Product / Engineering Roadmap
 
-**Last updated:** 2026-07-27 (Dashboard + Reports)  
+**Last updated:** 2026-07-27 (Users + RBAC)  
 **Related:** `docs/HANDOFF.md`, `docs/DECISIONS.md`
 
 Suggested implementation order. Adjust when product priorities change.
@@ -22,10 +22,13 @@ Suggested implementation order. Adjust when product priorities change.
 | **Customer transfer** | **Done** (working tree — `/transfers`) |
 | **Dashboard** | **Done** (working tree — `/`) |
 | **Reports** | **Done** (working tree — `/reports` + drill-in) |
+| **Audit log** | **Done** (working tree — `/audit`) |
+| **Role & permission enforcement** | **Done** (working tree — ADR-030) |
+| **User Management** | **Done** (working tree — `/users`) |
 
 ---
 
-## Done (through Dashboard + Reports)
+## Done (through Users + RBAC)
 
 - [x] App foundation (Next.js 16, Tailwind 4, shadcn, design tokens, Tauri scaffold)
 - [x] Prisma 7 + SQLite + LibSQL adapter + migrations + seed
@@ -57,50 +60,61 @@ Suggested implementation order. Adjust when product priorities change.
   - [x] Customer statement
   - [x] Hawala / Exchange / Transfers sections
   - [x] No file export yet
+- [x] **Audit Log** — append-only `AuditLog` separate from ledger; `recordAuditEvent` / `auditAction`
+  - [x] Instrumented: login/logout, customers, financial posts, hawala, app settings, **users**
+  - [x] `/audit` list with date/user/module/action filters + search + pagination
+  - [x] `/audit/[id]` detail with readable before/after values
+  - [x] Failures never block business operations
+- [x] **Role & permission enforcement** — `requirePermission` checks catalog; role-filtered nav; 403 via `forbidden()`
+  - [x] Admin full access; Manager ops + reports/audit/settings; Cashier desk ops only
+  - [x] `wallets.manage` limited to ADMIN/MANAGER (Settings wallet admin)
+- [x] **User Management** — `/users` (ADMIN / `users.manage`)
+  - [x] List / create / edit (name, role, status)
+  - [x] Reset password (revokes sessions)
+  - [x] Activate / deactivate (revokes sessions; last-admin + self-action guards)
 
 ---
 
 ## Next (near-term)
 
-1. **Commit** UI simplification + Business Cash Overview + Customer Transfer + Dashboard + Reports + docs. Exclude `prisma/dev.db*`.
+1. **Commit** UI simplification + Business Cash Overview + Customer Transfer + Dashboard + Reports + Audit Log + **RBAC + Users** + docs (+ migration `add_audit_logs`). Exclude `prisma/dev.db*`.
 2. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
+3. Optional: wire currency / exchange-rate / wallet settings mutations to `auditAction`
 
 ---
 
 ## Later
 
-3. **Audit log** (separate from auth sessions)
 4. **Backup / restore** via Tauri filesystem commands
-5. **Enforce `requirePermission`** on routes/actions + role-filtered nav
-6. **Users admin UI** — create cashiers/managers, reset passwords
-7. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
-8. **i18n / RTL** (Dari/Pashto) when product-ready — locale setting already stubbed
-9. Remove unused **`argon2`** dependency if still present
-10. Optional: **restore archived customers / wallets**
-11. Transaction **void** / reversing entries
-12. Transaction list **filters** (desk-level; Reports already filters)
-13. Report **export** (PDF/CSV) and dedicated **FX gain/loss** P&L (Exchange Difference substrate exists)
-14. Optional: Dashboard charts
-15. OS/Tauri **printer integration** (beyond browser print); wire receipt preference settings
-16. CI: lint + typecheck + migrate + seed smoke
-17. Integration tests for auth, customers, wallets, posting balancing, hawala, rates, exchange, cash overview, transfers, dashboard, reports
-18. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
-19. Optional: hide `transaction-snapshot` rates from Settings inactive list
-20. Optional: restrict Manual Adjustment (wallet picks) to admin roles when permissions are enforced
-21. Optional: transfer history server-side pagination (currently in-memory filter like exchange)
+5. **Production Tauri packaging** — Next standalone/sidecar so Prisma works outside `tauri dev`
+6. **i18n / RTL** (Dari/Pashto) when product-ready — locale setting already stubbed
+7. Remove unused **`argon2`** dependency if still present
+8. Optional: **restore archived customers / wallets**
+9. Transaction **void** / reversing entries
+10. Transaction list **filters** (desk-level; Reports already filters)
+11. Report **export** (PDF/CSV) and dedicated **FX gain/loss** P&L (Exchange Difference substrate exists)
+12. Optional: Dashboard charts
+13. OS/Tauri **printer integration** (beyond browser print); wire receipt preference settings
+14. CI: lint + typecheck + migrate + seed smoke
+15. Integration tests for auth, customers, wallets, posting balancing, hawala, rates, exchange, cash overview, transfers, dashboard, reports, audit, users/RBAC
+16. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
+17. Optional: hide `transaction-snapshot` rates from Settings inactive list
+18. Optional: restrict Manual Adjustment (wallet picks) to admin roles
+19. Optional: transfer history server-side pagination (currently in-memory filter like exchange)
 
 ---
 
 ## Explicitly out of scope for now
 
 - Cloud auth / remote APIs
-- Hard-deleting customers, wallets, or ledger history
+- Hard-deleting customers, wallets, users, or ledger history
 - Storing wallet balances as mutable columns (always derive from ledger)
 - Bypassing `postTransaction` for money movement
 - Deleting wallet tables/services/repositories (admin maintenance still needs them)
 - Teaching `postTransaction` to invent wallets — callers still supply `walletId`s
 - Static-export-only Next packaging without a Prisma sidecar plan
-- Writing financial records from Dashboard or Reports (read-only compose only)
+- Writing financial records from Dashboard, Reports, or Audit Log (read-only compose / activity only)
+- Using Audit Log rows as balances or money truth
 
 ---
 
@@ -113,3 +127,4 @@ Suggested implementation order. Adjust when product priorities change.
 - Append-only ledger history; soft-archive master data.
 - Normal operators should not pick internal wallets; resolve them in the UI/feature layer.
 - Dashboard and Reports must stay read-only — compose existing readers; never post.
+- Audit Log records who did what; it must never write `LedgerEntry` or invent balances.

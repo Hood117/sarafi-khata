@@ -61,7 +61,7 @@ export function TransactionsTable({
   const total = transactions.length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <div className="bg-card overflow-hidden rounded-xl shadow-sm ring-1 ring-foreground/10">
         {total === 0 ? (
           <TransactionsEmptyState />

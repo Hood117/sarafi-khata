@@ -67,7 +67,7 @@ export function ExchangeDetailView({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <Button
@@ -95,7 +95,7 @@ export function ExchangeDetailView({
         </div>
       </div>
 
-      <section className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+      <section className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1">
         <Typography variant="h4" className="font-bold">
           Exchange information
         </Typography>
@@ -128,7 +128,7 @@ export function ExchangeDetailView({
         </dl>
       </section>
 
-      <section className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6">
+      <section className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Related Transaction</Typography>
 
         <div className="space-y-4">
@@ -164,7 +164,7 @@ export function ExchangeDetailView({
         </div>
       </section>
 
-      <section className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6">
+      <section className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Ledger Entries</Typography>
 
         {exchange.ledgerEntries.length === 0 ? (

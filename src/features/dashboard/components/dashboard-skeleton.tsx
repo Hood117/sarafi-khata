@@ -1,7 +1,7 @@
 export function DashboardSkeleton() {
   return (
     <div
-      className="space-y-8"
+      className="space-y-2"
       aria-busy="true"
       aria-label="Loading dashboard"
     >
@@ -14,7 +14,7 @@ export function DashboardSkeleton() {
         {Array.from({ length: 4 }, (_, index) => (
           <div
             key={index}
-            className="ring-foreground/10 space-y-3 rounded-xl px-4 py-4 ring-1"
+            className="ring-foreground/10 space-y-3 rounded-xl px-3 py-2 ring-1"
           >
             <div className="bg-muted h-3 w-28 animate-pulse rounded-md" />
             <div className="bg-muted h-8 w-16 animate-pulse rounded-md" />
@@ -23,8 +23,8 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(16rem,1fr)]">
-        <div className="ring-foreground/10 space-y-5 rounded-xl p-6 ring-1">
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(16rem,1fr)]">
+        <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
           <div className="space-y-2">
             <div className="bg-muted h-6 w-36 animate-pulse rounded-md" />
             <div className="bg-muted h-4 w-56 animate-pulse rounded-md" />
@@ -33,7 +33,7 @@ export function DashboardSkeleton() {
             {Array.from({ length: 4 }, (_, index) => (
               <div
                 key={index}
-                className="ring-foreground/10 space-y-2 rounded-xl px-4 py-4 ring-1"
+                className="ring-foreground/10 space-y-2 rounded-xl px-3 py-2 ring-1"
               >
                 <div className="bg-muted h-3 w-10 animate-pulse rounded-md" />
                 <div className="bg-muted h-7 w-24 animate-pulse rounded-md" />
@@ -42,7 +42,7 @@ export function DashboardSkeleton() {
           </div>
         </div>
 
-        <div className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+        <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
           <div className="space-y-2">
             <div className="bg-muted h-6 w-32 animate-pulse rounded-md" />
             <div className="bg-muted h-4 w-44 animate-pulse rounded-md" />

@@ -1,10 +1,13 @@
 import "server-only";
 
+import { requirePermission } from "@/features/auth/permissions/authorize";
 import { listCurrencies } from "@/features/currencies/repositories/currency-repository";
 import type { SettingsPageData } from "@/features/settings/domain/types";
 import { getAppSettings } from "@/features/settings/services/get-app-settings";
 
 export async function getSettingsPageData(): Promise<SettingsPageData> {
+  await requirePermission("settings.manage");
+
   const [settings, currencies] = await Promise.all([
     getAppSettings(),
     listCurrencies({ isActive: true }),

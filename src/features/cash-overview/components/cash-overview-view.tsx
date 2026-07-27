@@ -7,7 +7,7 @@ type CashOverviewViewProps = {
 
 export function CashOverviewView({ balances }: CashOverviewViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="space-y-2">
         <Typography variant="h3" as="h2">
           Business Cash Overview
@@ -19,7 +19,7 @@ export function CashOverviewView({ balances }: CashOverviewViewProps) {
       </div>
 
       <section
-        className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+        className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
         aria-labelledby="business-cash-heading"
       >
         <Typography
@@ -40,7 +40,7 @@ export function CashOverviewView({ balances }: CashOverviewViewProps) {
             {balances.map((balance) => (
               <div
                 key={balance.currencyCode}
-                className="ring-foreground/10 space-y-1 rounded-xl px-4 py-4 ring-1"
+                className="ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
               >
                 <Typography variant="overline" as="dt">
                   {balance.currencyCode}

@@ -101,7 +101,7 @@ export function AppSettingsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8">
+    <form onSubmit={handleSubmit} noValidate className="space-y-2">
       <FormSection
         title="Shop preferences"
         description="Basic business identity used across receipts and the app shell."
@@ -197,7 +197,7 @@ export function AppSettingsForm({
         title="Receipt preferences"
         description="Printer templates and receipt layout options will appear here."
       >
-        <div className="bg-muted/40 space-y-3 rounded-xl px-4 py-4 ring-1 ring-foreground/10">
+        <div className="bg-muted/40 space-y-3 rounded-xl px-3 py-2 ring-1 ring-foreground/10">
           <label className="text-muted-foreground flex items-center gap-2 text-sm">
             <input type="checkbox" disabled className="size-4 rounded" />
             Show business name on receipts

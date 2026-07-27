@@ -18,7 +18,7 @@ export function ReportSection({
   return (
     <section
       id={id}
-      className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+      className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
       aria-labelledby={`${id}-heading`}
     >
       <div className="space-y-1">

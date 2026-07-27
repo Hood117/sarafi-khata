@@ -70,7 +70,7 @@ export function CustomerStatementSection({
           description="The selected customer could not be loaded. Clear filters and try again."
         />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-2">
           <Typography variant="bodySm" className="font-semibold">
             {statement.customerLabel}
           </Typography>
@@ -90,7 +90,7 @@ export function CustomerStatementSection({
                 {statement.balances.map((balance) => (
                   <div
                     key={balance.currencyCode}
-                    className="ring-foreground/10 space-y-1 rounded-xl px-4 py-3 ring-1"
+                    className="ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
                   >
                     <Typography variant="overline" as="dt">
                       {balance.currencyCode}

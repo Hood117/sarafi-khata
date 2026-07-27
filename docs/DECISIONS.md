@@ -1,6 +1,6 @@
 # Saraf — Architecture / Product Decisions
 
-**Last updated:** 2026-07-27 (Dashboard + Reports)  
+**Last updated:** 2026-07-27 (Users + RBAC)  
 **Related:** `docs/HANDOFF.md`, `docs/ROADMAP.md`
 
 Record of intentional decisions. Prefer appending new entries over rewriting history; mark superseded decisions clearly.
@@ -17,7 +17,7 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-004 | Ledger-first accounting |
 | ADR-005 | Money representation |
 | ADR-006 | Soft delete / archive for master data |
-| ADR-007 | Permissions prepared, not enforced |
+| ADR-007 | Permissions prepared, not enforced (**superseded by ADR-030**) |
 | ADR-008 | Customer forms use Zod + Server Actions |
 | ADR-009 | Shared Add/Edit customer form |
 | ADR-010 | Auth password hashing (bcrypt) |
@@ -39,6 +39,9 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-026 | Customer Transfer posts through posting; wallets resolved in service |
 | ADR-027 | Dashboard is read-only composition of existing readers |
 | ADR-028 | Reports are read-only filtered views; drill-in reuses existing detail UIs |
+| ADR-029 | Audit Log is append-only activity history separate from the ledger |
+| ADR-030 | Role permissions enforced via catalog + `requirePermission` |
+| ADR-031 | User Management is Admin-only local account administration |
 
 ---
 
@@ -120,6 +123,7 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028.
 - **Decision:** Permission catalog exists (`customers.manage`, `hawala.manage`, etc.); `requirePermission` currently equals `requireAuth`.
 - **Why:** Ship auth + features first; enforce role matrix later without rewriting call sites.
 - **Consequence:** Nav is not role-filtered yet; do not assume cashier/manager restrictions are active.
+- **Superseded by:** ADR-030 (2026-07-27).
 
 ---
 
@@ -369,6 +373,38 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028.
 
 ---
 
+## ADR-029 — Audit Log is append-only activity history separate from the ledger
+
+- **Decision:** System activity is stored in append-only `AuditLog` (`src/features/audit/`), completely separate from `Transaction` / `LedgerEntry`. Writers use `recordAuditEvent` / `auditAction` only. Callers instrument Server Actions after successful mutations (and login failure for security). Validation/persistence failures are swallowed so audit never blocks business operations.
+- **Stored fields:** userId (nullable), action, module, entityType, entityId, timestamp (`createdAt`), ipAddress (best-effort), beforeValues / afterValues (Json).
+- **UI:** Read-only `/audit` list (search + date/user/module/action filters; SQL where + pagination) and `/audit/[id]` detail (readable before/after). Permission key `audit.view` is enforced for ADMIN/MANAGER (ADR-030).
+- **Why:** Operators need who/what/when accountability without mixing activity trails into financial truth or risking failed audit writes aborting money posts.
+- **Consequence:** Never write `LedgerEntry` from the audit feature. Never derive balances from Audit Log. Prefer one audit call per action (no service+action double logging). Optional future: wire remaining settings mutations (currencies, rates, wallets) to the same helper.
+
+---
+
+## ADR-030 — Role permissions enforced via catalog + `requirePermission`
+
+- **Decision:** `requirePermission(permission)` authenticates then checks `rolePermissions` for `user.role`. Unauthorized roles call Next.js `forbidden()` (403; `experimental.authInterrupts`). Sidebar nav is filtered with `filterNavForRole` / `hasPermission`. Restricted routes use layouts or page gates (`reports.view`, `audit.view`, `settings.manage`, `users.manage`, `backup.manage`).
+- **Roles:**
+  - **ADMIN** — full catalog (including Users + Backup).
+  - **MANAGER** — ops + Reports, Audit, Settings (incl. wallet admin); not Users/Backup.
+  - **CASHIER** — desk ops only (dashboard/cash/customers/transactions/transfers/exchange/hawala).
+- **Wallet admin:** `wallets.manage` is ADMIN/MANAGER only (UI under Settings; cashiers must not call wallet CRUD actions).
+- **Why:** Offline shops need least-privilege local accounts without rewriting every feature call site — actions already passed permission keys.
+- **Consequence:** Changing the matrix is a catalog edit. Do not assume unauthenticated access is handled by `forbidden` — unauthenticated still redirects to `/login` via `requireAuth`.
+
+---
+
+## ADR-031 — User Management is Admin-only local account administration
+
+- **Decision:** Users admin lives in `src/features/users/` at `/users`, gated by `users.manage` (ADMIN only). Supports list, create, edit (name/role/status), reset password, activate/deactivate. Passwords hashed with shared `hashPassword` (bcrypt 12). Username immutable after create. Soft-deactivate via `isActive` only (no hard delete / no `deletedAt` on User).
+- **Safety:** Cannot change own role or deactivate self; cannot remove/deactivate the last active admin; deactivate and password reset revoke that user’s sessions via `revokeUserSessions`. Audit actions `user.create` / `user.update` / `user.set_active` / `user.reset_password` never store password/hash.
+- **Why:** Seeded admin alone is insufficient once cashiers/managers exist; keep administration offline and local.
+- **Consequence:** Do not hard-delete users (FK history). Prefer extending this feature over parallel user tables.
+
+---
+
 ## Superseded notes
 
 - Earlier handoff text implied customer soft-delete **releases** unique `code`/`phone` by nulling them. **Superseded by ADR-006** for customers: preserve fields + partial unique indexes so archived history remains searchable and reusable values can be used by new *active* customers.
@@ -377,3 +413,6 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028.
 - ADR-023 text that said “customer transfer remains a separate later flow” is **superseded by ADR-026** (implemented).
 - ADR-024 text that framed Customer Transfer as a future example is **superseded by ADR-026** (Transfer resolves wallets in `transferFunds`).
 - Roadmap / handoff text that listed Dashboard and Reports as placeholders / "do not start" is **superseded by ADR-027 / ADR-028** (implemented as read-only modules).
+- Roadmap / handoff text that listed Audit Log as later / "do not start" is **superseded by ADR-029** (implemented).
+- **ADR-007** (permissions prepared, not enforced) is **superseded by ADR-030**.
+- Roadmap / handoff “do not start User Management” is **superseded by ADR-031** (implemented).

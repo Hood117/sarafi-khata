@@ -11,7 +11,7 @@ type DashboardBusinessCashProps = {
 export function DashboardBusinessCash({ balances }: DashboardBusinessCashProps) {
   return (
     <section
-      className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+      className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
       aria-labelledby="dashboard-cash-heading"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -46,7 +46,7 @@ export function DashboardBusinessCash({ balances }: DashboardBusinessCashProps) 
           {balances.map((balance) => (
             <div
               key={balance.currencyCode}
-              className="ring-foreground/10 space-y-1 rounded-xl px-4 py-4 ring-1"
+              className="ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
             >
               <Typography variant="overline" as="dt">
                 {balance.currencyCode}

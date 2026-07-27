@@ -68,5 +68,13 @@ export function backLabelForReturnTo(returnTo: string): string {
     return "Back to reports";
   }
 
+  if (
+    returnTo === "/audit" ||
+    returnTo.startsWith("/audit?") ||
+    returnTo.startsWith("/audit/")
+  ) {
+    return "Back to audit";
+  }
+
   return "Back to transactions";
 }

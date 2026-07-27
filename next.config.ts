@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: isTauriBuild,
   },
+  experimental: {
+    authInterrupts: true,
+  },
 };
 
 export default nextConfig;

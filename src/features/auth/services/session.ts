@@ -79,6 +79,19 @@ export async function destroySession(): Promise<void> {
   await clearSessionCookie();
 }
 
+/** Revoke every active session for a user (deactivate / password reset). */
+export async function revokeUserSessions(userId: string): Promise<void> {
+  await prisma.session.updateMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+}
+
 /**
  * Resolve the current user from the session cookie.
  * Read-only for cookies: clearing cookies here breaks Next.js RSC layouts.

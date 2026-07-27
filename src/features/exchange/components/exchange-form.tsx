@@ -308,7 +308,7 @@ export function ExchangeForm({
       : "Select two different currencies to load today’s rate.";
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-8">
+    <form onSubmit={handleSubmit} noValidate className="space-y-2">
       <FormSection
         title="Currency exchange"
         description="Convert one currency into another. Rates load from Settings; the customer’s account is updated automatically."

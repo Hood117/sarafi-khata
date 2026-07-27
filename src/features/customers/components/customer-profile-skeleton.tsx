@@ -1,6 +1,6 @@
 export function CustomerProfileSkeleton() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-label="Loading customer">
+    <div className="space-y-2" aria-busy="true" aria-label="Loading customer">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="bg-muted h-7 w-40 animate-pulse rounded-md" />
@@ -15,7 +15,7 @@ export function CustomerProfileSkeleton() {
         </div>
       </div>
 
-      <div className="ring-foreground/10 space-y-5 rounded-xl p-6 ring-1">
+      <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <div className="bg-muted h-6 w-48 animate-pulse rounded-md" />
         <div className="space-y-4">
           {Array.from({ length: 6 }, (_, index) => (
@@ -30,13 +30,13 @@ export function CustomerProfileSkeleton() {
         </div>
       </div>
 
-      <div className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <div className="bg-muted h-6 w-40 animate-pulse rounded-md" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, index) => (
             <div
               key={index}
-              className="ring-foreground/10 space-y-2 rounded-xl px-4 py-3 ring-1"
+              className="ring-foreground/10 space-y-2 rounded-xl px-3 py-2 ring-1"
             >
               <div className="bg-muted h-3 w-10 animate-pulse rounded-md" />
               <div className="bg-muted h-7 w-20 animate-pulse rounded-md" />
@@ -45,7 +45,7 @@ export function CustomerProfileSkeleton() {
         </div>
       </div>
 
-      <div className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <div className="bg-muted h-6 w-40 animate-pulse rounded-md" />
         <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
           <div className="space-y-4 px-5 py-4">

@@ -10,7 +10,7 @@ export function CustomerBalancesSection({
 }: CustomerBalancesSectionProps) {
   return (
     <section
-      className="ring-foreground/10 space-y-4 rounded-xl p-5 ring-1 sm:p-6"
+      className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1"
       aria-labelledby="customer-balances-heading"
     >
       <Typography variant="h4" id="customer-balances-heading" className="font-bold">
@@ -27,7 +27,7 @@ export function CustomerBalancesSection({
           {balances.map((balance) => (
             <div
               key={balance.currencyCode}
-              className="bg-card ring-foreground/10 space-y-1 rounded-xl px-4 py-3 ring-1"
+              className="bg-card ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
             >
               <Typography variant="overline" as="dt">
                 {balance.currencyCode}

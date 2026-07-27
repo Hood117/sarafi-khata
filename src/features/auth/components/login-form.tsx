@@ -98,7 +98,7 @@ export function LoginForm() {
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-2">
           <FieldGroup>
             <Field data-invalid={errors.username ? true : undefined}>
               <FieldLabel htmlFor="username">Username</FieldLabel>

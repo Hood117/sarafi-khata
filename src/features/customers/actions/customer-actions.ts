@@ -1,5 +1,12 @@
 "use server";
 
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_MODULES,
+  auditAction,
+  toCustomerAuditValues,
+} from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import { isCustomerError } from "@/features/customers/domain/errors";
 import type { CreateCustomerFieldErrors } from "@/features/customers/schemas/create-customer";
@@ -74,7 +81,7 @@ function toMutationFailure(error: unknown): CustomerMutationActionResult {
 export async function createCustomerAction(
   input: CreateCustomerActionInput,
 ): Promise<CreateCustomerActionResult> {
-  await requirePermission("customers.manage");
+  const user = await requirePermission("customers.manage");
 
   try {
     const customer = await createCustomerRecord({
@@ -83,6 +90,15 @@ export async function createCustomerAction(
       address: input.address ?? "",
       nationalId: input.nationalId ?? "",
       notes: input.notes ?? "",
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CUSTOMER_CREATE,
+      module: AUDIT_MODULES.CUSTOMERS,
+      entityType: AUDIT_ENTITY_TYPES.CUSTOMER,
+      entityId: customer.id,
+      afterValues: toCustomerAuditValues(customer),
     });
 
     return {
@@ -105,15 +121,26 @@ export async function createCustomerAction(
 export async function updateCustomerAction(
   input: UpdateCustomerActionInput,
 ): Promise<UpdateCustomerActionResult> {
-  await requirePermission("customers.manage");
+  const user = await requirePermission("customers.manage");
 
   try {
+    const before = await getCustomerForForm(input.id);
     const customer = await updateCustomerRecord(input.id, {
       fullName: input.fullName,
       phone: input.phone,
       address: input.address ?? "",
       nationalId: input.nationalId ?? "",
       notes: input.notes ?? "",
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CUSTOMER_UPDATE,
+      module: AUDIT_MODULES.CUSTOMERS,
+      entityType: AUDIT_ENTITY_TYPES.CUSTOMER,
+      entityId: customer.id,
+      beforeValues: toCustomerAuditValues(before),
+      afterValues: toCustomerAuditValues(customer),
     });
 
     return {
@@ -173,10 +200,24 @@ export type ArchiveCustomerActionResult =
 export async function archiveCustomerAction(
   id: string,
 ): Promise<ArchiveCustomerActionResult> {
-  await requirePermission("customers.manage");
+  const user = await requirePermission("customers.manage");
 
   try {
     const customer = await archiveCustomerRecord(id);
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CUSTOMER_ARCHIVE,
+      module: AUDIT_MODULES.CUSTOMERS,
+      entityType: AUDIT_ENTITY_TYPES.CUSTOMER,
+      entityId: customer.id,
+      beforeValues: toCustomerAuditValues({
+        ...customer,
+        isActive: true,
+        deletedAt: null,
+      }),
+      afterValues: toCustomerAuditValues(customer),
+    });
 
     return {
       ok: true,

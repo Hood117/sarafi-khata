@@ -58,7 +58,7 @@ export function ExchangeView({
   }, [successMessage]);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-2">
       {successMessage ? (
         <div
           className="bg-success/10 text-success rounded-lg px-3 py-2 text-sm"
@@ -79,7 +79,7 @@ export function ExchangeView({
         />
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-2">
         <div className="space-y-1">
           <Typography variant="h4">Exchange history</Typography>
           <Typography variant="muted">

@@ -1,7 +1,7 @@
 export function TransactionDetailSkeleton() {
   return (
     <div
-      className="space-y-6"
+      className="space-y-2"
       aria-busy="true"
       aria-label="Loading transaction"
     >
@@ -14,7 +14,7 @@ export function TransactionDetailSkeleton() {
         <div className="bg-muted h-9 w-32 animate-pulse rounded-lg" />
       </div>
 
-      <div className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <div className="bg-muted h-5 w-48 animate-pulse rounded-md" />
         {Array.from({ length: 6 }, (_, index) => (
           <div key={index} className="grid gap-2 sm:grid-cols-[10rem_1fr]">
@@ -24,7 +24,7 @@ export function TransactionDetailSkeleton() {
         ))}
       </div>
 
-      <div className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <div className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <div className="bg-muted h-5 w-36 animate-pulse rounded-md" />
         <div className="bg-muted h-32 w-full animate-pulse rounded-xl" />
       </div>

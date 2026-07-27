@@ -30,7 +30,7 @@ export function SettingsView({ settings, currencies }: SettingsViewProps) {
   }, [successMessage]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-10">
+    <div className="mx-auto max-w-2xl space-y-2">
       {successMessage ? (
         <div
           className="bg-success/10 text-success rounded-lg px-3 py-2 text-sm"

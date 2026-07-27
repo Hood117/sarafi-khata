@@ -11,7 +11,7 @@ type DashboardViewProps = {
 
 export function DashboardView({ stats }: DashboardViewProps) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-2">
       <div className="space-y-2">
         <Typography variant="h3" as="h2">
           Dashboard
@@ -28,7 +28,7 @@ export function DashboardView({ stats }: DashboardViewProps) {
         asOfDate={stats.asOfDate}
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(16rem,1fr)]">
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(16rem,1fr)]">
         <DashboardBusinessCash balances={stats.businessCash} />
         <DashboardQuickActions />
       </div>

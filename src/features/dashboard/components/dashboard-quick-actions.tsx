@@ -53,7 +53,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 export function DashboardQuickActions() {
   return (
     <section
-      className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+      className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
       aria-labelledby="dashboard-actions-heading"
     >
       <div className="space-y-1">

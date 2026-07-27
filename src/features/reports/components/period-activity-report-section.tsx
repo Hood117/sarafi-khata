@@ -65,7 +65,7 @@ export function PeriodActivityReportSection({
               {report.businessCash.map((balance) => (
                 <div
                   key={balance.currencyCode}
-                  className="ring-foreground/10 space-y-1 rounded-xl px-4 py-3 ring-1"
+                  className="ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
                 >
                   <Typography variant="overline" as="dt">
                     {balance.currencyCode}

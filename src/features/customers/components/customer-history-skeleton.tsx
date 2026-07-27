@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 export function CustomerHistorySkeleton() {
   return (
     <section
-      className="ring-foreground/10 space-y-4 rounded-xl p-6 ring-1"
+      className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1"
       aria-busy="true"
       aria-label="Loading customer history"
     >

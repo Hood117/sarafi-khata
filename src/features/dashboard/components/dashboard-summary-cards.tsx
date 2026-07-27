@@ -64,7 +64,7 @@ export function DashboardSummaryCards({
         {cards.map((card) => (
           <div
             key={card.label}
-            className="bg-card ring-foreground/10 space-y-2 rounded-xl px-4 py-4 shadow-sm ring-1 sm:px-5 sm:py-5"
+            className="bg-card ring-foreground/10 space-y-2 rounded-xl px-3 py-2 shadow-sm ring-1"
           >
             <Typography variant="overline" as="dt">
               {card.label}

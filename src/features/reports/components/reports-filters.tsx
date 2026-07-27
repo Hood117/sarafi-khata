@@ -92,7 +92,7 @@ export function ReportsFiltersForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-card ring-foreground/10 space-y-4 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+      className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
       aria-label="Report filters"
     >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

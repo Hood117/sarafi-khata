@@ -33,6 +33,7 @@ model User {
   sessions               Session[]
   createdTransactions    Transaction[]    @relation("TransactionCreatedBy")
   createdHawalaTransfers HawalaTransfer[] @relation("HawalaCreatedBy")
+  auditLogs              AuditLog[]
 }
 
 /// Local offline sessions. Raw tokens are never stored — only hashes.
@@ -279,6 +280,37 @@ model SystemSetting {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// Append-only system activity log. Separate from the financial ledger.
+/// Do not update or delete rows; never use this table for balances or money truth.
+model AuditLog {
+  id           String   @id @default(uuid())
+  /// Actor who performed the action. Null for unauthenticated events (e.g. failed login).
+  userId       String?
+  /// Stable verb, e.g. "customer.update", "auth.login.success".
+  action       String
+  /// Feature/module that owns the action, e.g. "customers", "hawala".
+  module       String
+  /// Domain entity kind when applicable, e.g. "customer", "transaction".
+  entityType   String?
+  /// Primary subject id when applicable.
+  entityId     String?
+  /// Client IP when available (may be null in local/offline desktop).
+  ipAddress    String?
+  /// JSON snapshot of relevant fields before the change.
+  beforeValues Json?
+  /// JSON snapshot of relevant fields after the change.
+  afterValues  Json?
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([module, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
 }
 
 /// Append-only ledger line. Do not update or delete posted entries.

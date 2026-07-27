@@ -64,7 +64,7 @@ export function TransactionDetailView({
   backLabel = "Back to transactions",
 }: TransactionDetailViewProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="print:hidden flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <Button
@@ -94,7 +94,7 @@ export function TransactionDetailView({
         <PrintReceiptButton />
       </div>
 
-      <section className="bg-card print:hidden ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+      <section className="bg-card print:hidden ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1">
         <Typography variant="h4" className="font-bold">
           Transaction Information
         </Typography>
@@ -126,7 +126,7 @@ export function TransactionDetailView({
         </dl>
       </section>
 
-      <section className="print:hidden ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <section className="print:hidden ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Ledger Entries</Typography>
 
         {transaction.ledgerEntries.length === 0 ? (
@@ -165,7 +165,7 @@ export function TransactionDetailView({
         )}
       </section>
 
-      <section className="print:hidden ring-foreground/10 space-y-4 rounded-xl p-6 ring-1">
+      <section className="print:hidden ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Receipt Preview</Typography>
         <Typography variant="muted">
           Use Print Receipt to open the browser print dialog. Printer hardware

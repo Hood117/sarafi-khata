@@ -1,8 +1,7 @@
 import type { Role } from "@/generated/prisma/client";
 
 /**
- * Permission identifiers for future role-based access control.
- * Rules are not enforced yet — this catalog prepares the structure only.
+ * Permission identifiers for role-based access control.
  */
 export type Permission =
   | "dashboard.view"

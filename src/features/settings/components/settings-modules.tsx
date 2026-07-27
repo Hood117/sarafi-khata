@@ -51,7 +51,7 @@ function ModuleList({ modules }: { modules: SettingsModule[] }) {
           <li key={section.href}>
             <Link
               href={section.href}
-              className="bg-card hover:bg-muted/40 focus-visible:ring-ring flex items-start gap-4 rounded-xl px-4 py-4 shadow-sm ring-1 ring-foreground/10 transition-colors outline-none focus-visible:ring-3"
+              className="bg-card hover:bg-muted/40 focus-visible:ring-ring flex items-start gap-4 rounded-xl px-3 py-2 shadow-sm ring-1 ring-foreground/10 transition-colors outline-none focus-visible:ring-3"
             >
               <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
                 <Icon className="size-5" aria-hidden />
@@ -72,7 +72,7 @@ function ModuleList({ modules }: { modules: SettingsModule[] }) {
 
 export function SettingsModules() {
   return (
-    <div className="space-y-10">
+    <div className="space-y-2">
       <FormSection
         title="Catalog"
         description="Manage currencies and exchange rates used by the shop."

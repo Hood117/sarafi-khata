@@ -156,7 +156,7 @@ export function CustomerHistorySection({
 
   return (
     <section
-      className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6"
+      className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1"
       aria-labelledby="customer-history-heading"
     >
       <Typography

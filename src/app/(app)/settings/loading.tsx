@@ -1,7 +1,7 @@
 export default function SettingsLoading() {
   return (
     <div
-      className="mx-auto max-w-2xl space-y-10"
+      className="mx-auto max-w-2xl space-y-2"
       aria-busy="true"
       aria-label="Loading settings"
     >

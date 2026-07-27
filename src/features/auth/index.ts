@@ -14,14 +14,27 @@ export {
   createSession,
   destroySession,
   getCurrentUser,
+  revokeUserSessions,
 } from "@/features/auth/services/session";
+export {
+  hashPassword,
+} from "@/features/auth/services/password";
+export {
+  BCRYPT_ROUNDS,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from "@/features/auth/domain/password-policy";
+export { normalizeUsername } from "@/features/auth/services/username";
 export { loginWithSession } from "@/features/auth/services/login-with-session";
 export {
   requireAuth,
   requireGuest,
 } from "@/features/auth/services/require-auth";
 export { requirePermission } from "@/features/auth/permissions/authorize";
-export { rolePermissions } from "@/features/auth/permissions/catalog";
+export {
+  hasPermission,
+  rolePermissions,
+} from "@/features/auth/permissions/catalog";
 export type {
   Permission,
   RolePermissionMap,

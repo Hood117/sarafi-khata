@@ -1,5 +1,11 @@
 "use server";
 
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_MODULES,
+  auditAction,
+} from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import {
   isHawalaError,
@@ -60,6 +66,46 @@ function toMutationFailure(
   };
 }
 
+function toHawalaAuditValues(
+  hawala: {
+    id: string;
+    reference: string;
+    direction: string;
+    status: string;
+    transactionId: string | null;
+    amount: unknown;
+    currencyId: string;
+    partnerSarafi: string;
+    senderName: string;
+    receiverName: string;
+  },
+  input?: Pick<
+    HawalaPartyInput,
+    "currencyCode" | "amount" | "customerId" | "cashWalletId"
+  >,
+) {
+  return {
+    reference: hawala.reference,
+    direction: hawala.direction,
+    status: hawala.status,
+    transactionId: hawala.transactionId,
+    amount:
+      input?.amount ??
+      (typeof hawala.amount === "object" &&
+      hawala.amount !== null &&
+      "toString" in hawala.amount
+        ? String(hawala.amount)
+        : String(hawala.amount)),
+    currencyCode: input?.currencyCode ?? null,
+    currencyId: hawala.currencyId,
+    partnerSarafi: hawala.partnerSarafi,
+    senderName: hawala.senderName,
+    receiverName: hawala.receiverName,
+    customerId: input?.customerId ?? null,
+    cashWalletId: input?.cashWalletId ?? null,
+  };
+}
+
 export async function sendHawalaAction(
   input: SendHawalaActionInput,
 ): Promise<SendHawalaActionResult> {
@@ -69,6 +115,15 @@ export async function sendHawalaAction(
     const hawala = await sendHawala({
       ...input,
       createdById: user.id,
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.HAWALA_SEND,
+      module: AUDIT_MODULES.HAWALA,
+      entityType: AUDIT_ENTITY_TYPES.HAWALA,
+      entityId: hawala.id,
+      afterValues: toHawalaAuditValues(hawala, input),
     });
 
     return {
@@ -98,6 +153,15 @@ export async function receiveHawalaAction(
       createdById: user.id,
     });
 
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.HAWALA_RECEIVE,
+      module: AUDIT_MODULES.HAWALA,
+      entityType: AUDIT_ENTITY_TYPES.HAWALA,
+      entityId: hawala.id,
+      afterValues: toHawalaAuditValues(hawala, input),
+    });
+
     return {
       ok: true,
       message: `Hawala receive ${hawala.reference} was completed successfully.`,
@@ -117,7 +181,7 @@ export async function receiveHawalaAction(
 export async function cancelHawalaAction(
   input: CancelHawalaActionInput,
 ): Promise<CancelHawalaActionResult> {
-  await requirePermission("hawala.manage");
+  const user = await requirePermission("hawala.manage");
 
   const hawalaId = input.hawalaId?.trim() ?? "";
   if (!hawalaId) {
@@ -131,6 +195,18 @@ export async function cancelHawalaAction(
 
   try {
     const hawala = await cancelHawala(hawalaId);
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.HAWALA_CANCEL,
+      module: AUDIT_MODULES.HAWALA,
+      entityType: AUDIT_ENTITY_TYPES.HAWALA,
+      entityId: hawala.id,
+      beforeValues: {
+        status: "PENDING",
+      },
+      afterValues: toHawalaAuditValues(hawala),
+    });
 
     return {
       ok: true,

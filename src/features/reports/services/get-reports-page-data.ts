@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requirePermission } from "@/features/auth/permissions/authorize";
 import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { getCustomerList } from "@/features/customers/services/list-customers";
@@ -153,6 +154,8 @@ async function buildPeriodActivityReport(input: {
 export async function getReportsPageData(
   options: GetReportsPageDataOptions = {},
 ): Promise<ReportsPageData> {
+  await requirePermission("reports.view");
+
   const now = options.now ?? new Date();
   const tableLimit = normalizeTableLimit(options.tableLimit);
   const filters = normalizeReportsFilters(options.filters ?? {});

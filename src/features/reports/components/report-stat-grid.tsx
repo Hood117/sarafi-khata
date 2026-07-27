@@ -31,7 +31,7 @@ export function ReportStatGrid({ stats, columns = "4" }: ReportStatGridProps) {
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="ring-foreground/10 space-y-1 rounded-xl px-4 py-3 ring-1"
+          className="ring-foreground/10 space-y-1 rounded-xl px-3 py-2 ring-1"
         >
           <Typography variant="overline" as="dt">
             {stat.label}

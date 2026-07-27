@@ -89,7 +89,7 @@ export function HawalaDetailView({
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
           <Button
@@ -117,7 +117,7 @@ export function HawalaDetailView({
         </div>
       </div>
 
-      <section className="bg-card ring-foreground/10 space-y-5 rounded-xl p-5 shadow-sm ring-1 sm:p-6">
+      <section className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1">
         <Typography variant="h4" className="font-bold">
           Hawala information
         </Typography>
@@ -153,7 +153,7 @@ export function HawalaDetailView({
       </section>
 
       <section
-        className="bg-card ring-foreground/10 space-y-4 rounded-xl p-5 shadow-sm ring-1 sm:p-6"
+        className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1"
         aria-labelledby="hawala-timeline-heading"
       >
         <Typography variant="h4" id="hawala-timeline-heading" className="font-bold">
@@ -196,7 +196,7 @@ export function HawalaDetailView({
         </ol>
       </section>
 
-      <section className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6">
+      <section className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Related Transaction</Typography>
 
         {hawala.relatedTransaction && relatedTransactionHref ? (
@@ -239,7 +239,7 @@ export function HawalaDetailView({
         )}
       </section>
 
-      <section className="ring-foreground/10 space-y-4 rounded-xl p-4 ring-1 sm:p-6">
+      <section className="ring-foreground/10 space-y-2 rounded-xl p-3 ring-1">
         <Typography variant="h4">Related Ledger Entries</Typography>
 
         {hawala.ledgerEntries.length === 0 ? (

@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { primaryNav, secondaryNav } from "@/components/layout/nav-config";
+import type { AppNavItem } from "@/components/layout/nav-config";
 import {
   Tooltip,
   TooltipContent,
@@ -61,7 +61,15 @@ function SidebarNavLink({
   );
 }
 
-export function AppSidebar() {
+type AppSidebarProps = {
+  primaryItems: AppNavItem[];
+  secondaryItems: AppNavItem[];
+};
+
+export function AppSidebar({
+  primaryItems,
+  secondaryItems,
+}: AppSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -75,7 +83,7 @@ export function AppSidebar() {
           aria-label="Primary"
           className="flex flex-1 flex-col items-center gap-2"
         >
-          {primaryNav.map((item) => (
+          {primaryItems.map((item) => (
             <SidebarNavLink
               key={item.href}
               href={item.href}
@@ -86,20 +94,22 @@ export function AppSidebar() {
           ))}
         </nav>
 
-        <nav
-          aria-label="Secondary"
-          className="border-sidebar-border mt-4 flex flex-col items-center gap-2 border-t pt-4"
-        >
-          {secondaryNav.map((item) => (
-            <SidebarNavLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-              active={isActivePath(pathname, item.href)}
-            />
-          ))}
-        </nav>
+        {secondaryItems.length > 0 ? (
+          <nav
+            aria-label="Secondary"
+            className="border-sidebar-border mt-4 flex flex-col items-center gap-2 border-t pt-4"
+          >
+            {secondaryItems.map((item) => (
+              <SidebarNavLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                icon={item.icon}
+                active={isActivePath(pathname, item.href)}
+              />
+            ))}
+          </nav>
+        ) : null}
       </aside>
     </TooltipProvider>
   );

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requirePermission } from "@/features/auth/permissions/authorize";
 import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
 import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { localCalendarDayBounds } from "@/features/dashboard/domain/dashboard-stats";
@@ -118,6 +119,8 @@ export async function getReportDrilldownContext(
   filtersInput: ReportsFilters,
   now: Date = new Date(),
 ): Promise<ReportDrilldownContext> {
+  await requirePermission("reports.view");
+
   const filters = normalizeReportsFilters(filtersInput);
   const period = resolvePeriodScope(filters, now);
   const [operatorLabel, customer] = await Promise.all([
