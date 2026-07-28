@@ -38,6 +38,10 @@ export type HawalaListOptions = {
   status?: HawalaStatus;
   direction?: HawalaDirection;
   customerId?: string;
+  /** Inclusive lower bound on `valueDate`. */
+  valueDateFrom?: Date;
+  /** Exclusive upper bound on `valueDate`. */
+  valueDateTo?: Date;
 };
 
 function notDeleted(): Prisma.HawalaTransferWhereInput {
@@ -102,12 +106,21 @@ export async function findHawalaTransferByReference(
 export async function listHawalaTransfers(
   options: HawalaListOptions = {},
 ): Promise<HawalaTransfer[]> {
+  const valueDateFilter: Prisma.DateTimeFilter | undefined =
+    options.valueDateFrom || options.valueDateTo
+      ? {
+          ...(options.valueDateFrom ? { gte: options.valueDateFrom } : {}),
+          ...(options.valueDateTo ? { lt: options.valueDateTo } : {}),
+        }
+      : undefined;
+
   return prisma.hawalaTransfer.findMany({
     where: {
       ...(options.includeDeleted ? {} : notDeleted()),
       ...(options.status ? { status: options.status } : {}),
       ...(options.direction ? { direction: options.direction } : {}),
       ...(options.customerId ? { customerId: options.customerId } : {}),
+      ...(valueDateFilter ? { valueDate: valueDateFilter } : {}),
     },
     orderBy: [{ valueDate: "desc" }, { createdAt: "desc" }],
   });

@@ -2,7 +2,7 @@
 
 **Audience:** Next AI agent / developer continuing this codebase  
 **Product:** Offline Sarafi (money exchange) Management System for Windows  
-**Handoff date:** 2026-07-27 (Users + RBAC)  
+**Handoff date:** 2026-07-28 (production hardening review)  
 **Do not treat this file as source of truth over code** — verify against the repo when unsure.
 
 **Related:** `docs/ROADMAP.md`, `docs/DECISIONS.md`
@@ -11,7 +11,7 @@
 
 ## 1. Current project status
 
-Greenfield offline-first desktop app. **Day 10 Hawala**, **UX polish**, **Day 11** (currencies / rates / Settings), and **Currency Exchange** are on `main`. **UI simplification**, **Business Cash Overview**, **Customer Transfer**, **Dashboard**, **Reports**, **Audit Log**, **Role & permission enforcement**, and **User Management** are in the working tree (**uncommitted** — see §19–§23).
+Greenfield offline-first desktop app. **Days 1–16** (ops desks through Users + RBAC) are on `main` (`feat: complete Days 1-16`). Working tree holds **production hardening** (query performance, security validation, error boundaries) — see §24.
 
 | Layer | Status |
 |---|---|
@@ -19,29 +19,30 @@ Greenfield offline-first desktop app. **Day 10 Hawala**, **UX polish**, **Day 11
 | Tauri shell scaffold | Done (Rust may still be needed locally for desktop builds) |
 | Prisma 7 + SQLite (LibSQL adapter) | Done |
 | Feature-first folders | Done (backup placeholder remains) |
-| App shell + navigation | Done (role-filtered) |
+| App shell + navigation | Done (role-filtered; string nav icons) |
 | Design system tokens / primitives | Done |
-| Auth (users, sessions, login, guards, logout UI) | Done (**committed**) |
-| **Role & permission enforcement** | **Done** (uncommitted — ADR-030) |
+| Auth (users, sessions, login, guards, logout UI) | Done |
+| **Role & permission enforcement** | **Done** (ADR-030) |
 | Financial Prisma models + repos + ledger domain + seed | Done |
-| **Customer management** | **Done** (**committed**) |
+| **Customer management** | **Done** |
 | **Wallet management** | **Done** (admin under Settings; hidden from primary nav) |
-| **Transactions / posting engine** | **Done** (**committed**) |
-| **Customer history** | **Done** (**committed**) |
-| **Hawala (Day 10)** | **Done** (**committed**) |
-| Clickable list-row navigation | **Done** (**committed**) |
-| Location catalog (country/city selects) | **Done** (**committed**) |
-| **Currencies (Day 11)** | **Done** (**committed** — `/settings/currencies`) |
-| **Exchange rates (Day 11)** | **Done** (**committed** — `/settings/exchange-rates`) |
-| **Settings / app prefs (Day 11)** | **Done** (**committed** — `/settings`) |
-| **Currency Exchange** | **Done** (**committed** — `/exchange`) |
-| **UI simplification (wallet-free ops UX)** | **Done** (uncommitted — see §19) |
-| **Business Cash Overview** | **Done** (uncommitted — `/cash`) |
-| **Customer Transfer** | **Done** (uncommitted — `/transfers`) |
-| **Dashboard** | **Done** (uncommitted — `/`) |
-| **Reports** | **Done** (uncommitted — `/reports` + drill-in routes) |
-| **Audit Log** | **Done** (uncommitted — `/audit` + detail; see §22) |
-| **User Management** | **Done** (uncommitted — `/users`; see §23) |
+| **Transactions / posting engine** | **Done** |
+| **Customer history** | **Done** |
+| **Hawala (Day 10)** | **Done** |
+| Clickable list-row navigation | **Done** |
+| Location catalog (country/city selects) | **Done** |
+| **Currencies (Day 11)** | **Done** — `/settings/currencies` |
+| **Exchange rates (Day 11)** | **Done** — `/settings/exchange-rates` |
+| **Settings / app prefs (Day 11)** | **Done** — `/settings` |
+| **Currency Exchange** | **Done** — `/exchange` |
+| **UI simplification (wallet-free ops UX)** | **Done** |
+| **Business Cash Overview** | **Done** — `/cash` |
+| **Customer Transfer** | **Done** — `/transfers` |
+| **Dashboard** | **Done** — `/` |
+| **Reports** | **Done** — `/reports` + drill-in routes |
+| **Audit Log** | **Done** — `/audit` + detail |
+| **User Management** | **Done** — `/users` |
+| **Production hardening** | **Done** (working tree — perf / security / errors; §24) |
 
 **Runtime model:** Tauri window → local Next.js server → Server Actions / server code → Prisma → SQLite file. No cloud APIs.
 
@@ -387,13 +388,13 @@ saraf/
 
 ## 9. Known issues
 
-1. **Uncommitted money UX + transfers + Dashboard + Reports + Audit Log** — see §19–§22; do not commit `prisma/dev.db*` WAL/SHM.
+1. **Uncommitted production hardening** — perf indexes migration, security/validation, error boundaries (see §24). Do not commit `prisma/dev.db*`.
 2. **Tauri production build** — static export conflicts with Prisma/Server Actions; sidecar architecture not implemented.
 3. **Rust may be missing** — `dev:desktop` / `build:desktop` need rustup.
 4. **`argon2` still in package.json** while auth/seed use **bcrypt**.
 5. **ID style split** — User/Session `cuid()`; financial models `uuid()` (AuditLog uses uuid).
 6. ~~Permission stub~~ — **Done (ADR-030):** catalog enforced; role-filtered nav; 403 via `forbidden()`.
-7. **Placeholder page** — backup only (Users implemented — §23).
+7. **Placeholder page** — backup only.
 8. **SQLite `@db.Decimal(p,s)` unsupported** — enforce scale in services (posting does).
 9. **Hawala cancel UI** not wired (Server Action exists; cancel is audited when used).
 10. **Seed Hawala Clearing / Exchange Difference** — run `npm run db:seed` on existing DBs after pull.
@@ -402,8 +403,9 @@ saraf/
 13. **Older customers** created before auto-codes may still have `code = null`.
 14. **Exchange rate snapshots** (`transaction-snapshot*`) appear as inactive rows if Settings list includes inactive — optional filter later.
 15. **Multiple CUSTOMER wallets per customer** — UI resolution errors (no picker); keep one wallet per customer for normal ops.
-16. **Manual Adjustment** still shows wallet selectors (intentional operator escape hatch).
-17. **Currency / exchange-rate / wallet settings mutations** are not yet wired to `auditAction` (app settings + money/customer/auth/hawala are).
+16. **Manual Adjustment** still shows wallet selectors (intentional operator escape hatch; cashiers share `transactions.manage`).
+17. **Currency / exchange-rate / wallet settings mutations** are not yet wired to `auditAction` (app settings + money/customer/auth/hawala/users are).
+18. **Apply migration** `20260728120000_perf_list_indexes` with `npx prisma migrate deploy` after pull.
 
 ---
 
@@ -411,14 +413,14 @@ saraf/
 
 | Item | Notes |
 |---|---|
-| Uncommitted money UX + transfers + dashboard + reports + audit + RBAC + users | Commit remaining working tree + migration `add_audit_logs` + docs; exclude `prisma/dev.db*` |
-| Low-level ledger/transaction create helpers | Unused; keep unused or eventually remove/gate |
+| Uncommitted production hardening | Commit §24 + migrate perf indexes; exclude `prisma/dev.db*` |
+| Low-level ledger/transaction create helpers | Defined but unused by app paths; posting uses `tx.*.create` inside `postTransaction` |
 | Dual currency repositories | `features/currencies` CRUD vs `features/ledger` readers |
 | No void/reversal | Completed movements cannot be financially undone yet |
 | No integration tests | Auth, posting balance, hawala, exchange, cash overview, transfers, dashboard, reports |
 | No CI smoke | lint + typecheck + migrate + seed |
 | i18n / RTL | Not started |
-| Pagination | Often in-memory after full fetch (exchange + transfer history; some report aggregations) |
+| Pagination | Some list/history paths still in-memory after fetch (customer history; desk search) |
 | Report export | Not implemented (PDF/CSV later) |
 | FX gain/loss report | Substrate exists (Exchange Difference wallet); dedicated P&L report not built |
 
@@ -428,7 +430,7 @@ saraf/
 
 See `docs/ROADMAP.md`. Immediate order:
 
-1. **Commit** UI simplification + Business Cash Overview + Customer Transfer + Dashboard + Reports + Audit Log + **RBAC + Users** + docs (+ migration `20260727153000_add_audit_logs`). Exclude `prisma/dev.db*`.
+1. **Commit** production hardening (§24) + docs; run `npx prisma migrate deploy` for perf indexes. Exclude `prisma/dev.db*`.
 2. Optional: hawala Cancel UI / receipt; wire currency/rate/wallet settings mutations to `auditAction`.
 3. Later: backup, Tauri packaging, void/reversal, report export / FX P&L, i18n/RTL.
 
@@ -442,33 +444,21 @@ See `docs/ROADMAP.md`. Immediate order:
 ## 12. Git status (at handoff)
 
 ```text
-Branch: main
-HEAD:   68d04a3 feat(exchange): add currency exchange desk with rate snapshots
+Branch: main (ahead of origin; Days 1–16 committed)
+HEAD tip includes: feat: complete Days 1-16 - full Sarafi system
+                 + fix: resolve nav-config icon serialization error
 
-Committed (includes Currency Exchange + Day 11 + Day 10):
-  - feat(exchange): currency exchange desk with rate snapshots
-  - feat(settings): currencies, exchange rates, app preferences
-  - Day 10 / hawala + UX polish + auth + financial DB
-
-Uncommitted (UI simplification + Customer Transfer + Dashboard + Reports + Audit Log + RBAC + Users — see §19–§23):
-  - Hide wallet selection on deposit/withdrawal/exchange/hawala forms
-  - Customer profile Current Balances (currency tiles)
-  - Business Cash Overview (/cash)
-  - Wallets moved to Settings → System; removed from primary nav
-  - resolve-form-wallets + derive-currency-balances helpers
-  - Customer Transfer: transferFunds + createTransferAction + /transfers desk
-  - Dashboard: getDashboardStats + / page
-  - Reports: getReportsPageData + filters + drill-in routes
-  - Audit Log: AuditLog model + recordAuditEvent/auditAction + /audit list/detail/filters
-  - Server Action instrumentation (auth, customers, transactions, hawala, settings, users)
-  - Role enforcement: requirePermission + role-filtered nav + forbidden 403
-  - User Management: /users CRUD, reset password, activate/deactivate
+Uncommitted (production hardening — see §24):
+  - Query/perf: batched ledger balance reads; groupBy KPI counts; date-filtered history/reports
+  - Indexes migration: 20260728120000_perf_list_indexes
+  - Security: login Zod; id/boolean action schemas; FX override server-enforced; inactive-login message unified
+  - Errors: (app)/error.tsx, global-error.tsx, root not-found, transactions/[id] not-found, audit/[id] loading
+  - Logout: result type + UI feedback; session cookie clear best-effort on DB revoke failure
   - docs/HANDOFF.md, docs/ROADMAP.md, docs/DECISIONS.md
-  - prisma/migrations/20260727153000_add_audit_logs
 
-Unchanged vs HEAD (posting / ledger domain):
-  - src/features/transactions/services/post-transaction.ts
-  - src/features/ledger/**
+Unchanged vs hardening (posting / ledger domain math):
+  - src/features/transactions/services/post-transaction.ts (not modified for business rules)
+  - Ledger balance calculator / money domain unchanged
 
 Do not commit:
   prisma/dev.db, prisma/dev.db-shm, prisma/dev.db-wal
@@ -479,13 +469,12 @@ Do not commit:
 
 ## 13. Last completed task
 
-**Audit Log (2026-07-27):**
-- Append-only `AuditLog` model (separate from `LedgerEntry`) + migration
-- Reusable `recordAuditEvent` / `auditAction` (failures never block business ops)
-- Instrumented: login/logout, customers, deposits/withdrawals/adjustments/exchange/transfers, hawala, app settings
-- Read-only `/audit` list (filters + pagination) + `/audit/[id]` detail (before/after values)
-- `tsc --noEmit` — pass; ESLint on audit paths — pass
-- Docs updated (ADR-029)
+**Production hardening review (2026-07-28):**
+- Verified all primary modules (Customers → Users) present and wired
+- Confirmed `postTransaction` remains the only financial writer; movement services only call it
+- `npm run typecheck` — **Pass**; `npm run lint` — **Pass**
+- Query performance, auth/validation, and error-boundary hardening (ADR-032 / ADR-033)
+- Docs updated
 
 ---
 
@@ -658,17 +647,57 @@ Day 10 Hawala, UX polish, Day 11 Settings, and Currency Exchange are on `main` (
 | UI matches design system | **Pass** — currencies-style table/dialogs |
 
 ### Exact next step
-1. **Commit** remaining working tree including Users + RBAC + docs (exclude `prisma/dev.db*`).
+1. **Commit** production hardening (§24) + docs; `npx prisma migrate deploy` for perf indexes (exclude `prisma/dev.db*`).
+
+---
+
+## 24. Production hardening review (2026-07-28)
+
+### Module verification
+
+| Module | Routes | Status |
+|---|---|---|
+| Customers | `/customers`, `/customers/[id]` | **Pass** — CRUD + archive + profile balances/history |
+| Transactions | `/transactions`, `/transactions/[id]` | **Pass** — deposit/withdraw/adjust → `postTransaction` |
+| Hawala | `/hawala`, `/hawala/[id]` | **Pass** — send/receive → posting; cancel action exists |
+| Currency Exchange | `/exchange`, `/exchange/[id]` | **Pass** — `exchangeFunds` → `postTransaction` |
+| Reports | `/reports` + drill-ins | **Pass** — read-only; no financial writes |
+| Dashboard | `/` | **Pass** — read-only `getDashboardStats` |
+| Settings | `/settings` (+ currencies, rates, wallets) | **Pass** — locale/receipt prefs still “coming soon” |
+| User Management | `/users` | **Pass** — ADMIN `users.manage` |
+
+Placeholder remaining: **Backup** (`/backup`).
+
+### Financial architecture verification
+
+| Check | Result |
+|---|---|
+| Posting Service only financial writer | **Pass** — sole `tx.ledgerEntry.createMany` is in `post-transaction.ts` |
+| Movement paths reuse posting | **Pass** — deposit, withdraw, adjust, exchange, transfer, hawala → `postTransaction(` |
+| No duplicate posting writers in app paths | **Pass** — low-level `createLedgerEntry*` / `createTransaction` helpers are unused by callers |
+| Dashboard / Reports / Audit never post | **Pass** — read-only / activity-only |
+| TypeScript | **Pass** — `npm run typecheck` |
+| ESLint | **Pass** — `npm run lint` |
+
+### Hardening delivered
+| Area | Change |
+|---|---|
+| Performance | Batched wallet ledger reads; `groupBy` KPI counts; SQL date filters on hawala/exchange/transfer history + reports; list indexes migration |
+| Security | Login Zod; shared id/boolean action schemas; cancel hawala Zod; FX override AND’d with `EXCHANGE_BUSINESS_RULES`; inactive login message unified for clients |
+| Errors | `(app)/error.tsx`, `global-error.tsx`, root `not-found`, `transactions/[id]/not-found`, `audit/[id]/loading`; logout result + UI; session cookie clear best-effort |
+
+### Exact next step
+1. **Commit** §24 + docs; deploy perf indexes migration (exclude DB WAL/SHM).
 
 ---
 
 ## Quick pointers for the next agent
 
-1. **Commit** uncommitted money UX + transfers + dashboard + reports + audit + RBAC + users + docs (exclude DB WAL/SHM).  
+1. **Commit** production hardening + docs; run `npx prisma migrate deploy` (exclude DB WAL/SHM).  
 2. Never invent cloud auth or bypass **`postTransaction`**.  
 3. Prefer extending `features/*` over new top-level packages.  
 4. Do not modify posting/ledger unless a bug requires it.  
-5. Read `docs/DECISIONS.md` (ADR-014, ADR-024–031) before financial/UX/auth work.  
+5. Read `docs/DECISIONS.md` (ADR-014, ADR-024–033) before financial/UX/auth work.  
 6. Soft-deactivate users with `isActive`; never hard-delete.  
 7. Audit Log is activity history only — never use it for balances or money truth.
 

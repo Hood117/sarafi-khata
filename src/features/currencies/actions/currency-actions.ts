@@ -1,5 +1,11 @@
 "use server";
 
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_MODULES,
+  auditAction,
+} from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import { isCurrencyError } from "@/features/currencies/domain/errors";
 import type { CurrencyFormData } from "@/features/currencies/domain/types";
@@ -8,6 +14,7 @@ import { createCurrencyRecord } from "@/features/currencies/services/create-curr
 import { getCurrencyForForm } from "@/features/currencies/services/get-currency";
 import { setCurrencyActiveRecord } from "@/features/currencies/services/set-currency-active";
 import { updateCurrencyRecord } from "@/features/currencies/services/update-currency";
+import { parseEntityId, parseSetActiveAction } from "@/lib/action-schemas";
 
 export type CurrencyFieldErrors = CurrencyFormFieldErrors;
 
@@ -51,9 +58,23 @@ export type GetCurrencyForEditActionResult =
   | { ok: true; currency: CurrencyFormData }
   | {
       ok: false;
-      code: "NOT_FOUND" | "UNKNOWN";
+      code: "NOT_FOUND" | "VALIDATION" | "UNKNOWN";
       message: string;
     };
+
+function toCurrencyAuditValues(currency: {
+  code: string;
+  name: string;
+  symbol?: string | null;
+  isActive: boolean;
+}) {
+  return {
+    code: currency.code,
+    name: currency.name,
+    symbol: currency.symbol ?? null,
+    isActive: currency.isActive,
+  };
+}
 
 function toMutationFailure(error: unknown): CurrencyMutationActionResult {
   if (isCurrencyError(error)) {
@@ -75,7 +96,7 @@ function toMutationFailure(error: unknown): CurrencyMutationActionResult {
 export async function createCurrencyAction(
   input: CreateCurrencyActionInput,
 ): Promise<CreateCurrencyActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
 
   try {
     const currency = await createCurrencyRecord({
@@ -83,6 +104,15 @@ export async function createCurrencyAction(
       name: input.name,
       symbol: input.symbol ?? "",
       isActive: input.isActive,
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CURRENCY_CREATE,
+      module: AUDIT_MODULES.CURRENCIES,
+      entityType: AUDIT_ENTITY_TYPES.CURRENCY,
+      entityId: currency.id,
+      afterValues: toCurrencyAuditValues(currency),
     });
 
     return {
@@ -105,13 +135,24 @@ export async function createCurrencyAction(
 export async function updateCurrencyAction(
   input: UpdateCurrencyActionInput,
 ): Promise<UpdateCurrencyActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
 
   try {
+    const before = await getCurrencyForForm(input.id);
     const currency = await updateCurrencyRecord(input.id, {
       name: input.name,
       symbol: input.symbol ?? "",
       isActive: input.isActive,
+    });
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CURRENCY_UPDATE,
+      module: AUDIT_MODULES.CURRENCIES,
+      entityType: AUDIT_ENTITY_TYPES.CURRENCY,
+      entityId: currency.id,
+      beforeValues: toCurrencyAuditValues(before),
+      afterValues: toCurrencyAuditValues(currency),
     });
 
     return {
@@ -132,17 +173,40 @@ export async function updateCurrencyAction(
 }
 
 export async function setCurrencyActiveAction(
-  id: string,
-  isActive: boolean,
+  id: unknown,
+  isActive: unknown,
 ): Promise<SetCurrencyActiveActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
+
+  const parsed = parseSetActiveAction(id, isActive);
+  if (!parsed) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Invalid activate/deactivate request.",
+    };
+  }
 
   try {
-    const currency = await setCurrencyActiveRecord(id, isActive);
+    const before = await getCurrencyForForm(parsed.id);
+    const currency = await setCurrencyActiveRecord(
+      parsed.id,
+      parsed.isActive,
+    );
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.CURRENCY_SET_ACTIVE,
+      module: AUDIT_MODULES.CURRENCIES,
+      entityType: AUDIT_ENTITY_TYPES.CURRENCY,
+      entityId: currency.id,
+      beforeValues: toCurrencyAuditValues(before),
+      afterValues: toCurrencyAuditValues(currency),
+    });
 
     return {
       ok: true,
-      message: isActive
+      message: parsed.isActive
         ? `${currency.code} was activated.`
         : `${currency.code} was deactivated.`,
       currencyId: currency.id,
@@ -152,7 +216,7 @@ export async function setCurrencyActiveAction(
     if (!failure.ok && failure.code === "UNKNOWN") {
       return {
         ...failure,
-        message: isActive
+        message: parsed.isActive
           ? "Unable to activate currency. Please try again."
           : "Unable to deactivate currency. Please try again.",
       };
@@ -162,12 +226,21 @@ export async function setCurrencyActiveAction(
 }
 
 export async function getCurrencyForEditAction(
-  id: string,
+  id: unknown,
 ): Promise<GetCurrencyForEditActionResult> {
   await requirePermission("settings.manage");
 
+  const currencyId = parseEntityId(id);
+  if (!currencyId) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Currency id is required.",
+    };
+  }
+
   try {
-    const currency = await getCurrencyForForm(id);
+    const currency = await getCurrencyForForm(currencyId);
     return { ok: true, currency };
   } catch (error) {
     if (isCurrencyError(error) && error.code === "NOT_FOUND") {

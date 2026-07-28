@@ -6,7 +6,7 @@ import {
   findCurrencyByCode,
   isLedgerDirection,
   listCurrencies,
-  listLedgerEntriesByWallet,
+  listLedgerEntries,
   moneyFromMajorUnits,
   toCurrencyCode,
   type LedgerEntryInput,
@@ -77,8 +77,22 @@ export async function getCustomerWalletBalanceRows(
   const calculator = createBalanceCalculator();
   const rows: CustomerWalletBalanceRow[] = [];
 
+  const allEntries =
+    wallets.length === 0
+      ? []
+      : await listLedgerEntries({
+          walletIds: wallets.map((wallet) => wallet.id),
+        });
+
+  const entriesByWallet = new Map<string, typeof allEntries>();
+  for (const entry of allEntries) {
+    const current = entriesByWallet.get(entry.walletId) ?? [];
+    current.push(entry);
+    entriesByWallet.set(entry.walletId, current);
+  }
+
   for (const wallet of wallets) {
-    const dbEntries = await listLedgerEntriesByWallet(wallet.id);
+    const dbEntries = entriesByWallet.get(wallet.id) ?? [];
     const isArchived = wallet.deletedAt !== null;
 
     if (dbEntries.length === 0) {

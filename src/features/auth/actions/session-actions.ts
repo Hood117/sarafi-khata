@@ -8,6 +8,10 @@ import {
 } from "@/features/audit";
 import { isAuthError } from "@/features/auth/domain/errors";
 import type { AuthenticatedUser } from "@/features/auth/domain/types";
+import {
+  loginSchema,
+  toLoginFieldErrors,
+} from "@/features/auth/schemas/login";
 import { loginWithSession } from "@/features/auth/services/login-with-session";
 import {
   destroySession,
@@ -18,14 +22,26 @@ export type LoginActionResult =
   | { ok: true; user: AuthenticatedUser }
   | {
       ok: false;
-      code: "INVALID_CREDENTIALS" | "INACTIVE_USER" | "UNKNOWN";
+      code: "INVALID_CREDENTIALS" | "VALIDATION" | "UNKNOWN";
       message: string;
+      fieldErrors?: Partial<Record<"username" | "password", string>>;
     };
 
 export async function loginAction(
-  username: string,
-  password: string,
+  input: unknown,
 ): Promise<LoginActionResult> {
+  const parsed = loginSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Please correct the highlighted fields.",
+      fieldErrors: toLoginFieldErrors(parsed.error),
+    };
+  }
+
+  const { username, password } = parsed.data;
+
   try {
     const user = await loginWithSession({ username, password });
 
@@ -51,16 +67,17 @@ export async function loginAction(
       module: AUDIT_MODULES.AUTH,
       entityType: AUDIT_ENTITY_TYPES.USER,
       afterValues: {
-        username: typeof username === "string" ? username.trim() : null,
+        username: username.trim(),
         code,
       },
     });
 
     if (isAuthError(error)) {
+      // Never reveal inactive vs invalid credentials to the client.
       return {
         ok: false,
-        code: error.code,
-        message: error.message,
+        code: "INVALID_CREDENTIALS",
+        message: "Invalid username or password.",
       };
     }
 
@@ -72,9 +89,27 @@ export async function loginAction(
   }
 }
 
-export async function logoutAction(): Promise<void> {
-  const user = await getCurrentUser();
-  await destroySession();
+export type LogoutActionResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+export async function logoutAction(): Promise<LogoutActionResult> {
+  let user: AuthenticatedUser | null = null;
+
+  try {
+    user = await getCurrentUser();
+  } catch {
+    // Session lookup can fail if the DB is unavailable — still clear the cookie.
+  }
+
+  try {
+    await destroySession();
+  } catch {
+    return {
+      ok: false,
+      message: "Unable to sign out. Please try again.",
+    };
+  }
 
   await auditAction({
     userId: user?.id ?? null,
@@ -89,6 +124,8 @@ export async function logoutAction(): Promise<void> {
         }
       : null,
   });
+
+  return { ok: true };
 }
 
 export async function getCurrentUserAction(): Promise<AuthenticatedUser | null> {

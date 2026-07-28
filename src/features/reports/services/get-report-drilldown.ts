@@ -16,7 +16,6 @@ import {
   filterTransferItems,
 } from "@/features/reports/domain/aggregate-reports";
 import {
-  isIsoInPeriod,
   localCalendarMonthBounds,
 } from "@/features/reports/domain/report-helpers";
 import {
@@ -175,14 +174,13 @@ export async function getReportHawalaDrilldown(
 }> {
   const context = await getReportDrilldownContext(filtersInput);
   const { filters, period, operatorLabel, customerFullName } = context;
-  const items = await getHawalaList();
-
-  const scoped = items.filter((item) =>
-    isIsoInPeriod(item.valueDate, period.start, period.end),
-  );
+  const items = await getHawalaList({
+    valueDateFrom: period.start,
+    valueDateTo: period.end,
+  });
 
   const transfers = filterHawalaItems(
-    scoped.filter((item) => {
+    items.filter((item) => {
       if (!customerFullName) {
         return true;
       }
@@ -206,14 +204,13 @@ export async function getReportExchangeDrilldown(
 }> {
   const context = await getReportDrilldownContext(filtersInput);
   const { filters, period, operatorLabel, customerLabel } = context;
-  const items = await getExchangeHistory();
-
-  const scoped = items.filter((item) =>
-    isIsoInPeriod(item.valueDate, period.start, period.end),
-  );
+  const items = await getExchangeHistory({
+    valueDateFrom: period.start,
+    valueDateTo: period.end,
+  });
 
   const exchanges = filterExchangeItems(
-    scoped.filter((item) => {
+    items.filter((item) => {
       if (!customerLabel) {
         return true;
       }
@@ -234,14 +231,13 @@ export async function getReportTransferDrilldown(
 }> {
   const context = await getReportDrilldownContext(filtersInput);
   const { filters, period, operatorLabel, customerLabel } = context;
-  const items = await getTransferHistory();
-
-  const scoped = items.filter((item) =>
-    isIsoInPeriod(item.valueDate, period.start, period.end),
-  );
+  const items = await getTransferHistory({
+    valueDateFrom: period.start,
+    valueDateTo: period.end,
+  });
 
   const transfers = filterTransferItems(
-    scoped.filter((item) => {
+    items.filter((item) => {
       if (!customerLabel) {
         return true;
       }

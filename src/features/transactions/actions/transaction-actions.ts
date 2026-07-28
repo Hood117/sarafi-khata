@@ -7,6 +7,7 @@ import {
   auditAction,
 } from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
+import { EXCHANGE_BUSINESS_RULES } from "@/features/exchange/domain/business-rules";
 import {
   isTransactionError,
   type TransactionErrorCode,
@@ -210,8 +211,13 @@ export async function createExchangeAction(
   const user = await requirePermission("transactions.manage");
 
   try {
+    const allowManualRateOverride =
+      EXCHANGE_BUSINESS_RULES.allowManualRateOverride &&
+      (input.allowManualRateOverride ?? false);
+
     const result = await exchangeFunds({
       ...input,
+      allowManualRateOverride,
       createdById: user.id,
     });
 
@@ -230,8 +236,8 @@ export async function createExchangeAction(
         amount: input.amount,
         fromWalletId: input.fromWalletId,
         toWalletId: input.toWalletId,
-        allowManualRateOverride: input.allowManualRateOverride ?? false,
-        manualRate: input.manualRate ?? null,
+        allowManualRateOverride,
+        manualRate: allowManualRateOverride ? (input.manualRate ?? null) : null,
         description: input.description ?? null,
       },
     });

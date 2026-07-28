@@ -62,21 +62,26 @@ export async function createSession(userId: string): Promise<void> {
 export async function destroySession(): Promise<void> {
   const token = await getSessionTokenFromCookie();
 
-  if (token) {
-    const tokenHash = hashSessionToken(token);
+  try {
+    if (token) {
+      const tokenHash = hashSessionToken(token);
 
-    await prisma.session.updateMany({
-      where: {
-        tokenHash,
-        revokedAt: null,
-      },
-      data: {
-        revokedAt: new Date(),
-      },
-    });
+      await prisma.session.updateMany({
+        where: {
+          tokenHash,
+          revokedAt: null,
+        },
+        data: {
+          revokedAt: new Date(),
+        },
+      });
+    }
+  } catch (error) {
+    // Cookie clear below still signs the browser out; DB revoke is best-effort.
+    console.error("Failed to revoke session in database", error);
+  } finally {
+    await clearSessionCookie();
   }
-
-  await clearSessionCookie();
 }
 
 /** Revoke every active session for a user (deactivate / password reset). */

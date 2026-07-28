@@ -20,6 +20,10 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { loginAction } from "@/features/auth/actions/session-actions";
+import {
+  loginSchema,
+  toLoginFieldErrors,
+} from "@/features/auth/schemas/login";
 import { ThemeToggle } from "@/design-system/theme-toggle";
 import { Typography } from "@/design-system/typography";
 import { cn } from "@/lib/utils";
@@ -38,37 +42,26 @@ export function LoginForm() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  function validate(): FormErrors {
-    const nextErrors: FormErrors = {};
-
-    if (!username.trim()) {
-      nextErrors.username = "Username is required.";
-    }
-
-    if (!password) {
-      nextErrors.password = "Password is required.";
-    }
-
-    return nextErrors;
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const nextErrors = validate();
-    setErrors(nextErrors);
-
-    if (Object.keys(nextErrors).length > 0) {
+    const parsed = loginSchema.safeParse({ username, password });
+    if (!parsed.success) {
+      setErrors(toLoginFieldErrors(parsed.error));
       return;
     }
 
+    setErrors({});
     setIsLoading(true);
 
     try {
-      const result = await loginAction(username, password);
+      const result = await loginAction(parsed.data);
 
       if (!result.ok) {
-        setErrors({ form: result.message });
+        setErrors({
+          ...(result.fieldErrors ?? {}),
+          form: result.message,
+        });
         return;
       }
 

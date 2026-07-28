@@ -171,11 +171,20 @@ export const hawalaPartySchema = z
 export const sendHawalaSchema = hawalaPartySchema;
 export const receiveHawalaSchema = hawalaPartySchema;
 
+export const cancelHawalaSchema = z.object({
+  hawalaId: z
+    .string()
+    .trim()
+    .min(1, { error: "Hawala transfer id is required." }),
+});
+
+export type CancelHawalaSchemaInput = z.infer<typeof cancelHawalaSchema>;
+
 export type HawalaPartySchemaInput = z.input<typeof hawalaPartySchema>;
 export type HawalaPartySchemaOutput = z.output<typeof hawalaPartySchema>;
 
 export type HawalaFieldErrors = Partial<
-  Record<keyof HawalaPartySchemaOutput, string>
+  Record<keyof HawalaPartySchemaOutput | "id" | "hawalaId", string>
 >;
 
 export function toHawalaFieldErrors(error: z.ZodError): HawalaFieldErrors {
@@ -184,7 +193,7 @@ export function toHawalaFieldErrors(error: z.ZodError): HawalaFieldErrors {
   for (const issue of error.issues) {
     const key = issue.path[0];
     if (typeof key === "string" && !(key in fieldErrors)) {
-      fieldErrors[key as keyof HawalaPartySchemaOutput] = issue.message;
+      fieldErrors[key as keyof HawalaFieldErrors] = issue.message;
     }
   }
 

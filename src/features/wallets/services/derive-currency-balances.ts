@@ -5,7 +5,7 @@ import {
   createCurrency,
   isLedgerDirection,
   listCurrencies,
-  listLedgerEntriesByWallet,
+  listLedgerEntries,
   moneyFromMajorUnits,
   type LedgerEntryInput,
 } from "@/features/ledger";
@@ -56,6 +56,7 @@ export function formatBalanceDisplay(
 export async function deriveCurrencyBalancesForWallets(
   walletIds: readonly string[],
 ): Promise<CurrencyBalanceDisplay[]> {
+  const uniqueWalletIds = [...new Set(walletIds.filter(Boolean))];
   const currencies = await listCurrencies({ includeDeleted: true });
   const currenciesById = new Map(
     currencies.map((currency) => [currency.id, currency] as const),
@@ -68,36 +69,37 @@ export async function deriveCurrencyBalancesForWallets(
   const calculator = createBalanceCalculator();
   const domainEntries: LedgerEntryInput[] = [];
 
-  for (const walletId of walletIds) {
-    const dbEntries = await listLedgerEntriesByWallet(walletId);
+  const dbEntries =
+    uniqueWalletIds.length === 0
+      ? []
+      : await listLedgerEntries({ walletIds: uniqueWalletIds });
 
-    for (const entry of dbEntries) {
-      const currencyRecord = currenciesById.get(entry.currencyId);
-      if (!currencyRecord) {
-        continue;
-      }
-
-      const domainCurrency = createCurrency({
-        code: currencyRecord.code,
-        name: currencyRecord.name,
-        symbol: currencyRecord.symbol ?? undefined,
-        decimalPlaces: currencyRecord.decimalPlaces,
-      });
-
-      if (!isLedgerDirection(entry.direction)) {
-        continue;
-      }
-
-      domainEntries.push({
-        walletId: entry.walletId,
-        currency: domainCurrency.code,
-        direction: entry.direction,
-        amount: moneyFromMajorUnits(
-          prismaAmountToMajorString(entry.amount),
-          domainCurrency,
-        ),
-      });
+  for (const entry of dbEntries) {
+    const currencyRecord = currenciesById.get(entry.currencyId);
+    if (!currencyRecord) {
+      continue;
     }
+
+    const domainCurrency = createCurrency({
+      code: currencyRecord.code,
+      name: currencyRecord.name,
+      symbol: currencyRecord.symbol ?? undefined,
+      decimalPlaces: currencyRecord.decimalPlaces,
+    });
+
+    if (!isLedgerDirection(entry.direction)) {
+      continue;
+    }
+
+    domainEntries.push({
+      walletId: entry.walletId,
+      currency: domainCurrency.code,
+      direction: entry.direction,
+      amount: moneyFromMajorUnits(
+        prismaAmountToMajorString(entry.amount),
+        domainCurrency,
+      ),
+    });
   }
 
   const netByCurrency = new Map<string, bigint>();

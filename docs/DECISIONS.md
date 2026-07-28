@@ -1,6 +1,6 @@
 # Saraf — Architecture / Product Decisions
 
-**Last updated:** 2026-07-27 (Users + RBAC)  
+**Last updated:** 2026-07-28 (production hardening)  
 **Related:** `docs/HANDOFF.md`, `docs/ROADMAP.md`
 
 Record of intentional decisions. Prefer appending new entries over rewriting history; mark superseded decisions clearly.
@@ -42,6 +42,8 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-029 | Audit Log is append-only activity history separate from the ledger |
 | ADR-030 | Role permissions enforced via catalog + `requirePermission` |
 | ADR-031 | User Management is Admin-only local account administration |
+| ADR-032 | Server Action validation + server-enforced exchange override |
+| ADR-033 | App-owned error boundaries for crash recovery |
 
 ---
 
@@ -60,8 +62,10 @@ These rules override convenience shortcuts:
 9. Extend the existing architecture only; do not refactor completed modules unless required to fix a bug or satisfy an explicit requirement.
 10. Normal operators must not pick internal wallets; resolve wallet IDs in the UI/feature layer before calling movement actions.
 11. Dashboard and Reports are read-only; compose existing readers and never post money.
+12. Prefer app error boundaries for unexpected failures; mutation actions return typed `{ ok }` results (ADR-033).
+13. Never trust client-only flags for money policy (e.g. FX override) — enforce server-side (ADR-032).
 
-See ADR-004, ADR-014, ADR-015, ADR-019–028.
+See ADR-004, ADR-014, ADR-015, ADR-019–028, ADR-032–033.
 
 ---
 
@@ -402,6 +406,22 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028.
 - **Safety:** Cannot change own role or deactivate self; cannot remove/deactivate the last active admin; deactivate and password reset revoke that user’s sessions via `revokeUserSessions`. Audit actions `user.create` / `user.update` / `user.set_active` / `user.reset_password` never store password/hash.
 - **Why:** Seeded admin alone is insufficient once cashiers/managers exist; keep administration offline and local.
 - **Consequence:** Do not hard-delete users (FK history). Prefer extending this feature over parallel user tables.
+
+---
+
+## ADR-032 — Server Action validation + server-enforced exchange override
+
+- **Decision:** Mutation Server Actions must reject malformed input safely. Login uses shared Zod (`loginSchema`) on form + action. Id/boolean toggles and cancel-hawala use Zod / shared `action-schemas`. Create/update money and CRUD paths continue validating in services with Zod. Manual FX override is allowed only when `EXCHANGE_BUSINESS_RULES.allowManualRateOverride` is true **and** the client requests it — never trust the client flag alone (`exchangeFunds` / `createExchangeAction`). Inactive-account login failures return the same client-facing invalid-credentials message (audit may still record `INACTIVE_USER`).
+- **Why:** Defense-in-depth against crafted Server Action calls and account probing without changing posting/ledger math.
+- **Consequence:** Flipping `EXCHANGE_BUSINESS_RULES.allowManualRateOverride` to `false` is sufficient to disable overrides server-side. Keep product policy for cashier adjustments in the permission catalog (not this ADR).
+
+---
+
+## ADR-033 — App-owned error boundaries for crash recovery
+
+- **Decision:** Uncaught RSC/render failures under `(app)` are handled by `src/app/(app)/error.tsx` (Try again + Dashboard). Root layout failures use `src/app/global-error.tsx`. Missing routes use `src/app/not-found.tsx`; transaction detail has a branded segment `not-found`. Logout returns `{ ok }` and surfaces UI errors; `destroySession` always clears the cookie even if DB revoke fails.
+- **Why:** Operators must not see Next’s default crash screen; DB blips should allow recovery without rewriting every page in try/catch.
+- **Consequence:** Prefer error boundaries for unexpected DB/render failures. Mutation actions keep mapping domain errors to `{ ok: false }` results. Do not treat error boundaries as a substitute for typed action results.
 
 ---
 

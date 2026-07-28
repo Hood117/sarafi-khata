@@ -1,6 +1,6 @@
 # Saraf — Product / Engineering Roadmap
 
-**Last updated:** 2026-07-27 (Users + RBAC)  
+**Last updated:** 2026-07-28 (production hardening)  
 **Related:** `docs/HANDOFF.md`, `docs/DECISIONS.md`
 
 Suggested implementation order. Adjust when product priorities change.
@@ -16,19 +16,20 @@ Suggested implementation order. Adjust when product priorities change.
 | Transactions / posting + history | Done |
 | **Day 10 — Hawala** | **Done** |
 | **Day 11 — Currency / rates + Settings** | **Done** |
-| **Currency exchange** | **Done** (committed) |
-| **UI simplification (hide wallets from ops)** | **Done** (working tree) |
-| **Business Cash Overview** | **Done** (working tree — `/cash`) |
-| **Customer transfer** | **Done** (working tree — `/transfers`) |
-| **Dashboard** | **Done** (working tree — `/`) |
-| **Reports** | **Done** (working tree — `/reports` + drill-in) |
-| **Audit log** | **Done** (working tree — `/audit`) |
-| **Role & permission enforcement** | **Done** (working tree — ADR-030) |
-| **User Management** | **Done** (working tree — `/users`) |
+| **Currency exchange** | **Done** |
+| **UI simplification (hide wallets from ops)** | **Done** |
+| **Business Cash Overview** | **Done** — `/cash` |
+| **Customer transfer** | **Done** — `/transfers` |
+| **Dashboard** | **Done** — `/` |
+| **Reports** | **Done** — `/reports` + drill-in |
+| **Audit log** | **Done** — `/audit` |
+| **Role & permission enforcement** | **Done** — ADR-030 |
+| **User Management** | **Done** — `/users` |
+| **Production hardening** | **Done** (working tree — ADR-032 / ADR-033) |
 
 ---
 
-## Done (through Users + RBAC)
+## Done (through production hardening)
 
 - [x] App foundation (Next.js 16, Tailwind 4, shadcn, design tokens, Tauri scaffold)
 - [x] Prisma 7 + SQLite + LibSQL adapter + migrations + seed
@@ -51,33 +52,21 @@ Suggested implementation order. Adjust when product priorities change.
   - [x] `/wallets` redirects to `/settings/wallets`
 - [x] **Business Cash Overview** (`/cash`) — VAULT + TILL balances by currency from ledger
 - [x] **Customer Transfer** — `transferFunds` → `postTransaction` (`type: TRANSFER`)
-  - [x] Form: sender, receiver, currency, amount, reference, notes (no wallets)
-  - [x] History + search + pagination-ready layout
-  - [x] Detail reuses `getTransactionDetail` for related txn + ledger lines
-- [x] **Dashboard** — read-only `getDashboardStats` + `/` UI (summary cards, business cash, recent activity, quick actions)
-- [x] **Reports** — read-only hub + URL filters + drill-in pages reusing existing list/detail UIs
-  - [x] Daily / monthly (or filtered activity) totals
-  - [x] Customer statement
-  - [x] Hawala / Exchange / Transfers sections
-  - [x] No file export yet
-- [x] **Audit Log** — append-only `AuditLog` separate from ledger; `recordAuditEvent` / `auditAction`
-  - [x] Instrumented: login/logout, customers, financial posts, hawala, app settings, **users**
-  - [x] `/audit` list with date/user/module/action filters + search + pagination
-  - [x] `/audit/[id]` detail with readable before/after values
-  - [x] Failures never block business operations
-- [x] **Role & permission enforcement** — `requirePermission` checks catalog; role-filtered nav; 403 via `forbidden()`
-  - [x] Admin full access; Manager ops + reports/audit/settings; Cashier desk ops only
-  - [x] `wallets.manage` limited to ADMIN/MANAGER (Settings wallet admin)
+- [x] **Dashboard** — read-only `getDashboardStats` + `/` UI
+- [x] **Reports** — read-only hub + URL filters + drill-in pages
+- [x] **Audit Log** — append-only `AuditLog`; `recordAuditEvent` / `auditAction`
+- [x] **Role & permission enforcement** — `requirePermission` + role-filtered nav + 403
 - [x] **User Management** — `/users` (ADMIN / `users.manage`)
-  - [x] List / create / edit (name, role, status)
-  - [x] Reset password (revokes sessions)
-  - [x] Activate / deactivate (revokes sessions; last-admin + self-action guards)
+- [x] **Production hardening**
+  - [x] Query/perf: batched ledger balance reads; `groupBy` KPI counts; SQL date filters; list indexes migration
+  - [x] Security: login Zod; id/boolean action schemas; server-enforced FX override rule; unified inactive-login client message
+  - [x] Errors: app + global error boundaries; root/transaction not-found; audit detail loading; resilient logout
 
 ---
 
 ## Next (near-term)
 
-1. **Commit** UI simplification + Business Cash Overview + Customer Transfer + Dashboard + Reports + Audit Log + **RBAC + Users** + docs (+ migration `add_audit_logs`). Exclude `prisma/dev.db*`.
+1. **Commit** production hardening + docs; run `npx prisma migrate deploy` for `20260728120000_perf_list_indexes`. Exclude `prisma/dev.db*`.
 2. Optional hawala polish: Cancel button in UI for PENDING; hawala receipt
 3. Optional: wire currency / exchange-rate / wallet settings mutations to `auditAction`
 
@@ -100,7 +89,7 @@ Suggested implementation order. Adjust when product priorities change.
 16. Optional: consolidate dual currency repositories (`features/currencies` vs `features/ledger`)
 17. Optional: hide `transaction-snapshot` rates from Settings inactive list
 18. Optional: restrict Manual Adjustment (wallet picks) to admin roles
-19. Optional: transfer history server-side pagination (currently in-memory filter like exchange)
+19. Optional: customer-history / desk search server-side pagination where still in-memory
 
 ---
 

@@ -210,7 +210,10 @@ model Transaction {
   @@index([type, status])
   @@index([customerId, valueDate])
   @@index([createdById])
+  @@index([createdById, valueDate])
   @@index([deletedAt])
+  @@index([deletedAt, status, valueDate])
+  @@index([deletedAt, valueDate, createdAt])
   @@index([postedAt])
 }
 
@@ -269,7 +272,11 @@ model HawalaTransfer {
   @@index([receiverCustomerId])
   @@index([createdById])
   @@index([currencyId])
+  @@index([cashWalletId])
+  @@index([clearingWalletId])
   @@index([deletedAt])
+  @@index([deletedAt, status, valueDate])
+  @@index([deletedAt, valueDate, createdAt])
   @@index([completedAt])
 }
 

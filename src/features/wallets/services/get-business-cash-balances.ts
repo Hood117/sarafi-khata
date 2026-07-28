@@ -9,10 +9,13 @@ import { listWallets } from "@/features/wallets/repositories/wallet-repository";
  * Derived from the ledger via createBalanceCalculator — not stored.
  */
 export async function getBusinessCashBalances(): Promise<BusinessCashBalance[]> {
-  const wallets = await listWallets({ isActive: true });
-  const cashWalletIds = wallets
-    .filter((wallet) => wallet.type === "VAULT" || wallet.type === "TILL")
-    .map((wallet) => wallet.id);
+  const [vaultWallets, tillWallets] = await Promise.all([
+    listWallets({ isActive: true, type: "VAULT" }),
+    listWallets({ isActive: true, type: "TILL" }),
+  ]);
+  const cashWalletIds = [...vaultWallets, ...tillWallets].map(
+    (wallet) => wallet.id,
+  );
 
   return deriveCurrencyBalancesForWallets(cashWalletIds);
 }

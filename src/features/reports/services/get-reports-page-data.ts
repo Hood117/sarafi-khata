@@ -21,7 +21,6 @@ import {
   filterTransferItems,
 } from "@/features/reports/domain/aggregate-reports";
 import {
-  isIsoInPeriod,
   localCalendarMonthBounds,
   normalizeTableLimit,
   toActivityCounts,
@@ -123,7 +122,7 @@ async function buildPeriodActivityReport(input: {
       periodLabel: input.periodLabel,
       periodStart: input.start.toISOString(),
       periodEndExclusive: input.end.toISOString(),
-      counts: toActivityCounts(currencyFiltered.map((row) => row.type)),
+      counts: toActivityCounts(currencyFiltered.map((row) => ({ type: row.type, count: 1 }))),
       businessCash: input.businessCash,
       recentTransactions,
       isEmpty: currencyFiltered.length === 0,
@@ -163,6 +162,15 @@ export async function getReportsPageData(
   const month = localCalendarMonthBounds(now);
   const customRange = resolveFilterDateBounds(filters);
   const mode = hasCustomDateRange(filters) ? "range" : "calendar";
+  const periodScope = customRange ?? {
+    start: month.start,
+    end: month.end,
+    label: month.label,
+  };
+  const periodListFilter = {
+    valueDateFrom: periodScope.start,
+    valueDateTo: periodScope.end,
+  };
 
   const [
     businessCash,
@@ -182,9 +190,9 @@ export async function getReportsPageData(
       select: { id: true, fullName: true, username: true },
       orderBy: { fullName: "asc" },
     }),
-    getHawalaList(),
-    getExchangeHistory(),
-    getTransferHistory(),
+    getHawalaList(periodListFilter),
+    getExchangeHistory(periodListFilter),
+    getTransferHistory(periodListFilter),
     filters.customerId
       ? findCustomerById(filters.customerId, { includeDeleted: true })
       : Promise.resolve(null),
@@ -213,12 +221,6 @@ export async function getReportsPageData(
     ? formatCustomerLabel(statementCustomer.fullName, statementCustomer.code)
     : null;
   const customerFullName = statementCustomer?.fullName.trim().toLowerCase() ?? null;
-
-  const periodScope = customRange ?? {
-    start: month.start,
-    end: month.end,
-    label: month.label,
-  };
 
   let daily: PeriodActivityReport | null = null;
   let monthly: PeriodActivityReport | null = null;
@@ -257,18 +259,8 @@ export async function getReportsPageData(
     ]);
   }
 
-  const hawalaScoped = hawalaItems.filter((item) =>
-    isIsoInPeriod(item.valueDate, periodScope.start, periodScope.end),
-  );
-  const exchangeScoped = exchangeItems.filter((item) =>
-    isIsoInPeriod(item.valueDate, periodScope.start, periodScope.end),
-  );
-  const transferScoped = transferItems.filter((item) =>
-    isIsoInPeriod(item.valueDate, periodScope.start, periodScope.end),
-  );
-
   const hawalaForReport = filterHawalaItems(
-    hawalaScoped.filter((item) => {
+    hawalaItems.filter((item) => {
       if (!customerFullName) {
         return true;
       }
@@ -282,7 +274,7 @@ export async function getReportsPageData(
   );
 
   const exchangeFiltered = filterExchangeItems(
-    exchangeScoped.filter((item) => {
+    exchangeItems.filter((item) => {
       if (!customerLabel) {
         return true;
       }
@@ -293,7 +285,7 @@ export async function getReportsPageData(
   );
 
   const transferFiltered = filterTransferItems(
-    transferScoped.filter((item) => {
+    transferItems.filter((item) => {
       if (!customerLabel) {
         return true;
       }

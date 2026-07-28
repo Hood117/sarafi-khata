@@ -55,6 +55,10 @@ export type ExchangeHistoryListItem = {
 
 export type GetExchangeHistoryOptions = {
   search?: string;
+  /** Inclusive lower bound on transaction `valueDate`. */
+  valueDateFrom?: Date;
+  /** Exclusive upper bound on transaction `valueDate`. */
+  valueDateTo?: Date;
 };
 
 /**

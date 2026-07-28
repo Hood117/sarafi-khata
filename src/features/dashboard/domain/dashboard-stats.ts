@@ -31,7 +31,7 @@ export function normalizeRecentLimit(value: number | undefined): number {
 }
 
 export function countTodayByType(
-  types: readonly string[],
+  types: readonly { type: string; count: number }[],
 ): {
   transactions: number;
   deposits: number;
@@ -40,28 +40,32 @@ export function countTodayByType(
   hawala: number;
   transfers: number;
 } {
+  let transactions = 0;
   let deposits = 0;
   let withdrawals = 0;
   let exchanges = 0;
   let hawala = 0;
   let transfers = 0;
 
-  for (const type of types) {
-    switch (type) {
+  for (const group of types) {
+    const count = group.count;
+    transactions += count;
+
+    switch (group.type) {
       case "DEPOSIT":
-        deposits += 1;
+        deposits += count;
         break;
       case "WITHDRAWAL":
-        withdrawals += 1;
+        withdrawals += count;
         break;
       case "EXCHANGE":
-        exchanges += 1;
+        exchanges += count;
         break;
       case "HAWALA":
-        hawala += 1;
+        hawala += count;
         break;
       case "TRANSFER":
-        transfers += 1;
+        transfers += count;
         break;
       default:
         break;
@@ -69,7 +73,7 @@ export function countTodayByType(
   }
 
   return {
-    transactions: types.length,
+    transactions,
     deposits,
     withdrawals,
     exchanges,

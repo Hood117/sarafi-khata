@@ -17,6 +17,7 @@ import {
   type CustomerFormData,
 } from "@/features/customers/services/get-customer";
 import { updateCustomerRecord } from "@/features/customers/services/update-customer";
+import { parseEntityId } from "@/lib/action-schemas";
 
 export type CustomerMutationActionResult =
   | {
@@ -57,7 +58,7 @@ export type GetCustomerForEditActionResult =
   | { ok: true; customer: CustomerFormData }
   | {
       ok: false;
-      code: "NOT_FOUND" | "UNKNOWN";
+      code: "NOT_FOUND" | "VALIDATION" | "UNKNOWN";
       message: string;
     };
 
@@ -161,12 +162,21 @@ export async function updateCustomerAction(
 }
 
 export async function getCustomerForEditAction(
-  id: string,
+  id: unknown,
 ): Promise<GetCustomerForEditActionResult> {
   await requirePermission("customers.manage");
 
+  const customerId = parseEntityId(id);
+  if (!customerId) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Customer id is required.",
+    };
+  }
+
   try {
-    const customer = await getCustomerForForm(id);
+    const customer = await getCustomerForForm(customerId);
     return { ok: true, customer };
   } catch (error) {
     if (isCustomerError(error) && error.code === "NOT_FOUND") {
@@ -193,17 +203,26 @@ export type ArchiveCustomerActionResult =
     }
   | {
       ok: false;
-      code: "NOT_FOUND" | "UNKNOWN";
+      code: "NOT_FOUND" | "VALIDATION" | "UNKNOWN";
       message: string;
     };
 
 export async function archiveCustomerAction(
-  id: string,
+  id: unknown,
 ): Promise<ArchiveCustomerActionResult> {
   const user = await requirePermission("customers.manage");
 
+  const customerId = parseEntityId(id);
+  if (!customerId) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Customer id is required.",
+    };
+  }
+
   try {
-    const customer = await archiveCustomerRecord(id);
+    const customer = await archiveCustomerRecord(customerId);
 
     await auditAction({
       userId: user.id,

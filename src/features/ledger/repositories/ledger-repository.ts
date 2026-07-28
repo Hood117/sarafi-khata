@@ -11,6 +11,8 @@ export type LedgerEntryListOptions = {
   /** Batch filter — ignored when empty (avoids invalid SQL `IN ()`). */
   transactionIds?: readonly string[];
   walletId?: string;
+  /** Batch filter — ignored when empty (avoids invalid SQL `IN ()`). */
+  walletIds?: readonly string[];
   currencyId?: string;
 };
 
@@ -68,8 +70,13 @@ export async function listLedgerEntries(
   options: LedgerEntryListOptions = {},
 ): Promise<LedgerEntry[]> {
   const transactionIds = options.transactionIds?.filter(Boolean) ?? [];
+  const walletIds = options.walletIds?.filter(Boolean) ?? [];
 
   if (options.transactionIds && transactionIds.length === 0) {
+    return [];
+  }
+
+  if (options.walletIds && walletIds.length === 0) {
     return [];
   }
 
@@ -79,6 +86,7 @@ export async function listLedgerEntries(
       ? { transactionId: { in: [...transactionIds] } }
       : {}),
     ...(options.walletId ? { walletId: options.walletId } : {}),
+    ...(walletIds.length > 0 ? { walletId: { in: [...walletIds] } } : {}),
     ...(options.currencyId ? { currencyId: options.currencyId } : {}),
   };
 

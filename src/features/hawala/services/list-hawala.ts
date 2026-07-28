@@ -36,13 +36,25 @@ function matchesSearch(item: HawalaListItem, search: string): boolean {
 export async function getHawalaList(
   options: GetHawalaListOptions = {},
 ): Promise<HawalaListItem[]> {
-  const [transfers, currencies, users] = await Promise.all([
-    listHawalaTransfers(),
-    listCurrencies({ includeDeleted: true }),
-    prisma.user.findMany({
-      select: { id: true, fullName: true, username: true },
+  const [transfers, currencies] = await Promise.all([
+    listHawalaTransfers({
+      ...(options.valueDateFrom ? { valueDateFrom: options.valueDateFrom } : {}),
+      ...(options.valueDateTo ? { valueDateTo: options.valueDateTo } : {}),
     }),
+    listCurrencies({ includeDeleted: true }),
   ]);
+
+  const operatorIds = [
+    ...new Set(transfers.map((transfer) => transfer.createdById)),
+  ];
+
+  const users =
+    operatorIds.length === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { id: { in: operatorIds } },
+          select: { id: true, fullName: true, username: true },
+        });
 
   const currenciesById = new Map(
     currencies.map((currency) => [currency.id, currency] as const),

@@ -16,6 +16,7 @@ import { getUserForForm } from "@/features/users/services/get-user";
 import { resetUserPasswordRecord } from "@/features/users/services/reset-user-password";
 import { setUserActiveRecord } from "@/features/users/services/set-user-active";
 import { updateUserRecord } from "@/features/users/services/update-user";
+import { parseEntityId, parseSetActiveAction } from "@/lib/action-schemas";
 
 export type UserFieldErrors = UserFormFieldErrors;
 
@@ -69,7 +70,7 @@ export type GetUserForEditActionResult =
   | { ok: true; user: UserFormData }
   | {
       ok: false;
-      code: "NOT_FOUND" | "UNKNOWN";
+      code: "NOT_FOUND" | "VALIDATION" | "UNKNOWN";
       message: string;
     };
 
@@ -176,14 +177,23 @@ export async function updateUserAction(
 }
 
 export async function setUserActiveAction(
-  id: string,
-  isActive: boolean,
+  id: unknown,
+  isActive: unknown,
 ): Promise<SetUserActiveActionResult> {
   const actor = await requirePermission("users.manage");
 
+  const parsed = parseSetActiveAction(id, isActive);
+  if (!parsed) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Invalid activate/deactivate request.",
+    };
+  }
+
   try {
-    const before = await getUserForForm(id);
-    const user = await setUserActiveRecord(id, isActive, {
+    const before = await getUserForForm(parsed.id);
+    const user = await setUserActiveRecord(parsed.id, parsed.isActive, {
       actorUserId: actor.id,
     });
 
@@ -199,7 +209,7 @@ export async function setUserActiveAction(
 
     return {
       ok: true,
-      message: isActive
+      message: parsed.isActive
         ? `${user.fullName} was activated.`
         : `${user.fullName} was deactivated.`,
       userId: user.id,
@@ -209,7 +219,7 @@ export async function setUserActiveAction(
     if (!failure.ok && failure.code === "UNKNOWN") {
       return {
         ...failure,
-        message: isActive
+        message: parsed.isActive
           ? "Unable to activate user. Please try again."
           : "Unable to deactivate user. Please try again.",
       };
@@ -258,12 +268,21 @@ export async function resetUserPasswordAction(
 }
 
 export async function getUserForEditAction(
-  id: string,
+  id: unknown,
 ): Promise<GetUserForEditActionResult> {
   await requirePermission("users.manage");
 
+  const userId = parseEntityId(id);
+  if (!userId) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "User id is required.",
+    };
+  }
+
   try {
-    const user = await getUserForForm(id);
+    const user = await getUserForForm(userId);
     return { ok: true, user };
   } catch (error) {
     if (isUserError(error) && error.code === "NOT_FOUND") {

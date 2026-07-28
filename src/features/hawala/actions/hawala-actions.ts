@@ -16,6 +16,10 @@ import type { HawalaPartyInput } from "@/features/hawala/domain/types";
 import { cancelHawala } from "@/features/hawala/services/cancel-hawala";
 import { receiveHawala } from "@/features/hawala/services/receive-hawala";
 import { sendHawala } from "@/features/hawala/services/send-hawala";
+import {
+  cancelHawalaSchema,
+  toHawalaFieldErrors,
+} from "@/features/hawala/schemas/hawala";
 
 export type HawalaFieldErrors = Partial<Record<HawalaField, string>>;
 
@@ -179,22 +183,22 @@ export async function receiveHawalaAction(
 }
 
 export async function cancelHawalaAction(
-  input: CancelHawalaActionInput,
+  input: unknown,
 ): Promise<CancelHawalaActionResult> {
   const user = await requirePermission("hawala.manage");
 
-  const hawalaId = input.hawalaId?.trim() ?? "";
-  if (!hawalaId) {
+  const parsed = cancelHawalaSchema.safeParse(input);
+  if (!parsed.success) {
     return {
       ok: false,
       code: "VALIDATION",
       message: "Hawala transfer id is required.",
-      fieldErrors: { id: "Hawala transfer id is required." },
+      fieldErrors: toHawalaFieldErrors(parsed.error),
     };
   }
 
   try {
-    const hawala = await cancelHawala(hawalaId);
+    const hawala = await cancelHawala(parsed.data.hawalaId);
 
     await auditAction({
       userId: user.id,

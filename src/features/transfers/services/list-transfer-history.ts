@@ -1,7 +1,7 @@
 import "server-only";
 
 import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
-import { listCustomers } from "@/features/customers/repositories/customer-repository";
+import { listCustomersByIds } from "@/features/customers/repositories/customer-repository";
 import { listCurrencies } from "@/features/ledger/repositories/currency-repository";
 import { TRANSACTION_STATUS_LABELS } from "@/features/transactions/domain/labels";
 import { formatPrismaAmount } from "@/features/transactions/services/ledger-amount-display";
@@ -10,7 +10,6 @@ import type {
   GetTransferHistoryOptions,
   TransferHistoryListItem,
 } from "@/features/transfers/domain/types";
-import { listWallets } from "@/features/wallets/repositories/wallet-repository";
 import { prisma } from "@/server/db";
 
 function matchesSearch(item: TransferHistoryListItem, search: string): boolean {
@@ -42,25 +41,60 @@ function matchesSearch(item: TransferHistoryListItem, search: string): boolean {
 export async function getTransferHistory(
   options: GetTransferHistoryOptions = {},
 ): Promise<TransferHistoryListItem[]> {
-  const [transactions, currencies, customers, wallets, users] =
-    await Promise.all([
-      listTransactions({ type: "TRANSFER" }),
-      listCurrencies({ includeDeleted: true }),
-      listCustomers({ includeDeleted: true }),
-      listWallets({ includeDeleted: true }),
-      prisma.user.findMany({
-        select: { id: true, fullName: true, username: true },
-      }),
-    ]);
+  const [transactions, currencies] = await Promise.all([
+    listTransactions({
+      type: "TRANSFER",
+      ...(options.valueDateFrom ? { valueDateFrom: options.valueDateFrom } : {}),
+      ...(options.valueDateTo ? { valueDateTo: options.valueDateTo } : {}),
+    }),
+    listCurrencies({ includeDeleted: true }),
+  ]);
+
+  if (transactions.length === 0) {
+    return [];
+  }
 
   const transactionIds = transactions.map((transaction) => transaction.id);
-  const entries =
-    transactionIds.length === 0
+  const operatorIds = [
+    ...new Set(
+      transactions
+        .map((transaction) => transaction.createdById)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  const [entries, users] = await Promise.all([
+    prisma.ledgerEntry.findMany({
+      where: { transactionId: { in: transactionIds } },
+      orderBy: { createdAt: "asc" },
+    }),
+    operatorIds.length === 0
+      ? Promise.resolve([])
+      : prisma.user.findMany({
+          where: { id: { in: operatorIds } },
+          select: { id: true, fullName: true, username: true },
+        }),
+  ]);
+
+  const walletIds = [...new Set(entries.map((entry) => entry.walletId))];
+  const wallets =
+    walletIds.length === 0
       ? []
-      : await prisma.ledgerEntry.findMany({
-          where: { transactionId: { in: transactionIds } },
-          orderBy: { createdAt: "asc" },
+      : await prisma.wallet.findMany({
+          where: { id: { in: walletIds } },
+          select: { id: true, customerId: true },
         });
+
+  const customerIds = [
+    ...new Set(
+      wallets
+        .map((wallet) => wallet.customerId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const customers = await listCustomersByIds(customerIds, {
+    includeDeleted: true,
+  });
 
   const currenciesById = new Map(
     currencies.map((currency) => [currency.id, currency] as const),

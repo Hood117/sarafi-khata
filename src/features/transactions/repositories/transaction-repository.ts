@@ -98,17 +98,22 @@ export async function listTransactions(
 }
 
 /**
- * Lightweight type column read for dashboard KPI grouping.
+ * Lightweight type counts for dashboard / report KPI grouping.
  * Uses the same filters as `listTransactions` — no ledger join.
  */
 export async function listTransactionTypes(
   options: Omit<TransactionListOptions, "take"> = {},
-): Promise<TransactionType[]> {
-  const rows = await prisma.transaction.findMany({
+): Promise<Array<{ type: TransactionType; count: number }>> {
+  const groups = await prisma.transaction.groupBy({
+    by: ["type"],
     where: transactionListWhere(options),
-    select: { type: true },
+    _count: { _all: true },
   });
-  return rows.map((row) => row.type);
+
+  return groups.map((group) => ({
+    type: group.type,
+    count: group._count._all,
+  }));
 }
 
 export async function updateTransaction(

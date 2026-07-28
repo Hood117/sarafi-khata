@@ -1,5 +1,11 @@
 "use server";
 
+import {
+  AUDIT_ACTIONS,
+  AUDIT_ENTITY_TYPES,
+  AUDIT_MODULES,
+  auditAction,
+} from "@/features/audit";
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import { isExchangeRateError } from "@/features/exchange-rates/domain/errors";
 import type {
@@ -15,6 +21,7 @@ import {
 import { getExchangeRateFormOptions } from "@/features/exchange-rates/services/get-exchange-rate-form-options";
 import { setExchangeRateActiveRecord } from "@/features/exchange-rates/services/set-exchange-rate-active";
 import { updateExchangeRateEntry } from "@/features/exchange-rates/services/update-exchange-rate";
+import { parseEntityId, parseSetActiveAction } from "@/lib/action-schemas";
 
 export type ExchangeRateFieldErrors = ExchangeRateFormFieldErrors;
 
@@ -56,7 +63,7 @@ export type GetExchangeRateForEditActionResult =
   | { ok: true; exchangeRate: ExchangeRateFormData }
   | {
       ok: false;
-      code: "NOT_FOUND" | "UNKNOWN";
+      code: "NOT_FOUND" | "VALIDATION" | "UNKNOWN";
       message: string;
     };
 
@@ -67,6 +74,31 @@ export type GetExchangeRateFormOptionsActionResult =
       code: "UNKNOWN";
       message: string;
     };
+
+function toExchangeRateAuditValues(rate: {
+  baseCurrencyId: string;
+  quoteCurrencyId: string;
+  rate?: string;
+  rateDisplay?: string;
+  effectiveDate: string;
+  isActive: boolean;
+  baseCurrencyCode?: string;
+  quoteCurrencyCode?: string;
+}) {
+  return {
+    baseCurrencyId: rate.baseCurrencyId,
+    quoteCurrencyId: rate.quoteCurrencyId,
+    ...(rate.baseCurrencyCode !== undefined
+      ? { baseCurrencyCode: rate.baseCurrencyCode }
+      : {}),
+    ...(rate.quoteCurrencyCode !== undefined
+      ? { quoteCurrencyCode: rate.quoteCurrencyCode }
+      : {}),
+    rate: rate.rateDisplay ?? rate.rate ?? null,
+    effectiveDate: rate.effectiveDate,
+    isActive: rate.isActive,
+  };
+}
 
 function toMutationFailure(error: unknown): ExchangeRateMutationActionResult {
   if (isExchangeRateError(error)) {
@@ -85,15 +117,10 @@ function toMutationFailure(error: unknown): ExchangeRateMutationActionResult {
   };
 }
 
-async function successMessageForRate(id: string): Promise<string> {
-  const detail = await getExchangeRateById(id);
-  return `1 ${detail.baseCurrencyCode} = ${detail.rateDisplay} ${detail.quoteCurrencyCode}`;
-}
-
 export async function createExchangeRateAction(
   input: CreateExchangeRateActionInput,
 ): Promise<CreateExchangeRateActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
 
   try {
     const rate = await createExchangeRateEntry({
@@ -104,9 +131,20 @@ export async function createExchangeRateAction(
       isActive: input.isActive,
     });
 
+    const detail = await getExchangeRateById(rate.id);
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.EXCHANGE_RATE_CREATE,
+      module: AUDIT_MODULES.EXCHANGE_RATES,
+      entityType: AUDIT_ENTITY_TYPES.EXCHANGE_RATE,
+      entityId: rate.id,
+      afterValues: toExchangeRateAuditValues(detail),
+    });
+
     return {
       ok: true,
-      message: await successMessageForRate(rate.id),
+      message: `1 ${detail.baseCurrencyCode} = ${detail.rateDisplay} ${detail.quoteCurrencyCode}`,
       exchangeRateId: rate.id,
     };
   } catch (error) {
@@ -124,9 +162,10 @@ export async function createExchangeRateAction(
 export async function updateExchangeRateAction(
   input: UpdateExchangeRateActionInput,
 ): Promise<UpdateExchangeRateActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
 
   try {
+    const before = await getExchangeRateForForm(input.id);
     const rate = await updateExchangeRateEntry(input.id, {
       baseCurrencyId: input.baseCurrencyId,
       quoteCurrencyId: input.quoteCurrencyId,
@@ -135,9 +174,21 @@ export async function updateExchangeRateAction(
       isActive: input.isActive,
     });
 
+    const after = await getExchangeRateById(rate.id);
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.EXCHANGE_RATE_UPDATE,
+      module: AUDIT_MODULES.EXCHANGE_RATES,
+      entityType: AUDIT_ENTITY_TYPES.EXCHANGE_RATE,
+      entityId: rate.id,
+      beforeValues: toExchangeRateAuditValues(before),
+      afterValues: toExchangeRateAuditValues(after),
+    });
+
     return {
       ok: true,
-      message: await successMessageForRate(rate.id),
+      message: `1 ${after.baseCurrencyCode} = ${after.rateDisplay} ${after.quoteCurrencyCode}`,
       exchangeRateId: rate.id,
     };
   } catch (error) {
@@ -153,17 +204,41 @@ export async function updateExchangeRateAction(
 }
 
 export async function setExchangeRateActiveAction(
-  id: string,
-  isActive: boolean,
+  id: unknown,
+  isActive: unknown,
 ): Promise<SetExchangeRateActiveActionResult> {
-  await requirePermission("settings.manage");
+  const user = await requirePermission("settings.manage");
+
+  const parsed = parseSetActiveAction(id, isActive);
+  if (!parsed) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Invalid activate/deactivate request.",
+    };
+  }
 
   try {
-    const rate = await setExchangeRateActiveRecord(id, isActive);
+    const before = await getExchangeRateForForm(parsed.id);
+    const rate = await setExchangeRateActiveRecord(
+      parsed.id,
+      parsed.isActive,
+    );
+    const after = await getExchangeRateForForm(rate.id);
+
+    await auditAction({
+      userId: user.id,
+      action: AUDIT_ACTIONS.EXCHANGE_RATE_SET_ACTIVE,
+      module: AUDIT_MODULES.EXCHANGE_RATES,
+      entityType: AUDIT_ENTITY_TYPES.EXCHANGE_RATE,
+      entityId: rate.id,
+      beforeValues: toExchangeRateAuditValues(before),
+      afterValues: toExchangeRateAuditValues(after),
+    });
 
     return {
       ok: true,
-      message: isActive
+      message: parsed.isActive
         ? "Exchange rate was activated."
         : "Exchange rate was deactivated.",
       exchangeRateId: rate.id,
@@ -173,7 +248,7 @@ export async function setExchangeRateActiveAction(
     if (!failure.ok && failure.code === "UNKNOWN") {
       return {
         ...failure,
-        message: isActive
+        message: parsed.isActive
           ? "Unable to activate exchange rate. Please try again."
           : "Unable to deactivate exchange rate. Please try again.",
       };
@@ -183,12 +258,21 @@ export async function setExchangeRateActiveAction(
 }
 
 export async function getExchangeRateForEditAction(
-  id: string,
+  id: unknown,
 ): Promise<GetExchangeRateForEditActionResult> {
   await requirePermission("settings.manage");
 
+  const exchangeRateId = parseEntityId(id);
+  if (!exchangeRateId) {
+    return {
+      ok: false,
+      code: "VALIDATION",
+      message: "Exchange rate id is required.",
+    };
+  }
+
   try {
-    const exchangeRate = await getExchangeRateForForm(id);
+    const exchangeRate = await getExchangeRateForForm(exchangeRateId);
     return { ok: true, exchangeRate };
   } catch (error) {
     if (isExchangeRateError(error) && error.code === "NOT_FOUND") {

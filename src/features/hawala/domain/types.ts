@@ -99,6 +99,10 @@ export type HawalaFormOptions = {
 
 export type GetHawalaListOptions = {
   search?: string;
+  /** Inclusive lower bound on `valueDate`. */
+  valueDateFrom?: Date;
+  /** Exclusive upper bound on `valueDate`. */
+  valueDateTo?: Date;
 };
 
 /** Status lifecycle event for the hawala detail timeline. */

@@ -36,13 +36,15 @@ export function normalizeTableLimit(value: number | undefined): number {
   return Math.min(Math.floor(value), MAX);
 }
 
-export function toActivityCounts(types: readonly string[]): ReportActivityCounts {
+export function toActivityCounts(
+  types: readonly { type: string; count: number }[],
+): ReportActivityCounts {
   const base = countTodayByType(types);
   let adjustments = 0;
 
-  for (const type of types) {
-    if (type === "ADJUSTMENT") {
-      adjustments += 1;
+  for (const group of types) {
+    if (group.type === "ADJUSTMENT") {
+      adjustments += group.count;
     }
   }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Wallet } from "@/generated/prisma/client";
 import { findCustomerById } from "@/features/customers/repositories/customer-repository";
+import { EXCHANGE_BUSINESS_RULES } from "@/features/exchange/domain/business-rules";
 import {
   createCurrency,
   createExchangeRate,
@@ -229,7 +230,10 @@ export async function exchangeFunds(
     fromCurrency,
     toCurrency,
     valueDate,
-    allowManualRateOverride: data.allowManualRateOverride,
+    // Enforce product rule server-side — never trust the client flag alone.
+    allowManualRateOverride:
+      EXCHANGE_BUSINESS_RULES.allowManualRateOverride &&
+      data.allowManualRateOverride,
     manualRate: data.manualRate,
   });
 
