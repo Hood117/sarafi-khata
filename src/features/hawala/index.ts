@@ -87,6 +87,7 @@ export { getHawalaDetail } from "@/features/hawala/services/get-hawala-detail";
 export { HawalaView } from "@/features/hawala/components/hawala-view";
 export { HawalaDetailView } from "@/features/hawala/components/hawala-detail";
 export { HawalaDetailSkeleton } from "@/features/hawala/components/hawala-detail-skeleton";
+export { CancelHawalaButton } from "@/features/hawala/components/cancel-hawala-button";
 export { HawalaTable } from "@/features/hawala/components/hawala-table";
 export { HawalaTableSkeleton } from "@/features/hawala/components/hawala-table-skeleton";
 export { HawalaEmptyState } from "@/features/hawala/components/hawala-empty-state";

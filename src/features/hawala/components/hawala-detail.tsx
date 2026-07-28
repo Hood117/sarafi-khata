@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Typography } from "@/design-system/typography";
+import { CancelHawalaButton } from "@/features/hawala/components/cancel-hawala-button";
 import type { HawalaDetail as HawalaDetailModel } from "@/features/hawala/domain/types";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,13 @@ export function HawalaDetailView({
             <Typography variant="muted">{hawala.directionLabel} hawala</Typography>
           </div>
         </div>
+
+        {hawala.status === "PENDING" ? (
+          <CancelHawalaButton
+            hawalaId={hawala.id}
+            reference={hawala.reference}
+          />
+        ) : null}
       </div>
 
       <section className="bg-card ring-foreground/10 space-y-2 rounded-xl p-3 shadow-sm ring-1">
