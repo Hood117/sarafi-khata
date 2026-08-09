@@ -1,0 +1,14 @@
+{
+  "build": {
+    "frontendDist": "../desktop-ui/dist",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeDevCommand": "npm run dev:spa",
+    "beforeBuildCommand": "npm run build:spa"
+  },
+  "bundle": {
+    "resources": [
+      "resources/splash",
+      "migrations"
+    ]
+  }
+}

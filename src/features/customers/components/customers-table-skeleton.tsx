@@ -1,0 +1,60 @@
+"use client";
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useT } from "@/lib/i18n";
+
+const SKELETON_ROWS = 6;
+
+export function CustomersTableSkeleton() {
+  const t = useT();
+
+  return (
+    <div
+      className="space-y-4"
+      aria-busy="true"
+      aria-label={t.customers.loadingCustomers}
+    >
+      <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>{t.customers.customerCode}</TableHead>
+              <TableHead>{t.common.name}</TableHead>
+              <TableHead>{t.common.phone}</TableHead>
+              <TableHead>{t.common.address}</TableHead>
+              <TableHead>{t.common.date}</TableHead>
+              <TableHead>{t.common.status}</TableHead>
+              <TableHead className="w-[100px]">{t.common.actions}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+              <TableRow key={index} className="hover:bg-transparent">
+                {Array.from({ length: 7 }, (__, cellIndex) => (
+                  <TableCell key={cellIndex}>
+                    <div className="bg-muted h-4 w-full max-w-[7rem] animate-pulse rounded-md" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex items-center justify-between gap-4">
+        <div className="bg-muted h-4 w-36 animate-pulse rounded-md" />
+        <div className="flex gap-2">
+          <div className="bg-muted h-8 w-20 animate-pulse rounded-lg" />
+          <div className="bg-muted h-8 w-16 animate-pulse rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,252 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
+import {
+  archiveTrade,
+  listCurrenciesPage,
+  listTradingTrades,
+  type CurrencyListItem,
+  type TradingTradeRow,
+} from "@desktop/api";
+import { useT } from "@desktop/i18n";
+import { statusLabel } from "@desktop/lib/i18n-labels";
+
+export function TradingHistoryPage() {
+  const t = useT();
+  const [items, setItems] = useState<TradingTradeRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [direction, setDirection] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const pageSize = 25;
+
+  useEffect(() => {
+    void listCurrenciesPage({ activeOnly: true, pageSize: 100 })
+      .then((p) => setCurrencies(p.items))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBusy(true);
+    void listTradingTrades({
+      page,
+      pageSize,
+      direction: direction === "ALL" ? undefined : direction,
+      search: search.trim() || undefined,
+      currencyCode: currencyCode || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    })
+      .then((data) => {
+        if (!cancelled) {
+          setItems(data.items);
+          setTotal(data.total);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, direction, search, currencyCode, dateFrom, dateTo, reloadKey]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  async function handleArchive(id: string, reference: string) {
+    if (!window.confirm(t.desk.archiveTradeConfirm.replace("{reference}", reference))) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await archiveTrade(id);
+      setReloadKey((k) => k + 1);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card stack">
+      <h2 className="section-title">{t.desk.tradeHistory}</h2>
+      <div className="row">
+        <label style={{ flex: 1, minWidth: "12rem" }}>
+          {t.common.search}
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder={t.common.search}
+          />
+        </label>
+        <label>
+          {t.desk.direction}
+          <select
+            value={direction}
+            onChange={(e) => {
+              setDirection(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="ALL">{t.common.all}</option>
+            <option value="BUY">{t.desk.purchases}</option>
+            <option value="SELL">{t.desk.sales}</option>
+          </select>
+        </label>
+        <label>
+          {t.common.currency}
+          <select
+            value={currencyCode}
+            onChange={(e) => {
+              setCurrencyCode(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t.common.all}</option>
+            {currencies.map((c) => (
+              <option key={c.id} value={c.code}>
+                {c.code}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t.common.from}
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
+        <label>
+          {t.common.to}
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+          />
+        </label>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+      {busy ? <p className="muted">{t.common.loading}</p> : null}
+      <table>
+        <thead>
+          <tr>
+            <th>{t.desk.direction}</th>
+            <th>{t.common.reference}</th>
+            <th>{t.desk.held}</th>
+            <th>{t.desk.ratePaid}</th>
+            <th>{t.desk.paidReceived}</th>
+            <th>{t.desk.avgCostPerUnit}</th>
+            <th>{t.desk.profitLossShort}</th>
+            <th>{t.desk.party}</th>
+            <th>{t.common.date}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 && !busy ? (
+            <tr>
+              <td colSpan={10} className="muted">
+                {t.desk.noTradesMatch}
+              </td>
+            </tr>
+          ) : null}
+          {items.map((trade) => (
+            <tr key={trade.id}>
+              <td>{statusLabel(t, trade.direction)}</td>
+              <td>
+                <Link to={`/trading/trades/${trade.id}`}>{trade.reference}</Link>
+              </td>
+              <td>
+                <strong>
+                  {trade.quantity} {trade.inventoryCurrencyCode}
+                </strong>
+              </td>
+              <td>
+                {trade.rate} {trade.paymentCurrencyCode} / {trade.inventoryCurrencyCode}
+              </td>
+              <td>
+                {trade.paymentAmount} {trade.paymentCurrencyCode}
+              </td>
+              <td>
+                {trade.avgCostAtPost
+                  ? `${trade.avgCostAtPost} ${trade.paymentCurrencyCode} / ${trade.inventoryCurrencyCode}`
+                  : "—"}
+              </td>
+              <td>
+                {trade.grossProfit
+                  ? `${trade.grossProfit} ${trade.paymentCurrencyCode}`
+                  : "—"}
+              </td>
+              <td>{trade.counterpartyName ?? trade.counterpartyType}</td>
+              <td>{trade.valueDate.slice(0, 10)}</td>
+              <td className="row" style={{ gap: "0.35rem" }}>
+                <Link className="button-link secondary" to={`/trading/trades/${trade.id}`}>
+                  {t.common.edit}
+                </Link>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => void handleArchive(trade.id, trade.reference)}
+                >
+                  {t.common.archive}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <span className="muted">
+          {t.desk.pageTotal
+            .replace("{page}", String(page))
+            .replace("{totalPages}", String(totalPages))
+            .replace("{total}", String(total))}
+        </span>
+        <div className="row">
+          <button
+            type="button"
+            className="secondary"
+            disabled={page <= 1 || busy}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            {t.common.previous}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={page >= totalPages || busy}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            {t.common.next}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

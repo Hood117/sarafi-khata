@@ -1,0 +1,321 @@
+import { z } from "zod";
+
+import { isKnownCountry, isValidLocationPair } from "@/lib/locations";
+
+function requiredText(label: string, maxLength = 200) {
+  return z
+    .string()
+    .trim()
+    .min(1, { error: `${label} is required.` })
+    .max(maxLength, {
+      error: `${label} must be at most ${maxLength} characters.`,
+    });
+}
+
+function requiredCountry(label: string) {
+  return z
+    .string()
+    .trim()
+    .min(1, { error: `${label} is required.` })
+    .refine((value) => isKnownCountry(value), {
+      error: `${label} must be selected from the list.`,
+    });
+}
+
+function requiredCity(label: string) {
+  return z.string().trim().min(1, { error: `${label} is required.` });
+}
+
+function optionalText(maxLength = 2000) {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z
+      .string()
+      .max(maxLength, { error: `Must be at most ${maxLength} characters.` })
+      .transform((value) => (value === "" ? null : value)),
+  );
+}
+
+function optionalPhone() {
+  return z.preprocess(
+    (value) => (typeof value === "string" ? value.trim() : ""),
+    z
+      .string()
+      .max(40, { error: "Phone must be at most 40 characters." })
+      .transform((value) => (value === "" ? null : value)),
+  );
+}
+
+const referenceSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "Reference is required." })
+  .max(100, { error: "Reference must be at most 100 characters." });
+
+const walletIdSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "Wallet is required." });
+
+const currencyCodeSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "Currency is required." })
+  .transform((value) => value.toUpperCase())
+  .refine((value) => /^[A-Z]{3,8}$/.test(value), {
+    error: "Currency code is invalid.",
+  });
+
+const amountSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "Amount is required." })
+  .refine((value) => /^\d+(\.\d+)?$/.test(value), {
+    error: "Amount must be a positive number.",
+  })
+  .refine((value) => Number(value) > 0, {
+    error: "Amount must be greater than zero.",
+  });
+
+const valueDateSchema = z.preprocess((value) => {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value == null || value === "") {
+    return new Date();
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return new Date(value);
+  }
+  return value;
+}, z.date({ error: "A valid value date is required." }));
+
+const optionalCustomerIdSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  },
+  z.string().nullable(),
+);
+
+export const optionalCommissionAmountSchema = z.preprocess(
+  (value) => {
+    if (value == null) {
+      return null;
+    }
+    if (typeof value !== "string") {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  },
+  z
+    .string()
+    .nullable()
+    .refine((value) => value == null || /^\d+(\.\d+)?$/.test(value), {
+      error: "Must be a positive number.",
+    })
+    .refine((value) => value == null || Number(value) > 0, {
+      error: "Must be greater than zero.",
+    }),
+);
+
+const hawalaCommissionFields = {
+  /** Fixed partner commission on SEND (ignored on RECEIVE). */
+  partnerCommissionAmount: optionalCommissionAmountSchema.optional(),
+  /** Fixed shop commission; posts to cash of the hawala currency. */
+  ownCommissionAmount: optionalCommissionAmountSchema.optional(),
+};
+
+export const hawalaPartySchema = z
+  .object({
+    senderName: z.string().trim().max(200).optional().default(""),
+    senderPhone: optionalPhone(),
+    receiverName: z.string().trim().max(200).optional().default(""),
+    receiverPhone: optionalPhone(),
+    senderCustomerId: optionalCustomerIdSchema.optional(),
+    receiverCustomerId: optionalCustomerIdSchema.optional(),
+    partnerSarafiId: z
+      .string()
+      .trim()
+      .min(1, { error: "Partner sarafi is required." }),
+    /** Optional snapshot; server fills from catalog when omitted. */
+    partnerSarafi: z.string().trim().max(200).optional().default(""),
+    originCountry: requiredCountry("Origin country"),
+    originCity: requiredCity("Origin city"),
+    destinationCountry: requiredCountry("Destination country"),
+    destinationCity: requiredCity("Destination city"),
+    reference: referenceSchema,
+    currencyCode: currencyCodeSchema,
+    amount: amountSchema,
+    notes: optionalText(2000),
+    customerId: optionalCustomerIdSchema.optional(),
+    cashWalletId: walletIdSchema,
+    clearingWalletId: walletIdSchema,
+    valueDate: valueDateSchema.optional(),
+    ...hawalaCommissionFields,
+  })
+  .superRefine((data, ctx) => {
+    const senderCustomerId = data.senderCustomerId ?? null;
+    const receiverCustomerId = data.receiverCustomerId ?? null;
+
+    if (!senderCustomerId && !data.senderName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["senderName"],
+        message: "Select a local customer or enter the sender name.",
+      });
+    }
+
+    if (!receiverCustomerId && !data.receiverName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["receiverName"],
+        message: "Select a local customer or enter the receiver name.",
+      });
+    }
+
+    if (
+      data.originCountry &&
+      data.originCity &&
+      !isValidLocationPair(data.originCountry, data.originCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["originCity"],
+        message: "Origin city must match the selected country.",
+      });
+    }
+
+    if (
+      data.destinationCountry &&
+      data.destinationCity &&
+      !isValidLocationPair(data.destinationCountry, data.destinationCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["destinationCity"],
+        message: "Destination city must match the selected country.",
+      });
+    }
+  });
+
+export const sendHawalaSchema = hawalaPartySchema;
+export const receiveHawalaSchema = hawalaPartySchema;
+
+export const cancelHawalaSchema = z.object({
+  hawalaId: z
+    .string()
+    .trim()
+    .min(1, { error: "Hawala transfer id is required." }),
+});
+
+export const archiveHawalaSchema = cancelHawalaSchema;
+
+export const updateHawalaSchema = z
+  .object({
+    hawalaId: z
+      .string()
+      .trim()
+      .min(1, { error: "Hawala transfer id is required." }),
+    senderName: z.string().trim().max(200).optional().default(""),
+    senderPhone: optionalPhone(),
+    receiverName: z.string().trim().max(200).optional().default(""),
+    receiverPhone: optionalPhone(),
+    senderCustomerId: optionalCustomerIdSchema.optional(),
+    receiverCustomerId: optionalCustomerIdSchema.optional(),
+    partnerSarafiId: z
+      .string()
+      .trim()
+      .min(1, { error: "Partner sarafi is required." }),
+    partnerSarafi: z.string().trim().max(200).optional().default(""),
+    originCountry: requiredCountry("Origin country"),
+    originCity: requiredCity("Origin city"),
+    destinationCountry: requiredCountry("Destination country"),
+    destinationCity: requiredCity("Destination city"),
+    reference: referenceSchema,
+    currencyCode: currencyCodeSchema,
+    amount: amountSchema,
+    notes: optionalText(2000),
+    customerId: optionalCustomerIdSchema.optional(),
+    valueDate: valueDateSchema.optional(),
+    ...hawalaCommissionFields,
+  })
+  .superRefine((data, ctx) => {
+    const senderCustomerId = data.senderCustomerId ?? null;
+    const receiverCustomerId = data.receiverCustomerId ?? null;
+
+    if (!senderCustomerId && !data.senderName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["senderName"],
+        message: "Select a local customer or enter the sender name.",
+      });
+    }
+
+    if (!receiverCustomerId && !data.receiverName.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["receiverName"],
+        message: "Select a local customer or enter the receiver name.",
+      });
+    }
+
+    if (
+      data.originCountry &&
+      data.originCity &&
+      !isValidLocationPair(data.originCountry, data.originCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["originCity"],
+        message: "Origin city must match the selected country.",
+      });
+    }
+
+    if (
+      data.destinationCountry &&
+      data.destinationCity &&
+      !isValidLocationPair(data.destinationCountry, data.destinationCity)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["destinationCity"],
+        message: "Destination city must match the selected country.",
+      });
+    }
+  });
+
+export type CancelHawalaSchemaInput = z.infer<typeof cancelHawalaSchema>;
+export type ArchiveHawalaSchemaInput = z.infer<typeof archiveHawalaSchema>;
+export type UpdateHawalaSchemaInput = z.input<typeof updateHawalaSchema>;
+export type UpdateHawalaSchemaOutput = z.output<typeof updateHawalaSchema>;
+
+export type HawalaPartySchemaInput = z.input<typeof hawalaPartySchema>;
+export type HawalaPartySchemaOutput = z.output<typeof hawalaPartySchema>;
+
+export type HawalaFieldErrors = Partial<
+  Record<
+    | keyof HawalaPartySchemaOutput
+    | keyof UpdateHawalaSchemaOutput
+    | "id"
+    | "hawalaId",
+    string
+  >
+>;
+
+export function toHawalaFieldErrors(error: z.ZodError): HawalaFieldErrors {
+  const fieldErrors: HawalaFieldErrors = {};
+
+  for (const issue of error.issues) {
+    const key = issue.path[0];
+    if (typeof key === "string" && !(key in fieldErrors)) {
+      fieldErrors[key as keyof HawalaFieldErrors] = issue.message;
+    }
+  }
+
+  return fieldErrors;
+}

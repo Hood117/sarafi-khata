@@ -1,0 +1,81 @@
+import { countTodayByType } from "@/features/dashboard/domain/dashboard-stats";
+import type { ReportActivityCounts } from "@/features/reports/domain/types";
+
+export {
+  localCalendarMonthBounds,
+} from "@/features/dashboard/domain/dashboard-stats";
+
+export function normalizeTableLimit(value: number | undefined): number {
+  const DEFAULT = 15;
+  const MAX = 50;
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+    return DEFAULT;
+  }
+
+  return Math.min(Math.floor(value), MAX);
+}
+
+export function toActivityCounts(
+  types: readonly { type: string; count: number }[],
+): ReportActivityCounts {
+  const base = countTodayByType(types);
+  let adjustments = 0;
+
+  for (const group of types) {
+    if (group.type === "ADJUSTMENT") {
+      adjustments += group.count;
+    }
+  }
+
+  return {
+    ...base,
+    adjustments,
+  };
+}
+
+export function isIsoInPeriod(
+  isoDate: string,
+  start: Date,
+  end: Date,
+): boolean {
+  const time = new Date(isoDate).getTime();
+  if (Number.isNaN(time)) {
+    return false;
+  }
+  return time >= start.getTime() && time < end.getTime();
+}
+
+/** Parses major-unit display amounts from formatPrismaAmount (no grouping). */
+export function parseMajorAmountDisplay(display: string): number | null {
+  const trimmed = display.trim();
+  if (!trimmed || trimmed === "—") {
+    return null;
+  }
+
+  const value = Number(trimmed);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+export function formatMajorTotal(total: number): string {
+  if (!Number.isFinite(total)) {
+    return "—";
+  }
+
+  return new Intl.NumberFormat("en", {
+    maximumFractionDigits: 8,
+  }).format(total);
+}
+
+export function takeLatestByDate<T extends { valueDate: string }>(
+  items: readonly T[],
+  limit: number,
+): T[] {
+  return [...items]
+    .sort((left, right) => right.valueDate.localeCompare(left.valueDate))
+    .slice(0, limit);
+}

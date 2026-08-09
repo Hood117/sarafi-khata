@@ -1,0 +1,462 @@
+// Prisma schema for Offline Sarafi Management System
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+/// Local application users. Deactivate with isActive; do not hard-delete.
+model User {
+  id                  String        @id @default(cuid())
+  fullName            String
+  username            String        @unique
+  passwordHash        String
+  role                Role
+  isActive            Boolean       @default(true)
+  /// JSON string array of AppScreen ids. Null = use role default screens.
+  allowedScreens      Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  sessions                       Session[]
+  wallets                        Wallet[]
+  createdTransactions            Transaction[]                 @relation("TransactionCreatedBy")
+  createdHawalaTransfers         HawalaTransfer[]              @relation("HawalaCreatedBy")
+  createdPartnerCommissionSettlements PartnerCommissionSettlement[] @relation("PartnerCommissionSettlementCreatedBy")
+  auditLogs                      AuditLog[]
+}
+
+/// Local offline sessions. Raw tokens are never stored — only hashes.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Financial domain
+// ---------------------------------------------------------------------------
+
+enum WalletType {
+  VAULT
+  TILL
+  CUSTOMER
+  SYSTEM
+}
+
+enum TransactionType {
+  EXCHANGE
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  HAWALA
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum HawalaDirection {
+  SEND
+  RECEIVE
+}
+
+enum HawalaStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+/// Who owes commission on a hawala corridor transfer.
+enum PartnerCommissionSide {
+  /// We owe the partner (typical on SEND).
+  PAYABLE
+  /// Partner owes us (typical on RECEIVE).
+  RECEIVABLE
+}
+
+/// Cash settlement of accrued partner commission.
+enum PartnerCommissionSettlementKind {
+  /// We pay the partner the commission we owe.
+  PAY_PARTNER
+  /// We collect commission the partner owes us.
+  COLLECT_FROM_PARTNER
+}
+
+model Currency {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  name          String
+  symbol        String?
+  decimalPlaces Int       @default(2)
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  baseExchangeRates  ExchangeRate[]   @relation("ExchangeRateBaseCurrency")
+  quoteExchangeRates ExchangeRate[]   @relation("ExchangeRateQuoteCurrency")
+  ledgerEntries      LedgerEntry[]
+  hawalaTransfers    HawalaTransfer[]
+  hawalaCommissions  HawalaTransfer[] @relation("HawalaCommissionCurrency")
+  partnerCommissionRates PartnerSarafi[] @relation("PartnerSarafiCommissionCurrency")
+  partnerCommissionSettlements PartnerCommissionSettlement[]
+
+  @@index([isActive, deletedAt])
+  @@index([deletedAt])
+}
+
+model ExchangeRate {
+  id              String    @id @default(uuid())
+  baseCurrencyId  String
+  quoteCurrencyId String
+  /// Quote units per 1 base unit. Store as Decimal; enforce scale in services.
+  rate            Decimal
+  effectiveAt     DateTime
+  source          String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  baseCurrency  Currency      @relation("ExchangeRateBaseCurrency", fields: [baseCurrencyId], references: [id], onDelete: Restrict)
+  quoteCurrency Currency      @relation("ExchangeRateQuoteCurrency", fields: [quoteCurrencyId], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+
+  @@index([baseCurrencyId, quoteCurrencyId, effectiveAt])
+  @@index([quoteCurrencyId, baseCurrencyId, effectiveAt])
+  @@index([effectiveAt])
+  @@index([deletedAt])
+}
+
+model Customer {
+  id         String    @id @default(uuid())
+  /// Unique among active (non-archived) customers via partial DB index.
+  code       String?
+  fullName   String
+  /// Father's name (Fname) — common on Afghan customer records.
+  fatherName String?
+  /// Required in app validation. Unique among active customers via partial DB index.
+  phone      String?
+  address    String?
+  nationalId String?
+  notes      String?
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  wallets              Wallet[]
+  transactions         Transaction[]
+  hawalaTransfers      HawalaTransfer[]  @relation("HawalaLocalCustomer")
+  hawalaAsSender       HawalaTransfer[]  @relation("HawalaSenderCustomer")
+  hawalaAsReceiver     HawalaTransfer[]  @relation("HawalaReceiverCustomer")
+
+  @@index([fullName])
+  @@index([fatherName])
+  @@index([phone])
+  @@index([code])
+  @@index([isActive, deletedAt])
+  @@index([deletedAt])
+}
+
+model Wallet {
+  id         String     @id @default(uuid())
+  name       String
+  type       WalletType
+  customerId String?
+  /// Optional staff till owner (cashier / manager float).
+  userId     String?
+  isActive   Boolean    @default(true)
+  deletedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  /// Restrict hard-delete so historical wallets stay linked for audit.
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  user          User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+  hawalaCashTransfers     HawalaTransfer[] @relation("HawalaCashWallet")
+  hawalaClearingTransfers HawalaTransfer[] @relation("HawalaClearingWallet")
+  partnerCommissionSettlements PartnerCommissionSettlement[] @relation("PartnerCommissionSettlementCashWallet")
+
+  @@index([type, isActive, deletedAt])
+  @@index([name, type])
+  @@index([customerId])
+  @@index([userId])
+  @@index([deletedAt])
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  reference   String            @unique
+  type        TransactionType
+  status      TransactionStatus @default(DRAFT)
+  customerId  String?
+  /// Optional walk-in party label for EXCHANGE (no Customer record).
+  walkInName  String?
+  /// Optional walk-in phone for EXCHANGE (no Customer record).
+  walkInPhone String?
+  description String?
+  valueDate   DateTime
+  postedAt    DateTime?
+  createdById String?
+  deletedAt   DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  /// Restrict hard-delete to preserve financial document history.
+  customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy     User?         @relation("TransactionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  ledgerEntries LedgerEntry[]
+  hawalaTransfer HawalaTransfer?
+  partnerCommissionSettlement PartnerCommissionSettlement?
+
+  @@index([status, valueDate])
+  @@index([type, status])
+  @@index([customerId, valueDate])
+  @@index([createdById])
+  @@index([createdById, valueDate])
+  @@index([deletedAt])
+  @@index([deletedAt, status, valueDate])
+  @@index([deletedAt, valueDate, createdAt])
+  @@index([type, deletedAt, valueDate, createdAt])
+  @@index([postedAt])
+}
+
+/// Hawala business document. Financial legs are posted only via postTransaction.
+/// Counterpart sarafi shop used on hawala send/receive corridors.
+model PartnerSarafi {
+  id        String    @id @default(uuid())
+  name      String
+  phone     String?
+  city      String?
+  country   String?
+  notes     String?
+  isActive  Boolean   @default(true)
+  /// When enabled, hawala with this partner accrues commission from the rate below.
+  commissionEnabled    Boolean  @default(false)
+  /// Example: 100000 — "for every this much hawala amount".
+  commissionPerAmount  Decimal?
+  /// Example: 100 — commission earned/owed for each `commissionPerAmount`.
+  commissionFeeAmount  Decimal?
+  /// Currency of the rate (commission only applies when hawala uses this currency).
+  commissionCurrencyId String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  commissionCurrency Currency? @relation("PartnerSarafiCommissionCurrency", fields: [commissionCurrencyId], references: [id], onDelete: Restrict)
+  hawalaTransfers HawalaTransfer[]
+  commissionSettlements PartnerCommissionSettlement[]
+
+  @@index([name])
+  @@index([isActive, deletedAt])
+  @@index([deletedAt])
+  @@index([commissionCurrencyId])
+}
+
+/// Cash settlement of partner hawala commission (posted via postTransaction).
+model PartnerCommissionSettlement {
+  id              String                           @id @default(uuid())
+  partnerSarafiId String
+  kind            PartnerCommissionSettlementKind
+  currencyId      String
+  amount          Decimal
+  cashWalletId    String
+  transactionId   String                           @unique
+  notes           String?
+  valueDate       DateTime
+  createdById     String
+  createdAt       DateTime                         @default(now())
+  updatedAt       DateTime                         @updatedAt
+
+  partner     PartnerSarafi @relation(fields: [partnerSarafiId], references: [id], onDelete: Restrict)
+  currency    Currency      @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  cashWallet  Wallet        @relation("PartnerCommissionSettlementCashWallet", fields: [cashWalletId], references: [id], onDelete: Restrict)
+  transaction Transaction   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  createdBy   User          @relation("PartnerCommissionSettlementCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([partnerSarafiId, valueDate])
+  @@index([currencyId])
+  @@index([kind, valueDate])
+  @@index([createdById])
+}
+
+model HawalaTransfer {
+  id                 String          @id @default(uuid())
+  reference          String          @unique
+  direction          HawalaDirection
+  status             HawalaStatus    @default(PENDING)
+  senderName         String
+  senderPhone        String?
+  receiverName       String
+  receiverPhone      String?
+  /// Snapshot of partner name at posting time (immutable history).
+  partnerSarafi      String
+  /// Optional link to master PartnerSarafi catalog.
+  partnerSarafiId    String?
+  originCity         String
+  originCountry      String
+  destinationCity    String
+  destinationCountry String
+  currencyId         String
+  /// Absolute positive major-unit amount; enforce scale in services.
+  amount             Decimal
+  /// Fixed partner (corridor) commission snapshot (null = none).
+  /// On SEND this accrues as PAYABLE for later settlement by currency.
+  commissionAmount       Decimal?
+  commissionCurrencyId   String?
+  /// PAYABLE = we owe partner; RECEIVABLE = partner owes us (legacy receives).
+  commissionSide         PartnerCommissionSide?
+  /// Our shop fee on this hawala (null = none). Posted to cash of the hawala currency.
+  ownCommissionAmount    Decimal?
+  /// Legacy rate-slab snapshots (kept for old rows; new posts use fixed amounts).
+  commissionRatePerAmount Decimal?
+  /// Legacy fee-per-slab snapshot.
+  commissionRateFeeAmount Decimal?
+  notes              String?
+  /// Optional primary local customer for the posted Transaction (derived from sender/receiver links).
+  customerId         String?
+  /// Optional registered local customer for the sender party.
+  senderCustomerId   String?
+  /// Optional registered local customer for the receiver party.
+  receiverCustomerId String?
+  /// Vault/till used for the cash leg when completing.
+  cashWalletId       String
+  /// SYSTEM clearing wallet used for the contra leg when completing.
+  clearingWalletId   String
+  /// Posted financial document created by the posting service (null while PENDING).
+  transactionId      String?         @unique
+  createdById        String
+  valueDate          DateTime
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  deletedAt          DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  currency         Currency      @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  commissionCurrency Currency?   @relation("HawalaCommissionCurrency", fields: [commissionCurrencyId], references: [id], onDelete: Restrict)
+  partner          PartnerSarafi? @relation(fields: [partnerSarafiId], references: [id], onDelete: Restrict)
+  customer         Customer?     @relation("HawalaLocalCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  senderCustomer   Customer?     @relation("HawalaSenderCustomer", fields: [senderCustomerId], references: [id], onDelete: Restrict)
+  receiverCustomer Customer?     @relation("HawalaReceiverCustomer", fields: [receiverCustomerId], references: [id], onDelete: Restrict)
+  cashWallet       Wallet        @relation("HawalaCashWallet", fields: [cashWalletId], references: [id], onDelete: Restrict)
+  clearingWallet   Wallet        @relation("HawalaClearingWallet", fields: [clearingWalletId], references: [id], onDelete: Restrict)
+  transaction      Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  createdBy        User          @relation("HawalaCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status, valueDate])
+  @@index([direction, status])
+  @@index([customerId, valueDate])
+  @@index([senderCustomerId])
+  @@index([receiverCustomerId])
+  @@index([partnerSarafiId])
+  @@index([createdById])
+  @@index([currencyId])
+  @@index([commissionCurrencyId])
+  @@index([commissionSide])
+  @@index([cashWalletId])
+  @@index([clearingWalletId])
+  @@index([deletedAt])
+  @@index([deletedAt, status, valueDate])
+  @@index([deletedAt, valueDate, createdAt])
+  @@index([deletedAt, direction, valueDate, createdAt])
+  @@index([partnerSarafiId, commissionSide, status, deletedAt])
+  @@index([completedAt])
+}
+
+/// Key/value application settings for offline defaults.
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Append-only system activity log. Separate from the financial ledger.
+/// Do not update or delete rows; never use this table for balances or money truth.
+model AuditLog {
+  id           String   @id @default(uuid())
+  /// Actor who performed the action. Null for unauthenticated events (e.g. failed login).
+  userId       String?
+  /// Stable verb, e.g. "customer.update", "auth.login.success".
+  action       String
+  /// Feature/module that owns the action, e.g. "customers", "hawala".
+  module       String
+  /// Domain entity kind when applicable, e.g. "customer", "transaction".
+  entityType   String?
+  /// Primary subject id when applicable.
+  entityId     String?
+  /// Client IP when available (may be null in local/offline desktop).
+  ipAddress    String?
+  /// JSON snapshot of relevant fields before the change.
+  beforeValues Json?
+  /// JSON snapshot of relevant fields after the change.
+  afterValues  Json?
+  createdAt    DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([module, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+}
+
+/// Append-only ledger line. Do not update or delete posted entries.
+model LedgerEntry {
+  id             String          @id @default(uuid())
+  transactionId  String
+  walletId       String
+  currencyId     String
+  direction      LedgerDirection
+  /// Always store absolute positive amounts; sign is via direction.
+  amount         Decimal
+  exchangeRateId String?
+  memo           String?
+  createdAt      DateTime        @default(now())
+
+  transaction  Transaction   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  wallet       Wallet        @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  currency     Currency      @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  exchangeRate ExchangeRate? @relation(fields: [exchangeRateId], references: [id], onDelete: Restrict)
+
+  @@index([transactionId, createdAt])
+  @@index([walletId, currencyId, createdAt])
+  @@index([currencyId, createdAt])
+  @@index([exchangeRateId])
+}

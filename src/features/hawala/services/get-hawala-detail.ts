@@ -1,0 +1,181 @@
+import "server-only";
+
+import { formatCustomerLabel } from "@/features/customers/domain/format-customer-label";
+import { findCustomerById } from "@/features/customers/repositories/customer-repository";
+import { findCurrencyById } from "@/features/ledger/repositories/currency-repository";
+import {
+  HAWALA_DIRECTION_LABELS,
+  HAWALA_STATUS_LABELS,
+} from "@/features/hawala/domain/labels";
+import { HawalaError } from "@/features/hawala/domain/errors";
+import type {
+  HawalaDetail,
+  HawalaTimelineEvent,
+} from "@/features/hawala/domain/types";
+import { findHawalaTransferById } from "@/features/hawala/repositories/hawala-repository";
+import { formatPrismaAmount } from "@/features/transactions/services/ledger-amount-display";
+import { getTransactionDetail } from "@/features/transactions/services/get-transaction-detail";
+import { isTransactionError } from "@/features/transactions/domain/transaction-errors";
+import { prisma } from "@/server/db";
+
+function buildTimeline(input: {
+  createdAt: Date;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  status: HawalaDetail["status"];
+}): HawalaTimelineEvent[] {
+  const events: HawalaTimelineEvent[] = [
+    {
+      id: "created",
+      label: "Hawala created",
+      at: input.createdAt.toISOString(),
+      status: "PENDING",
+      statusLabel: HAWALA_STATUS_LABELS.PENDING,
+    },
+  ];
+
+  if (input.completedAt) {
+    events.push({
+      id: "completed",
+      label: "Hawala completed",
+      at: input.completedAt.toISOString(),
+      status: "COMPLETED",
+      statusLabel: HAWALA_STATUS_LABELS.COMPLETED,
+    });
+  }
+
+  if (input.cancelledAt) {
+    events.push({
+      id: "cancelled",
+      label: "Hawala cancelled",
+      at: input.cancelledAt.toISOString(),
+      status: "CANCELLED",
+      statusLabel: HAWALA_STATUS_LABELS.CANCELLED,
+    });
+  }
+
+  if (input.status === "PENDING" && events.length === 1) {
+    events[0] = {
+      ...events[0],
+      label: "Hawala pending",
+    };
+  }
+
+  events.sort(
+    (left, right) =>
+      new Date(left.at).getTime() - new Date(right.at).getTime(),
+  );
+
+  return events;
+}
+
+function customerDisplay(
+  customer: { fullName: string; code: string | null } | null,
+): string | null {
+  if (!customer) {
+    return null;
+  }
+  return formatCustomerLabel(customer.fullName, customer.code);
+}
+
+/**
+ * Loads hawala business details and reuses getTransactionDetail for the
+ * related posted document + ledger lines (no duplicate financial aggregation).
+ */
+export async function getHawalaDetail(id: string): Promise<HawalaDetail> {
+  const hawala = await findHawalaTransferById(id, { includeDeleted: true });
+  if (!hawala) {
+    throw new HawalaError("NOT_FOUND", "Hawala transfer was not found.");
+  }
+
+  const [currency, operator, customer, senderCustomer, receiverCustomer] =
+    await Promise.all([
+      findCurrencyById(hawala.currencyId, { includeDeleted: true }),
+      prisma.user.findUnique({
+        where: { id: hawala.createdById },
+        select: { fullName: true, username: true },
+      }),
+      hawala.customerId
+        ? findCustomerById(hawala.customerId, { includeDeleted: true })
+        : Promise.resolve(null),
+      hawala.senderCustomerId
+        ? findCustomerById(hawala.senderCustomerId, { includeDeleted: true })
+        : Promise.resolve(null),
+      hawala.receiverCustomerId
+        ? findCustomerById(hawala.receiverCustomerId, { includeDeleted: true })
+        : Promise.resolve(null),
+    ]);
+
+  const amountDisplay = currency
+    ? (formatPrismaAmount(hawala.amount, currency) ?? hawala.amount.toString())
+    : hawala.amount.toString();
+
+  let relatedTransaction = null;
+  if (hawala.transactionId) {
+    try {
+      relatedTransaction = await getTransactionDetail(hawala.transactionId);
+    } catch (error) {
+      if (!(isTransactionError(error) && error.code === "NOT_FOUND")) {
+        throw error;
+      }
+      relatedTransaction = null;
+    }
+  }
+
+  return {
+    id: hawala.id,
+    reference: hawala.reference,
+    direction: hawala.direction,
+    directionLabel: HAWALA_DIRECTION_LABELS[hawala.direction],
+    status: hawala.status,
+    statusLabel: HAWALA_STATUS_LABELS[hawala.status],
+    isArchived: hawala.deletedAt !== null,
+    senderName: hawala.senderName,
+    senderPhone: hawala.senderPhone,
+    senderCustomerId: hawala.senderCustomerId,
+    senderCustomerDisplay: customerDisplay(senderCustomer),
+    receiverName: hawala.receiverName,
+    receiverPhone: hawala.receiverPhone,
+    receiverCustomerId: hawala.receiverCustomerId,
+    receiverCustomerDisplay: customerDisplay(receiverCustomer),
+    partnerSarafi: hawala.partnerSarafi,
+    commissionAmountDisplay:
+      hawala.commissionAmount && currency
+        ? (formatPrismaAmount(hawala.commissionAmount, currency) ??
+          hawala.commissionAmount.toString())
+        : null,
+    commissionSideLabel:
+      hawala.commissionSide === "PAYABLE"
+        ? "You owe partner"
+        : hawala.commissionSide === "RECEIVABLE"
+          ? "Partner owes you"
+          : null,
+    ownCommissionAmountDisplay:
+      hawala.ownCommissionAmount && currency
+        ? (formatPrismaAmount(hawala.ownCommissionAmount, currency) ??
+          hawala.ownCommissionAmount.toString())
+        : null,
+    originDisplay: `${hawala.originCity}, ${hawala.originCountry}`,
+    destinationDisplay: `${hawala.destinationCity}, ${hawala.destinationCountry}`,
+    currencyCode: currency?.code ?? "—",
+    amountDisplay,
+    notes: hawala.notes,
+    customerId: hawala.customerId,
+    customerDisplay: customerDisplay(customer),
+    operatorName: operator
+      ? operator.fullName.trim() || operator.username
+      : null,
+    valueDate: hawala.valueDate.toISOString(),
+    createdAt: hawala.createdAt.toISOString(),
+    completedAt: hawala.completedAt?.toISOString() ?? null,
+    cancelledAt: hawala.cancelledAt?.toISOString() ?? null,
+    timeline: buildTimeline({
+      createdAt: hawala.createdAt,
+      completedAt: hawala.completedAt,
+      cancelledAt: hawala.cancelledAt,
+      status: hawala.status,
+    }),
+    relatedTransaction,
+    ledgerEntries: relatedTransaction?.ledgerEntries ?? [],
+  };
+}

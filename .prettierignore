@@ -1,0 +1,9 @@
+node_modules
+.next
+out
+dist
+build
+src-tauri/target
+src/generated
+package-lock.json
+*.md

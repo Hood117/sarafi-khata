@@ -1,0 +1,9 @@
+# Link against vendored static SQLite (avoids flaky MSVC compile of
+# sqlite3.c inside cargo build scripts on some Windows setups — exit 259).
+# Rebuild with: scripts\build-sqlite-msvc.bat (from repo root) or
+# src-tauri\vendor\sqlite\build.bat
+
+[env]
+SQLITE3_LIB_DIR = { value = "vendor/sqlite", relative = true }
+SQLITE3_INCLUDE_DIR = { value = "vendor/sqlite", relative = true }
+SQLITE3_STATIC = "1"

@@ -1,0 +1,18 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Saraf",
+  "version": "0.1.0",
+  "identifier": "com.saraf.desktop",
+  "build": {
+    "frontendDist": "resources/splash",
+    "devUrl": "http://127.0.0.1:3000",
+    "beforeDevCommand": "npm run dev:web",
+    "beforeBuildCommand": "npm run build:desktop:prepare"
+  },
+  "bundle": {
+    "resources": [
+      "resources/splash",
+      "resources/next-server.tar.gz"
+    ]
+  }
+}
