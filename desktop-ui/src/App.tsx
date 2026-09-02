@@ -1,13 +1,13 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import { getLicenseStatus } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { useT } from "@desktop/i18n";
 import { AppLayout } from "@desktop/layout";
+import { LicenseActivatePage } from "@desktop/pages/license-activate";
 import { LoginPage } from "@desktop/pages/login";
 
-const CashPage = lazy(() =>
-  import("@desktop/pages/cash").then((m) => ({ default: m.CashPage })),
-);
 const CustomerDetailPage = lazy(() =>
   import("@desktop/pages/customer-detail").then((m) => ({
     default: m.CustomerDetailPage,
@@ -16,14 +16,16 @@ const CustomerDetailPage = lazy(() =>
 const CustomersPage = lazy(() =>
   import("@desktop/pages/customers").then((m) => ({ default: m.CustomersPage })),
 );
+const DebtorsCreditorsPage = lazy(() =>
+  import("@desktop/pages/debtors-creditors").then((m) => ({
+    default: m.DebtorsCreditorsPage,
+  })),
+);
 const DashboardPage = lazy(() =>
   import("@desktop/pages/dashboard").then((m) => ({ default: m.DashboardPage })),
 );
 const DaybookPage = lazy(() =>
   import("@desktop/pages/daybook").then((m) => ({ default: m.DaybookPage })),
-);
-const ExchangePage = lazy(() =>
-  import("@desktop/pages/exchange").then((m) => ({ default: m.ExchangePage })),
 );
 const HawalaPage = lazy(() =>
   import("@desktop/pages/hawala").then((m) => ({ default: m.HawalaPage })),
@@ -38,6 +40,11 @@ const NewCustomerPage = lazy(() =>
     default: m.NewCustomerPage,
   })),
 );
+const MovementsPage = lazy(() =>
+  import("@desktop/pages/movements").then((m) => ({
+    default: m.MovementsPage,
+  })),
+);
 const OwnerCapitalPage = lazy(() =>
   import("@desktop/pages/owner-capital").then((m) => ({
     default: m.OwnerCapitalPage,
@@ -46,6 +53,11 @@ const OwnerCapitalPage = lazy(() =>
 const ExpensesPage = lazy(() =>
   import("@desktop/pages/expenses").then((m) => ({
     default: m.ExpensesPage,
+  })),
+);
+const EmployeesPage = lazy(() =>
+  import("@desktop/pages/employees").then((m) => ({
+    default: m.EmployeesPage,
   })),
 );
 const PartnerDetailPage = lazy(() =>
@@ -90,11 +102,6 @@ const TradingTradeEditPage = lazy(() =>
     default: m.TradingTradeEditPage,
   })),
 );
-const TradingTradeFormPage = lazy(() =>
-  import("@desktop/pages/trading/trade-form").then((m) => ({
-    default: m.TradingTradeFormPage,
-  })),
-);
 const VaultDetailPage = lazy(() =>
   import("@desktop/pages/vault-detail").then((m) => ({
     default: m.VaultDetailPage,
@@ -103,9 +110,17 @@ const VaultDetailPage = lazy(() =>
 const VaultsPage = lazy(() =>
   import("@desktop/pages/vaults").then((m) => ({ default: m.VaultsPage })),
 );
+const CashPage = lazy(() =>
+  import("@desktop/pages/cash").then((m) => ({ default: m.CashPage })),
+);
 const TransactionsPage = lazy(() =>
   import("@desktop/pages/transactions").then((m) => ({
     default: m.TransactionsPage,
+  })),
+);
+const CalculatorPage = lazy(() =>
+  import("@desktop/pages/calculator").then((m) => ({
+    default: m.CalculatorPage,
   })),
 );
 
@@ -119,6 +134,38 @@ function RouteFallback() {
 
 function Lazy({ children }: { children: ReactNode }) {
   return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+}
+
+function RequireLicense({ children }: { children: ReactNode }) {
+  const t = useT();
+  const [state, setState] = useState<"loading" | "ok" | "need">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    void getLicenseStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setState(status.licensed ? "ok" : "need");
+      })
+      .catch(() => {
+        if (!cancelled) setState("need");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state === "loading") {
+    return (
+      <div className="app-shell">
+        <p className="muted">{t.license.checking}</p>
+      </div>
+    );
+  }
+  if (state === "need") {
+    return <Navigate to="/activate" replace />;
+  }
+  return children;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -139,13 +186,23 @@ function RequireAuth({ children }: { children: ReactNode }) {
 export function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/activate" element={<LicenseActivatePage />} />
+      <Route
+        path="/login"
+        element={
+          <RequireLicense>
+            <LoginPage />
+          </RequireLicense>
+        }
+      />
       <Route
         path="/"
         element={
-          <RequireAuth>
-            <AppLayout />
-          </RequireAuth>
+          <RequireLicense>
+            <RequireAuth>
+              <AppLayout />
+            </RequireAuth>
+          </RequireLicense>
         }
       >
         <Route
@@ -188,15 +245,23 @@ export function App() {
             </Lazy>
           }
         />
-        <Route path="movements" element={<Navigate to="/customers" replace />} />
         <Route
-          path="exchange"
+          path="debtors-creditors"
           element={
             <Lazy>
-              <ExchangePage />
+              <DebtorsCreditorsPage />
             </Lazy>
           }
         />
+        <Route
+          path="movements"
+          element={
+            <Lazy>
+              <MovementsPage />
+            </Lazy>
+          }
+        />
+        <Route path="exchange" element={<Navigate to="/" replace />} />
         <Route
           path="hawala"
           element={
@@ -247,19 +312,11 @@ export function App() {
           />
           <Route
             path="buy"
-            element={
-              <Lazy>
-                <TradingTradeFormPage mode="buy" />
-              </Lazy>
-            }
+            element={<Navigate to="/trading" replace />}
           />
           <Route
             path="sell"
-            element={
-              <Lazy>
-                <TradingTradeFormPage mode="sell" />
-              </Lazy>
-            }
+            element={<Navigate to="/trading" replace />}
           />
           <Route
             path="inventory"
@@ -299,6 +356,14 @@ export function App() {
           element={
             <Lazy>
               <ExpensesPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="employees"
+          element={
+            <Lazy>
+              <EmployeesPage />
             </Lazy>
           }
         />
@@ -347,6 +412,14 @@ export function App() {
           element={
             <Lazy>
               <RatesPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="calculator"
+          element={
+            <Lazy>
+              <CalculatorPage />
             </Lazy>
           }
         />

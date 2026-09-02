@@ -41,6 +41,41 @@ export function statusLabel(t: Dictionary, status: string | null | undefined): s
   }
 }
 
+/** Translate stored transaction type codes for display. */
+export function transactionTypeLabel(
+  t: Dictionary,
+  type: string | null | undefined,
+): string {
+  switch ((type ?? "").trim().toUpperCase()) {
+    case "DEPOSIT":
+      return t.txLine.typeDeposit;
+    case "WITHDRAWAL":
+      return t.txLine.typeWithdrawal;
+    case "EXCHANGE":
+      return t.txLine.typeExchange;
+    case "HAWALA":
+      return t.txLine.typeHawala;
+    case "TRANSFER":
+      return t.txLine.typeTransfer;
+    case "TRADE_BUY":
+      return t.txLine.typeTradeBuy;
+    case "TRADE_SELL":
+      return t.txLine.typeTradeSell;
+    case "ADJUSTMENT":
+      return t.txLine.typeAdjustment;
+    case "VAULT_CASH_IN":
+      return t.desk.cashIn;
+    case "VAULT_CASH_OUT":
+      return t.desk.cashOut;
+    case "EXPENSE":
+      return t.txLine.typeExpense;
+    case "OPENING":
+      return t.txLine.openingBalance.replace(/^·\s*/, "");
+    default:
+      return type?.trim() || t.common.unknown;
+  }
+}
+
 export function localeDisplayName(t: Dictionary, locale: "en" | "fa" | "ps"): string {
   if (locale === "fa") return t.settings.languageDari;
   if (locale === "ps") return t.settings.languagePashto;

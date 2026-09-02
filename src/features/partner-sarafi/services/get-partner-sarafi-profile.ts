@@ -2,6 +2,7 @@ import "server-only";
 
 import { PartnerSarafiError } from "@/features/partner-sarafi/domain/errors";
 import { formatPartnerCommissionRateLabel } from "@/features/partner-sarafi/domain/commission";
+import { partnerDisplayFromCustomer } from "@/features/partner-sarafi/domain/linked-customer";
 import type { PartnerSarafiListItem } from "@/features/partner-sarafi/domain/types";
 import { findPartnerSarafiById } from "@/features/partner-sarafi/repositories/partner-sarafi-repository";
 import { prisma } from "@/server/db";
@@ -24,11 +25,20 @@ export async function getPartnerSarafiProfile(
   const per = partner.commissionPerAmount?.toString() ?? null;
   const fee = partner.commissionFeeAmount?.toString() ?? null;
   const currencyCode = currency?.code ?? null;
+  const linkedCustomer = partner.customerId
+    ? await prisma.customer.findUnique({
+        where: { id: partner.customerId },
+        select: { fullName: true, phone: true },
+      })
+    : null;
+  const display = partnerDisplayFromCustomer(partner, linkedCustomer);
 
   return {
     id: partner.id,
-    name: partner.name,
-    phone: partner.phone,
+    customerId: partner.customerId,
+    needsCustomerLink: !partner.customerId,
+    name: display.name,
+    phone: display.phone,
     city: partner.city,
     country: partner.country,
     notes: partner.notes,

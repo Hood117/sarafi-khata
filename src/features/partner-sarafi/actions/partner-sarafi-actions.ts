@@ -37,6 +37,7 @@ export type PartnerSarafiMutationActionResult =
     };
 
 export type CreatePartnerSarafiActionInput = {
+  customerId: string;
   name: string;
   phone?: string;
   city?: string;
@@ -117,6 +118,7 @@ export async function createPartnerSarafiAction(
 
   try {
     const partner = await createPartnerSarafiRecord({
+      customerId: input.customerId,
       name: input.name,
       phone: input.phone ?? "",
       city: input.city ?? "",
@@ -156,6 +158,7 @@ export async function updatePartnerSarafiAction(
   try {
     const before = await getPartnerSarafiForForm(input.id);
     const partner = await updatePartnerSarafiRecord(input.id, {
+      customerId: input.customerId,
       name: input.name,
       phone: input.phone ?? "",
       city: input.city ?? "",

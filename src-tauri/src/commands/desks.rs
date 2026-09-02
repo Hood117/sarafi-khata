@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::commands::authorize::{require_screen};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +22,7 @@ pub fn list_latest_exchange_rates(
   state: State<'_, AppState>,
 ) -> Result<Vec<ExchangeRateItem>, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "rates")?;
   // Latest non-deleted rate per base/quote pair (as-of now).
   let mut stmt = conn.prepare(
     "SELECT er.id, bc.code, qc.code, CAST(er.rate AS TEXT), er.effectiveAt
@@ -68,6 +70,7 @@ pub struct ListHawalaInput {
 pub struct HawalaListItem {
   pub id: String,
   pub reference: String,
+  pub display_ref: String,
   pub direction: String,
   pub status: String,
   pub sender_name: Option<String>,
@@ -101,6 +104,7 @@ pub fn list_hawala_page(
     .to_ascii_lowercase();
 
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "hawala")?;
   let mut where_sql = String::from("WHERE 1=1");
   let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -124,6 +128,8 @@ pub fn list_hawala_page(
       where_sql.push_str(
         " AND (
           h.reference LIKE ?
+          OR IFNULL(t.displayRef,'') LIKE ?
+          OR IFNULL(t.reference,'') LIKE ?
           OR IFNULL(h.senderName,'') LIKE ?
           OR IFNULL(h.receiverName,'') LIKE ?
           OR IFNULL(h.partnerSarafi,'') LIKE ?
@@ -133,11 +139,17 @@ pub fn list_hawala_page(
       params.push(Box::new(like.clone()));
       params.push(Box::new(like.clone()));
       params.push(Box::new(like.clone()));
+      params.push(Box::new(like.clone()));
+      params.push(Box::new(like.clone()));
       params.push(Box::new(like));
     }
   }
 
-  let count_sql = format!("SELECT COUNT(*) FROM HawalaTransfer h {where_sql}");
+  let count_sql = format!(
+    "SELECT COUNT(*) FROM HawalaTransfer h
+     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
+     {where_sql}"
+  );
   let param_refs: Vec<&dyn rusqlite::types::ToSql> =
     params.iter().map(|p| p.as_ref()).collect();
   let total: i64 = conn.query_row(&count_sql, param_refs.as_slice(), |row| row.get(0))?;
@@ -154,9 +166,10 @@ pub fn list_hawala_page(
 
   let list_sql = format!(
     "SELECT h.id, h.reference, h.direction, h.status, h.senderName, h.receiverName,
-            h.partnerSarafi, CAST(h.amount AS TEXT), c.code, h.valueDate
+            h.partnerSarafi, CAST(h.amount AS TEXT), c.code, h.valueDate, IFNULL(t.displayRef,'')
      FROM HawalaTransfer h
      INNER JOIN Currency c ON c.id = h.currencyId
+     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      {where_sql}
      ORDER BY h.valueDate DESC, h.createdAt DESC
      LIMIT ? OFFSET ?"
@@ -173,6 +186,7 @@ pub fn list_hawala_page(
       Ok(HawalaListItem {
         id: row.get(0)?,
         reference: row.get(1)?,
+        display_ref: row.get(10)?,
         direction: row.get(2)?,
         status: row.get(3)?,
         sender_name: row.get(4)?,

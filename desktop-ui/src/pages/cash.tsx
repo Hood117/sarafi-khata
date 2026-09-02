@@ -1,9 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { getCashBalances, type CashBalanceRow } from "@desktop/api";
 import { IconCash, IconVault } from "@desktop/icons";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import { errorMessage } from "@desktop/lib/datetime";
+import { PageLoadError } from "@desktop/ui/page-load-error";
+import { CurrencyCodeWithFlag, CurrencyFlag } from "@desktop/ui/currency-flag";
+import {
+  currencyDisplaySymbol,
+  localizedCurrencyName,
+  moneyToneClass,
+} from "@desktop/lib/currency-labels";
 
 function currencyAccent(code: string): string {
   const map: Record<string, string> = {
@@ -13,25 +21,43 @@ function currencyAccent(code: string): string {
     PKR: "#0f766e",
     AED: "#6d28d9",
     GBP: "#be185d",
+    SAR: "#047857",
+    QAR: "#7c2d12",
   };
   return map[code.toUpperCase()] ?? "#0f6b4c";
 }
 
+/** Compact cards for Dashboard — non-zero Main Vault balances only. */
 export function CashBalanceCards({
   rows,
   emptyText,
+  limit,
 }: {
   rows: CashBalanceRow[];
   emptyText?: string;
+  /** When set, show only the top N by absolute balance. */
+  limit?: number;
 }) {
   const t = useT();
-  if (rows.length === 0) {
+  const visible = rows
+    .filter((row) => {
+      const n = Number.parseFloat(String(row.balanceDisplay).replace(/,/g, ""));
+      return Number.isFinite(n) && n !== 0;
+    })
+    .sort((a, b) => {
+      const absA = Math.abs(Number.parseInt(a.amountMinor, 10) || 0);
+      const absB = Math.abs(Number.parseInt(b.amountMinor, 10) || 0);
+      return absB - absA;
+    });
+  const shown =
+    limit != null && limit > 0 ? visible.slice(0, limit) : visible;
+  if (shown.length === 0) {
     return <p className="muted">{emptyText ?? t.cash.noBalances}</p>;
   }
 
   return (
     <div className="cash-card-grid">
-      {rows.map((row) => {
+      {shown.map((row) => {
         const accent = currencyAccent(row.currencyCode);
         return (
           <article
@@ -41,16 +67,20 @@ export function CashBalanceCards({
           >
             <div className="cash-balance-card-top">
               <div className="cash-balance-code-wrap">
-                <span className="cash-balance-code">{row.currencyCode}</span>
-                {row.currencySymbol ? (
-                  <span className="cash-balance-symbol">{row.currencySymbol}</span>
+                <CurrencyCodeWithFlag code={row.currencyCode} />
+                {currencyDisplaySymbol(row.currencyCode, row.currencySymbol) ? (
+                  <span className="cash-balance-symbol">
+                    {currencyDisplaySymbol(row.currencyCode, row.currencySymbol)}
+                  </span>
                 ) : null}
               </div>
               <span className="cash-balance-icon" aria-hidden>
                 <IconCash />
               </span>
             </div>
-            <div className="cash-balance-amount">{row.balanceDisplay}</div>
+            <div className={`cash-balance-amount ${moneyToneClass(row.balanceDisplay)}`}>
+              {row.balanceDisplay}
+            </div>
             <div className="cash-balance-meta muted">{t.cash.shopCash}</div>
           </article>
         );
@@ -61,58 +91,86 @@ export function CashBalanceCards({
 
 export function CashPage() {
   const t = useT();
+  const { locale } = useLocale();
   const [rows, setRows] = useState<CashBalanceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
     setBusy(true);
-    void getCashBalances()
-      .then((data) => {
-        if (!cancelled) {
-          setRows(data);
-          setError(null);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    try {
+      const data = await getCashBalances();
+      setRows(data);
+      setError(null);
+    } catch (err: unknown) {
+      setError(errorMessage(err, t.errors.loadCash));
+    } finally {
+      setBusy(false);
+    }
+  }, [t.errors.loadCash]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div className="stack">
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.75rem",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.cash}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.cash.overview}
-          </p>
-        </div>
+      <div className="row" style={{ justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
         <Link className="btn" to="/vaults">
-          <IconVault /> {t.nav.vaults}
+          <IconVault /> {t.desk.cashIn} / {t.desk.cashOut}
         </Link>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
-      {busy ? <p className="muted">{t.common.loading}</p> : null}
-      {rows ? <CashBalanceCards rows={rows} /> : null}
+      {error ? <PageLoadError message={error} onRetry={() => void load()} /> : null}
+      {busy && !rows ? <p className="muted">{t.common.loading}</p> : null}
+
+      {rows ? (
+        rows.length === 0 ? (
+          <p className="muted">{t.cash.noBalances}</p>
+        ) : (
+          <section className="section-card stack">
+            <table className="report-ledger daybook-journal-table cash-overview-table">
+              <thead>
+                <tr>
+                  <th className="col-row">{t.cash.rowNo}</th>
+                  <th>{t.cash.currencyName}</th>
+                  <th>{t.cash.currencyCode}</th>
+                  <th className="col-amount">{t.cash.amount}</th>
+                  <th>{t.cash.flag}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => {
+                  const name = localizedCurrencyName(
+                    row.currencyCode,
+                    locale,
+                    row.currencyName,
+                  );
+                  return (
+                    <tr key={row.currencyCode}>
+                      <td className="col-row">{idx + 1}</td>
+                      <td>{name}</td>
+                      <td>
+                        <CurrencyCodeWithFlag code={row.currencyCode} />
+                      </td>
+                      <td className={`col-amount amount-emphasis ${moneyToneClass(row.balanceDisplay)}`}>
+                        {row.balanceDisplay}
+                      </td>
+                      <td className="cash-flag-cell">
+                        <CurrencyFlag
+                          code={row.currencyCode}
+                          className="cash-currency-flag"
+                          size="md"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        )
+      ) : null}
     </div>
   );
 }

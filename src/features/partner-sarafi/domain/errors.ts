@@ -6,6 +6,7 @@ export type PartnerSarafiErrorCode =
   | "UNKNOWN";
 
 export type PartnerSarafiField =
+  | "customerId"
   | "name"
   | "phone"
   | "city"

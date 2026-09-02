@@ -11,7 +11,7 @@ export const SETTING_KEYS = {
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
 
 export const DEFAULT_APP_SETTINGS = {
-  businessName: "Saraf",
+  businessName: "ASMS",
   baseCurrencyCode: "AFN",
   locale: "en",
 } as const;

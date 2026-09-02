@@ -1,0 +1,21 @@
+{
+  "name": "saraf-license-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create saraf-licenses",
+    "db:migrate:local": "wrangler d1 migrations apply saraf-licenses --local",
+    "db:migrate:remote": "wrangler d1 migrations apply saraf-licenses --remote",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit",
+    "issue": "node scripts/issue-license.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260811.1",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.120.1"
+  }
+}

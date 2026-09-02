@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { requirePermission } from "@/features/auth/permissions/authorize";
 import { getCurrencyList } from "@/features/currencies";
+import { getCustomerList } from "@/features/customers";
 import { getHawalaListItems, type HawalaDirection } from "@/features/hawala";
 import { isPartnerSarafiError } from "@/features/partner-sarafi/domain/errors";
 import { PartnerSarafiProfileView } from "@/features/partner-sarafi/components/partner-sarafi-profile";
@@ -66,7 +67,8 @@ export default async function PartnerSarafiProfilePage({
     throw error;
   }
 
-  const [transfers, commissionSummary, currencies, wallets] = await Promise.all(
+  const [transfers, commissionSummary, currencies, wallets, customers] =
+    await Promise.all(
     [
       getHawalaListItems({
         partnerSarafiId: partner.id,
@@ -76,6 +78,7 @@ export default async function PartnerSarafiProfilePage({
       getPartnerCommissionSummary(partner.id),
       getCurrencyList({ isActive: true }),
       getWalletList({ archiveFilter: "active" }),
+      getCustomerList({ archiveFilter: "active" }),
     ],
   );
 
@@ -101,6 +104,14 @@ export default async function PartnerSarafiProfilePage({
       partner={partner}
       transfers={transfers}
       commissionSummary={commissionSummary}
+      customerOptions={customers.map((customer) => ({
+        id: customer.id,
+        fullName: customer.fullName,
+        label: customer.code
+          ? `${customer.code} · ${customer.fullName}`
+          : customer.fullName,
+        phone: customer.phone,
+      }))}
       currencyOptions={currencies.map((currency) => ({
         code: currency.code,
         label: `${currency.code} — ${currency.name}`,

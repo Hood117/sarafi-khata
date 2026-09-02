@@ -4,10 +4,8 @@ Offline Sarafi (money exchange) Management System for Windows.
 
 ## Stack
 
-- Next.js 16 (App Router) + TypeScript + React 19
-- Tailwind CSS 4 + shadcn/ui
-- Tauri 2 desktop shell (WebView + local Next sidecar)
-- Prisma 7 + SQLite via `better-sqlite3` (WAL)
+- **Desk (shipping):** Vite React SPA (`desktop-ui/`) + Tauri 2 + rusqlite (`saraf.db` in `%APPDATA%\com.saraf.desktop\`)
+- Next.js 16 + Prisma remain as **legacy / seed tooling**, not the default desk runtime
 
 ## Prerequisites
 
@@ -19,8 +17,6 @@ Offline Sarafi (money exchange) Management System for Windows.
 ```bash
 cp .env.example .env
 npm install
-npx prisma migrate deploy
-npm run db:seed
 ```
 
 Default login after seed: `admin` / `ChangeMe123!`
@@ -29,24 +25,15 @@ Default login after seed: `admin` / `ChangeMe123!`
 
 | Script | Description |
 | --- | --- |
-| `npm run dev` | Tauri desktop app (WebView + Next on 127.0.0.1:3000) |
-| `npm run dev:web` | Next.js only (optional) |
-| `npm run build` | Generate Prisma client and build Next.js |
+| `npm run tauri -- dev` | Tauri desktop + Vite SPA on 127.0.0.1:1421 |
+| `npm run dev` | Same as `tauri -- dev` |
+| `npm.cmd run tauri -- dev` | Windows PowerShell if `npm.ps1` is blocked |
+| `npm run dev:spa` | Vite SPA only |
+| `npm run typecheck:spa` | Typecheck `desktop-ui/` |
 | `npm run build:desktop` | Build Tauri NSIS installer (requires Rust) |
-| `npm run start` | Start production Next server |
 | `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript `--noEmit` |
+| `npm run typecheck` | TypeScript `--noEmit` (root) |
 | `npm test` | Unit tests (Vitest) |
-| `npm run db:generate` | Generate Prisma client |
-| `npm run db:seed` | Seed admin, currencies, wallets, settings |
-| `npm run db:studio` | Open Prisma Studio |
+| `node scripts/wipe-business-data.mjs` | Wipe shop/demo data; keep admin, currencies, Main Vault, SYSTEM wallets |
 
-## Architecture rules
-
-1. `postTransaction` is the only financial write path.
-2. Ledger (`LedgerEntry`) is money truth; balances are derived.
-3. Append-only ledger — void via reversing entries.
-4. Soft-archive master data; offline-only (no cloud money APIs).
-5. Audit Log is activity history — never balances.
-
-See `docs/HANDOFF.md`, `docs/ROADMAP.md`, and `docs/DECISIONS.md`.
+See `docs/HANDOFF.md` for architecture, completed vs pending work, and accounting rules.

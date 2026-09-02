@@ -65,7 +65,7 @@ export function ReportScreenToolbar({
       periodLabel ??
       ([dateFrom, dateTo].filter(Boolean).join(" → ") || "All dates"),
     generatedAt: new Date().toLocaleString(),
-    companyName: "Saraf",
+    companyName: "ASMS",
   };
 
   function apply(next?: {

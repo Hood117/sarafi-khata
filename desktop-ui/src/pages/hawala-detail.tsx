@@ -1,17 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import {
   archiveHawala,
+  getAppInfo,
   getHawala,
   restoreHawala,
-  setHawalaStatus,
   updateHawalaMeta,
   type HawalaDetail,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
+import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
 import { statusLabel, purposeLabel, settlementLabel } from "@desktop/lib/i18n-labels";
+import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import {
   statusBadgeClass,
   writeHawalaDraft,
@@ -88,16 +93,40 @@ function metaFromDetail(d: HawalaDetail): MetaForm {
 
 export function HawalaDetailPage() {
   const { id = "" } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { session } = useAuth();
   const t = useT();
   const [detail, setDetail] = useState<HawalaDetail | null>(null);
   const [meta, setMeta] = useState<MetaForm | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(() => searchParams.get("edit") === "1");
   const [busy, setBusy] = useState(false);
+  const metaFormRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [statusReason, setStatusReason] = useState("");
+  const { showSuccess, successModal } = useSuccessModal();
+  const [whatsappBusy, setWhatsappBusy] = useState(false);
+  const [businessName, setBusinessName] = useState("ASMS");
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAppInfo()
+      .then((info) => {
+        if (!cancelled && info.name?.trim()) setBusinessName(info.name.trim());
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const cleanup = () => document.body.classList.remove("tx-printing");
+    window.addEventListener("afterprint", cleanup);
+    return () => {
+      window.removeEventListener("afterprint", cleanup);
+      cleanup();
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -123,38 +152,24 @@ export function HawalaDetailPage() {
     };
   }, [id]);
 
-  async function changeStatus(status: string) {
-    if (!session || !detail) return;
-    if (detail.status === "COMPLETED" && status === "CANCELLED") {
-      setError(t.hawala.completedCannotCancel);
-      return;
-    }
-    const needsReason =
-      status === "CANCELLED" || status === "RETURNED";
-    if (needsReason && !statusReason.trim()) {
-      setError(t.desk.reasonCancelReturn);
-      return;
-    }
-    setBusy(true);
+  async function handleWhatsApp() {
+    if (!detail) return;
+    setWhatsappBusy(true);
     setError(null);
-    setOk(null);
     try {
-      const updated = await setHawalaStatus({
-        id: detail.id,
-        status,
-        reason: statusReason.trim() || null,
-        actorUserId: session.userId,
-      });
-      setDetail(updated);
-      setMeta(metaFromDetail(updated));
-      setOk(
-        t.hawala.statusSetTo.replace("{status}", statusLabel(t, status)),
+      const result = await sendHawalaWhatsAppToPartner(
+        detail.id,
+        t.hawala.whatsappMessage,
       );
-      setStatusReason("");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!result.ok) {
+        setError(
+          result.reason === "missing_phone"
+            ? t.hawala.whatsappPartnerMissingPhone
+            : result.error || t.errors.loadGeneric,
+        );
+      }
     } finally {
-      setBusy(false);
+      setWhatsappBusy(false);
     }
   }
 
@@ -171,10 +186,10 @@ export function HawalaDetailPage() {
       const updated = await archiveHawala({
         id: detail.id,
         actorUserId: session.userId,
-        reason: statusReason.trim() || null,
+        reason: null,
       });
       setDetail(updated);
-      setOk(t.hawala.archivedSoftOk);
+      showSuccess(t.hawala.archivedSoftOk);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -192,7 +207,7 @@ export function HawalaDetailPage() {
         actorUserId: session.userId,
       });
       setDetail(updated);
-      setOk(t.hawala.restoredOk);
+      showSuccess(t.hawala.restoredOk);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -205,7 +220,6 @@ export function HawalaDetailPage() {
     if (!session || !detail || !meta) return;
     setBusy(true);
     setError(null);
-    setOk(null);
     try {
       const updated = await updateHawalaMeta({
         id: detail.id,
@@ -231,7 +245,7 @@ export function HawalaDetailPage() {
       setDetail(updated);
       setMeta(metaFromDetail(updated));
       setEditing(false);
-      setOk(t.hawala.detailsUpdated);
+      showSuccess(t.hawala.detailsUpdated);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -305,24 +319,24 @@ export function HawalaDetailPage() {
   }
 
   const archived = Boolean(detail?.deletedAt);
-  const status = detail?.status?.toUpperCase() ?? "";
 
-  const canSent = !archived && status === "PENDING";
-  const canReceived =
-    !archived && (status === "SENT" || status === "PENDING");
-  const canCompleted =
-    !archived && (status === "SENT" || status === "RECEIVED");
-  const canCancel = !archived && (status === "PENDING" || status === "SENT");
-  const canReturn =
-    !archived &&
-    ["PENDING", "SENT", "RECEIVED", "COMPLETED"].includes(status);
+  function handlePrint() {
+    if (!detail) return;
+    document.body.classList.add("tx-printing");
+    window.print();
+    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+  }
+
+  const printSummary = detail
+    ? `${detail.direction === "SEND" ? t.hawala.send : t.hawala.receive} · ${detail.amount} ${detail.currencyCode}`
+    : "";
 
   return (
     <div className="stack">
       <div className="row no-print" style={{ justifyContent: "space-between" }}>
         <div>
           <h1 style={{ margin: "0 0 0.25rem" }}>
-            {detail?.reference ?? t.nav.hawala}
+            {detail ? txDisplayRef(detail) : t.nav.hawala}
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             {detail
@@ -330,13 +344,19 @@ export function HawalaDetailPage() {
               : t.common.loading}
           </p>
         </div>
-        <Link className="button-link secondary" to="/hawala">
-          {t.desk.backToHawala}
-        </Link>
+        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+          {detail ? (
+            <button type="button" className="secondary" onClick={handlePrint}>
+              {t.common.print}
+            </button>
+          ) : null}
+          <Link className="button-link secondary" to="/hawala">
+            {t.desk.backToHawala}
+          </Link>
+        </div>
       </div>
 
       {error ? <p className="error no-print">{error}</p> : null}
-      {ok ? <p className="ok no-print">{ok}</p> : null}
       {busy && !detail ? <p className="muted">{t.common.loading}</p> : null}
 
       {detail && meta ? (
@@ -357,58 +377,31 @@ export function HawalaDetailPage() {
             {archived ? <span className="badge badge-cancelled">{t.common.archived}</span> : null}
           </div>
 
-          <div className="row no-print" style={{ flexWrap: "wrap" }}>
-            {canSent ? (
+          <div className="row no-print hawala-detail-actions">
+            {!archived ? (
               <button
                 type="button"
-                disabled={busy}
-                onClick={() => void changeStatus("SENT")}
+                className="btn btn-action btn-action--whatsapp hawala-action-btn"
+                disabled={busy || whatsappBusy}
+                onClick={() => void handleWhatsApp()}
               >
-                {t.hawala.markSent}
-              </button>
-            ) : null}
-            {canReceived && status === "SENT" ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void changeStatus("RECEIVED")}
-              >
-                {t.hawala.markReceived}
-              </button>
-            ) : null}
-            {canCompleted ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void changeStatus("COMPLETED")}
-              >
-                {t.hawala.markCompleted}
-              </button>
-            ) : null}
-            {canCancel ? (
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => void changeStatus("CANCELLED")}
-              >
-                {t.common.cancel}
-              </button>
-            ) : null}
-            {canReturn ? (
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => void changeStatus("RETURNED")}
-              >
-                {t.hawala.return}
+                {whatsappBusy ? t.common.loading : t.hawala.sendWhatsApp}
               </button>
             ) : null}
             {!archived ? (
               <button
                 type="button"
-                className="secondary"
+                className="secondary hawala-action-btn"
+                onClick={() => setEditing((v) => !v)}
+              >
+                {editing ? t.desk.closeEdit : t.common.editAction}
+              </button>
+            ) : null}
+            {!archived ? (
+              <button
+                type="button"
+                className="secondary hawala-action-btn"
+                data-desk-action="delete"
                 disabled={busy}
                 onClick={() => void handleArchive()}
               >
@@ -417,6 +410,7 @@ export function HawalaDetailPage() {
             ) : (
               <button
                 type="button"
+                className="hawala-action-btn"
                 disabled={busy}
                 onClick={() => void handleRestore()}
               >
@@ -425,32 +419,12 @@ export function HawalaDetailPage() {
             )}
             <button
               type="button"
-              className="secondary"
+              className="secondary hawala-action-btn"
               onClick={handleDuplicate}
             >
               {t.hawala.duplicate}
             </button>
-            {!archived ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setEditing((v) => !v)}
-              >
-                {editing ? t.desk.closeEdit : t.desk.editMeta}
-              </button>
-            ) : null}
           </div>
-
-          {(canCancel || canReturn) && !archived ? (
-            <label className="no-print">
-              {t.hawala.reasonCancelReturnLabel}
-              <input
-                value={statusReason}
-                onChange={(e) => setStatusReason(e.target.value)}
-                placeholder={t.hawala.reasonCancelReturnPlaceholder}
-              />
-            </label>
-          ) : null}
 
           <div className="hawala-layout">
             <div className="stack">
@@ -459,7 +433,12 @@ export function HawalaDetailPage() {
                 <div className="row">
                   <div style={{ flex: 1 }}>
                     <div className="muted">{t.common.amount}</div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 700 }}>
+                    <div
+                      className={
+                        detail.direction === "SEND" ? "money-out" : "money-in"
+                      }
+                      style={{ fontSize: "1.25rem", fontWeight: 700 }}
+                    >
                       {detail.amount} {detail.currencyCode}
                     </div>
                   </div>
@@ -593,7 +572,15 @@ export function HawalaDetailPage() {
 
               {editing && !archived ? (
                 <form
+                  ref={metaFormRef}
                   className="section-card stack no-print"
+                  data-desk-form
+                  onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
+                    handleDeskFormKeyDown(e, {
+                      busy,
+                      onSubmit: () => metaFormRef.current?.requestSubmit(),
+                    })
+                  }
                   onSubmit={(e) => void handleSaveMeta(e)}
                 >
                   <h2>{t.desk.editMeta}</h2>
@@ -785,7 +772,7 @@ export function HawalaDetailPage() {
                     />
                   </label>
                   <div className="row">
-                    <button type="submit" disabled={busy}>
+                    <button type="submit" data-desk-action="save" disabled={busy}>
                       {busy ? t.common.saving : t.common.saveChanges}
                     </button>
                     <button
@@ -858,8 +845,113 @@ export function HawalaDetailPage() {
               </div>
             </aside>
           </div>
+
+          {createPortal(
+            <div className="tx-print-receipt" aria-hidden="true">
+              <h1 className="tx-print-brand">{businessName}</h1>
+              <p className="tx-print-subtitle">{t.transactions.receipt}</p>
+              <hr className="tx-print-rule" />
+              <p className="tx-print-summary">{printSummary}</p>
+              <hr className="tx-print-rule" />
+              <div className="tx-print-row">
+                <span>{t.common.reference}</span>
+                <strong>{txDisplayRef(detail)}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.hawala.direction}</span>
+                <strong>
+                  {detail.direction === "SEND" ? t.hawala.send : t.hawala.receive}
+                </strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.common.status}</span>
+                <strong>{statusLabel(t, detail.status)}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.common.date}</span>
+                <strong>{stamp(detail.valueDate)}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.hawala.sender}</span>
+                <strong>{detail.senderName}</strong>
+              </div>
+              {detail.senderPhone ? (
+                <div className="tx-print-row">
+                  <span>{t.common.phone}</span>
+                  <strong>{detail.senderPhone}</strong>
+                </div>
+              ) : null}
+              <div className="tx-print-row">
+                <span>{t.hawala.receiver}</span>
+                <strong>{detail.receiverName}</strong>
+              </div>
+              {detail.receiverPhone ? (
+                <div className="tx-print-row">
+                  <span>{t.hawala.receiverPhone}</span>
+                  <strong>{detail.receiverPhone}</strong>
+                </div>
+              ) : null}
+              <div className="tx-print-row">
+                <span>{t.hawala.partner}</span>
+                <strong>
+                  {detail.partnerSarafi}
+                  {detail.partnerBranch ? ` · ${detail.partnerBranch}` : ""}
+                </strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.desk.destination}</span>
+                <strong>
+                  {detail.destinationCity}, {detail.destinationCountry}
+                </strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.common.amount}</span>
+                <strong className="tx-print-amount">
+                  {detail.amount} {detail.currencyCode}
+                </strong>
+              </div>
+              {detail.receiveAmount ? (
+                <div className="tx-print-row">
+                  <span>{t.hawala.receive}</span>
+                  <strong>
+                    {detail.receiveAmount} {detail.receiveCurrencyCode ?? ""}
+                  </strong>
+                </div>
+              ) : null}
+              <div className="tx-print-row">
+                <span>{t.desk.ownCommission}</span>
+                <strong>{detail.ownCommissionAmount ?? "—"}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.partner.commission}</span>
+                <strong>{detail.partnerCommissionAmount ?? "—"}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.desk.purpose}</span>
+                <strong>{purposeLabel(t, detail.purpose)}</strong>
+              </div>
+              <div className="tx-print-row">
+                <span>{t.partner.settlements}</span>
+                <strong>{settlementLabel(t, detail.settlementType)}</strong>
+              </div>
+              {detail.createdByName ? (
+                <div className="tx-print-row">
+                  <span>{t.desk.createdBy}</span>
+                  <strong>{detail.createdByName}</strong>
+                </div>
+              ) : null}
+              <hr className="tx-print-rule" />
+              <p className="tx-print-thanks">{t.transactions.thankYou}</p>
+              <div className="tx-print-sig">
+                <div>Customer</div>
+                <div>Cashier</div>
+              </div>
+            </div>,
+            document.body,
+          )}
         </>
       ) : null}
+      {successModal}
     </div>
   );
 }

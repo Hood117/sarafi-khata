@@ -28,6 +28,72 @@ const positiveAmountSchema = z
 
 export const createPartnerSarafiSchema = z
   .object({
+    customerId: z.string().trim().min(1, {
+      error: "Select an existing customer for this partner sarafi.",
+    }),
+    name: z.string().trim().optional().default(""),
+    phone: optionalText(40, "Phone"),
+    city: optionalText(100, "City"),
+    country: optionalText(100, "Country"),
+    notes: optionalText(2000, "Notes"),
+    isActive: z.boolean(),
+    commissionEnabled: z.boolean(),
+    commissionPerAmount: z.string().trim().optional().default(""),
+    commissionFeeAmount: z.string().trim().optional().default(""),
+    commissionCurrencyCode: z.string().trim().optional().default(""),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.commissionEnabled) {
+      return;
+    }
+
+    if (!data.commissionCurrencyCode) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["commissionCurrencyCode"],
+        message: "Choose the commission currency.",
+      });
+    }
+
+    const per = positiveAmountSchema.safeParse(data.commissionPerAmount);
+    if (!per.success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["commissionPerAmount"],
+        message: "Enter how much hawala amount equals one commission unit.",
+      });
+    }
+
+    const fee = positiveAmountSchema.safeParse(data.commissionFeeAmount);
+    if (!fee.success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["commissionFeeAmount"],
+        message: "Enter the commission for each unit.",
+      });
+    }
+  })
+  .transform((data) => {
+    if (!data.commissionEnabled) {
+      return {
+        ...data,
+        commissionPerAmount: null as string | null,
+        commissionFeeAmount: null as string | null,
+        commissionCurrencyCode: null as string | null,
+      };
+    }
+
+    return {
+      ...data,
+      commissionPerAmount: data.commissionPerAmount,
+      commissionFeeAmount: data.commissionFeeAmount,
+      commissionCurrencyCode: data.commissionCurrencyCode.toUpperCase(),
+    };
+  });
+
+export const updatePartnerSarafiSchema = z
+  .object({
+    customerId: z.string().trim().optional().default(""),
     name: nameSchema,
     phone: optionalText(40, "Phone"),
     city: optionalText(100, "City"),
@@ -88,8 +154,6 @@ export const createPartnerSarafiSchema = z
     };
   });
 
-export const updatePartnerSarafiSchema = createPartnerSarafiSchema;
-
 export const settlePartnerCommissionSchema = z.object({
   partnerSarafiId: z.string().trim().min(1),
   kind: z.enum(["PAY_PARTNER", "COLLECT_FROM_PARTNER"]),
@@ -115,6 +179,7 @@ export type SettlePartnerCommissionSchemaOutput = z.output<
 
 export type PartnerSarafiFormFieldErrors = Partial<
   Record<
+    | "customerId"
     | "name"
     | "phone"
     | "city"

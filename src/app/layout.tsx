@@ -36,8 +36,8 @@ const notoNaskhArabic = Noto_Naskh_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: "Saraf",
-  description: "Offline Sarafi Management System",
+  title: "ASMS",
+  description: "Afghan Sarafi Management System ASMS",
   icons: {
     icon: [{ url: "/icon.png", type: "image/png" }],
     apple: [{ url: "/icon.png", type: "image/png" }],

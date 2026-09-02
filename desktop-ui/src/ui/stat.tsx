@@ -12,7 +12,7 @@ export function Stat({
   valueSize?: string;
 }) {
   return (
-    <div className="stat-card">
+    <div className="stat-card" style={{ minHeight: "6.5rem" }}>
       <div className="stat-label">{label}</div>
       <div className="stat-value" style={{ fontSize: valueSize }}>
         {value}

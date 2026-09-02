@@ -1,0 +1,1168 @@
+/**
+ * Dark theme overrides — tokens live on html[data-theme="dark"] in styles.css.
+ * Light theme rules in styles.css are untouched; all dark adjustments live here.
+ */
+
+/* ── Per-screen accent (brighter on dark backgrounds) ── */
+
+html[data-theme="dark"] .app-shell[data-screen="dashboard"] {
+  --brand: #42d4a0;
+  --brand-deep: #2ea87a;
+  --brand-soft: rgba(66, 212, 160, 0.12);
+}
+
+html[data-theme="dark"] .dashboard-footer-link {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e8f6ef;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 8px 18px -14px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .dashboard-footer-link:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4fbf7;
+}
+
+html[data-theme="dark"] .app-shell[data-screen="cash"] {
+  --brand: #45c9cc;
+  --brand-deep: #2f9fa2;
+  --brand-soft: rgba(69, 201, 204, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="vaults"] {
+  --brand: #6aa0d4;
+  --brand-deep: #4f7fb0;
+  --brand-soft: rgba(106, 160, 212, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="customers"] {
+  --brand: #c99862;
+  --brand-deep: #a57845;
+  --brand-soft: rgba(201, 152, 98, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="exchange"] {
+  --brand: #d4ad52;
+  --brand-deep: #b08d38;
+  --brand-soft: rgba(212, 173, 82, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="hawala"] {
+  --brand: #5da8d8;
+  --brand-deep: #4285b0;
+  --brand-soft: rgba(93, 168, 216, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="partners"] {
+  --brand: #7fb068;
+  --brand-deep: #5f8a4d;
+  --brand-soft: rgba(127, 176, 104, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="trading"] {
+  --brand: #d48452;
+  --brand-deep: #b06438;
+  --brand-soft: rgba(212, 132, 82, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="capital"] {
+  --brand: #3ec498;
+  --brand-deep: #2a9670;
+  --brand-soft: rgba(62, 196, 152, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="expenses"] {
+  --brand: #d46a62;
+  --brand-deep: #b04e48;
+  --brand-soft: rgba(212, 106, 98, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="employees"] {
+  --brand: #8f82d8;
+  --brand-deep: #6f63b0;
+  --brand-soft: rgba(143, 130, 216, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="reports"] {
+  --brand: #6a9fd4;
+  --brand-deep: #4f7fb0;
+  --brand-soft: rgba(106, 159, 212, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="settings"] {
+  --brand: #7a8e98;
+  --brand-deep: #5c6d76;
+  --brand-soft: rgba(122, 142, 152, 0.12);
+}
+
+html[data-theme="dark"] .app-shell[data-screen="calculator"] {
+  --brand: #42d4a0;
+  --brand-deep: #2ea87a;
+  --brand-soft: rgba(66, 212, 160, 0.12);
+}
+
+/* ── Base typography & headings ── */
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-shell {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] label,
+html[data-theme="dark"] label > span,
+html[data-theme="dark"] .stat-label,
+html[data-theme="dark"] .report-summary-label,
+html[data-theme="dark"] .report-total-label,
+html[data-theme="dark"] .customer-list-name,
+html[data-theme="dark"] .customer-suggest-name,
+html[data-theme="dark"] .employee-card-name,
+html[data-theme="dark"] .employee-ledger-month-label,
+html[data-theme="dark"] .global-search-item-title,
+html[data-theme="dark"] .shortcut-action,
+html[data-theme="dark"] .report-tile-title,
+html[data-theme="dark"] .pl-statement-label,
+html[data-theme="dark"] .calculator-result-label,
+html[data-theme="dark"] .calculator-result-value,
+html[data-theme="dark"] .settings-general-grid > label > span {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .settings-general-hint,
+html[data-theme="dark"] .dash-quick-label,
+html[data-theme="dark"] .daybook-quick-hint,
+html[data-theme="dark"] .report-period-label,
+html[data-theme="dark"] .report-filters-title,
+html[data-theme="dark"] .customer-suggest-meta,
+html[data-theme="dark"] .global-search-item-meta,
+html[data-theme="dark"] .employee-card-meta,
+html[data-theme="dark"] .calculator-result-meta {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .stat-value,
+html[data-theme="dark"] th,
+html[data-theme="dark"] .daybook-journal-table th,
+html[data-theme="dark"] .global-search-group-label,
+html[data-theme="dark"] .report-print-header .brand,
+html[data-theme="dark"] .partner-kata-ccy {
+  color: var(--brand);
+}
+
+html[data-theme="dark"] .exchange-modal-section-title {
+  color: var(--brand);
+}
+
+/* Hardcoded dark-green label text from desk / hawala forms */
+html[data-theme="dark"] .hawala-form-compact .customer-search-wrap > span,
+html[data-theme="dark"] .fx-simple-top span,
+html[data-theme="dark"] .fx-simple-rate span,
+html[data-theme="dark"] .fx-simple-desc span,
+html[data-theme="dark"] .fx-simple-party span,
+html[data-theme="dark"] .fx-simple-line-label,
+html[data-theme="dark"] .fx-simple-rate-row span,
+html[data-theme="dark"] [data-desk-form] .fx-simple-top span,
+html[data-theme="dark"] [data-desk-form] .fx-simple-rate span,
+html[data-theme="dark"] [data-desk-form] .fx-simple-desc span,
+html[data-theme="dark"] [data-desk-form] .fx-simple-party span,
+html[data-theme="dark"] [data-desk-form] .fx-simple-rate-row span,
+html[data-theme="dark"] [data-desk-form] .movement-fx-board > span,
+html[data-theme="dark"] [data-desk-form] label:not(.hawala-whatsapp-check) > span {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .success-modal-message {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] [data-desk-form] .movement-fx-result-ccy > .muted {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .fx-simple-desc input {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--brand) 8%, var(--control-bg));
+}
+
+html[data-theme="dark"] .tx-line,
+html[data-theme="dark"] .tx-line-action,
+html[data-theme="dark"] .tx-line-who,
+html[data-theme="dark"] .tx-line-arrow,
+html[data-theme="dark"] .tx-line-sep,
+html[data-theme="dark"] .tx-line-suffix {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .tx-line-action,
+html[data-theme="dark"] .tx-line-arrow,
+html[data-theme="dark"] .tx-line-sep,
+html[data-theme="dark"] .tx-line-suffix {
+  color: var(--ink-soft);
+}
+
+/* ── Shell chrome, nav, menus ── */
+
+html[data-theme="dark"] .app-menu-btn {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--mix-light) 88%, var(--brand-soft)) 0%,
+    color-mix(in srgb, var(--control-bg) 92%, var(--brand-soft)) 100%
+  );
+  color: var(--brand);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 14px -12px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .app-menu-btn:hover {
+  background: linear-gradient(
+    160deg,
+    var(--surface-elevated) 0%,
+    color-mix(in srgb, var(--control-bg) 85%, var(--brand-soft)) 100%
+  );
+  color: var(--brand);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 18px -12px color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+html[data-theme="dark"] .app-chrome-actions {
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--brand) 18%, var(--control-bg)) 0%,
+    color-mix(in srgb, var(--brand-soft) 45%, var(--surface-solid)) 52%,
+    color-mix(in srgb, var(--brand) 12%, var(--control-bg)) 100%
+  );
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .app-tabbar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-elevated) 88%, var(--brand-soft)) 0%,
+    color-mix(in srgb, var(--control-bg) 90%, var(--brand-soft)) 100%
+  );
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .app-topbar {
+  background-color: #0f1613;
+  background-image: linear-gradient(165deg, #121a17 0%, #0f1613 48%, #141c19 100%);
+}
+
+html[data-theme="dark"] .nav-row,
+html[data-theme="dark"] .nav-curtain-nav {
+  background: color-mix(in srgb, var(--surface-solid) 82%, transparent);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .nav-link {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .nav-link:hover {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+html[data-theme="dark"] .nav-curtain-backdrop {
+  background: rgba(0, 0, 0, 0.52);
+}
+
+html[data-theme="dark"] .nav-curtain-panel {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-elevated) 95%, var(--brand-soft)) 0%,
+    color-mix(in srgb, var(--surface-solid) 92%, var(--brand-soft)) 100%
+  );
+  border-bottom-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+  box-shadow:
+    0 18px 40px -22px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .settings-menu-btn {
+  background: color-mix(in srgb, var(--control-bg) 75%, var(--brand-soft));
+  color: var(--brand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+html[data-theme="dark"] .settings-menu-user {
+  border-bottom-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+}
+
+html[data-theme="dark"] .settings-menu-user strong {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .settings-menu-panel {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-elevated) 95%, var(--brand-soft)) 0%,
+    color-mix(in srgb, var(--surface-solid) 90%, var(--brand-soft)) 100%
+  );
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+  box-shadow:
+    0 18px 40px -18px rgba(0, 0, 0, 0.65),
+    0 0 0 1px color-mix(in srgb, var(--brand) 10%, transparent);
+}
+
+html[data-theme="dark"] .settings-menu-item {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .settings-menu-item:hover {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  color: var(--brand);
+}
+
+/* ── Cards, panels, surfaces ── */
+
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .section-card,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .employees-sidebar,
+html[data-theme="dark"] .employees-ledger,
+html[data-theme="dark"] .partner-kata-card {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .card:hover,
+html[data-theme="dark"] .section-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--line));
+}
+
+html[data-theme="dark"] .dash-quick-panel {
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--brand) 12%, var(--surface-solid)) 0%,
+      var(--surface-solid) 48%
+    ),
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in srgb, var(--brand) 14%, transparent),
+      transparent 42%
+    );
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+}
+
+html[data-theme="dark"] .dash-quick-link {
+  background: color-mix(in srgb, var(--brand) 10%, var(--control-bg));
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .dash-quick-link:hover {
+  background: color-mix(in srgb, var(--brand) 18%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 30%, var(--line));
+}
+
+html[data-theme="dark"] .daybook-quick-link {
+  background: color-mix(in srgb, var(--brand) 10%, var(--control-bg));
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .daybook-quick-link:hover {
+  background: color-mix(in srgb, var(--brand) 18%, var(--control-bg));
+}
+
+html[data-theme="dark"] .exchange-modal-section,
+html[data-theme="dark"] .exchange-pnl-strip,
+html[data-theme="dark"] .exchange-live-pnl:not([data-positive="0"]) {
+  background: color-mix(in srgb, var(--brand) 10%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+}
+
+html[data-theme="dark"] .exchange-live-pnl[data-positive="0"] {
+  border-color: rgba(240, 122, 112, 0.32);
+  background: rgba(240, 122, 112, 0.1);
+}
+
+html[data-theme="dark"] .exchange-live-pnl[data-positive="0"] .exchange-live-pnl-value {
+  color: var(--money-out);
+}
+
+html[data-theme="dark"] .hawala-filters-more,
+html[data-theme="dark"] .hawala-ctx,
+html[data-theme="dark"] .hawala-extra-panel {
+  background: var(--panel-muted);
+  border-color: var(--panel-muted-border);
+}
+
+html[data-theme="dark"] .hawala-subblock,
+html[data-theme="dark"] .exchange-block {
+  border-top-color: var(--panel-muted-border);
+}
+
+html[data-theme="dark"] .capital-recon-row-vault {
+  background: color-mix(in srgb, var(--brand) 12%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+}
+
+/* ── Forms & inputs ── */
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background: var(--control-bg);
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 28%, var(--line-strong));
+}
+
+html[data-theme="dark"] input[type="search"],
+html[data-theme="dark"] input.desk-search,
+html[data-theme="dark"] .partner-search input,
+html[data-theme="dark"] .hawala-filter-grow input,
+html[data-theme="dark"] .tx-filter-search input,
+html[data-theme="dark"] .dc-search input,
+html[data-theme="dark"] .customer-search-wrap > input,
+html[data-theme="dark"] .global-search-input,
+html[data-theme="dark"] .report-period input,
+html[data-theme="dark"] .report-period select,
+html[data-theme="dark"] .report-filters input,
+html[data-theme="dark"] .report-filters select,
+html[data-theme="dark"] .tx-filter-bar input,
+html[data-theme="dark"] .tx-filter-bar select {
+  background: var(--control-bg);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+/* ── Buttons ── */
+
+html[data-theme="dark"] .button-link.secondary,
+html[data-theme="dark"] .btn:not(.primary):not(.btn-action--save):not(.btn-action--new):not(.btn-action--previous),
+html[data-theme="dark"] button.secondary {
+  background: color-mix(in srgb, var(--surface-solid) 78%, var(--brand-soft));
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+html[data-theme="dark"] button.secondary:hover:not(:disabled),
+html[data-theme="dark"] .btn:not(.primary):hover:not(:disabled),
+html[data-theme="dark"] .secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--surface-solid));
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--line));
+  filter: none;
+}
+
+html[data-theme="dark"] .btn.btn-action--cancel,
+html[data-theme="dark"] button.btn-action--cancel {
+  background: color-mix(in srgb, var(--surface-elevated) 90%, var(--line));
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+html[data-theme="dark"] .btn.btn-action--cancel:hover:not(:disabled),
+html[data-theme="dark"] button.btn-action--cancel:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand-soft) 35%, var(--surface-elevated));
+  color: var(--ink);
+}
+
+/* ── Quick action chips ── */
+
+html[data-theme="dark"] .quick-action-chip {
+  --qa-surface: color-mix(in srgb, var(--qa-accent) 14%, var(--control-bg));
+  color: color-mix(in srgb, var(--qa-accent) 55%, var(--ink));
+}
+
+html[data-theme="dark"] .quick-action-chip:hover {
+  background: color-mix(in srgb, var(--qa-accent) 22%, var(--control-bg));
+  color: color-mix(in srgb, var(--qa-accent) 75%, #fff);
+}
+
+/* ── Toggle groups (hawala mode, report period) ── */
+
+html[data-theme="dark"] .hawala-mode-toggle,
+html[data-theme="dark"] .report-period-presets {
+  background: var(--panel-muted-strong);
+}
+
+html[data-theme="dark"] .hawala-mode,
+html[data-theme="dark"] .report-period-preset {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .hawala-mode:hover:not(.active),
+html[data-theme="dark"] button.report-period-preset:hover:not(:disabled):not(.active) {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .hawala-mode.active,
+html[data-theme="dark"] .report-period-preset.active {
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Settings ── */
+
+html[data-theme="dark"] .settings-tabs {
+  background: color-mix(in srgb, var(--brand) 10%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 18%, var(--line));
+}
+
+html[data-theme="dark"] .settings-tab {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .settings-tab:hover {
+  background: color-mix(in srgb, var(--brand) 14%, var(--control-bg));
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .settings-tab.active {
+  color: #fff;
+}
+
+html[data-theme="dark"] .shortcut-row {
+  background: color-mix(in srgb, var(--brand) 8%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 16%, var(--line));
+}
+
+html[data-theme="dark"] .shortcut-key {
+  background: var(--surface-elevated);
+  color: var(--brand);
+  border-color: var(--line-strong);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* ── Badges ── */
+
+html[data-theme="dark"] .badge {
+  background: var(--panel-muted-strong);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .badge-ok {
+  background: rgba(66, 212, 160, 0.18);
+  color: #6ee8b8;
+}
+
+html[data-theme="dark"] .badge-warn {
+  background: rgba(212, 132, 82, 0.2);
+  color: #f0b088;
+}
+
+html[data-theme="dark"] .badge-info {
+  background: rgba(106, 160, 212, 0.2);
+  color: #9ec8f0;
+}
+
+html[data-theme="dark"] .badge-purple {
+  background: rgba(143, 130, 216, 0.2);
+  color: #c4b8f0;
+}
+
+html[data-theme="dark"] .badge-trade {
+  background: rgba(69, 201, 204, 0.18);
+  color: #7ee8ec;
+}
+
+html[data-theme="dark"] .badge-pending {
+  background: rgba(212, 162, 74, 0.2);
+  color: #e8c878;
+}
+
+html[data-theme="dark"] .badge-sent {
+  background: rgba(106, 160, 212, 0.2);
+  color: #9ec8f0;
+}
+
+html[data-theme="dark"] .badge-received {
+  background: rgba(66, 212, 160, 0.18);
+  color: #6ee8b8;
+}
+
+html[data-theme="dark"] .badge-completed {
+  background: var(--brand);
+  color: #fff;
+}
+
+html[data-theme="dark"] .badge-cancelled {
+  background: rgba(240, 122, 112, 0.18);
+  color: #f0a098;
+}
+
+html[data-theme="dark"] .badge-returned {
+  background: rgba(143, 130, 216, 0.18);
+  color: #c4b8f0;
+}
+
+html[data-theme="dark"] .hawala-step-num {
+  background: color-mix(in srgb, var(--brand) 22%, var(--control-bg));
+  color: var(--brand);
+}
+
+/* ── Tables & lists ── */
+
+html[data-theme="dark"] tbody tr:hover td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background: var(--table-row-hover);
+}
+
+html[data-theme="dark"] th {
+  background: color-mix(in srgb, var(--brand) 16%, var(--control-bg));
+  border-bottom-color: color-mix(in srgb, var(--brand) 35%, var(--line));
+}
+
+html[data-theme="dark"] .daybook-journal-scroll thead th {
+  background: color-mix(in srgb, var(--brand) 16%, var(--control-bg));
+}
+
+html[data-theme="dark"] .desk-context-menu {
+  background: var(--surface-solid);
+  border-color: var(--line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="dark"] .desk-context-menu button {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .desk-context-menu button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+html[data-theme="dark"] .employee-card {
+  background: var(--control-bg);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .employee-card.is-active {
+  background: color-mix(in srgb, var(--brand-soft) 40%, var(--surface-solid));
+  border-color: var(--brand);
+}
+
+html[data-theme="dark"] .partner-kata-owe-you strong {
+  color: var(--money-in);
+}
+
+html[data-theme="dark"] .partner-kata-owe-them strong {
+  color: var(--money-out);
+}
+
+html[data-theme="dark"] button.partner-settle-btn--pay:not(:disabled) {
+  background: color-mix(in srgb, var(--money-out, #f87171) 22%, var(--surface-solid));
+  color: var(--money-out, #f87171);
+  border-color: color-mix(in srgb, var(--money-out, #f87171) 45%, transparent);
+}
+
+html[data-theme="dark"] button.partner-settle-btn--collect:not(:disabled) {
+  background: color-mix(in srgb, var(--money-in, #4ade80) 22%, var(--surface-solid));
+  color: var(--money-in, #4ade80);
+  border-color: color-mix(in srgb, var(--money-in, #4ade80) 45%, transparent);
+}
+
+html[data-theme="dark"] .partner-settle-summary {
+  background: color-mix(in srgb, var(--brand-soft) 18%, var(--surface-solid));
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+}
+
+/* ── Modals, search, dropdowns ── */
+
+html[data-theme="dark"] .modal-backdrop,
+html[data-theme="dark"] .global-search-backdrop {
+  background: rgba(0, 0, 0, 0.62);
+}
+
+html[data-theme="dark"] .modal-panel,
+html[data-theme="dark"] .global-search-panel {
+  background: var(--surface-solid);
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .global-search-item:hover,
+html[data-theme="dark"] .global-search-item.is-active {
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--line));
+}
+
+html[data-theme="dark"] .customer-suggest,
+html[data-theme="dark"] .currency-suggest {
+  background: var(--surface-solid);
+  border-color: var(--line-strong);
+  box-shadow: 0 12px 28px -16px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .customer-suggest-item,
+html[data-theme="dark"] .currency-suggest-item {
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .customer-suggest-item:hover,
+html[data-theme="dark"] .customer-suggest-item.is-active,
+html[data-theme="dark"] .currency-suggest-item:hover,
+html[data-theme="dark"] .currency-suggest-item.is-active {
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--surface-solid)) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .ledger-description {
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--surface-solid));
+  border-color: color-mix(in srgb, var(--brand) 24%, var(--line));
+  color: var(--ink);
+}
+
+/* ── Reports ── */
+
+html[data-theme="dark"] .report-tab,
+html[data-theme="dark"] .report-tabs {
+  background: color-mix(in srgb, var(--surface-solid) 92%, #000);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .report-tab {
+  color: var(--ink-soft) !important;
+}
+
+html[data-theme="dark"] .report-tab:hover {
+  background: color-mix(in srgb, var(--brand-soft) 35%, var(--surface-solid)) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .report-tab.is-active,
+html[data-theme="dark"] .report-tab[data-tone].is-active {
+  background: color-mix(in srgb, var(--brand-soft) 50%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--line)) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="teal"] {
+  color: #6ec4bc !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="teal"].is-active {
+  background: color-mix(in srgb, #1f6f66 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #1f6f66 42%, var(--line)) !important;
+  color: #9ee0d8 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="green"] {
+  color: #7ec48a !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="green"].is-active {
+  background: color-mix(in srgb, #2f6b3a 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #2f6b3a 42%, var(--line)) !important;
+  color: #a8e8b4 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="blue"] {
+  color: #7eb4d4 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="blue"].is-active {
+  background: color-mix(in srgb, #2f5f7a 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #2f5f7a 42%, var(--line)) !important;
+  color: #a8d4f0 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="amber"] {
+  color: #d4b868 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="amber"].is-active {
+  background: color-mix(in srgb, #c49a3c 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #c49a3c 45%, var(--line)) !important;
+  color: #f0d888 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="rose"] {
+  color: #d49098 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="rose"].is-active {
+  background: color-mix(in srgb, #8a4a52 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #8a4a52 42%, var(--line)) !important;
+  color: #f0b0b8 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="violet"] {
+  color: #b0a0c8 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="violet"].is-active {
+  background: color-mix(in srgb, #5f4f72 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #5f4f72 42%, var(--line)) !important;
+  color: #d0c0e8 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="cyan"] {
+  color: #78c8d0 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="cyan"].is-active {
+  background: color-mix(in srgb, #2a6f78 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #2a6f78 42%, var(--line)) !important;
+  color: #a8e8f0 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="orange"] {
+  color: #d4a078 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="orange"].is-active {
+  background: color-mix(in srgb, #9a5a2a 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #9a5a2a 42%, var(--line)) !important;
+  color: #f0c098 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="slate"] {
+  color: #98a8a0 !important;
+}
+
+html[data-theme="dark"] .report-tab[data-tone="slate"].is-active {
+  background: color-mix(in srgb, #4d5b56 22%, var(--surface-solid)) !important;
+  border-color: color-mix(in srgb, #4d5b56 42%, var(--line)) !important;
+  color: #c0d0c8 !important;
+}
+
+html[data-theme="dark"] .report-summary-list,
+html[data-theme="dark"] .report-table-wrap,
+html[data-theme="dark"] .employee-ledger-monthly,
+html[data-theme="dark"] .employee-ledger-payments,
+html[data-theme="dark"] .pl-statement,
+html[data-theme="dark"] .report-tile,
+html[data-theme="dark"] .calculator-result {
+  background: var(--surface-solid);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] .report-summary-row:nth-child(even),
+html[data-theme="dark"] .employee-ledger-monthly-row:nth-child(even) {
+  background: color-mix(in srgb, var(--brand-soft) 40%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .employee-ledger-monthly-head {
+  background: color-mix(in srgb, var(--brand-soft) 45%, var(--control-bg));
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .pl-statement-row-in {
+  background: color-mix(in srgb, var(--money-in-bg) 70%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .pl-statement-row-out {
+  background: color-mix(in srgb, var(--money-out-bg) 70%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .pl-statement-net {
+  background: color-mix(in srgb, var(--brand-soft) 35%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .report-ledger th,
+html[data-theme="dark"] .daybook-journal-table th {
+  background: color-mix(in srgb, var(--brand-soft) 55%, var(--control-bg));
+  color: var(--ink);
+  border-bottom-color: var(--line-strong);
+}
+
+html[data-theme="dark"] .daybook-journal-table td.col-debit {
+  background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .daybook-journal-table td.col-credit {
+  background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .report-total {
+  background: var(--control-bg);
+}
+
+html[data-theme="dark"] .report-detail-bar {
+  background: var(--surface);
+}
+
+/* ── Calculator ── */
+
+html[data-theme="dark"] .calculator-result {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--brand-soft) 55%, var(--surface-solid)),
+    var(--surface-solid)
+  );
+}
+
+html[data-theme="dark"] .calculator-result-icon {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  color: var(--brand);
+}
+
+html[data-theme="dark"] .calculator-result-ccy {
+  color: var(--brand);
+}
+
+/* ── Liquid glass + dark ── */
+
+html[data-theme="dark"][data-ui="liquid-glass"] {
+  --lg-fill: rgba(28, 38, 34, 0.62);
+  --lg-fill-strong: rgba(34, 46, 42, 0.78);
+  --lg-fill-soft: rgba(24, 32, 28, 0.52);
+  --lg-border: rgba(232, 240, 236, 0.14);
+  --lg-border-dim: rgba(232, 240, 236, 0.08);
+  --lg-edge: rgba(255, 255, 255, 0.04);
+  --lg-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22);
+  --lg-shadow:
+    0 14px 36px -18px rgba(0, 0, 0, 0.55),
+    0 4px 14px -8px rgba(0, 0, 0, 0.35);
+  --surface: var(--lg-fill-strong);
+  --surface-solid: rgba(28, 38, 34, 0.92);
+  --control-bg: rgba(24, 34, 30, 0.88);
+
+  background-color: #0f1613;
+  background-image:
+    radial-gradient(ellipse 80% 55% at 12% -8%, rgba(66, 212, 160, 0.08), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 8%, rgba(66, 212, 160, 0.06), transparent 50%),
+    linear-gradient(165deg, #121a17 0%, #0f1613 48%, #141c19 100%);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .app-menu-btn,
+html[data-theme="dark"][data-ui="liquid-glass"] .settings-menu-btn {
+  background: var(--lg-fill-strong);
+  border-color: var(--lg-border);
+  color: var(--brand);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .app-menu-btn:hover,
+html[data-theme="dark"][data-ui="liquid-glass"] .settings-menu-btn:hover {
+  background: color-mix(in srgb, var(--lg-fill-strong) 88%, var(--brand-soft));
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .app-chrome-actions {
+  background: color-mix(in srgb, var(--brand) 18%, var(--lg-fill-strong));
+  border-color: var(--lg-border);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .app-tabbar {
+  background: color-mix(in srgb, var(--lg-fill-strong) 90%, var(--brand-soft));
+  border-color: var(--lg-border);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .nav-curtain-panel,
+html[data-theme="dark"][data-ui="liquid-glass"] .settings-menu-panel {
+  background: color-mix(in srgb, var(--lg-fill-strong) 90%, var(--brand-soft));
+  border-color: var(--lg-border);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .nav-curtain-nav,
+html[data-theme="dark"][data-ui="liquid-glass"] .nav-row {
+  background: var(--lg-fill);
+  border-color: var(--lg-border);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .card,
+html[data-theme="dark"][data-ui="liquid-glass"] .section-card,
+html[data-theme="dark"][data-ui="liquid-glass"] .stat-card,
+html[data-theme="dark"][data-ui="liquid-glass"] .modal-panel,
+html[data-theme="dark"][data-ui="liquid-glass"] .global-search-panel,
+html[data-theme="dark"][data-ui="liquid-glass"] input,
+html[data-theme="dark"][data-ui="liquid-glass"] select,
+html[data-theme="dark"][data-ui="liquid-glass"] textarea {
+  background: var(--lg-fill-strong);
+  border-color: var(--lg-border);
+  color: var(--ink);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] .quick-action-chip {
+  --qa-surface: color-mix(in srgb, var(--qa-accent) 16%, var(--lg-fill-strong));
+}
+
+html[data-theme="dark"] .hawala-form-compact .currency-picker-wrap > :first-child,
+html[data-theme="dark"] .hawala-compact-commission label > span,
+html[data-theme="dark"] .hawala-compact-commission .currency-picker-wrap > span {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .hawala-form-section-title {
+  color: var(--ink-faint);
+}
+
+html[data-theme="dark"] .hawala-form-section + .hawala-form-section {
+  border-top-color: var(--panel-muted-border);
+}
+
+html[data-theme="dark"] .cash-balance-card {
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--cash-accent, var(--brand)) 14%, var(--control-bg)) 0%,
+      var(--surface-solid) 55%
+    ),
+    var(--surface-solid);
+  border-color: color-mix(in srgb, var(--cash-accent, var(--brand)) 28%, var(--line));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="dark"] .cash-balance-code {
+  color: var(--cash-accent, var(--brand));
+}
+
+html[data-theme="dark"] .report-tile {
+  background: var(--surface-solid);
+  border-color: color-mix(in srgb, var(--brand) 22%, var(--line));
+}
+
+html[data-theme="dark"] .report-tile:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .report-tile-pinned {
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--brand) 16%, var(--control-bg)),
+    var(--surface-solid) 72%
+  );
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--line));
+}
+
+html[data-theme="dark"] .report-tile-blurb {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .settings-right-item {
+  background: color-mix(in srgb, var(--brand) 8%, var(--control-bg));
+  border-color: color-mix(in srgb, var(--brand) 18%, var(--line));
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .modal-header {
+  background: var(--surface-solid);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .modal-panel h2,
+html[data-theme="dark"] .modal-body {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] a.hawala-action-btn.secondary,
+html[data-theme="dark"] button.hawala-action-btn.secondary {
+  background: color-mix(in srgb, var(--surface-elevated) 90%, var(--line));
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+html[data-theme="dark"] .customer-opening-block {
+  background: var(--control-bg);
+  border-color: var(--line);
+}
+
+html[data-theme="dark"] td,
+html[data-theme="dark"] .report-summary-value {
+  color: var(--ink);
+}
+
+/* Dark mode: amount text only — no green/red column fill (light mode unchanged) */
+html[data-theme="dark"] td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] tbody tr:nth-child(even) td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] tbody tr:hover td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] td.col-amount.money-in,
+html[data-theme="dark"] tbody tr:nth-child(even) td.col-amount.money-in,
+html[data-theme="dark"] tbody tr:hover td.col-amount.money-in {
+  background: transparent !important;
+  color: var(--money-in);
+}
+
+html[data-theme="dark"] td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] tbody tr:nth-child(even) td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] tbody tr:hover td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] td.col-amount.money-out,
+html[data-theme="dark"] tbody tr:nth-child(even) td.col-amount.money-out,
+html[data-theme="dark"] tbody tr:hover td.col-amount.money-out {
+  background: transparent !important;
+  color: var(--money-out);
+}
+
+html[data-theme="dark"] td.money-neutral:not(.col-debit):not(.col-credit),
+html[data-theme="dark"] td.col-amount.money-neutral {
+  background: transparent !important;
+  color: var(--money-neutral);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] tbody tr:nth-child(even) td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] tbody tr:hover td.money-in:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] td.col-amount.money-in {
+  background: transparent !important;
+  color: var(--money-in);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] tbody tr:nth-child(even) td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] tbody tr:hover td.money-out:not(.col-debit):not(.col-credit),
+html[data-theme="dark"][data-ui="liquid-glass"] td.col-amount.money-out {
+  background: transparent !important;
+  color: var(--money-out);
+}
+
+html[data-theme="dark"] .report-ledger .col-when {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .reports-related a {
+  color: var(--brand);
+}
+
+html[data-theme="dark"] .link-btn {
+  color: var(--brand);
+}
+
+html[data-theme="dark"] .link-btn:hover:not(:disabled) {
+  color: color-mix(in srgb, var(--brand) 80%, #fff);
+}
+
+html[data-theme="dark"] .ok {
+  color: var(--brand);
+}
+
+html[data-theme="dark"] .error {
+  color: #f07a70;
+}
+
+html[data-theme="dark"] .field-error {
+  color: #f07a70;
+}
+
+html[data-theme="dark"] .hawala-whatsapp-panel {
+  background: rgba(37, 211, 102, 0.12);
+  border-color: rgba(37, 211, 102, 0.32);
+}
+
+html[data-theme="dark"] .hawala-whatsapp-btn {
+  color: #7ee8b0;
+  border-color: rgba(37, 211, 102, 0.35);
+}
+
+html[data-theme="dark"] .hawala-whatsapp-check {
+  color: var(--ink);
+}
+
+html[data-theme="dark"][data-ui="liquid-glass"] tbody tr:hover > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background: rgba(255, 255, 255, 0.06);
+}

@@ -1,7 +1,9 @@
 import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 
-type ModalSize = "md" | "lg";
+import { registerOverlayClose } from "@desktop/lib/overlay-stack";
+
+type ModalSize = "md" | "lg" | "wide" | "xl";
 
 export function Modal({
   title,
@@ -14,13 +16,24 @@ export function Modal({
   onClose: () => void;
   size?: ModalSize;
 }) {
+  useEffect(() => registerOverlayClose(onClose), [onClose]);
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
+
+  const sizeClass =
+    size === "lg"
+      ? " modal-panel-lg"
+      : size === "wide"
+        ? " modal-panel-wide"
+        : size === "xl"
+          ? " modal-panel-xl"
+          : "";
 
   return createPortal(
     <div
@@ -31,10 +44,11 @@ export function Modal({
       }}
     >
       <div
-        className={`modal-panel card stack${size === "lg" ? " modal-panel-lg" : ""}`}
+        className={`modal-panel card${sizeClass}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
           <h2>{title}</h2>
@@ -42,7 +56,7 @@ export function Modal({
             ✕
           </button>
         </div>
-        {children}
+        <div className="modal-body stack">{children}</div>
       </div>
     </div>,
     document.body,

@@ -4,6 +4,7 @@ import type { PartnerSarafi, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 
 export type CreatePartnerSarafiData = {
+  customerId: string;
   name: string;
   phone?: string | null;
   city?: string | null;
@@ -17,6 +18,7 @@ export type CreatePartnerSarafiData = {
 };
 
 export type UpdatePartnerSarafiData = {
+  customerId?: string | null;
   name?: string;
   phone?: string | null;
   city?: string | null;
@@ -44,6 +46,7 @@ export async function createPartnerSarafi(
 ): Promise<PartnerSarafi> {
   return prisma.partnerSarafi.create({
     data: {
+      customerId: data.customerId,
       name: data.name,
       phone: data.phone ?? null,
       city: data.city ?? null,
@@ -66,6 +69,19 @@ export async function findPartnerSarafiById(
     where: {
       id,
       ...(options.includeDeleted ? {} : notDeleted()),
+    },
+  });
+}
+
+export async function findLivePartnerByCustomerId(
+  customerId: string,
+  exceptId?: string,
+): Promise<PartnerSarafi | null> {
+  return prisma.partnerSarafi.findFirst({
+    where: {
+      customerId,
+      deletedAt: null,
+      ...(exceptId ? { id: { not: exceptId } } : {}),
     },
   });
 }
@@ -105,6 +121,7 @@ export async function updatePartnerSarafi(
   return prisma.partnerSarafi.update({
     where: { id },
     data: {
+      ...(data.customerId !== undefined ? { customerId: data.customerId } : {}),
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.phone !== undefined ? { phone: data.phone } : {}),
       ...(data.city !== undefined ? { city: data.city } : {}),

@@ -16,7 +16,15 @@ import { Typography } from "@/design-system/typography";
 import { useT } from "@/lib/i18n";
 import type { PartnerSarafiFieldErrors } from "@/features/partner-sarafi/actions/partner-sarafi-actions";
 
+export type PartnerCustomerOption = {
+  id: string;
+  label: string;
+  fullName: string;
+  phone: string | null;
+};
+
 export type PartnerSarafiFormValues = {
+  customerId: string;
   name: string;
   phone: string;
   city: string;
@@ -30,6 +38,7 @@ export type PartnerSarafiFormValues = {
 };
 
 export const emptyPartnerSarafiFormValues: PartnerSarafiFormValues = {
+  customerId: "",
   name: "",
   phone: "",
   city: "",
@@ -49,7 +58,9 @@ export type PartnerCurrencyOption = {
 
 type PartnerSarafiFormProps = {
   initialValues?: PartnerSarafiFormValues;
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
+  requireCustomer?: boolean;
   submitLabel: string;
   errorFallbackMessage: string;
   isBusy?: boolean;
@@ -69,7 +80,9 @@ type PartnerSarafiFormProps = {
 
 export function PartnerSarafiForm({
   initialValues = emptyPartnerSarafiFormValues,
+  customerOptions,
   currencyOptions,
+  requireCustomer = false,
   submitLabel,
   errorFallbackMessage,
   isBusy = false,
@@ -118,6 +131,10 @@ export function PartnerSarafiForm({
   }
 
   const disabled = isBusy || isSubmitting;
+  const customerLocked = Boolean(initialValues.customerId);
+  const customerMissingFromOptions =
+    Boolean(form.customerId) &&
+    !customerOptions.some((option) => option.id === form.customerId);
   const exampleFee =
     form.commissionEnabled &&
     Number(form.commissionPerAmount) > 0 &&
@@ -131,6 +148,47 @@ export function PartnerSarafiForm({
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <FieldGroup>
+        <Field data-invalid={fieldErrors.customerId ? true : undefined}>
+          <FieldLabel htmlFor="partner-customer">{t.partner.selectCustomer}</FieldLabel>
+          <select
+            id="partner-customer"
+            name="customerId"
+            value={form.customerId}
+            required={requireCustomer}
+            disabled={disabled || customerLocked}
+            aria-invalid={fieldErrors.customerId ? true : undefined}
+            className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50"
+            onChange={(event) => {
+              const nextId = event.target.value;
+              const selected = customerOptions.find((c) => c.id === nextId);
+              updateField("customerId", nextId);
+              if (selected) {
+                updateField("name", selected.fullName);
+                updateField("phone", selected.phone ?? "");
+              }
+            }}
+          >
+            <option value="">{t.partner.searchCustomers}</option>
+            {customerMissingFromOptions ? (
+              <option value={form.customerId}>{form.name}</option>
+            ) : null}
+            {customerOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+                {option.phone ? ` · ${option.phone}` : ""}
+              </option>
+            ))}
+          </select>
+          {customerLocked ? (
+            <p className="text-muted-foreground text-xs">
+              {t.partner.customerLinkedHint}
+            </p>
+          ) : null}
+          {fieldErrors.customerId ? (
+            <FieldError>{fieldErrors.customerId}</FieldError>
+          ) : null}
+        </Field>
+
         <Field data-invalid={fieldErrors.name ? true : undefined}>
           <FieldLabel htmlFor="partner-name">{t.common.name}</FieldLabel>
           <Input
@@ -138,7 +196,8 @@ export function PartnerSarafiForm({
             name="name"
             placeholder={t.common.name}
             value={form.name}
-            disabled={disabled}
+            disabled={disabled || Boolean(form.customerId)}
+            readOnly={Boolean(form.customerId)}
             aria-invalid={fieldErrors.name ? true : undefined}
             onChange={(event) => updateField("name", event.target.value)}
           />
@@ -152,7 +211,8 @@ export function PartnerSarafiForm({
             name="phone"
             type="tel"
             value={form.phone}
-            disabled={disabled}
+            disabled={disabled || Boolean(form.customerId)}
+            readOnly={Boolean(form.customerId)}
             aria-invalid={fieldErrors.phone ? true : undefined}
             onChange={(event) => updateField("phone", event.target.value)}
           />

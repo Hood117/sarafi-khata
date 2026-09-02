@@ -1,6 +1,6 @@
 # Saraf — Architecture / Product Decisions
 
-**Last updated:** 2026-08-09 (Reports Center / ADR-043)  
+**Last updated:** 2026-08-10 (Cash In/Out + customer overdraft / ADR-046)  
 **Related:** `docs/HANDOFF.md`, `docs/ROADMAP.md`
 
 Record of intentional decisions. Prefer appending new entries over rewriting history; mark superseded decisions clearly.
@@ -54,6 +54,9 @@ Record of intentional decisions. Prefer appending new entries over rewriting his
 | ADR-041 | Fixed hawala commissions (partner + own) |
 | ADR-042 | Desktop stack: React SPA + Tauri + native SQLite (supersedes ADR-002 Node sidecar) |
 | ADR-043 | Reports Center (native): read-only historical ledgers; green/red = money direction |
+| ADR-044 | One physical shop cash wallet: Main Vault (SYSTEM contras retained) |
+| ADR-045 | Unified sequential account numbers (Main Vault #1; customers #2+) |
+| ADR-046 | Main Vault Cash In/Out + customer overdraft balances |
 
 ---
 
@@ -70,7 +73,7 @@ These rules override convenience shortcuts:
 7. Execute every financial operation inside a single database transaction (`rusqlite` / formerly `prisma.$transaction()`).
 8. Preserve append-only ledger history; never permanently delete financial records.
 9. Extend the existing architecture only; do not refactor completed modules unless required to fix a bug or satisfy an explicit requirement.
-10. Normal operators must not pick internal wallets; resolve wallet IDs in the UI/feature layer before calling movement actions.
+10. Normal operators must not pick shop cash wallets; resolve **Main Vault** before calling movement actions (ADR-044). Hawala Clearing / Exchange Difference remain auto-resolved SYSTEM wallets.
 11. Dashboard and Reports are read-only; compose existing readers and never post money.
 12. Prefer app error boundaries for unexpected failures; mutation actions return typed `{ ok }` results (ADR-033).
 13. Never trust client-only flags for money policy (e.g. FX override) — enforce server-side (ADR-032).
@@ -536,6 +539,41 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028, ADR-032–033, ADR-043.
 
 ---
 
+## ADR-044 — One physical shop cash wallet: Main Vault (SYSTEM contras retained)
+
+- **Business decision:** This Sarafi runs on **one PC** and **one physical cash vault**. Operators must not choose among Cash Till, Main Vault, or other drawers.
+- **Shop cash:** Exactly one active cash storage wallet — **Main Vault** (`type = VAULT`). All desk money ops (deposit, withdrawal, walk-in FX, hawala cash leg, expenses, salary, owner capital, trading cash, partner settle) resolve to Main Vault via `resolve_shop_cash_wallet_id` / `ensure_main_vault` (`src-tauri/src/ledger/main_vault.rs`). Forms omit cash-wallet pickers.
+- **Migration (safe):** On schema compat, `ensure_single_main_vault_cash` transfers residual balances from other VAULT/TILL wallets into Main Vault with `TRANSFER` posts through `post_transaction`, then **soft-deactivates** those wallets. Ledger history is **not** deleted. Seed no longer creates Cash Till.
+- **STOP — do not merge these into Main Vault:**
+  1. **Hawala Clearing** (`SYSTEM`) — SEND must not inflate shop cash; clearing is the contra to customer / walk-in outbound. Cash and clearing must be different wallets; Main Vault cannot be both. See ADR-019.
+  2. **Exchange Difference** (`SYSTEM`) — Required so multi-currency EXCHANGE posts balance **per currency** without stuffing FX into cash balances. See ADR-023 / ADR-036.
+  3. **Opening Equity**, expense/commission/trading SYSTEM wallets — P&L and balancing accounts, not drawers.
+- **Customer balances** remain on CUSTOMER wallets by currency; unchanged.
+- **Consequence:** `list_wallets_page({ cashOnly: true })` returns only Main Vault. Reports/cash overview may still SUM historical VAULT/TILL rows that are inactive; new posts use Main Vault only. Do not hard-delete Cash Till or SYSTEM wallets.
+
+---
+
+## ADR-045 — Unified sequential account numbers (Main Vault #1; customers #2+)
+
+- **Decision:** One account-number system for the desk. **Main Vault = #1**. New customers receive **#2, #3, #4…** from `AccountNumberSequence` via `allocate_next_account_number` (`src-tauri/src/ledger/account_number.rs`). There is no 1001-style customer code and no separate operator-editable customer code field.
+- **Rules:** Auto-generate only; operators cannot edit; once assigned, never change or reuse (customer `code` is globally unique including archived rows). Customer wallets store the same number on `Wallet.code` for join/display fallback. SYSTEM wallets (Hawala Clearing, Exchange Difference, …) stay outside this user-facing sequence.
+- **Daybook:** Journal shows **one user-facing row per business transaction** (primary party — prefer customer, else partner, else Main Vault). Account number + **Opposite Account** (other displayable ledger party on the same `Transaction`). Running Balance column removed. Never hardcode counterparties; never show both debit/credit sides as duplicate business events. Descriptions use `Transaction.description` (not ledger memos).
+- **Wipe:** `scripts/wipe-business-data.mjs` clears business data, keeps schema/admin/SYSTEM/Main Vault, forces Main Vault `code = 1`, resets sequence `next = 2`. Does not delete migration files.
+- **Why:** Sarafi operators think in one continuous account book (vault then customers), not parallel code schemes.
+- **Consequence:** Supersedes the 1001 customer-code allocator and ADR-006’s *active-only* uniqueness **for customer codes** (phone uniqueness remains active-only). Do not modify `post_transaction` for numbering.
+
+---
+
+## ADR-046 — Main Vault Cash In/Out + customer overdraft balances
+
+- **Cash In / Cash Out (desk):** On `/vaults`, operators may add or remove physical cash in **Main Vault only** via `post_main_vault_cash_move`. Legs: Cash In = Main Vault **DEBIT** + Opening Equity **CREDIT**; Cash Out = Main Vault **CREDIT** + Opening Equity **DEBIT**. Posts through `post_transaction` as `ADJUSTMENT` with `customerId = null`. Cash Out still requires sufficient Main Vault cash. No second vault/wallet. History = `list_vault_movements` for Main Vault.
+- **Customer balances may go negative** (per currency). Removed customer-side “insufficient balance” blocks on withdraw, take-money, transfer, and Opening Kata TAKE. **Kept** Main Vault insufficient-cash checks. Ledger stays balanced; balances remain SUM(DEBIT−CREDIT).
+- **Meaning (display):** Positive = Sarafi holds money for the customer. Negative = customer owes Sarafi (overdrawn). Zero = settled. Shown on customer profile balance cards.
+- **Why:** Shop cash inject/extract without inventing drawers; allow customers to take more than on-hand (receivable), matching sarafi practice.
+- **Consequence:** Daybook shows one row per business transaction with debit/credit and Opposite Account from real postings. Do not reintroduce customer-balance gates without an ADR.
+
+---
+
 ## Superseded
 
 - **ADR-002** (Tauri + local Next.js sidecar as the desktop architecture) is **superseded by ADR-042** (React SPA + Tauri commands + rusqlite).
@@ -553,3 +591,6 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028, ADR-032–033, ADR-043.
 - **ADR-007** (permissions prepared, not enforced) is **superseded by ADR-030**.
 - Hawala-form slab rate overrides / RECEIVE partner accrual from **ADR-040** are **superseded by ADR-041** (fixed commissions; own fee posts to cash). Partner settle ADJUSTMENT path from ADR-040 remains.
 - Roadmap / handoff “do not start User Management” is **superseded by ADR-031** (implemented).
+- Roadmap / ADR text that framed day-to-day shop cash as Cash Till → Main Vault fallback is **superseded by ADR-044** (Main Vault only; Cash Till deactivated after consolidation).
+- ADR-024 / ROADMAP text that auto-resolved **Cash Till** as the preferred cash drawer is **superseded by ADR-044** for shop cash (Clearing / Diff remain auto-resolved SYSTEM).
+- Customer codes starting at **1001** / active-only reuse of archived codes (ADR-006 for `code`) are **superseded by ADR-045** (unified sequence; Main Vault #1; never reuse account numbers).

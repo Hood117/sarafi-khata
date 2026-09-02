@@ -21,6 +21,9 @@ import { fileURLToPath } from "node:url";
  * present (SARAF_LEGACY / build:desktop:prepare). Native SPA installers are ~5MB.
  */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const appVersion = JSON.parse(
+  readFileSync(path.join(root, "src-tauri", "tauri.conf.json"), "utf8"),
+).version;
 const archive = path.join(
   root,
   "src-tauri",
@@ -62,9 +65,10 @@ const bundleSetup = path.join(
   "release",
   "bundle",
   "nsis",
-  "Saraf_0.1.0_x64-setup.exe",
+  `ASMS_${appVersion}_x64-setup.exe`,
 );
-const distSetup = path.join(root, "dist", "Saraf_0.1.0_x64-setup.exe");
+const distSetup = path.join(root, "dist", `Saraf_${appVersion}_x64-setup.exe`);
+const distSetupAsms = path.join(root, "dist", `ASMS_${appVersion}_x64-setup.exe`);
 // Prefer Tauri's NSIS — tools/nsis often returns exit 259 on this host.
 const makensisCandidates = [
   path.join(process.env.LOCALAPPDATA || "", "tauri", "NSIS", "makensis.exe"),
@@ -73,6 +77,7 @@ const makensisCandidates = [
 const makensis =
   makensisCandidates.find((candidate) => existsSync(candidate)) ||
   makensisCandidates[0];
+const nsisSupportDir = path.join(root, "scripts", "nsis");
 
 /** Native SPA setup is ~5 MiB; legacy+sidecar is hundreds of MiB. */
 const MIN_INSTALLER_BYTES = 1_000_000;
@@ -163,11 +168,25 @@ function injectSidecarIntoNsi(nsi) {
   return next;
 }
 
+function stageNsisSupportFiles() {
+  if (!existsSync(nsiPath)) return;
+  const destDir = path.dirname(nsiPath);
+  for (const name of ["English.nsh", "FileAssociation.nsh"]) {
+    const src = path.join(nsisSupportDir, name);
+    const dest = path.join(destDir, name);
+    if (existsSync(src)) {
+      copyFileSync(src, dest);
+    }
+  }
+}
+
 function rebuildNsisInstaller() {
   if (!existsSync(nsiPath)) {
     console.warn("No installer.nsi yet; skip NSIS rebuild.");
     return false;
   }
+
+  stageNsisSupportFiles();
 
   let nsi = readFileSync(nsiPath, "utf8");
   nsi = injectSidecarIntoNsi(nsi);
@@ -239,9 +258,11 @@ function rebuildNsisInstaller() {
   copyFileSync(nsisOutput, bundleSetup);
   mkdirSync(path.dirname(distSetup), { recursive: true });
   copyFileSync(nsisOutput, distSetup);
+  copyFileSync(nsisOutput, distSetupAsms);
   console.log(
     `Installer ready: ${distSetup} (${(statSync(distSetup).size / 1024 / 1024).toFixed(1)} MiB)`,
   );
+  console.log(`Also: ${distSetupAsms}`);
   return true;
 }
 

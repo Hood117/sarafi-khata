@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<WalletType, string> = {
   VAULT: "Vault",
   TILL: "Till",
   CUSTOMER: "Customer",
+  PARTNER: "Partner",
   SYSTEM: "System",
 };
 

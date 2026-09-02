@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { useT } from "@desktop/i18n";
+
 export function Pagination({
   page,
   pageSize,
@@ -15,9 +17,10 @@ export function Pagination({
   onPageChange: (page: number) => void;
   label?: ReactNode;
 }) {
+  const t = useT();
   const totalPages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
   const current = Math.min(Math.max(1, page), totalPages);
-  if (total <= pageSize && current <= 1) {
+  if (total <= 0 && current <= 1) {
     return label ? (
       <p className="muted" style={{ margin: 0 }}>
         {label}
@@ -38,7 +41,7 @@ export function Pagination({
       <p className="muted" style={{ margin: 0 }}>
         {label ?? (
           <>
-            Showing page {current} of {totalPages} · {total} total
+            {t.common.showing} {current} {t.common.of} {totalPages} · {total}
           </>
         )}
       </p>
@@ -49,7 +52,7 @@ export function Pagination({
           disabled={busy || current <= 1}
           onClick={() => onPageChange(current - 1)}
         >
-          Previous
+          {t.common.previous}
         </button>
         <span className="muted" style={{ alignSelf: "center", fontSize: "0.85rem" }}>
           {current} / {totalPages}
@@ -60,7 +63,7 @@ export function Pagination({
           disabled={busy || current >= totalPages}
           onClick={() => onPageChange(current + 1)}
         >
-          Next
+          {t.common.next}
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
-//! Proprietary currency trading (Sarafi inventory) — not customer exchange.
+//! Currency trading inventory — desk EXCHANGE (Buy/Sell) also writes TradingTrade + inventory.
 
 pub mod ops;
 pub mod queries;
-mod util;
+pub mod util;

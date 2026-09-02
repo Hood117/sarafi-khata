@@ -50,7 +50,7 @@ function downloadBlob(filename: string, mime: string, content: string) {
 function defaultMeta(title: string, meta?: ReportExportMeta): ReportExportMeta {
   return {
     title,
-    companyName: "Saraf",
+    companyName: "ASMS",
     generatedAt: new Date().toLocaleString(),
     ...meta,
   };
@@ -64,7 +64,7 @@ export function downloadReportCsv(
 ) {
   const info = defaultMeta(filename, meta);
   const lines = [
-    escapeCsvValue(info.companyName ?? "Saraf"),
+    escapeCsvValue(info.companyName ?? "ASMS"),
     escapeCsvValue(info.title),
     info.periodLabel ? escapeCsvValue(`Period: ${info.periodLabel}`) : "",
     info.generatedAt ? escapeCsvValue(`Generated: ${info.generatedAt}`) : "",
@@ -95,7 +95,7 @@ export function downloadReportExcel(
   const info = defaultMeta(filename, meta);
   const columnCount = Math.max(columns.length, 1);
 
-  const titleRow = `<Row ss:StyleID="Title"><Cell ss:MergeAcross="${columnCount - 1}"><Data ss:Type="String">${escapeXml(info.companyName ?? "Saraf")}</Data></Cell></Row>`;
+  const titleRow = `<Row ss:StyleID="Title"><Cell ss:MergeAcross="${columnCount - 1}"><Data ss:Type="String">${escapeXml(info.companyName ?? "ASMS")}</Data></Cell></Row>`;
   const reportRow = `<Row ss:StyleID="Subtitle"><Cell ss:MergeAcross="${columnCount - 1}"><Data ss:Type="String">${escapeXml(info.title)}</Data></Cell></Row>`;
   const periodRow = info.periodLabel
     ? `<Row><Cell ss:MergeAcross="${columnCount - 1}"><Data ss:Type="String">${escapeXml(`Period: ${info.periodLabel}`)}</Data></Cell></Row>`
@@ -242,7 +242,7 @@ export function downloadReportPdf(
   <div class="sheet">
     <div class="brand">
       <div>
-        <h1>${escapeXml(info.companyName ?? "Saraf")}</h1>
+        <h1>${escapeXml(info.companyName ?? "ASMS")}</h1>
         <div class="title">${escapeXml(info.title)}</div>
         ${info.subtitle ? `<p class="subtitle">${escapeXml(info.subtitle)}</p>` : ""}
       </div>
@@ -261,7 +261,7 @@ export function downloadReportPdf(
     </table>`
     }
     <div class="footer">
-      <span>Offline Sarafi Management System</span>
+      <span>Afghan Sarafi Management System ASMS</span>
       <span>Confidential — for internal use</span>
     </div>
   </div>

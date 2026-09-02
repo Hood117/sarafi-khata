@@ -27,6 +27,45 @@ pub fn format_f64(v: f64) -> String {
   }
 }
 
+/// Format a major-unit amount string with thousands separators for human descriptions.
+pub fn format_amount_commas(raw: &str) -> String {
+  let cleaned = raw.replace(',', "").trim().to_string();
+  if cleaned.is_empty() {
+    return raw.trim().to_string();
+  }
+  let Ok(v) = cleaned.parse::<f64>() else {
+    return raw.trim().to_string();
+  };
+  if !v.is_finite() {
+    return cleaned;
+  }
+  let neg = v < 0.0;
+  let abs = v.abs();
+  let int_part = abs.floor() as u64;
+  let int_raw = int_part.to_string();
+  let mut grouped = String::new();
+  for (i, ch) in int_raw.chars().rev().enumerate() {
+    if i > 0 && i % 3 == 0 {
+      grouped.push(',');
+    }
+    grouped.push(ch);
+  }
+  let int_fmt: String = grouped.chars().rev().collect();
+  let mut out = if neg {
+    format!("-{int_fmt}")
+  } else {
+    int_fmt
+  };
+  if let Some((_, frac)) = cleaned.split_once('.') {
+    let frac = frac.trim_end_matches('0');
+    if !frac.is_empty() {
+      out.push('.');
+      out.push_str(frac);
+    }
+  }
+  out
+}
+
 pub fn require_nonempty(value: &str, field: &str) -> Result<String, crate::error::AppError> {
   let trimmed = value.trim().to_string();
   if trimmed.is_empty() {

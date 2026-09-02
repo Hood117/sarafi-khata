@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+/desktop-ui/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -56,8 +58,16 @@ next-env.d.ts
 
 # tauri
 /src-tauri/target
+/src-tauri/target-check
+/src-tauri/target-*
 /src-tauri/resources/next-server
 /src-tauri/resources/next-server.tar.gz
+
+# Cloudflare license server
+/license-server/node_modules
+/license-server/.wrangler
+/license-server/.dev.vars
+/license-server/dist
 /src-tauri/resources/next-server.tar.gz.meta.json
 /src-tauri/vendor/sqlite/*.obj
 /tools/nsis

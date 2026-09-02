@@ -115,7 +115,7 @@ export function AppSettingsForm({
             <Input
               id="settings-businessName"
               name="businessName"
-              placeholder="Saraf"
+              placeholder="ASMS"
               value={form.businessName}
               disabled={isSubmitting}
               aria-invalid={fieldErrors.businessName ? true : undefined}

@@ -4,9 +4,10 @@ use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::commands::authorize;
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::{now_sqlite};
+use crate::util::now_sqlite;
 
 const DEFAULT_PAGE_SIZE: i64 = 50;
 const MAX_PAGE_SIZE: i64 = 200;
@@ -77,6 +78,7 @@ pub fn list_currencies_page(
   let active_only = input.active_only.unwrap_or(true);
 
   let conn = state.db.lock();
+  let _actor = authorize::require_auth(&state, &conn)?;
   let mut where_sql = String::from("WHERE deletedAt IS NULL");
   if active_only {
     where_sql.push_str(" AND isActive = 1");
@@ -102,7 +104,10 @@ pub fn list_currencies_page(
     "SELECT id, code, name, symbol, decimalPlaces, isActive
      FROM Currency
      {where_sql}
-     ORDER BY code ASC
+     ORDER BY CASE
+       WHEN UPPER(code) IN ('AFN','AF') THEN 0
+       ELSE 1
+     END, code ASC
      LIMIT ?1 OFFSET ?2"
   ))?;
 
@@ -180,6 +185,7 @@ pub fn create_currency(
   let now = now_sqlite();
 
   let conn = state.db.lock();
+  let _actor = authorize::require_settings(&state, &conn)?;
 
   let existing: Option<(String, Option<String>)> = conn
     .query_row(
@@ -248,6 +254,7 @@ pub fn update_currency(
   let now = now_sqlite();
 
   let conn = state.db.lock();
+  let _actor = authorize::require_settings(&state, &conn)?;
   let existing = load_currency_by_id(&conn, &id)?;
   let places = input
     .decimal_places

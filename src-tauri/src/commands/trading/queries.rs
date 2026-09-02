@@ -4,6 +4,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::commands::authorize::{require_screen};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,6 +28,10 @@ pub fn list_trading_inventory(
   state: State<'_, AppState>,
 ) -> Result<Vec<TradingInventoryRow>, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
+  if !trading_trade_table_exists(&conn)? {
+    return Ok(Vec::new());
+  }
   let mut stmt = conn.prepare(
     "SELECT ti.currencyId, c.code, c.symbol,
             CAST(ti.quantity AS TEXT), CAST(ti.avgCost AS TEXT), pc.code,
@@ -133,12 +138,29 @@ pub struct TradingTradePage {
   pub page_size: i64,
 }
 
+fn trading_trade_table_exists(conn: &Connection) -> Result<bool, AppError> {
+  let exists: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='TradingTrade')",
+    [],
+    |row| row.get(0),
+  )?;
+  Ok(exists)
+}
+
 pub fn query_trades(
   conn: &Connection,
   input: &ListTradesInput,
 ) -> Result<TradingTradePage, AppError> {
   let page_size = input.page_size.unwrap_or(25).clamp(1, 100);
   let mut page = input.page.unwrap_or(1).max(1);
+  if !trading_trade_table_exists(conn)? {
+    return Ok(TradingTradePage {
+      items: Vec::new(),
+      total: 0,
+      page,
+      page_size,
+    });
+  }
   let mut where_sql = String::from("WHERE t.deletedAt IS NULL");
   let mut params_v: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -257,6 +279,7 @@ pub fn list_trading_trades(
   input: ListTradesInput,
 ) -> Result<TradingTradePage, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
   query_trades(&conn, &input)
 }
 
@@ -274,6 +297,9 @@ pub struct TradingDashboard {
 }
 
 fn sum_profit(conn: &Connection, from: &str, to: &str) -> Result<String, AppError> {
+  if !trading_trade_table_exists(conn)? {
+    return Ok("0".into());
+  }
   let v: String = conn.query_row(
     "SELECT CAST(COALESCE(SUM(CAST(grossProfit AS REAL)), 0) AS TEXT)
      FROM TradingTrade
@@ -292,6 +318,20 @@ pub fn get_trading_dashboard(
   let today = chrono::Local::now().format("%Y-%m-%d").to_string();
   let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
+
+  if !trading_trade_table_exists(&conn)? {
+    return Ok(TradingDashboard {
+      profit_today: "0".into(),
+      profit_month: "0".into(),
+      open_positions: 0,
+      buys_today: 0,
+      sales_today: 0,
+      closed_trades_month: 0,
+      inventory_cost_value: "0".into(),
+      recent_trades: Vec::new(),
+    });
+  }
 
   let recent = query_trades(
     &conn,

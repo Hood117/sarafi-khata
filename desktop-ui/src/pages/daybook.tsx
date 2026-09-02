@@ -1,521 +1,842 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getDaybookSnapshot, type DaybookSnapshot } from "@desktop/api";
+import {
+  getAppInfo,
+  getTransactionDetail,
+  listCurrenciesPage,
+  listDaybookJournal,
+  softDeleteMovement,
+  type CurrencyListItem,
+  type DaybookJournalLine,
+} from "@desktop/api";
 import { useAuth } from "@desktop/auth";
-import { todayIso } from "@desktop/lib/datetime";
-import { statusLabel } from "@desktop/lib/i18n-labels";
+import { DepositFormModal } from "@desktop/components/deposit-form-modal";
+import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
+import {
+  ExchangeDealDetailModal,
+  useExchangeDealDetailModal,
+} from "@desktop/components/exchange-deal-detail-modal";
+import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { OpeningBalanceFormModal, isOpeningBalanceMovement } from "@desktop/components/opening-balance-form-modal";
+import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
+import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
+import {
+  TransactionDetailModal,
+  clickableTxRowProps,
+  useTransactionDetailModal,
+} from "@desktop/components/transaction-detail-modal";
+import { TransferFormModal } from "@desktop/components/transfer-form-modal";
+import {
+  VaultCashFormModal,
+  isVaultCashMovement,
+  vaultCashDirectionFromTx,
+  type VaultCashDirection,
+} from "@desktop/components/vault-cash-form-modal";
+import { WithdrawFormModal } from "@desktop/components/withdraw-form-modal";
+import { useLocale, useT } from "@desktop/i18n";
+import {
+  colorizeAmountsInText,
+  descriptionToneFromJournalRow,
+} from "@desktop/lib/colorize-amounts";
+import { moneyToneClass } from "@desktop/lib/currency-labels";
+import { errorMessage, endSubmit, todayIso, tryBeginSubmit } from "@desktop/lib/datetime";
+import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { PageLoadError } from "@desktop/ui/page-load-error";
+import {
+  exportTable,
+  type ExportColumn,
+  type ExportRow,
+} from "@desktop/lib/export-table";
+import { statusLabel, transactionTypeLabel } from "@desktop/lib/i18n-labels";
+import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
+import {
+  printTransactionReceipt,
+  type TransactionReceiptLabels,
+} from "@desktop/lib/print-transaction-receipt";
+import {
+  visibleLedgerLines,
+  type AmountPart,
+} from "@desktop/lib/format-transaction-line";
+import { printDaybookLedger } from "@desktop/lib/print-daybook";
+import { IconWhatsApp } from "@desktop/icons";
+import { CurrencyFilter } from "@desktop/ui/currency-filter";
+import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
+import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Pagination } from "@desktop/ui/pagination";
-import { Stat } from "@desktop/ui/stat";
-import { useT } from "@desktop/i18n";
 
-function typeBadgeClass(type: string): string {
-  switch (type) {
-    case "DEPOSIT":
-      return "badge badge-ok";
-    case "WITHDRAWAL":
-      return "badge badge-warn";
-    case "EXCHANGE":
-      return "badge badge-info";
-    case "HAWALA":
-      return "badge badge-purple";
-    case "TRADE_BUY":
-    case "TRADE_SELL":
-      return "badge badge-trade";
-    default:
-      return "badge";
+function isEditableMovement(type: string, reference?: string | null) {
+  const t = type.toUpperCase();
+  return (
+    t === "DEPOSIT" ||
+    t === "WITHDRAWAL" ||
+    t === "TRANSFER" ||
+    t === "HAWALA" ||
+    t === "EXCHANGE" ||
+    isVaultCashMovement(type, reference) ||
+    isOpeningBalanceMovement(type, reference)
+  );
+}
+
+function displayAccountCode(code?: string | null): string {
+  return (code ?? "").trim().replace(/^#+/, "");
+}
+
+/** Opposite Account = other ledger party's account number (from postings). */
+function formatOppositeAccount(line: DaybookJournalLine): string {
+  const code = displayAccountCode(line.oppositeAccountCode);
+  if (code) return code;
+  const name = line.oppositeAccountName?.trim();
+  return name || "—";
+}
+
+function journalDebitClass(line: DaybookJournalLine): string {
+  if (!line.debit) return "col-amount col-debit";
+  const type = line.transactionType.toUpperCase();
+  if (type === "WITHDRAWAL" || type === "EXPENSE") {
+    return "col-amount col-debit money-out";
   }
+  return "col-amount col-debit money-in";
 }
 
-function downloadCsv(filename: string, rows: string[][]) {
-  const csv = rows
-    .map((r) =>
-      r
-        .map((cell) => {
-          const s = String(cell ?? "");
-          if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-          return s;
-        })
-        .join(","),
-    )
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function DaybookClock() {
-  const [clock, setClock] = useState(() => new Date().toLocaleTimeString());
-  useEffect(() => {
-    const id = window.setInterval(() => setClock(new Date().toLocaleTimeString()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  return <strong>{clock}</strong>;
+function journalCreditClass(line: DaybookJournalLine): string {
+  if (!line.credit) return "col-amount col-credit";
+  const type = line.transactionType.toUpperCase();
+  if (type === "DEPOSIT") {
+    return "col-amount col-credit money-in";
+  }
+  return "col-amount col-credit money-out";
 }
 
 export function DaybookPage() {
   const t = useT();
+  const { locale, dir } = useLocale();
+  const rtl = dir === "rtl";
   const { session } = useAuth();
   const [date, setDate] = useState(todayIso);
-  const [snap, setSnap] = useState<DaybookSnapshot | null>(null);
-  const [timelinePage, setTimelinePage] = useState(1);
-  const timelinePageSize = 25;
+  const [journal, setJournal] = useState<DaybookJournalLine[]>([]);
+  const [journalTotal, setJournalTotal] = useState(0);
+  const [journalPage, setJournalPage] = useState(1);
+  const [journalLimitDraft, setJournalLimitDraft] = useState("");
+  const [journalPageSize, setJournalPageSize] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [journalMenu, setJournalMenu] = useState<{
+    x: number;
+    y: number;
+    line: DaybookJournalLine;
+  } | null>(null);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [sendHawalaOpen, setSendHawalaOpen] = useState(false);
+  const [editDepositId, setEditDepositId] = useState<string | null>(null);
+  const [editWithdrawId, setEditWithdrawId] = useState<string | null>(null);
+  const [editTransferId, setEditTransferId] = useState<string | null>(null);
+  const [editExchangeId, setEditExchangeId] = useState<string | null>(null);
+  const [editHawalaId, setEditHawalaId] = useState<string | null>(null);
+  const [editHawalaDirection, setEditHawalaDirection] = useState<"SEND" | "RECEIVE">(
+    "SEND",
+  );
+  const [cashOpen, setCashOpen] = useState(false);
+  const [cashDirection, setCashDirection] = useState<VaultCashDirection>("CASH_IN");
+  const [editCashId, setEditCashId] = useState<string | null>(null);
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [editOpeningId, setEditOpeningId] = useState<string | null>(null);
+  const deleteSubmittingRef = useRef(false);
+  const txModal = useTransactionDetailModal();
+  const dealModal = useExchangeDealDetailModal();
 
-  const [moduleFilter, setModuleFilter] = useState("ALL");
-  const [txTypeFilter, setTxTypeFilter] = useState("ALL");
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
+  const [currencyFilter, setCurrencyFilter] = useState("ALL");
+  const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
+  const journalScrollRef = useRef<HTMLDivElement>(null);
+  const preferLatestPageRef = useRef(true);
+  /** Stay pinned to the newest rows until the user scrolls up. */
+  const stickJournalBottomRef = useRef(true);
 
   useEffect(() => {
     const id = window.setTimeout(() => setSearch(searchDraft.trim()), 300);
     return () => window.clearTimeout(id);
   }, [searchDraft]);
 
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const raw = journalLimitDraft.trim();
+      if (raw === "") {
+        setJournalPageSize(50);
+        return;
+      }
+      const n = Number.parseInt(raw, 10);
+      setJournalPageSize(Number.isFinite(n) && n > 0 ? Math.min(n, 500) : 50);
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [journalLimitDraft]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listCurrenciesPage({ activeOnly: true, pageSize: 100 })
+      .then((page) => {
+        if (!cancelled) setCurrencies(page.items);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrencies([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const s = await getDaybookSnapshot({
+      const j = await listDaybookJournal({
         businessDate: date,
-        module: moduleFilter === "ALL" ? undefined : moduleFilter,
-        txType: txTypeFilter === "ALL" ? undefined : txTypeFilter,
+        currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
         search: search || undefined,
-        timelinePage,
-        timelinePageSize,
+        page: journalPage,
+        pageSize: journalPageSize,
       });
-      setSnap(s);
+      setJournalTotal(j.total);
+      if (preferLatestPageRef.current) {
+        preferLatestPageRef.current = false;
+        const lastPage = Math.max(1, Math.ceil(j.total / journalPageSize) || 1);
+        if (lastPage !== journalPage) {
+          setJournalPage(lastPage);
+          setError(null);
+          return;
+        }
+      }
+      setJournal(j.items);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.loadDaybook));
     } finally {
       setBusy(false);
+      setHasLoaded(true);
     }
-  }, [date, moduleFilter, txTypeFilter, search, timelinePage]);
+  }, [date, currencyFilter, search, journalPage, journalPageSize, t.errors.loadDaybook]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   useEffect(() => {
-    setTimelinePage(1);
-  }, [date, moduleFilter, txTypeFilter, search]);
+    preferLatestPageRef.current = true;
+    stickJournalBottomRef.current = true;
+    setJournalPage(1);
+  }, [date, currencyFilter, search, journalPageSize]);
 
-  function exportDaybook() {
-    if (!snap) return;
-    downloadCsv(`daybook-${snap.businessDate}.csv`, [
-      [t.dailyBook.csvSection, t.dailyBook.csvMetric, t.dailyBook.csvValue],
-      [t.dailyBook.summary, t.dailyBook.totalTransactions, String(snap.dailySummary.totalTransactions)],
-      [t.dailyBook.summary, t.dailyBook.cashIn, snap.dailySummary.cashIn],
-      [t.dailyBook.summary, t.dailyBook.cashOut, snap.dailySummary.cashOut],
-      [t.dailyBook.summary, t.dailyBook.netProfit, snap.dailySummary.netProfit],
-      [t.desk.profit, t.nav.trading, snap.profit.tradingProfit],
-      [t.desk.profit, t.partner.commission, snap.profit.commissionIncome],
-      [t.nav.hawala, t.status.pending, String(snap.hawala.pending)],
-      [t.nav.hawala, t.dailyBook.commissionEarned, snap.hawala.commissionEarned],
-      ...snap.cashPosition.map((r) => [
-        t.nav.cash,
-        r.currencyCode,
-        `open ${r.opening} / in ${r.received} / out ${r.paid} / close ${r.expectedClosing}`,
-      ]),
-      ...snap.timeline.map((r) => [
-        t.desk.timeline,
-        r.reference,
-        `${r.time} ${r.transactionType} ${r.amount ?? ""} ${r.currencyCode ?? ""}`,
-      ]),
-    ]);
+  useEffect(() => {
+    const el = journalScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickJournalBottomRef.current = gap < 56;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [journal.length > 0]);
+
+  useEffect(() => {
+    const el = journalScrollRef.current;
+    if (!el || journal.length === 0 || busy) return;
+    if (!stickJournalBottomRef.current) return;
+    const id = window.requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [journal, busy]);
+
+  useEffect(() => {
+    const onSaved = () => {
+      preferLatestPageRef.current = true;
+      stickJournalBottomRef.current = true;
+      void load();
+    };
+    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
+  }, [load]);
+
+  function openTxOrDeal(id: string, type: string) {
+    if (type.toUpperCase() === "EXCHANGE") void dealModal.open(id);
+    else void txModal.open(id);
+  }
+
+  function openJournalRow(line: DaybookJournalLine) {
+    openTxOrDeal(line.transactionId, line.transactionType);
+  }
+
+  function handleEditMovement(id: string, type: string, reference?: string | null) {
+    const cashDir = vaultCashDirectionFromTx(type, reference);
+    if (cashDir) {
+      setCashDirection(cashDir);
+      setEditCashId(id);
+      setCashOpen(true);
+      return;
+    }
+    if (isOpeningBalanceMovement(type, reference)) {
+      setEditOpeningId(id);
+      setOpeningOpen(true);
+      return;
+    }
+    const upper = type.toUpperCase();
+    if (upper === "DEPOSIT") {
+      setEditDepositId(id);
+      setDepositOpen(true);
+      return;
+    }
+    if (upper === "WITHDRAWAL") {
+      setEditWithdrawId(id);
+      setWithdrawOpen(true);
+      return;
+    }
+    if (upper === "TRANSFER") {
+      setEditTransferId(id);
+      setTransferOpen(true);
+      return;
+    }
+    if (upper === "EXCHANGE") {
+      setEditExchangeId(id);
+      setExchangeOpen(true);
+      return;
+    }
+    if (upper === "HAWALA") {
+      setEditHawalaId(id);
+      setEditHawalaDirection("SEND");
+      setSendHawalaOpen(true);
+      return;
+    }
+    openTxOrDeal(id, type);
+  }
+
+  async function handleDeleteMovement(id: string, reference: string) {
+    if (!session) return;
+    const ok = window.confirm(
+      t.desk.deleteTxConfirm.replace("{reference}", reference),
+    );
+    if (!ok) return;
+    if (!tryBeginSubmit(deleteSubmittingRef)) return;
+    setError(null);
+    try {
+      await softDeleteMovement({
+        id,
+        createdById: session.userId,
+      });
+      void load();
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    } finally {
+      endSubmit(deleteSubmittingRef);
+    }
+  }
+
+  async function handlePrintMovement(line: DaybookJournalLine) {
+    try {
+      const [detail, appInfo] = await Promise.all([
+        getTransactionDetail(line.transactionId),
+        getAppInfo(),
+      ]);
+      const amounts: AmountPart[] = visibleLedgerLines(detail.lines).map((l) => ({
+        sign: l.direction === "DEBIT" ? ("+" as const) : ("−" as const),
+        currency: l.currencyCode,
+        amount: l.amount,
+      }));
+      const labels: TransactionReceiptLabels = {
+        receiptTitle: t.transactions.receipt,
+        reference: t.common.reference,
+        date: t.common.date,
+        time: t.desk.currentTime,
+        customer: t.common.customer,
+        type: t.common.type,
+        amount: t.common.amount,
+        currency: t.common.currency,
+        description: t.common.description,
+        status: t.common.status,
+        thankYou: t.transactions.thankYou,
+        sender: t.common.sender,
+        receiver: t.common.receiver,
+        cashier: t.users.cashier,
+        print: t.desk.printPdf,
+      };
+      printTransactionReceipt({
+        businessName: appInfo.name?.trim() || "ASMS",
+        detail,
+        amounts,
+        typeLabel: transactionTypeLabel(t, detail.type),
+        statusLabel: statusLabel(t, detail.status),
+        labels,
+        txLineLabels: t.txLine,
+      });
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function handleDaybookWhatsApp(transactionId: string) {
+    setWhatsappBusyId(transactionId);
+    setError(null);
+    try {
+      const result = await sendHawalaWhatsAppToPartner(
+        transactionId,
+        t.hawala.whatsappMessage,
+      );
+      if (!result.ok) {
+        setError(
+          result.reason === "missing_phone"
+            ? t.hawala.whatsappPartnerMissingPhone
+            : result.error || t.errors.loadGeneric,
+        );
+      }
+    } finally {
+      setWhatsappBusyId(null);
+    }
+  }
+
+  function journalContextItems(line: DaybookJournalLine) {
+    const editable = isEditableMovement(line.transactionType, line.reference);
+    const isHawala = line.transactionType.toUpperCase() === "HAWALA";
+    return [
+      {
+        id: "edit",
+        label: t.common.editAction,
+        disabled: !editable,
+        onSelect: () =>
+          handleEditMovement(line.transactionId, line.transactionType, line.reference),
+      },
+      {
+        id: "delete",
+        label: t.common.delete,
+        danger: true,
+        disabled: !editable,
+        onSelect: () => void handleDeleteMovement(line.transactionId, txDisplayRef(line)),
+      },
+      {
+        id: "print",
+        label: t.transactions.printReceipt,
+        onSelect: () => void handlePrintMovement(line),
+      },
+      ...(isHawala
+        ? [
+            {
+              id: "whatsapp",
+              label: t.hawala.sendWhatsApp,
+              onSelect: () => {
+                void (async () => {
+                  const result = await sendHawalaWhatsAppToPartner(
+                    line.transactionId,
+                    t.hawala.whatsappMessage,
+                  );
+                  if (!result.ok) {
+                    setError(
+                      result.reason === "missing_phone"
+                        ? t.hawala.whatsappPartnerMissingPhone
+                        : result.error || t.errors.loadGeneric,
+                    );
+                  }
+                })();
+              },
+            },
+          ]
+        : []),
+    ];
+  }
+
+  function journalExportColumns(): ExportColumn[] {
+    return [
+      { key: "rowNo", header: t.dailyBook.rowNo, kind: "count" },
+      { key: "valueDate", header: t.common.date, kind: "date" },
+      { key: "accountCode", header: t.dailyBook.accountCode, kind: "ref" },
+      { key: "accountName", header: t.dailyBook.accountName, kind: "text" },
+      { key: "oppositeAccount", header: t.dailyBook.oppositeAccount, kind: "text" },
+      { key: "description", header: t.common.description, kind: "description" },
+      { key: "debit", header: t.dailyBook.debit, kind: "amount" },
+      { key: "credit", header: t.dailyBook.credit, kind: "amount" },
+      { key: "balanceAfter", header: t.common.balance, kind: "amount" },
+      { key: "currencyCode", header: t.dailyBook.currencyType, kind: "text" },
+      { key: "reference", header: t.common.reference, kind: "ref" },
+    ];
+  }
+
+  function toExportRows(lines: DaybookJournalLine[]): ExportRow[] {
+    return lines.map((r) => {
+      const debitCls = journalDebitClass(r);
+      const creditCls = journalCreditClass(r);
+      const debitTone = debitCls.includes("money-in")
+        ? "in"
+        : debitCls.includes("money-out")
+          ? "out"
+          : "";
+      const creditTone = creditCls.includes("money-in")
+        ? "in"
+        : creditCls.includes("money-out")
+          ? "out"
+          : "";
+      const balTone = moneyToneClass(r.balanceAfter);
+      return {
+        rowNo: String(r.rowNo),
+        valueDate: r.valueDate,
+        accountCode: displayAccountCode(r.accountCode),
+        accountName: r.accountName || "",
+        oppositeAccount: formatOppositeAccount(r),
+        description: r.description || "",
+        debit: r.debit || "",
+        credit: r.credit || "",
+        balanceAfter: r.balanceAfter
+          ? `${r.balanceAfter} ${r.currencyCode}`.trim()
+          : "",
+        currencyCode: r.currencyCode || "",
+        reference: txDisplayRef(r) || "",
+        _debitTone: debitTone,
+        _creditTone: creditTone,
+        _balanceTone: balTone.includes("money-in")
+          ? "in"
+          : balTone.includes("money-out")
+            ? "out"
+            : "",
+      };
+    });
+  }
+
+  async function fetchAllJournalLines(): Promise<DaybookJournalLine[]> {
+    const pageSize = 100;
+    let page = 1;
+    let totalPages = 1;
+    const all: DaybookJournalLine[] = [];
+    while (page <= totalPages) {
+      const j = await listDaybookJournal({
+        businessDate: date,
+        currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
+        search: search || undefined,
+        page,
+        pageSize,
+      });
+      all.push(...j.items);
+      totalPages = Math.max(1, Math.ceil(j.total / j.pageSize) || 1);
+      if (j.items.length === 0) break;
+      page += 1;
+    }
+    return all;
+  }
+
+  async function handleExportCsv() {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      const lines = await fetchAllJournalLines();
+      const path = await exportTable(
+        `daybook-${date}`,
+        journalExportColumns(),
+        toExportRows(lines),
+        {
+          title: t.nav.dailyBook,
+          businessName: "ASMS",
+          periodLabel: date,
+          subtitle:
+            currencyFilter === "ALL"
+              ? t.dailyBook.allCurrencies
+              : currencyFilter,
+          generatedBy: session?.fullName ?? undefined,
+          generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
+          rtl,
+        },
+      );
+      if (path) {
+        window.alert(`${t.desk.exportCsv}\n${path}`);
+      }
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
+  async function handlePrintPdf() {
+    if (exportBusy) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      const [lines, appInfo] = await Promise.all([
+        fetchAllJournalLines(),
+        getAppInfo().catch(() => null),
+      ]);
+      printDaybookLedger({
+        columns: journalExportColumns(),
+        rows: toExportRows(lines),
+        meta: {
+          title: t.nav.dailyBook,
+          businessName: appInfo?.name?.trim() || "ASMS",
+          businessDate: date,
+          currencyFilter:
+            currencyFilter === "ALL" ? t.dailyBook.allCurrencies : currencyFilter,
+          generatedBy: session?.fullName ?? undefined,
+          generatedAt: new Date().toLocaleString(),
+        },
+        emptyLabel: t.dailyBook.noJournalLines,
+        printLabel: t.desk.printPdf,
+      });
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    } finally {
+      setExportBusy(false);
+    }
   }
 
   return (
     <div className="stack daybook-page">
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.dailyBook}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            Live day view — ledger, hawala, trading, and cash by date.
-          </p>
+      <div
+        className="section-card row daybook-filters no-print"
+        style={{ flexWrap: "wrap", alignItems: "end" }}
+      >
+        <label className="daybook-journal-date" style={{ margin: 0 }}>
+          <span className="muted">{t.common.date}</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next) setDate(next);
+            }}
+            aria-label={t.common.date}
+          />
+        </label>
+        <div style={{ margin: 0, minWidth: 160 }}>
+          <CurrencyFilter
+            currencies={currencies}
+            value={currencyFilter === "ALL" ? "" : currencyFilter}
+            onChange={(code) => setCurrencyFilter(code || "ALL")}
+            allLabel={t.dailyBook.allCurrencies}
+          />
         </div>
-        <div className="row no-print" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
-          <button type="button" className="btn" onClick={() => void load()} disabled={busy}>
-            {t.desk.refresh}
+        <label style={{ margin: 0, minWidth: 200, flex: 1 }}>
+          {t.common.search}
+          <input
+            type="search"
+            className="desk-search"
+            value={searchDraft}
+            placeholder={t.common.search}
+            onChange={(e) => setSearchDraft(e.target.value)}
+          />
+        </label>
+        <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap", marginInlineStart: "auto" }}>
+          <button
+            type="button"
+            className="btn"
+            data-desk-action="print"
+            data-desk-primary
+            disabled={exportBusy}
+            onClick={() => void handlePrintPdf()}
+          >
+            {exportBusy ? t.common.loading : t.desk.printPdf}
           </button>
-          <button type="button" className="btn" onClick={() => window.print()}>
-            {t.desk.printPdf}
-          </button>
-          <button type="button" className="btn" onClick={exportDaybook} disabled={!snap}>
+          <button
+            type="button"
+            className="btn"
+            disabled={exportBusy}
+            onClick={() => void handleExportCsv()}
+          >
             {t.desk.exportCsv}
           </button>
         </div>
       </div>
 
-      <div className="section-card row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div className="row" style={{ gap: "1.25rem", flexWrap: "wrap" }}>
-          <label className="stack" style={{ gap: "0.15rem" }}>
-            <span className="muted" style={{ fontSize: "0.75rem" }}>
-              {t.desk.businessDate}
-            </span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </label>
-          <div>
-            <div className="muted" style={{ fontSize: "0.75rem" }}>
-              {t.desk.currentTime}
-            </div>
-            <DaybookClock />
-          </div>
-          <div>
-            <div className="muted" style={{ fontSize: "0.75rem" }}>
-              {t.desk.loggedInUser}
-            </div>
-            <strong>{session?.fullName ?? "—"}</strong>
-          </div>
-        </div>
-      </div>
+      {error ? <PageLoadError message={error} onRetry={() => void load()} /> : null}
+      {busy && !hasLoaded ? <p className="muted">{t.common.loading}</p> : null}
 
-      {error ? <p className="error">{error}</p> : null}
-      {busy && !snap ? <p className="muted">{t.common.loading}</p> : null}
-
-      {snap ? (
+      {hasLoaded ? (
         <>
-          <div className="report-print-header stack" style={{ gap: "0.15rem" }}>
-            <div className="brand">Saraf · Daybook</div>
-            <div className="muted" style={{ fontSize: "0.85rem" }}>
-              {snap.businessDate} · Generated by {session?.fullName} · {new Date().toLocaleString()}
-            </div>
-          </div>
-
-          {/* Daily summary */}
-          <section className="stack">
-            <h2 className="section-title">{t.desk.dailySummary}</h2>
-            <div className="stat-grid">
-              <Stat label={t.dailyBook.totalTransactions} value={snap.dailySummary.totalTransactions} />
-              <Stat label={t.dailyBook.cashIn} value={snap.dailySummary.cashIn} />
-              <Stat label={t.dailyBook.cashOut} value={snap.dailySummary.cashOut} />
-              <Stat label={t.dailyBook.exchange} value={snap.dailySummary.exchangeTransactions} />
-              <Stat label={t.nav.hawala} value={snap.dailySummary.hawalaTransactions} />
-              <Stat label={t.nav.trading} value={snap.dailySummary.tradingTransactions} />
-              <Stat label={t.reports.deposits} value={snap.dailySummary.customerDeposits} />
-              <Stat label={t.reports.withdrawals} value={snap.dailySummary.customerWithdrawals} />
-              <Stat label={t.dailyBook.todaysProfit} value={snap.dailySummary.todaysProfit} />
-              <Stat label={t.dailyBook.todaysExpenses} value={snap.dailySummary.todaysExpenses} />
-              <Stat label={t.dailyBook.netProfit} value={snap.dailySummary.netProfit} />
-            </div>
-          </section>
-
-          {/* Alerts */}
-          {snap.alerts.length > 0 ? (
-            <section className="section-card stack">
-              <h2>{t.desk.alerts}</h2>
-              <div className="stack" style={{ gap: "0.4rem" }}>
-                {snap.alerts.map((a) => (
-                  <div
-                    key={`${a.code}-${a.message}`}
-                    className={
-                      a.severity === "critical"
-                        ? "badge badge-warn"
-                        : a.severity === "warn"
-                          ? "badge badge-warn"
-                          : "badge badge-info"
-                    }
-                    style={{ display: "block", padding: "0.45rem 0.7rem" }}
-                  >
-                    <strong>{a.code}</strong> — {a.message}
-                  </div>
-                ))}
+          <section className="section-card stack daybook-journal-section">
+              <div
+                className="row no-print"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                }}
+              >
+              <div>
+                <h2 className="section-title" style={{ margin: 0 }}>
+                  {t.dailyBook.journal}
+                </h2>
+                <p className="muted" style={{ margin: "0.25rem 0 0" }}>
+                  {t.dailyBook.activityRecordsHint}
+                </p>
               </div>
-            </section>
-          ) : (
-            <section className="section-card">
-              <h2>{t.desk.alerts}</h2>
+              <div
+                className="row no-print"
+                style={{ flexWrap: "wrap", alignItems: "end" }}
+              >
+                <label style={{ margin: 0, minWidth: 140 }}>
+                  {t.dailyBook.activityRecords}
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    inputMode="numeric"
+                    placeholder={t.dailyBook.activityAllDay}
+                    value={journalLimitDraft}
+                    onChange={(e) => setJournalLimitDraft(e.target.value)}
+                  />
+                </label>
+                {journalTotal > 0 ? (
+                  <p className="muted" style={{ margin: 0, paddingBottom: "0.35rem" }}>
+                    {t.dailyBook.activityShowing
+                      .replace("{shown}", String(journal.length))
+                      .replace("{total}", String(journalTotal))}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            {journal.length === 0 && !busy ? (
               <p className="muted" style={{ margin: 0 }}>
-                No issues requiring attention.
+                {t.dailyBook.noJournalLines}
               </p>
-            </section>
-          )}
-
-          {/* Cash position */}
-          <section className="section-card stack">
-            <h2>{t.desk.cashPosition}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>{t.common.currency}</th>
-                  <th>{t.common.opening}</th>
-                  <th>{t.common.received}</th>
-                  <th>{t.dailyBook.paid}</th>
-                  <th>{t.dailyBook.closing}</th>
-                  <th>{t.common.difference}</th>
-                  <th>{t.dailyBook.flag}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snap.cashPosition.map((row) => (
-                  <tr
-                    key={row.currencyId}
-                    style={{
-                      background:
-                        row.flag === "SHORTAGE"
-                          ? "rgba(180,40,40,0.08)"
-                          : row.flag === "OVERAGE"
-                            ? "rgba(180,140,20,0.1)"
-                            : undefined,
-                    }}
-                  >
-                    <td>
-                      <strong>{row.currencyCode}</strong>
-                    </td>
-                    <td>{row.opening}</td>
-                    <td>{row.received}</td>
-                    <td>{row.paid}</td>
-                    <td>{row.expectedClosing}</td>
-                    <td>{row.difference ?? "—"}</td>
-                    <td>
-                      <span
-                        className={
-                          row.flag === "OK" ? "badge badge-ok" : "badge badge-warn"
-                        }
-                      >
-                        {row.flag}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          {/* Currency summary */}
-          <section className="section-card stack">
-            <h2>{t.dailyBook.currencySummary}</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>{t.common.currency}</th>
-                  <th>{t.common.opening}</th>
-                  <th>{t.dailyBook.purchased}</th>
-                  <th>{t.dailyBook.sold}</th>
-                  <th>{t.dailyBook.deposited}</th>
-                  <th>{t.dailyBook.withdrawn}</th>
-                  <th>{t.dailyBook.transferred}</th>
-                  <th>{t.dailyBook.closing}</th>
-                  <th>{t.desk.inventory}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snap.currencySummary.map((row) => (
-                  <tr key={row.currencyCode}>
-                    <td>{row.currencyCode}</td>
-                    <td>{row.openingBalance}</td>
-                    <td>{row.purchased}</td>
-                    <td>{row.sold}</td>
-                    <td>{row.deposited}</td>
-                    <td>{row.withdrawn}</td>
-                    <td>{row.transferred}</td>
-                    <td>{row.closingBalance}</td>
-                    <td>{row.inventoryValue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          <div className="dash-grid">
-            <section className="section-card stack">
-              <h2>{t.dailyBook.profitSummary}</h2>
-              <div className="stat-grid">
-                <Stat label={t.dailyBook.exchangeProfit} value={snap.profit.exchangeProfit} />
-                <Stat label={t.dailyBook.tradingProfit} value={snap.profit.tradingProfit} />
-                <Stat label={t.partner.commission} value={snap.profit.commissionIncome} />
-                <Stat label={t.dailyBook.expenses} value={snap.profit.expenses} />
-                <Stat label={t.dailyBook.netDailyProfit} value={snap.profit.netDailyProfit} />
-              </div>
-            </section>
-
-            <section className="section-card stack">
-              <h2>{t.dailyBook.hawalaSummary}</h2>
-              <div className="stat-grid">
-                <Stat label={t.dailyBook.newToday} value={snap.hawala.newHawalas} />
-                <Stat label={t.status.completed} value={snap.hawala.completed} />
-                <Stat label={`${t.status.pending} (${t.common.all})`} value={snap.hawala.pending} />
-                <Stat label={t.status.cancelled} value={snap.hawala.cancelled} />
-                <Stat label={t.status.returned} value={snap.hawala.returned} />
-                <Stat label={t.dailyBook.commissionEarned} value={snap.hawala.commissionEarned} />
-                <Stat label={t.dailyBook.pendingSettlement} value={snap.hawala.pendingSettlement} />
-              </div>
-            </section>
-          </div>
-
-          <div className="dash-grid">
-            <section className="section-card stack">
-              <h2>{t.dailyBook.customerActivity}</h2>
-              <div className="stat-grid">
-                <Stat label={t.dailyBook.newCustomers} value={snap.customers.newCustomers} />
-                <Stat label={t.dailyBook.returning} value={snap.customers.returningCustomers} />
-                <Stat label={t.dailyBook.topCustomer} value={snap.customers.topCustomer ?? "—"} />
-                <Stat label={t.dailyBook.largestTransaction} value={snap.customers.largestTransaction ?? "—"} />
-                <Stat label={t.dailyBook.highestDeposit} value={snap.customers.highestDeposit ?? "—"} />
-                <Stat label={t.dailyBook.highestWithdrawal} value={snap.customers.highestWithdrawal ?? "—"} />
-              </div>
-            </section>
-
-            <section className="section-card stack">
-              <h2>{t.dailyBook.partnerSarafiActivity}</h2>
-              <div className="stat-grid">
-                <Stat label={t.dailyBook.partnerTransactions} value={snap.partners.partnerTransactions} />
-                <Stat label={t.partner.commission} value={snap.partners.partnerCommission} />
-                <Stat label={t.dailyBook.outstanding} value={snap.partners.outstandingSettlements} />
-                <Stat label={t.dailyBook.pendingSettlements} value={snap.partners.pendingSettlements} />
-                <Stat label={t.dailyBook.topPartner} value={snap.partners.topPartner ?? "—"} />
-                <Stat label={t.dailyBook.largestTransfer} value={snap.partners.largestTransfer ?? "—"} />
-              </div>
-            </section>
-          </div>
-
-          <div className="dash-grid">
-            <section className="section-card stack">
-              <h2>{t.dailyBook.tradingSummary}</h2>
-              <div className="stat-grid">
-                <Stat label={t.desk.purchases} value={snap.trading.purchases} />
-                <Stat label={t.desk.sales} value={snap.trading.sales} />
-                <Stat label={t.dailyBook.tradingProfit} value={snap.trading.tradingProfit} />
-                <Stat label={t.dailyBook.openPositions} value={snap.trading.openPositions} />
-                <Stat label={t.dailyBook.closedSells} value={snap.trading.closedPositions} />
-                <Stat label={t.dailyBook.bestCurrency} value={snap.trading.bestCurrency ?? "—"} />
-                <Stat label={t.dailyBook.worstCurrency} value={snap.trading.worstCurrency ?? "—"} />
-              </div>
-            </section>
-
-            <section className="section-card stack">
-              <h2>{t.dailyBook.expenseSummary}</h2>
-              <div className="stat-grid">
-                <Stat label={t.dailyBook.rent} value={snap.expenses.rent} />
-                <Stat label={t.desk.salary} value={snap.expenses.salary} />
-                <Stat label={t.dailyBook.utilities} value={snap.expenses.utilities} />
-                <Stat label={t.dailyBook.transport} value={snap.expenses.transport} />
-                <Stat label={t.dailyBook.office} value={snap.expenses.office} />
-                <Stat label={t.desk.other} value={snap.expenses.other} />
-                <Stat label={t.dailyBook.totalExpenses} value={snap.expenses.total} />
-              </div>
-              <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
-                Expenses post to SYSTEM wallets named Rent / Salary / Utilities / Transport / Office /
-                Expense. Otherwise totals stay zero.
-              </p>
-            </section>
-          </div>
-
-          {/* Timeline */}
-          <section className="section-card stack">
-            <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-              <h2 style={{ margin: 0 }}>{t.dailyBook.transactionsTimeline}</h2>
-              <div className="row no-print" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
-                <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)}>
-                  <option value="ALL">{t.audit.allModules}</option>
-                  <option value="movements">{t.dailyBook.cashMovements}</option>
-                  <option value="vault">{t.desk.vault}</option>
-                  <option value="exchange">{t.nav.exchange}</option>
-                  <option value="hawala">{t.nav.hawala}</option>
-                  <option value="trading">{t.nav.trading}</option>
-                  <option value="accounting">{t.dailyBook.accounting}</option>
-                </select>
-                <select value={txTypeFilter} onChange={(e) => setTxTypeFilter(e.target.value)}>
-                  <option value="ALL">{t.common.allTypes}</option>
-                  {[
-                    "DEPOSIT",
-                    "WITHDRAWAL",
-                    "TRANSFER",
-                    "EXCHANGE",
-                    "HAWALA",
-                    "TRADE_BUY",
-                    "TRADE_SELL",
-                    "ADJUSTMENT",
-                  ].map((ty) => (
-                    <option key={ty} value={ty}>
-                      {ty}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  placeholder={t.common.search}
-                  value={searchDraft}
-                  onChange={(e) => setSearchDraft(e.target.value)}
-                />
-              </div>
-            </div>
-            {snap.timeline.length === 0 ? (
-              <p className="muted">No transactions for this day.</p>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t.common.time}</th>
-                    <th>{t.common.reference}</th>
-                    <th>{t.audit.module}</th>
-                    <th>{t.common.type}</th>
-                    <th>{t.common.customer}</th>
-                    <th>{t.common.partner}</th>
-                    <th>{t.common.currency}</th>
-                    <th>{t.common.amount}</th>
-                    <th>{t.common.user}</th>
-                    <th>{t.common.status}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snap.timeline.map((row) => (
-                    <tr key={row.id}>
-                      <td>{row.time}</td>
-                      <td>
-                        {row.detailPath ? (
-                          <Link to={row.detailPath}>{row.reference}</Link>
-                        ) : (
-                          row.reference
-                        )}
-                      </td>
-                      <td>{row.module}</td>
-                      <td>
-                        <span className={typeBadgeClass(row.transactionType)}>
-                          {row.transactionType}
-                        </span>
-                      </td>
-                      <td>{row.customerName ?? "—"}</td>
-                      <td>{row.partnerName ?? "—"}</td>
-                      <td>{row.currencyCode ?? "—"}</td>
-                      <td>{row.amount ?? "—"}</td>
-                      <td>{row.userName ?? "—"}</td>
-                      <td>{statusLabel(t, row.status)}</td>
+              <div className="daybook-journal-scroll table-scroll" ref={journalScrollRef}>
+                <table className="report-ledger daybook-journal-table">
+                  <thead>
+                    <tr>
+                      <th className="col-row">{t.dailyBook.rowNo}</th>
+                      <th className="col-when">{t.common.date}</th>
+                      <th className="col-account-code">{t.dailyBook.accountCode}</th>
+                      <th>{t.dailyBook.accountName}</th>
+                      <th className="col-opposite">{t.dailyBook.oppositeAccount}</th>
+                      <th className="col-description">{t.common.description}</th>
+                      <th className="col-amount col-debit">{t.dailyBook.debit}</th>
+                      <th className="col-amount col-credit">{t.dailyBook.credit}</th>
+                      <th className="col-amount col-balance">{t.common.balance}</th>
+                      <th>{t.dailyBook.currencyType}</th>
+                      <th className="col-ref">{t.common.reference}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {journal.map((line) => {
+                      const rowProps = clickableTxRowProps(() => openJournalRow(line));
+                      const accountCode = displayAccountCode(line.accountCode);
+                      const accountLabel = accountCode || "—";
+                      const oppositeCode = displayAccountCode(line.oppositeAccountCode);
+                      const oppositeLabel = formatOppositeAccount(line);
+                      const balanceLabel = line.balanceAfter
+                        ? `${line.balanceAfter} ${line.currencyCode}`.trim()
+                        : "";
+                      return (
+                        <tr
+                          key={`${line.transactionId}-${line.rowNo}`}
+                          {...rowProps}
+                          className={`${rowProps.className} is-clickable`}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setJournalMenu({ x: e.clientX, y: e.clientY, line });
+                          }}
+                        >
+                          <td className="col-row">{line.rowNo}</td>
+                          <td className="col-when">{line.valueDate}</td>
+                          <td className="col-account-code" title={accountLabel}>
+                            {accountCode ? (
+                              <strong className="daybook-account-code">{accountCode}</strong>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td>{line.accountName || "—"}</td>
+                          <td className="col-opposite" title={oppositeLabel}>
+                            {oppositeCode ? (
+                              <strong className="daybook-account-code">{oppositeCode}</strong>
+                            ) : (
+                              oppositeLabel
+                            )}
+                          </td>
+                          <td className="col-description">
+                            <span className="daybook-type-cell">
+                              <TransactionTypeIcon
+                                type={line.transactionType}
+                                title={transactionTypeLabel(t, line.transactionType)}
+                              />
+                              <span className="col-description-text">
+                                {colorizeAmountsInText(
+                                  line.description || "",
+                                  descriptionToneFromJournalRow(line),
+                                )}
+                              </span>
+                            </span>
+                          </td>
+                          <td className={journalDebitClass(line)} style={{ fontWeight: 700 }}>
+                            {line.debit || ""}
+                          </td>
+                          <td className={journalCreditClass(line)} style={{ fontWeight: 700 }}>
+                            {line.credit || ""}
+                          </td>
+                          <td className={`col-amount col-balance ${moneyToneClass(line.balanceAfter)}`}>
+                            {balanceLabel ? (
+                              <span className="amount-emphasis">{balanceLabel}</span>
+                            ) : null}
+                          </td>
+                          <td>
+                            <CurrencyCodeWithFlag code={line.currencyCode} />
+                          </td>
+                          <td className="col-ref">
+                            <span className="daybook-ref-cell">
+                              {txDisplayRef(line)}
+                              {line.transactionType.toUpperCase() === "HAWALA" ? (
+                                <button
+                                  type="button"
+                                  className="daybook-wa-icon-btn"
+                                  title={t.hawala.sendWhatsApp}
+                                  aria-label={t.hawala.sendWhatsApp}
+                                  disabled={whatsappBusyId === line.transactionId}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDaybookWhatsApp(line.transactionId);
+                                  }}
+                                >
+                                  {whatsappBusyId === line.transactionId ? (
+                                    <span aria-hidden>…</span>
+                                  ) : (
+                                    <IconWhatsApp className="daybook-wa-icon" />
+                                  )}
+                                </button>
+                              ) : null}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
             <Pagination
-              page={snap.timelinePage || timelinePage}
-              pageSize={snap.timelinePageSize || timelinePageSize}
-              total={snap.timelineTotal ?? snap.timeline.length}
+              page={journalPage}
+              pageSize={journalPageSize}
+              total={journalTotal}
               busy={busy}
-              onPageChange={setTimelinePage}
+              onPageChange={(p) => {
+                preferLatestPageRef.current = false;
+                const lastPage = Math.max(
+                  1,
+                  Math.ceil(journalTotal / journalPageSize) || 1,
+                );
+                stickJournalBottomRef.current = p >= lastPage;
+                const el = journalScrollRef.current;
+                if (el && p < lastPage) el.scrollTop = 0;
+                setJournalPage(p);
+              }}
             />
           </section>
 
-          {/* Cash position closing */}
-          <section className="section-card stack">
-            <h2>{t.desk.expectedCash}</h2>
-            <p className="muted" style={{ margin: 0 }}>
-              Closing cash expected from ledger activity for this date.
-            </p>
-            <div className="stat-grid">
-              {snap.cashPosition.map((row) => (
-                <Stat
-                  key={row.currencyId}
-                  label={`${row.currencyCode} ${t.common.expected}`}
-                  value={row.expectedClosing}
-                  hint={`Open ${row.opening} · In ${row.received} · Out ${row.paid}`}
-                />
-              ))}
-            </div>
-          </section>
+          {journalMenu ? (
+            <DeskContextMenu
+              x={journalMenu.x}
+              y={journalMenu.y}
+              items={journalContextItems(journalMenu.line)}
+              onClose={() => setJournalMenu(null)}
+            />
+          ) : null}
 
           <div
             className="row"
@@ -544,12 +865,101 @@ export function DaybookPage() {
             >
               {t.users.manager}
             </div>
-            <div className="muted" style={{ fontSize: "0.75rem", alignSelf: "flex-end" }}>
-              {t.common.page.replace("{page}", "1")}
-            </div>
           </div>
         </>
       ) : null}
+
+      <TransactionDetailModal
+        detail={txModal.detail}
+        busy={txModal.busy}
+        error={txModal.error}
+        onClose={txModal.close}
+      />
+      <ExchangeDealDetailModal
+        detail={dealModal.detail}
+        busy={dealModal.busy}
+        error={dealModal.error}
+        onClose={dealModal.close}
+      />
+      <DepositFormModal
+        open={depositOpen}
+        editTransactionId={editDepositId}
+        onClose={() => {
+          setDepositOpen(false);
+          setEditDepositId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <WithdrawFormModal
+        open={withdrawOpen}
+        editTransactionId={editWithdrawId}
+        onClose={() => {
+          setWithdrawOpen(false);
+          setEditWithdrawId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <TransferFormModal
+        open={transferOpen}
+        editTransactionId={editTransferId}
+        onClose={() => {
+          setTransferOpen(false);
+          setEditTransferId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <ExchangeFormModal
+        open={exchangeOpen}
+        editTransactionId={editExchangeId}
+        onClose={() => {
+          setExchangeOpen(false);
+          setEditExchangeId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <HawalaFormModal
+        open={sendHawalaOpen}
+        direction={editHawalaId ? editHawalaDirection : "SEND"}
+        editTransactionId={editHawalaId}
+        onClose={() => {
+          setSendHawalaOpen(false);
+          setEditHawalaId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <VaultCashFormModal
+        open={cashOpen}
+        direction={cashDirection}
+        editTransactionId={editCashId}
+        onClose={() => {
+          setCashOpen(false);
+          setEditCashId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <OpeningBalanceFormModal
+        open={openingOpen}
+        editTransactionId={editOpeningId}
+        onClose={() => {
+          setOpeningOpen(false);
+          setEditOpeningId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
     </div>
   );
 }

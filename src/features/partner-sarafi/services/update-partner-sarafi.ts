@@ -7,7 +7,9 @@ import {
   updatePartnerSarafiSchema,
   toPartnerSarafiFormFieldErrors,
 } from "@/features/partner-sarafi/schemas/partner-sarafi-form";
+import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import {
+  findLivePartnerByCustomerId,
   findPartnerSarafiById,
   findPartnerSarafiByName,
   updatePartnerSarafi,
@@ -32,13 +34,48 @@ export async function updatePartnerSarafiRecord(
   }
 
   const data = parsed.data;
-  const duplicate = await findPartnerSarafiByName(data.name);
-  if (duplicate && duplicate.id !== id) {
-    throw new PartnerSarafiError(
-      "DUPLICATE_NAME",
-      "A partner sarafi with this name already exists.",
-      { name: "A partner sarafi with this name already exists." },
-    );
+  const linkCustomerId = (existing.customerId || data.customerId || "").trim();
+  let name = data.name;
+  let phone = data.phone;
+  let customerId = existing.customerId;
+
+  if (linkCustomerId) {
+    const customer = await findCustomerById(linkCustomerId);
+    if (!customer || !customer.isActive) {
+      throw new PartnerSarafiError(
+        "VALIDATION",
+        "Select an existing customer for this partner sarafi.",
+        { customerId: "Select an existing customer for this partner sarafi." },
+      );
+    }
+    const customerPhone = customer.phone?.trim() ?? "";
+    if (!customerPhone) {
+      throw new PartnerSarafiError(
+        "VALIDATION",
+        "The selected customer needs a phone / WhatsApp number.",
+        { customerId: "The selected customer needs a phone / WhatsApp number." },
+      );
+    }
+    const taken = await findLivePartnerByCustomerId(customer.id, id);
+    if (taken) {
+      throw new PartnerSarafiError(
+        "VALIDATION",
+        "This customer is already linked to another partner sarafi.",
+        { customerId: "This customer is already linked to another partner sarafi." },
+      );
+    }
+    name = customer.fullName;
+    phone = customerPhone;
+    customerId = customer.id;
+  } else {
+    const duplicate = await findPartnerSarafiByName(data.name);
+    if (duplicate && duplicate.id !== id) {
+      throw new PartnerSarafiError(
+        "DUPLICATE_NAME",
+        "A partner sarafi with this name already exists.",
+        { name: "A partner sarafi with this name already exists." },
+      );
+    }
   }
 
   let commissionCurrencyId: string | null = null;
@@ -58,8 +95,9 @@ export async function updatePartnerSarafiRecord(
   }
 
   return updatePartnerSarafi(id, {
-    name: data.name,
-    phone: data.phone,
+    customerId,
+    name,
+    phone,
     city: data.city,
     country: data.country,
     notes: data.notes,

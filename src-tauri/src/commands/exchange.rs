@@ -6,11 +6,13 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction,
-  PostTransactionInput, PostedTransaction, PostingLineDto,
+  find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction_in_tx,
+  resolve_main_vault_id, restore_temporary_customers_for_movement_edit, PostTransactionInput,
+  PostedTransaction, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{now_sqlite, today_local};
+use crate::commands::authorize::{require_any_screen, require_any_screen_write};
 
 const EXCHANGE_DIFFERENCE_WALLET_NAME: &str = "Exchange Difference";
 const RATE_MAX_DECIMALS: u32 = 8;
@@ -261,6 +263,8 @@ pub struct ExchangeInput {
   pub value_date: Option<String>,
   pub description: Option<String>,
   pub created_by_id: String,
+  /// Soft-delete this prior EXCHANGE transaction (and linked deal/trade) before posting.
+  pub replace_transaction_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -289,16 +293,9 @@ pub fn exchange_funds(
   input: ExchangeInput,
 ) -> Result<ExchangeFundsResult, AppError> {
   let reference = require_nonempty(&input.reference, "reference")?;
-  let from_wallet_id = require_nonempty(&input.from_wallet_id, "fromWalletId")?;
-  let to_wallet_id = require_nonempty(&input.to_wallet_id, "toWalletId")?;
-  let created_by_id = require_nonempty(&input.created_by_id, "createdById")?;
+  let _ = input.created_by_id.trim();
   let from_ccy_in = require_nonempty(&input.from_currency_code, "fromCurrencyCode")?;
   let to_ccy_in = require_nonempty(&input.to_currency_code, "toCurrencyCode")?;
-  if from_wallet_id == to_wallet_id {
-    return Err(AppError::Validation(
-      "From and to wallets must be different.".into(),
-    ));
-  }
   if from_ccy_in.eq_ignore_ascii_case(&to_ccy_in) {
     return Err(AppError::Validation(
       "From and to currencies must be different.".into(),
@@ -314,8 +311,54 @@ pub fn exchange_funds(
   let is_walk_in = customer_id.is_none();
 
   let conn = state.db.lock();
+  let actor = require_any_screen(&state, &conn, &["cash", "customers"])?;
+  let created_by_id = actor.id.clone();
+
+  let replace_id = input
+    .replace_transaction_id
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_string());
+  if let Some(ref rid) = replace_id {
+    let tx_type: String = conn
+      .query_row(
+        r#"SELECT type FROM "Transaction"
+           WHERE id = ?1 AND deletedAt IS NULL LIMIT 1"#,
+        [rid.as_str()],
+        |row| row.get(0),
+      )
+      .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound(
+          "Transaction to replace was not found (or already deleted).".into(),
+        ),
+        other => other.into(),
+      })?;
+    if !tx_type.eq_ignore_ascii_case("EXCHANGE") {
+      return Err(AppError::Validation(format!(
+        "Cannot replace a {tx_type} transaction with an EXCHANGE."
+      )));
+    }
+  }
+
+  // Walk-in FX uses the single shop cash wallet (Main Vault) for both currencies.
+  // Account FX may use one customer wallet for both currencies.
+  let (from_wallet_id, to_wallet_id) = if is_walk_in {
+    let main = resolve_main_vault_id(&conn)?;
+    (main.clone(), main)
+  } else {
+    (
+      require_nonempty(&input.from_wallet_id, "fromWalletId")?,
+      require_nonempty(&input.to_wallet_id, "toWalletId")?,
+    )
+  };
 
   if let Some(ref cid) = customer_id {
+    restore_temporary_customers_for_movement_edit(
+      &conn,
+      replace_id.as_deref(),
+      &[cid.as_str()],
+    )?;
     let row: Option<(i64, Option<String>)> = conn
       .query_row(
         "SELECT isActive, deletedAt FROM Customer WHERE id = ?1 LIMIT 1",
@@ -424,26 +467,23 @@ pub fn exchange_funds(
   let now = now_sqlite();
   let rate_id = uuid::Uuid::new_v4().to_string();
 
-  conn.execute(
-    "INSERT INTO ExchangeRate (
-       id, baseCurrencyId, quoteCurrencyId, rate, effectiveAt, source,
-       deletedAt, createdAt, updatedAt
-     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?7)",
-    params![
-      rate_id,
-      from_currency_id,
-      to_currency_id,
-      derived_rate,
-      value_date,
-      SNAPSHOT_SOURCE,
-      now
-    ],
-  )?;
-
-  let (econ_from, econ_to, diff_from, diff_to) = if is_walk_in {
-    ("DEBIT", "CREDIT", "CREDIT", "DEBIT")
+  // Directions follow wallet kind (not only walk-in vs account), so mixed
+  // settlements work: buy from customer account + sell cash, etc.
+  // Shop receives `from`: cash DEBIT (asset↑) / customer CREDIT (liability↓).
+  // Shop gives `to`: cash CREDIT (asset↓) / customer DEBIT (liability↑).
+  let from_is_cash = from_type == "VAULT" || from_type == "TILL";
+  let to_is_cash = to_type == "VAULT" || to_type == "TILL";
+  let econ_from = if from_is_cash { "DEBIT" } else { "CREDIT" };
+  let econ_to = if to_is_cash { "CREDIT" } else { "DEBIT" };
+  let diff_from = if econ_from == "DEBIT" {
+    "CREDIT"
   } else {
-    ("CREDIT", "DEBIT", "DEBIT", "CREDIT")
+    "DEBIT"
+  };
+  let diff_to = if econ_to == "CREDIT" {
+    "DEBIT"
+  } else {
+    "CREDIT"
   };
 
   let board_label = board_rate_f
@@ -459,14 +499,6 @@ pub fn exchange_funds(
     String::new()
   };
   let memo = format!("Currency exchange @ {deal_rate_s} (1 {high_code_resolved}){board_label}{pnl_label}");
-  let description = input
-    .description
-    .map(|s| s.trim().to_string())
-    .filter(|s| !s.is_empty())
-    .unwrap_or_else(|| {
-      format!("Exchange {from_amount} {from_code} → {to_amount} {to_code} @ {deal_rate_s}{pnl_label}")
-    });
-
   let walk_in_name = if is_walk_in {
     input
       .walk_in_name
@@ -483,106 +515,180 @@ pub fn exchange_funds(
   } else {
     None
   };
+  let rate_disp = crate::util::format_amount_commas(&deal_rate_s);
+  let exchange_core = format!(
+    "Exchange of {} {} to {} {} at {rate_disp} rate",
+    crate::util::format_amount_commas(&from_amount),
+    from_code,
+    crate::util::format_amount_commas(&to_amount),
+    to_code,
+  );
+  // Canonical Daybook wording — ignore free-form UI drafts.
+  let description = match walk_in_name.as_deref() {
+    Some(name) => format!("{name} — {exchange_core}"),
+    None => exchange_core,
+  };
 
-  let transaction = post_transaction(
-    &conn,
-    PostTransactionInput {
-      reference,
-      r#type: "EXCHANGE".into(),
-      value_date: value_date.clone(),
-      customer_id,
-      walk_in_name,
-      walk_in_phone,
-      description: Some(description),
-      created_by_id: Some(created_by_id.clone()),
-      entries: vec![
-        PostingLineDto {
-          wallet_id: from_id,
-          currency: from_code.clone(),
-          direction: econ_from.into(),
-          amount_minor: from_minor.to_string(),
-          exchange_rate_id: Some(rate_id.clone()),
-          memo: Some(memo.clone()),
-        },
-        PostingLineDto {
-          wallet_id: to_id,
-          currency: to_code.clone(),
-          direction: econ_to.into(),
-          amount_minor: to_minor.to_string(),
-          exchange_rate_id: Some(rate_id.clone()),
-          memo: Some(memo.clone()),
-        },
-        PostingLineDto {
-          wallet_id: diff_id.clone(),
-          currency: from_code.clone(),
-          direction: diff_from.into(),
-          amount_minor: from_minor.to_string(),
-          exchange_rate_id: Some(rate_id.clone()),
-          memo: Some(memo.clone()),
-        },
-        PostingLineDto {
-          wallet_id: diff_id,
-          currency: to_code.clone(),
-          direction: diff_to.into(),
-          amount_minor: to_minor.to_string(),
-          exchange_rate_id: Some(rate_id.clone()),
-          memo: Some(memo),
-        },
-      ],
-    },
-  )?;
+  let customer_id_for_trade = customer_id.clone();
+  let walk_in_for_trade = walk_in_name.clone();
+  let reference_for_trade = reference.clone();
+  let cash_wallet_for_trade = resolve_main_vault_id(&conn)?;
 
-  // Persist deal P/L when table exists.
-  let has_deal: bool = conn.query_row(
-    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ExchangeDeal')",
-    [],
-    |row| row.get(0),
-  )?;
-  if has_deal {
+  conn.execute_batch("BEGIN IMMEDIATE;")?;
+  let result = (|| -> Result<ExchangeFundsResult, AppError> {
+    if let Some(ref rid) = replace_id {
+      crate::commands::trading::util::soft_delete_desk_transaction(&conn, rid)?;
+    }
+
     conn.execute(
-      r#"INSERT INTO ExchangeDeal (
-           id, transactionId, fromCurrencyId, toCurrencyId, fromAmount, toAmount,
-           highCurrencyId, lowCurrencyId, dealRate, boardRate, side,
-           profitAmount, profitCurrencyId, valueDate, createdById, deletedAt, createdAt, updatedAt
-         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,NULL,?16,?16)"#,
+      "INSERT INTO ExchangeRate (
+         id, baseCurrencyId, quoteCurrencyId, rate, effectiveAt, source,
+         deletedAt, createdAt, updatedAt
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?7)",
       params![
-        uuid::Uuid::new_v4().to_string(),
-        transaction.id,
+        rate_id,
         from_currency_id,
         to_currency_id,
-        from_amount,
-        to_amount,
-        high_currency_id,
-        low_currency_id,
-        deal_rate_s,
-        board_rate_f.map(fmt_money),
-        side,
-        profit_s,
-        low_currency_id,
+        derived_rate,
         value_date,
-        created_by_id,
-        now,
+        SNAPSHOT_SOURCE,
+        now
       ],
     )?;
-  }
 
-  Ok(ExchangeFundsResult {
-    transaction,
-    from_currency_code: from_code,
-    to_currency_code: to_code,
-    from_amount,
-    to_amount,
-    rate: derived_rate,
-    exchange_rate_id: rate_id,
-    high_currency_code: high_code_resolved,
-    low_currency_code: low_code_resolved.clone(),
-    deal_rate: deal_rate_s,
-    board_rate: board_rate_f.map(fmt_money),
-    side: side.clone(),
-    profit_amount: profit_s,
-    profit_currency_code: low_code_resolved,
-    is_profit: profit_f >= 0.0,
-  })
+    let transaction = post_transaction_in_tx(
+      &conn,
+      PostTransactionInput {
+        reference,
+        r#type: "EXCHANGE".into(),
+        value_date: value_date.clone(),
+        customer_id,
+        walk_in_name,
+        walk_in_phone,
+        description: Some(description),
+        created_by_id: Some(created_by_id.clone()),
+        entries: vec![
+          PostingLineDto {
+            wallet_id: from_id,
+            currency: from_code.clone(),
+            direction: econ_from.into(),
+            amount_minor: from_minor.to_string(),
+            exchange_rate_id: Some(rate_id.clone()),
+            memo: Some(memo.clone()),
+          },
+          PostingLineDto {
+            wallet_id: to_id,
+            currency: to_code.clone(),
+            direction: econ_to.into(),
+            amount_minor: to_minor.to_string(),
+            exchange_rate_id: Some(rate_id.clone()),
+            memo: Some(memo.clone()),
+          },
+          PostingLineDto {
+            wallet_id: diff_id.clone(),
+            currency: from_code.clone(),
+            direction: diff_from.into(),
+            amount_minor: from_minor.to_string(),
+            exchange_rate_id: Some(rate_id.clone()),
+            memo: Some(memo.clone()),
+          },
+          PostingLineDto {
+            wallet_id: diff_id,
+            currency: to_code.clone(),
+            direction: diff_to.into(),
+            amount_minor: to_minor.to_string(),
+            exchange_rate_id: Some(rate_id.clone()),
+            memo: Some(memo),
+          },
+        ],
+      },
+    )?;
+
+    // Persist deal P/L when table exists.
+    let has_deal: bool = conn.query_row(
+      "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ExchangeDeal')",
+      [],
+      |row| row.get(0),
+    )?;
+    if has_deal {
+      conn.execute(
+        r#"INSERT INTO ExchangeDeal (
+             id, transactionId, fromCurrencyId, toCurrencyId, fromAmount, toAmount,
+             highCurrencyId, lowCurrencyId, dealRate, boardRate, side,
+             profitAmount, profitCurrencyId, valueDate, createdById, deletedAt, createdAt, updatedAt
+           ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,NULL,?16,?16)"#,
+        params![
+          uuid::Uuid::new_v4().to_string(),
+          transaction.id,
+          from_currency_id,
+          to_currency_id,
+          from_amount,
+          to_amount,
+          high_currency_id,
+          low_currency_id,
+          deal_rate_s,
+          board_rate_f.map(fmt_money),
+          side,
+          profit_s,
+          low_currency_id,
+          value_date,
+          created_by_id,
+          now,
+        ],
+      )?;
+    }
+
+    // Feed trading inventory + history (high-currency BUY/SELL).
+    let (high_qty, low_qty) = if side == "BUY_HIGH" {
+      (&from_amount, &to_amount)
+    } else {
+      (&to_amount, &from_amount)
+    };
+    crate::commands::trading::util::record_exchange_as_trade(
+      &conn,
+      &transaction.id,
+      &reference_for_trade,
+      &side,
+      &high_currency_id,
+      &low_currency_id,
+      high_qty,
+      low_qty,
+      &deal_rate_s,
+      customer_id_for_trade.as_deref(),
+      walk_in_for_trade.as_deref(),
+      &value_date,
+      &created_by_id,
+      &cash_wallet_for_trade,
+    )?;
+
+    Ok(ExchangeFundsResult {
+      transaction,
+      from_currency_code: from_code,
+      to_currency_code: to_code,
+      from_amount,
+      to_amount,
+      rate: derived_rate,
+      exchange_rate_id: rate_id,
+      high_currency_code: high_code_resolved,
+      low_currency_code: low_code_resolved.clone(),
+      deal_rate: deal_rate_s,
+      board_rate: board_rate_f.map(fmt_money),
+      side: side.clone(),
+      profit_amount: profit_s,
+      profit_currency_code: low_code_resolved,
+      is_profit: profit_f >= 0.0,
+    })
+  })();
+  match result {
+    Ok(out) => {
+      conn.execute_batch("COMMIT;")?;
+      Ok(out)
+    }
+    Err(e) => {
+      let _ = conn.execute_batch("ROLLBACK;");
+      Err(e)
+    }
+  }
 }
 
 #[derive(Debug, Deserialize)]
@@ -611,7 +717,10 @@ pub struct ExchangePnLSummary {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExchangeDealRecent {
+  pub id: String,
+  pub transaction_id: String,
   pub reference: String,
+  pub display_ref: String,
   pub side: String,
   pub from_amount: String,
   pub from_currency: String,
@@ -622,6 +731,43 @@ pub struct ExchangeDealRecent {
   pub profit_amount: String,
   pub profit_currency: String,
   pub value_date: String,
+  pub customer_name: Option<String>,
+  pub walk_in_name: Option<String>,
+  pub status: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeDealDetail {
+  pub id: String,
+  pub transaction_id: String,
+  pub reference: String,
+  pub display_ref: String,
+  pub status: String,
+  pub side: String,
+  pub customer_id: Option<String>,
+  pub customer_name: Option<String>,
+  pub walk_in_name: Option<String>,
+  pub from_amount: String,
+  pub from_currency: String,
+  pub to_amount: String,
+  pub to_currency: String,
+  pub deal_rate: String,
+  pub board_rate: Option<String>,
+  pub profit_amount: String,
+  pub profit_currency: String,
+  pub is_profit: bool,
+  pub value_date: String,
+  pub posted_at: Option<String>,
+  pub created_at: String,
+  pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetExchangeDealInput {
+  /// ExchangeDeal.id (preferred) or Transaction.id.
+  pub id: String,
 }
 
 #[tauri::command]
@@ -637,6 +783,7 @@ pub fn get_exchange_pnl_summary(
     .unwrap_or(&today_local())
     .to_string();
   let conn = state.db.lock();
+  let _actor = require_any_screen(&state, &conn, &["cash", "customers"])?;
   let has_deal: bool = conn.query_row(
     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ExchangeDeal')",
     [],
@@ -677,14 +824,16 @@ pub fn get_exchange_pnl_summary(
     .collect::<Result<Vec<_>, _>>()?;
 
   let mut recent_stmt = conn.prepare(
-    r#"SELECT t.reference, d.side, CAST(d.fromAmount AS TEXT), cf.code,
+    r#"SELECT d.id, d.transactionId, t.reference, IFNULL(t.displayRef,''), d.side, CAST(d.fromAmount AS TEXT), cf.code,
               CAST(d.toAmount AS TEXT), ct.code, CAST(d.dealRate AS TEXT),
-              CAST(d.boardRate AS TEXT), CAST(d.profitAmount AS TEXT), cp.code, d.valueDate
+              CAST(d.boardRate AS TEXT), CAST(d.profitAmount AS TEXT), cp.code, d.valueDate,
+              c.fullName, t.walkInName, t.status
        FROM ExchangeDeal d
        INNER JOIN "Transaction" t ON t.id = d.transactionId
        INNER JOIN Currency cf ON cf.id = d.fromCurrencyId
        INNER JOIN Currency ct ON ct.id = d.toCurrencyId
        INNER JOIN Currency cp ON cp.id = d.profitCurrencyId
+       LEFT JOIN Customer c ON c.id = t.customerId
        WHERE d.deletedAt IS NULL AND date(d.valueDate)=date(?1)
        ORDER BY d.valueDate DESC, d.createdAt DESC
        LIMIT 25"#,
@@ -692,17 +841,23 @@ pub fn get_exchange_pnl_summary(
   let recent = recent_stmt
     .query_map([&day], |row| {
       Ok(ExchangeDealRecent {
-        reference: row.get(0)?,
-        side: row.get(1)?,
-        from_amount: row.get(2)?,
-        from_currency: row.get(3)?,
-        to_amount: row.get(4)?,
-        to_currency: row.get(5)?,
-        deal_rate: row.get(6)?,
-        board_rate: row.get(7)?,
-        profit_amount: row.get(8)?,
-        profit_currency: row.get(9)?,
-        value_date: row.get(10)?,
+        id: row.get(0)?,
+        transaction_id: row.get(1)?,
+        reference: row.get(2)?,
+        display_ref: row.get(3)?,
+        side: row.get(4)?,
+        from_amount: row.get(5)?,
+        from_currency: row.get(6)?,
+        to_amount: row.get(7)?,
+        to_currency: row.get(8)?,
+        deal_rate: row.get(9)?,
+        board_rate: row.get(10)?,
+        profit_amount: row.get(11)?,
+        profit_currency: row.get(12)?,
+        value_date: row.get(13)?,
+        customer_name: row.get(14)?,
+        walk_in_name: row.get(15)?,
+        status: row.get(16)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
@@ -713,4 +868,158 @@ pub fn get_exchange_pnl_summary(
     by_currency,
     recent,
   })
+}
+
+fn load_exchange_deal_detail(conn: &Connection, id: &str) -> Result<ExchangeDealDetail, AppError> {
+  let row = conn.query_row(
+    r#"SELECT d.id, d.transactionId, t.reference, t.status, d.side,
+              t.customerId, c.fullName, t.walkInName,
+              CAST(d.fromAmount AS TEXT), cf.code,
+              CAST(d.toAmount AS TEXT), ct.code,
+              CAST(d.dealRate AS TEXT), CAST(d.boardRate AS TEXT),
+              CAST(d.profitAmount AS TEXT), cp.code,
+              d.valueDate, t.postedAt, d.createdAt, t.description, IFNULL(t.displayRef,'')
+       FROM ExchangeDeal d
+       INNER JOIN "Transaction" t ON t.id = d.transactionId
+       INNER JOIN Currency cf ON cf.id = d.fromCurrencyId
+       INNER JOIN Currency ct ON ct.id = d.toCurrencyId
+       INNER JOIN Currency cp ON cp.id = d.profitCurrencyId
+       LEFT JOIN Customer c ON c.id = t.customerId
+       WHERE d.deletedAt IS NULL AND (d.id = ?1 OR d.transactionId = ?1)
+       LIMIT 1"#,
+    [id],
+    |row| {
+      let profit_amount: String = row.get(14)?;
+      let profit_f: f64 = profit_amount.parse().unwrap_or(0.0);
+      Ok(ExchangeDealDetail {
+        id: row.get(0)?,
+        transaction_id: row.get(1)?,
+        reference: row.get(2)?,
+        status: row.get(3)?,
+        side: row.get(4)?,
+        customer_id: row.get(5)?,
+        customer_name: row.get(6)?,
+        walk_in_name: row.get(7)?,
+        from_amount: row.get(8)?,
+        from_currency: row.get(9)?,
+        to_amount: row.get(10)?,
+        to_currency: row.get(11)?,
+        deal_rate: row.get(12)?,
+        board_rate: row.get(13)?,
+        profit_amount,
+        profit_currency: row.get(15)?,
+        is_profit: profit_f >= 0.0,
+        value_date: row.get(16)?,
+        posted_at: row.get(17)?,
+        created_at: row.get(18)?,
+        description: row.get(19)?,
+        display_ref: row.get(20)?,
+      })
+    },
+  );
+
+  match row {
+    Ok(detail) => Ok(detail),
+    Err(rusqlite::Error::QueryReturnedNoRows) => {
+      Err(AppError::NotFound("Exchange deal not found.".into()))
+    }
+    Err(e) => Err(e.into()),
+  }
+}
+
+#[tauri::command]
+pub fn get_exchange_deal_detail(
+  state: State<'_, AppState>,
+  input: GetExchangeDealInput,
+) -> Result<ExchangeDealDetail, AppError> {
+  let id = input.id.trim();
+  if id.is_empty() {
+    return Err(AppError::Validation("id is required.".into()));
+  }
+  let conn = state.db.lock();
+  let _actor = require_any_screen(&state, &conn, &["cash", "customers"])?;
+  let has_deal: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ExchangeDeal')",
+    [],
+    |row| row.get(0),
+  )?;
+  if !has_deal {
+    return Err(AppError::NotFound("Exchange deal not found.".into()));
+  }
+  load_exchange_deal_detail(&conn, id)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPreviousExchangeInput {
+  /// ExchangeDeal.id or Transaction.id — return the next older deal.
+  pub before_id: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_previous_exchange_deal(
+  state: State<'_, AppState>,
+  input: GetPreviousExchangeInput,
+) -> Result<Option<ExchangeDealDetail>, AppError> {
+  let before_id = input
+    .before_id
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_string());
+
+  let conn = state.db.lock();
+  let _actor = require_any_screen_write(&state, &conn, &["cash", "customers"])?;
+  let has_deal: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ExchangeDeal')",
+    [],
+    |row| row.get(0),
+  )?;
+  if !has_deal {
+    return Ok(None);
+  }
+
+  let previous_deal_id: Option<String> = if let Some(ref before) = before_id {
+    let anchor: Option<(String, String)> = conn
+      .query_row(
+        r#"SELECT d.createdAt, d.id FROM ExchangeDeal d
+           WHERE d.deletedAt IS NULL AND (d.id = ?1 OR d.transactionId = ?1)
+           LIMIT 1"#,
+        [before],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+      )
+      .optional()?;
+    let Some((before_created, before_deal_id)) = anchor else {
+      return Err(AppError::NotFound(
+        "beforeId exchange deal was not found.".into(),
+      ));
+    };
+    conn
+      .query_row(
+        r#"SELECT d.id FROM ExchangeDeal d
+           WHERE d.deletedAt IS NULL
+             AND (d.createdAt < ?1 OR (d.createdAt = ?1 AND d.id < ?2))
+           ORDER BY d.createdAt DESC, d.id DESC
+           LIMIT 1"#,
+        params![before_created, before_deal_id],
+        |row| row.get(0),
+      )
+      .optional()?
+  } else {
+    conn
+      .query_row(
+        r#"SELECT d.id FROM ExchangeDeal d
+           WHERE d.deletedAt IS NULL
+           ORDER BY d.createdAt DESC, d.id DESC
+           LIMIT 1"#,
+        [],
+        |row| row.get(0),
+      )
+      .optional()?
+  };
+
+  match previous_deal_id {
+    Some(id) => Ok(Some(load_exchange_deal_detail(&conn, &id)?)),
+    None => Ok(None),
+  }
 }

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { PartnerSarafi } from "@/generated/prisma/client";
+import { findCustomerById } from "@/features/customers/repositories/customer-repository";
 import { findCurrencyByCode } from "@/features/ledger/repositories/currency-repository";
 import { PartnerSarafiError } from "@/features/partner-sarafi/domain/errors";
 import {
@@ -9,7 +10,7 @@ import {
 } from "@/features/partner-sarafi/schemas/partner-sarafi-form";
 import {
   createPartnerSarafi,
-  findPartnerSarafiByName,
+  findLivePartnerByCustomerId,
 } from "@/features/partner-sarafi/repositories/partner-sarafi-repository";
 
 function isUniqueConstraintError(error: unknown): boolean {
@@ -35,12 +36,28 @@ export async function createPartnerSarafiRecord(
   }
 
   const data = parsed.data;
-  const existing = await findPartnerSarafiByName(data.name);
-  if (existing) {
+  const customer = await findCustomerById(data.customerId);
+  if (!customer || !customer.isActive) {
     throw new PartnerSarafiError(
-      "DUPLICATE_NAME",
-      "A partner sarafi with this name already exists.",
-      { name: "A partner sarafi with this name already exists." },
+      "VALIDATION",
+      "Select an existing customer for this partner sarafi.",
+      { customerId: "Select an existing customer for this partner sarafi." },
+    );
+  }
+  const phone = customer.phone?.trim() ?? "";
+  if (!phone) {
+    throw new PartnerSarafiError(
+      "VALIDATION",
+      "The selected customer needs a phone / WhatsApp number.",
+      { customerId: "The selected customer needs a phone / WhatsApp number." },
+    );
+  }
+  const taken = await findLivePartnerByCustomerId(customer.id);
+  if (taken) {
+    throw new PartnerSarafiError(
+      "VALIDATION",
+      "This customer is already linked to another partner sarafi.",
+      { customerId: "This customer is already linked to another partner sarafi." },
     );
   }
 
@@ -62,8 +79,9 @@ export async function createPartnerSarafiRecord(
 
   try {
     return await createPartnerSarafi({
-      name: data.name,
-      phone: data.phone,
+      customerId: customer.id,
+      name: customer.fullName,
+      phone,
       city: data.city,
       country: data.country,
       notes: data.notes,
@@ -76,9 +94,9 @@ export async function createPartnerSarafiRecord(
   } catch (error) {
     if (isUniqueConstraintError(error)) {
       throw new PartnerSarafiError(
-        "DUPLICATE_NAME",
-        "A partner sarafi with this name already exists.",
-        { name: "A partner sarafi with this name already exists." },
+        "VALIDATION",
+        "This customer is already linked to another partner sarafi.",
+        { customerId: "This customer is already linked to another partner sarafi." },
       );
     }
     throw error;

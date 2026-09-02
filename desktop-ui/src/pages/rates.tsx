@@ -4,13 +4,12 @@ import {
   getCachedMarketRates,
   getMarketRatesConfig,
   listCurrenciesPage,
-  listLatestExchangeRates,
   saveMarketRatesCache,
   type CurrencyListItem,
-  type ExchangeRateItem,
   type MarketRatesSnapshot,
 } from "@desktop/api";
 import { useT } from "@desktop/i18n";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 /**
  * Rates screen only. Market internet fetch is opt-in (Refresh button) and never
@@ -37,7 +36,7 @@ function parseRate(raw: string): number | null {
 
 export function RatesPage() {
   const t = useT();
-  const [rates, setRates] = useState<ExchangeRateItem[] | null>(null);
+  const { showSuccess, successModal } = useSuccessModal();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
 
@@ -58,13 +57,9 @@ export function RatesPage() {
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
-    void Promise.all([
-      listLatestExchangeRates(),
-      listCurrenciesPage({ activeOnly: true, pageSize: 200 }),
-    ])
-      .then(([rateRows, currencyPage]) => {
+    void listCurrenciesPage({ activeOnly: true, pageSize: 200 })
+      .then((currencyPage) => {
         if (cancelled) return;
-        setRates(rateRows);
         setCurrencies(currencyPage.items);
         setError(null);
       })
@@ -89,7 +84,7 @@ export function RatesPage() {
         if (!cancelled) setMarket(snap);
       })
       .catch(() => {
-        // Ignore cache errors; desk rates still work.
+        // Ignore cache errors; market refresh can still load rates.
       });
     return () => {
       cancelled = true;
@@ -192,7 +187,7 @@ export function RatesPage() {
       });
       setMarket(snap);
       if (snap.refreshed) {
-        setMarketMsg(t.exchangeRates.marketUpdated);
+        showSuccess(t.exchangeRates.marketUpdated);
       } else if (snap.lastError) {
         setMarketMsg(t.exchangeRates.marketOfflineHint);
       }
@@ -201,87 +196,30 @@ export function RatesPage() {
     } finally {
       setMarketBusy(false);
     }
-  }, [t]);
+  }, [t, showSuccess]);
 
   return (
     <div className="stack">
-      <div>
-        <h1 style={{ margin: "0 0 0.25rem" }}>{t.pages.exchangeRates}</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          {t.exchangeRates.deskRatesHint}
-        </p>
-      </div>
-
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>{t.exchangeRates.deskRatesTitle}</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          {t.exchangeRates.deskRatesHint}
-        </p>
-        {error ? <p className="error">{error}</p> : null}
-        {busy ? <p className="muted">{t.exchangeRates.loadingRates}</p> : null}
-        {rates ? (
-          <table>
-            <thead>
-              <tr>
-                <th>{t.exchangeRates.rate}</th>
-                <th>{t.exchangeRates.effectiveDate}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rates.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="muted">
-                    {t.exchangeRates.emptyTitle}
-                  </td>
-                </tr>
-              ) : (
-                rates.map((rate) => {
-                  const n = parseRate(rate.rate);
-                  const from = currencyMark(
-                    currencyByCode.get(rate.baseCode.toUpperCase()),
-                    rate.baseCode,
-                  );
-                  const to = currencyMark(
-                    currencyByCode.get(rate.quoteCode.toUpperCase()),
-                    rate.quoteCode,
-                  );
-                  return (
-                    <tr key={rate.id}>
-                      <td>
-                        <strong>
-                          1 {from} = {n != null ? formatFxRate(n) : rate.rate} {to}
-                        </strong>
-                      </td>
-                      <td>{String(rate.effectiveAt).slice(0, 19)}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        ) : null}
-      </div>
-
       <div className="card stack">
         <div
           className="row"
           style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}
         >
-          <div className="stack" style={{ gap: "0.25rem" }}>
-            <h2 style={{ margin: 0 }}>{t.exchangeRates.marketRatesTitle}</h2>
-            <p className="muted" style={{ margin: 0 }}>
-              {t.exchangeRates.marketRatesHint}
-            </p>
+          <h2 style={{ margin: 0 }}>{t.exchangeRates.marketRatesTitle}</h2>
+          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={marketBusy}
+              onClick={() => void onRefreshMarket()}
+            >
+              {marketBusy ? t.exchangeRates.refreshingMarket : t.exchangeRates.refreshMarket}
+            </button>
           </div>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={marketBusy}
-            onClick={() => void onRefreshMarket()}
-          >
-            {marketBusy ? t.exchangeRates.refreshingMarket : t.exchangeRates.refreshMarket}
-          </button>
         </div>
+
+        {error ? <p className="error">{error}</p> : null}
+        {busy ? <p className="muted">{t.common.loading}</p> : null}
 
         {marketMsg ? (
           <p className={market?.lastError && !market.refreshed ? "error" : "muted"}>{marketMsg}</p>
@@ -362,6 +300,7 @@ export function RatesPage() {
           {t.exchangeRates.marketAttribution}
         </p>
       </div>
+      {successModal}
     </div>
   );
 }

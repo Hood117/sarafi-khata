@@ -1,46 +1,133 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   createCurrency,
   createDbBackup,
   createUser,
-  getAppInfo,
+  deleteUser,
+  getAdminAuthPinStatus,
+  getBusinessName,
   listCurrenciesPage,
   listDbBackups,
   listDeskScreens,
   listUsers,
+  pickBackupFile,
   resetUserPassword,
   restoreDbBackup,
+  restoreDbBackupFromFile,
+  setAdminAuthPin,
+  setBusinessName,
   updateCurrency,
   updateUser,
-  type AppInfo,
+  validateBackupFile,
   type BackupListItem,
   type CurrencyListItem,
   type DeskScreenOption,
   type UserAccount,
 } from "@desktop/api";
+import {
+  AdminPasswordConfirmModal,
+  AuthPinSetupModal,
+} from "@desktop/components/authorization-pin-modal";
+import { clearVaultUnlockSession } from "@desktop/components/vault-unlock-gate";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
+import { canAccessScreen, isAdminRole, isSystemAdminUsername } from "@desktop/lib/permissions";
+import { useDeskAction } from "@desktop/lib/use-desk-action";
+import {
+  UI_FONT_SIZES,
+  useUiTextPrefs,
+  type UiFontSize,
+  type UiTheme,
+} from "@desktop/ui-text-prefs";
 import { Modal } from "@desktop/ui/modal";
+import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { Pagination } from "@desktop/ui/pagination";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { formatBytes } from "@desktop/lib/datetime";
+import {
+  errorMessage,
+  logAppError,
+  technicalErrorText,
+  userFacingError,
+} from "@desktop/lib/app-error";
+import { searchWorldCurrencies, type WorldCurrency } from "@desktop/lib/world-currencies";
+import { CurrencyCodeWithFlag, CurrencyFlag } from "@desktop/ui/currency-flag";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type SettingsTab = "general" | "currencies" | "users" | "backup";
 
+type CurrencyPanel = "system" | "world";
+
+function parseSettingsTab(raw: string | null): SettingsTab {
+  if (raw === "currencies" || raw === "users" || raw === "backup" || raw === "general") {
+    return raw;
+  }
+  return "general";
+}
+
 const ROLES = ["ADMIN", "MANAGER", "CASHIER"] as const;
 
-function defaultScreensForRole(role: string, screens: DeskScreenOption[]): string[] {
-  const all = screens.map((s) => s.id);
-  if (role === "ADMIN") return all;
-  if (role === "MANAGER") {
-    return all.filter((id) => id !== "backup");
+type ScreenAccessLevel = "read" | "write";
+
+function defaultScreenRightsForRole(
+  role: string,
+  screens: DeskScreenOption[],
+): Record<string, ScreenAccessLevel> {
+  const ids =
+    role === "ADMIN"
+      ? screens.map((s) => s.id)
+      : role === "MANAGER"
+        ? screens.map((s) => s.id).filter((id) => id !== "backup")
+        : screens
+            .map((s) => s.id)
+            .filter((id) =>
+              [
+                "dashboard",
+                "cash",
+                "vaults",
+                "customers",
+                "debtorsCreditors",
+                "hawala",
+                "daybook",
+                "transactions",
+              ].includes(id),
+            );
+  const out: Record<string, ScreenAccessLevel> = {};
+  for (const id of ids) out[id] = "write";
+  return out;
+}
+
+function rightsFromUser(user: UserAccount | null, screens: DeskScreenOption[]): Record<string, ScreenAccessLevel> {
+  if (!user) return defaultScreenRightsForRole("CASHIER", screens);
+  if (user.screenRights && Object.keys(user.screenRights).length > 0) {
+    const out: Record<string, ScreenAccessLevel> = {};
+    for (const [id, access] of Object.entries(user.screenRights)) {
+      out[id] = access === "read" ? "read" : "write";
+    }
+    return out;
   }
-  return all.filter((id) =>
-    ["dashboard", "cash", "customers", "exchange", "hawala", "daybook", "transactions"].includes(
-      id,
-    ),
-  );
+  if (user.allowedScreens?.length) {
+    const out: Record<string, ScreenAccessLevel> = {};
+    for (const id of user.allowedScreens) out[id] = "write";
+    return out;
+  }
+  return defaultScreenRightsForRole(user.role, screens);
+}
+
+function fileRestoreUserError(err: unknown, t: Dictionary): string {
+  logAppError("restore-from-file", err);
+  const raw = technicalErrorText(err);
+  if (/BACKUP_FILE_INVALID/i.test(raw)) return t.backup.restoreFromFileInvalid;
+  if (/BACKUP_FILE_INCOMPATIBLE/i.test(raw)) return t.backup.restoreFromFileIncompatible;
+  if (/BACKUP_FILE_DAMAGED/i.test(raw)) return t.backup.restoreFromFileDamaged;
+  if (/BACKUP_FILE_SAFETY_FAILED/i.test(raw)) return t.backup.restoreFromFileSafetyFailed;
+  if (/BACKUP_FILE_VERIFY_FAILED/i.test(raw)) return t.backup.restoreFromFileVerifyFailed;
+  if (/BACKUP_FILE_LIVE_DB/i.test(raw)) return t.backup.restoreFromFileLiveDb;
+  if (/BACKUP_FILE_RESTORE_FAILED/i.test(raw)) return t.backup.restoreFromFileFailed;
+  return userFacingError(err, t.backup.restoreFromFileFailed, t.errors);
 }
 
 export function SettingsPage() {
@@ -50,11 +137,29 @@ export function SettingsPage() {
     fa: t.settings.languageDari,
     ps: t.settings.languagePashto,
   };
-  const { session, logout } = useAuth();
+  const { session } = useAuth();
   const { locale, setLocale } = useLocale();
-  const [tab, setTab] = useState<SettingsTab>("general");
+  const {
+    fontSize,
+    boldText,
+    theme,
+    setFontSize,
+    setBoldText,
+    setTheme,
+  } = useUiTextPrefs();
+  const { showSuccess, successModal } = useSuccessModal();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseSettingsTab(searchParams.get("tab"));
 
-  const [info, setInfo] = useState<AppInfo | null>(null);
+  const selectTab = useCallback(
+    (next: SettingsTab) => {
+      setSearchParams(next === "general" ? {} : { tab: next }, { replace: true });
+    },
+    [setSearchParams],
+  );
+
+  const [businessNameDraft, setBusinessNameDraft] = useState("");
+  const [businessNameBusy, setBusinessNameBusy] = useState(false);
   const [backups, setBackups] = useState<BackupListItem[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [currenciesTotal, setCurrenciesTotal] = useState(0);
@@ -64,35 +169,41 @@ export function SettingsPage() {
   const [screens, setScreens] = useState<DeskScreenOption[]>([]);
 
   const [busy, setBusy] = useState(false);
+  const [fileRestorePhase, setFileRestorePhase] = useState<"validate" | "restore" | null>(null);
+  const [fileRestoreAlert, setFileRestoreAlert] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const [currencyBusy, setCurrencyBusy] = useState(false);
   const [userBusy, setUserBusy] = useState(false);
   const [localeBusy, setLocaleBusy] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [textPrefsBusy, setTextPrefsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
   const [currencyError, setCurrencyError] = useState<string | null>(null);
-  const [currencyOk, setCurrencyOk] = useState<string | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
-  const [userOk, setUserOk] = useState<string | null>(null);
 
-  const [newCode, setNewCode] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newSymbol, setNewSymbol] = useState("");
-  const [newPlaces, setNewPlaces] = useState("2");
+  const [worldSearch, setWorldSearch] = useState("");
+  const [worldPage, setWorldPage] = useState(1);
+  const worldPageSize = 25;
+  const [currencyPanel, setCurrencyPanel] = useState<CurrencyPanel>("system");
+  const [activeCurrencyCodes, setActiveCurrencyCodes] = useState<
+    Record<string, true>
+  >({});
+  const [inactiveByCode, setInactiveByCode] = useState<
+    Record<string, CurrencyListItem>
+  >({});
 
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [passwordUser, setPasswordUser] = useState<UserAccount | null>(null);
 
-  const tabs: Array<{ id: SettingsTab; label: string }> = useMemo(
-    () => [
-      { id: "general", label: t.settings.general },
-      { id: "currencies", label: t.pages.currencies },
-      { id: "users", label: t.settings.users },
-      { id: "backup", label: t.settings.backup },
-    ],
-    [t],
-  );
+  const canManageUsers = isAdminRole(session) && canAccessScreen(session, "settings");
+  const canManageBackup = canManageUsers;
+
+  useEffect(() => {
+    if (tab === "users" && !canManageUsers) selectTab("general");
+    if (tab === "backup" && !canManageBackup) selectTab("general");
+  }, [tab, canManageUsers, canManageBackup, selectTab]);
 
   const refreshBackups = useCallback(() => {
     void listDbBackups()
@@ -103,14 +214,31 @@ export function SettingsPage() {
   }, []);
 
   const refreshCurrencies = useCallback(() => {
-    void listCurrenciesPage({
-      activeOnly: false,
-      page: currenciesPage,
-      pageSize: currenciesPageSize,
-    })
-      .then((page) => {
-        setCurrencies(page.items);
-        setCurrenciesTotal(page.total);
+    void Promise.all([
+      listCurrenciesPage({
+        activeOnly: true,
+        page: currenciesPage,
+        pageSize: currenciesPageSize,
+      }),
+      listCurrenciesPage({
+        activeOnly: false,
+        page: 1,
+        pageSize: 500,
+      }),
+    ])
+      .then(([activePage, allPage]) => {
+        setCurrencies(activePage.items);
+        setCurrenciesTotal(activePage.total);
+        const activeCodes: Record<string, true> = {};
+        const inactiveMap: Record<string, CurrencyListItem> = {};
+        for (const row of allPage.items) {
+          const code = row.code?.trim().toUpperCase();
+          if (!code) continue;
+          if (row.isActive) activeCodes[code] = true;
+          else inactiveMap[code] = row;
+        }
+        setActiveCurrencyCodes(activeCodes);
+        setInactiveByCode(inactiveMap);
       })
       .catch((err: unknown) => {
         setCurrencyError(err instanceof Error ? err.message : String(err));
@@ -118,6 +246,10 @@ export function SettingsPage() {
   }, [currenciesPage]);
 
   const refreshUsers = useCallback(() => {
+    if (!canManageUsers) {
+      setUsers([]);
+      return;
+    }
     void Promise.all([listUsers(), listDeskScreens()])
       .then(([list, deskScreens]) => {
         setUsers(list);
@@ -126,16 +258,50 @@ export function SettingsPage() {
       .catch((err: unknown) => {
         setUserError(err instanceof Error ? err.message : String(err));
       });
-  }, []);
+  }, [canManageUsers]);
+
+  const refreshActiveTab = useCallback(() => {
+    if (tab === "currencies") {
+      refreshCurrencies();
+      return;
+    }
+    if (tab === "users") {
+      refreshUsers();
+      return;
+    }
+    if (tab === "backup") {
+      refreshBackups();
+      return;
+    }
+    void getBusinessName()
+      .then((row) => setBusinessNameDraft(row.businessName))
+      .catch(() => undefined);
+  }, [tab, refreshCurrencies, refreshUsers, refreshBackups]);
+
+  useDeskAction("refresh", refreshActiveTab);
 
   useEffect(() => {
-    void getAppInfo()
-      .then(setInfo)
+    void getBusinessName()
+      .then((row) => setBusinessNameDraft(row.businessName))
       .catch(() => undefined);
     refreshBackups();
     refreshCurrencies();
     refreshUsers();
   }, [refreshBackups, refreshCurrencies, refreshUsers]);
+
+  async function handleSaveBusinessName() {
+    setBusinessNameBusy(true);
+    setError(null);
+    try {
+      const saved = await setBusinessName(businessNameDraft);
+      setBusinessNameDraft(saved.businessName);
+      showSuccess(t.common.success);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusinessNameBusy(false);
+    }
+  }
 
   async function handleLocaleChange(next: AppLocale) {
     if (next === locale) return;
@@ -150,13 +316,51 @@ export function SettingsPage() {
     }
   }
 
+  async function handleFontSizeChange(next: UiFontSize) {
+    if (next === fontSize) return;
+    setTextPrefsBusy(true);
+    setError(null);
+    try {
+      await setFontSize(next);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTextPrefsBusy(false);
+    }
+  }
+
+  async function handleBoldTextChange(next: boolean) {
+    if (next === boldText) return;
+    setTextPrefsBusy(true);
+    setError(null);
+    try {
+      await setBoldText(next);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTextPrefsBusy(false);
+    }
+  }
+
+  async function handleThemeChange(next: UiTheme) {
+    if (next === theme) return;
+    setTextPrefsBusy(true);
+    setError(null);
+    try {
+      await setTheme(next);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTextPrefsBusy(false);
+    }
+  }
+
   async function handleBackup() {
     setBusy(true);
     setError(null);
-    setOk(null);
     try {
       const result = await createDbBackup("manual");
-      setOk(t.common.success);
+      showSuccess(t.common.success);
       if (result.warnings.length) {
         setError(result.warnings.join(" · "));
       }
@@ -169,46 +373,127 @@ export function SettingsPage() {
   }
 
   async function handleRestore(stamp: string) {
-    if (
-      !window.confirm(
-        t.backup.restoreConfirmTitle.replace("{stamp}", stamp),
-      )
-    ) {
+    const title = t.backup.restoreConfirmTitle.replace("{stamp}", stamp);
+    const body = t.backup.restoreConfirmBody;
+    if (!window.confirm(`${title}\n\n${body}`)) {
       return;
     }
     setBusy(true);
     setError(null);
-    setOk(null);
+    // Let React paint the busy state before the restore IPC starts.
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      window.setTimeout(() => resolve(), 40);
+    });
     try {
-      const result = await restoreDbBackup(stamp);
-      setOk(result.message);
+      const result = await restoreDbBackup(stamp, session?.token);
+      showSuccess(result.message || t.backup.restoreDone);
       refreshBackups();
+      window.setTimeout(() => window.location.reload(), 700);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
       setBusy(false);
     }
   }
 
-  async function handleCreateCurrency(event: FormEvent) {
-    event.preventDefault();
+  async function handleRestoreFromFile() {
+    setError(null);
+    setFileRestoreAlert(null);
+    let picked: string | null;
+    try {
+      picked = await pickBackupFile();
+    } catch (err: unknown) {
+      setError(fileRestoreUserError(err, t));
+      return;
+    }
+    if (!picked) {
+      return;
+    }
+
+    setBusy(true);
+    setFileRestorePhase("validate");
+    let info;
+    try {
+      info = await validateBackupFile(picked);
+    } catch (err: unknown) {
+      const message = fileRestoreUserError(err, t);
+      setBusy(false);
+      setFileRestorePhase(null);
+      const raw = technicalErrorText(err);
+      if (/BACKUP_FILE_INCOMPATIBLE/i.test(raw)) {
+        setFileRestoreAlert({
+          title: t.backup.restoreFromFileIncompatibleTitle,
+          message,
+        });
+        return;
+      }
+      if (/BACKUP_FILE_INVALID|BACKUP_FILE_DAMAGED|BACKUP_FILE_LIVE_DB/i.test(raw)) {
+        setFileRestoreAlert({
+          title: t.backup.restoreFromFileInvalidTitle,
+          message,
+        });
+        return;
+      }
+      setError(message);
+      return;
+    }
+    setBusy(false);
+    setFileRestorePhase(null);
+
+    const title = t.backup.restoreFromFileConfirmTitle;
+    const body = t.backup.restoreFromFileConfirmBody.replace("{path}", info.path);
+    if (!window.confirm(`${title}\n\n${body}`)) {
+      return;
+    }
+
+    setBusy(true);
+    setFileRestorePhase("restore");
+    setError(null);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      window.setTimeout(() => resolve(), 40);
+    });
+    try {
+      const result = await restoreDbBackupFromFile(info.path, session?.token);
+      showSuccess(result.message || t.backup.restoreDone);
+      refreshBackups();
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (err: unknown) {
+      setError(fileRestoreUserError(err, t));
+      setBusy(false);
+      setFileRestorePhase(null);
+    }
+  }
+
+  async function handleAddWorldCurrency(row: WorldCurrency) {
+    const code = row.code.toUpperCase();
+    if (activeCurrencyCodes[code]) return;
     setCurrencyBusy(true);
     setCurrencyError(null);
-    setCurrencyOk(null);
     try {
-      const places = Number.parseInt(newPlaces, 10);
-      await createCurrency({
-        code: newCode.trim(),
-        name: newName.trim(),
-        symbol: newSymbol.trim() || null,
-        decimalPlaces: Number.isFinite(places) ? places : 2,
-        isActive: true,
-      });
-      setCurrencyOk(t.common.success);
-      setNewCode("");
-      setNewName("");
-      setNewSymbol("");
-      setNewPlaces("2");
+      const inactive = inactiveByCode[code];
+      if (inactive) {
+        await updateCurrency({
+          id: inactive.id,
+          name: inactive.name,
+          symbol: inactive.symbol,
+          decimalPlaces: inactive.decimalPlaces,
+          isActive: true,
+        });
+      } else {
+        await createCurrency({
+          code: row.code,
+          name: row.name,
+          symbol: row.symbol || null,
+          decimalPlaces: row.decimalPlaces,
+          isActive: true,
+        });
+      }
+      showSuccess(t.common.success);
       refreshCurrencies();
     } catch (err: unknown) {
       setCurrencyError(err instanceof Error ? err.message : String(err));
@@ -218,20 +503,18 @@ export function SettingsPage() {
   }
 
   async function toggleCurrencyActive(row: CurrencyListItem) {
+    if (!row.isActive) return;
     setCurrencyBusy(true);
     setCurrencyError(null);
-    setCurrencyOk(null);
     try {
-      const updated = await updateCurrency({
+      await updateCurrency({
         id: row.id,
         name: row.name,
         symbol: row.symbol,
         decimalPlaces: row.decimalPlaces,
-        isActive: !row.isActive,
+        isActive: false,
       });
-      setCurrencyOk(
-        updated.isActive ? t.common.activate : t.common.deactivate,
-      );
+      showSuccess(t.common.deactivate);
       refreshCurrencies();
     } catch (err: unknown) {
       setCurrencyError(err instanceof Error ? err.message : String(err));
@@ -240,214 +523,336 @@ export function SettingsPage() {
     }
   }
 
+  const worldRows = useMemo(() => {
+    const base = searchWorldCurrencies(worldSearch);
+    const q = worldSearch.trim().toLowerCase();
+    const seen = new Set(
+      base.map((c) => (c.code || "").trim().toUpperCase()).filter(Boolean),
+    );
+    const extras: WorldCurrency[] = [];
+    for (const row of Object.values(inactiveByCode)) {
+      const code = (row.code || "").trim().toUpperCase();
+      if (!code || seen.has(code)) continue;
+      if (q) {
+        const hay = `${row.code} ${row.name} ${row.symbol ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      extras.push({
+        code,
+        name: row.name,
+        symbol: row.symbol ?? "",
+        decimalPlaces: row.decimalPlaces,
+      });
+    }
+    extras.sort((a, b) => a.code.localeCompare(b.code));
+    return [...base, ...extras];
+  }, [worldSearch, inactiveByCode]);
+
+  const worldPageRows = useMemo(() => {
+    const start = (worldPage - 1) * worldPageSize;
+    return worldRows.slice(start, start + worldPageSize);
+  }, [worldRows, worldPage, worldPageSize]);
+
   return (
     <div className="stack">
-      <div>
-        <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.settings}</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          {t.settings.shopPreferences}
-        </p>
-      </div>
-
-      <div className="settings-tabs" role="tablist" aria-label={t.settings.sections}>
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            className={tab === item.id ? "settings-tab active" : "settings-tab"}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
       {tab === "general" ? (
-        <div className="stack">
-          <div className="card stack">
-            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.session}</h2>
-            <p className="muted" style={{ margin: 0 }}>
-              {t.session.account}
-            </p>
-            <button
-              type="button"
-              className="secondary"
-              disabled={signingOut}
-              style={{ alignSelf: "start" }}
-              onClick={() => {
-                setSigningOut(true);
-                void logout().finally(() => setSigningOut(false));
-              }}
-            >
-              {signingOut ? t.session.signingOut : t.session.signOut}
-            </button>
-          </div>
+        <div className="stack settings-general-compact">
+          {error ? <p className="error">{error}</p> : null}
 
-          <div className="card stack">
-            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.language}</h2>
-            <p className="muted" style={{ margin: 0 }}>
-              {t.settings.languageHint}
-            </p>
-            <label>
-              {t.settings.language}
-              <select
-                value={locale}
-                disabled={localeBusy}
-                onChange={(e) => void handleLocaleChange(e.target.value as AppLocale)}
+          <div className="card settings-general-card">
+            <div className="settings-general-grid">
+              <label>
+                <span>{t.settings.language}</span>
+                <select
+                  value={locale}
+                  disabled={localeBusy}
+                  onChange={(e) => void handleLocaleChange(e.target.value as AppLocale)}
+                >
+                  {APP_LOCALES.map((code) => (
+                    <option key={code} value={code}>
+                      {localeLabels[code]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>{t.settings.textSize}</span>
+                <select
+                  value={fontSize}
+                  disabled={textPrefsBusy}
+                  onChange={(e) => void handleFontSizeChange(e.target.value as UiFontSize)}
+                >
+                  {UI_FONT_SIZES.map((size) => (
+                    <option key={size} value={size}>
+                      {size === "small"
+                        ? t.settings.textSizeSmall
+                        : size === "default"
+                          ? t.settings.textSizeDefault
+                          : size === "large"
+                            ? t.settings.textSizeLarge
+                            : t.settings.textSizeExtraLarge}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>{t.settings.appearance}</span>
+                <select
+                  value={theme}
+                  disabled={textPrefsBusy}
+                  onChange={(e) => void handleThemeChange(e.target.value as UiTheme)}
+                >
+                  <option value="light">{t.settings.themeLight}</option>
+                  <option value="dark">{t.settings.themeDark}</option>
+                </select>
+              </label>
+
+              <label className="settings-general-bold">
+                <input
+                  type="checkbox"
+                  checked={boldText}
+                  disabled={textPrefsBusy}
+                  onChange={(e) => void handleBoldTextChange(e.target.checked)}
+                />
+                <span>
+                  <strong>{t.settings.boldText}</strong>
+                  <span className="muted settings-general-hint">{t.settings.boldTextHint}</span>
+                </span>
+              </label>
+
+              <form
+                className="settings-general-business"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSaveBusinessName();
+                }}
               >
-                {APP_LOCALES.map((code) => (
-                  <option key={code} value={code}>
-                    {localeLabels[code]}
-                  </option>
-                ))}
-              </select>
-            </label>
+                <label>
+                  <span>{t.settings.businessName}</span>
+                  <input
+                    value={businessNameDraft}
+                    maxLength={120}
+                    required
+                    disabled={businessNameBusy}
+                    onChange={(e) => setBusinessNameDraft(e.target.value)}
+                  />
+                </label>
+                <button type="submit" disabled={businessNameBusy || !businessNameDraft.trim()}>
+                  {businessNameBusy ? t.common.loading : t.common.save}
+                </button>
+              </form>
+            </div>
           </div>
 
-          <div className="card stack">
-            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.general}</h2>
-            {info ? (
-              <p className="muted" style={{ margin: 0 }}>
-                {info.name} · {info.backend} · v{info.version}
-                <br />
-                DB: {info.dbPath}
-              </p>
-            ) : (
-              <p className="muted">{t.common.loading}</p>
-            )}
-            {error && tab === "general" ? <p className="error">{error}</p> : null}
+          <div className="card settings-general-card">
+            <div className="settings-general-head">
+              <h2>{t.settings.keyboardShortcuts}</h2>
+              <p className="muted">{t.settings.keyboardShortcutsHint}</p>
+            </div>
+            <ul className="shortcut-list shortcut-list-compact">
+              {(
+                [
+                  { keys: ["Ctrl", "D"], action: t.settings.shortcutDeposit },
+                  { keys: ["Ctrl", "W"], action: t.settings.shortcutWithdraw },
+                  { keys: ["Ctrl", "T"], action: t.settings.shortcutTransfer },
+                  { keys: ["Ctrl", "E"], action: t.settings.shortcutExchange },
+                  { keys: ["Ctrl", "H"], action: t.settings.shortcutSendHawala },
+                  { keys: ["Ctrl", "R"], action: t.settings.shortcutReceiveHawala },
+                  { keys: ["Ctrl", "C"], action: t.settings.shortcutAddCustomer },
+                  { keys: ["Ctrl", "O"], action: t.settings.shortcutOk },
+                  { keys: ["Ctrl", "S"], action: t.settings.shortcutSave },
+                  { keys: ["Ctrl", "U"], action: t.settings.shortcutUndo },
+                  { keys: ["Ctrl", "P"], action: t.settings.shortcutPrint },
+                  { keys: ["Ctrl", "F"], action: t.settings.shortcutSearch },
+                  { keys: ["Ctrl", "N"], action: t.settings.shortcutNew },
+                  { keys: ["F5"], action: t.settings.shortcutRefresh },
+                  { keys: ["Esc"], action: t.settings.shortcutEsc },
+                  { keys: ["↑", "↓"], action: t.settings.shortcutNavigateResults },
+                  { keys: ["←", "→"], action: t.settings.shortcutNavigateTabs },
+                ] as const
+              ).map((row) => (
+                <li key={row.keys.join("-")} className="shortcut-row">
+                  <span className="shortcut-action">{row.action}</span>
+                  <span className="shortcut-keys" aria-label={row.keys.join(" + ")}>
+                    {row.keys.map((key, i) => (
+                      <span key={`${row.action}-${key}`}>
+                        {i > 0 ? <span className="shortcut-sep">+</span> : null}
+                        <kbd className="shortcut-key">{key}</kbd>
+                      </span>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       ) : null}
 
       {tab === "currencies" ? (
         <div className="card stack">
-          <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.pages.currencies}</h2>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.settings.catalog}
-          </p>
+          <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.pages.currencies}</h2>
+          </div>
 
-          <form
-            className="row"
-            onSubmit={(e) => void handleCreateCurrency(e)}
-            style={{ flexWrap: "wrap", gap: "0.5rem", alignItems: "end" }}
+          <div
+            className="settings-tabs currency-panel-tabs"
+            role="tablist"
+            aria-label={t.pages.currencies}
           >
-            <label style={{ minWidth: 90 }}>
-              {t.currencies.code} *
-              <input
-                value={newCode}
-                placeholder="USD"
-                maxLength={8}
-                required
-                onChange={(e) => setNewCode(e.target.value.toUpperCase())}
-              />
-            </label>
-            <label style={{ flex: 1, minWidth: 160 }}>
-              {t.common.name} *
-              <input
-                value={newName}
-                placeholder={t.common.name}
-                required
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </label>
-            <label style={{ minWidth: 90 }}>
-              {t.currencies.symbol}
-              <input
-                value={newSymbol}
-                placeholder="$"
-                maxLength={16}
-                onChange={(e) => setNewSymbol(e.target.value)}
-              />
-            </label>
-            <label style={{ minWidth: 90 }}>
-              {t.currencies.decimals}
-              <input
-                type="number"
-                min={0}
-                max={6}
-                value={newPlaces}
-                onChange={(e) => setNewPlaces(e.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn primary" disabled={currencyBusy}>
-              {currencyBusy ? t.common.saving : t.common.create}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currencyPanel === "system"}
+              className={`settings-tab${currencyPanel === "system" ? " active" : ""}`}
+              onClick={() => setCurrencyPanel("system")}
+            >
+              {t.settings.catalog}
             </button>
-          </form>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={currencyPanel === "world"}
+              className={`settings-tab${currencyPanel === "world" ? " active" : ""}`}
+              onClick={() => {
+                setCurrencyPanel("world");
+                setWorldPage(1);
+              }}
+            >
+              {t.currencies.worldCatalog}
+            </button>
+          </div>
 
-          {currencyError ? <p className="error">{currencyError}</p> : null}
-          {currencyOk ? <p className="ok">{currencyOk}</p> : null}
+          <ModalErrorBanner message={currencyError} />
 
-          <table>
-            <thead>
-              <tr>
-                <th>{t.currencies.code}</th>
-                <th>{t.common.name}</th>
-                <th>{t.currencies.symbol}</th>
-                <th>{t.currencies.decimals}</th>
-                <th>{t.common.status}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {currencies.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="muted">
-                    {t.currencies.emptyTitle}
-                  </td>
-                </tr>
-              ) : (
-                currencies.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <strong>{row.code}</strong>
-                    </td>
-                    <td>{row.name}</td>
-                    <td>{row.symbol ?? "—"}</td>
-                    <td>{row.decimalPlaces}</td>
-                    <td>
-                      {row.isActive ? (
-                        <span className="badge badge-ok">{t.common.active}</span>
-                      ) : (
-                        <span className="badge">{t.common.inactive}</span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="secondary"
-                        disabled={currencyBusy}
-                        onClick={() => void toggleCurrencyActive(row)}
-                      >
-                        {row.isActive ? t.common.deactivate : t.common.activate}
-                      </button>
-                    </td>
+          {currencyPanel === "system" ? (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t.currencies.code}</th>
+                    <th>{t.common.name}</th>
+                    <th>{t.currencies.symbol}</th>
+                    <th>{t.currencies.decimals}</th>
+                    <th>{t.common.status}</th>
+                    <th />
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-          <Pagination
-            page={currenciesPage}
-            pageSize={currenciesPageSize}
-            total={currenciesTotal}
-            busy={currencyBusy}
-            onPageChange={setCurrenciesPage}
-          />
+                </thead>
+                <tbody>
+                  {currencies.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        {t.currencies.emptyTitle}
+                      </td>
+                    </tr>
+                  ) : (
+                    currencies.map((row) => (
+                      <tr key={row.id}>
+                        <td>
+                          <CurrencyCodeWithFlag code={row.code} />
+                        </td>
+                        <td>{row.name}</td>
+                        <td>{row.symbol ?? "—"}</td>
+                        <td>{row.decimalPlaces}</td>
+                        <td>
+                          <span className="badge badge-ok">{t.common.active}</span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={currencyBusy}
+                            onClick={() => void toggleCurrencyActive(row)}
+                          >
+                            {t.common.deactivate}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              <Pagination
+                page={currenciesPage}
+                pageSize={currenciesPageSize}
+                total={currenciesTotal}
+                busy={currencyBusy}
+                onPageChange={setCurrenciesPage}
+              />
+            </>
+          ) : (
+            <div className="stack" style={{ gap: "0.45rem" }}>
+              <h3 style={{ margin: 0, fontSize: "0.98rem" }}>{t.currencies.worldCatalog}</h3>
+              <p className="muted" style={{ margin: 0 }}>
+                {t.currencies.worldCatalogHint}
+              </p>
+              <label>
+                {t.common.search}
+                <input
+                  value={worldSearch}
+                  placeholder={t.currencies.searchWorld}
+                  onChange={(e) => {
+                    setWorldSearch(e.target.value);
+                    setWorldPage(1);
+                  }}
+                />
+              </label>
+              <div className="world-currency-list" role="list">
+                {worldPageRows.length === 0 ? (
+                  <p className="muted" style={{ margin: "0.75rem" }}>
+                    {t.common.noResults}
+                  </p>
+                ) : (
+                  worldPageRows.map((row) => {
+                    const code = (row.code || "").trim().toUpperCase();
+                    const inSystem = Boolean(activeCurrencyCodes[code]);
+                    return (
+                      <div key={code || row.name} className="world-currency-row" role="listitem">
+                        <CurrencyFlag code={code} size="md" />
+                        <div className="world-currency-meta">
+                          <strong>
+                            {code}
+                            {row.symbol ? ` · ${row.symbol}` : ""}
+                          </strong>
+                          <span className="muted">{row.name}</span>
+                        </div>
+                        <span className="muted" style={{ fontSize: "0.8rem" }}>
+                          {row.decimalPlaces} {t.currencies.decimals}
+                        </span>
+                        {inSystem ? (
+                          <span className="badge badge-ok">{t.currencies.alreadyInSystem}</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn primary"
+                            disabled={currencyBusy}
+                            onClick={() => void handleAddWorldCurrency(row)}
+                          >
+                            {t.currencies.addToSystem}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <Pagination
+                page={worldPage}
+                pageSize={worldPageSize}
+                total={worldRows.length}
+                busy={currencyBusy}
+                onPageChange={setWorldPage}
+              />
+            </div>
+          )}
         </div>
       ) : null}
 
       {tab === "users" ? (
         <div className="card stack">
           <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.users}</h2>
-              <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-                {t.users.manageAccounts}
-              </p>
-            </div>
+            <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.users}</h2>
             <button
               type="button"
               className="btn primary"
@@ -455,15 +860,15 @@ export function SettingsPage() {
                 setEditingUser(null);
                 setShowUserForm(true);
                 setUserError(null);
-                setUserOk(null);
               }}
             >
               {t.common.create}
             </button>
           </div>
 
-          {userError ? <p className="error">{userError}</p> : null}
-          {userOk ? <p className="ok">{userOk}</p> : null}
+          {userError && !showUserForm && !passwordUser ? (
+            <ModalErrorBanner message={userError} />
+          ) : null}
 
           <table>
             <thead>
@@ -489,12 +894,22 @@ export function SettingsPage() {
                     <td>
                       <strong>{user.fullName}</strong>
                     </td>
-                    <td>{user.username}</td>
+                    <td>
+                      <span className="ltr-text username">{user.username}</span>
+                    </td>
                     <td>{user.role}</td>
                     <td style={{ fontSize: "0.85rem" }}>
-                      {user.allowedScreens.length === 0
+                      {isSystemAdminUsername(user.username) ||
+                      (user.allowedScreens.length === 0 &&
+                        Object.keys(user.screenRights ?? {}).length === 0)
                         ? t.common.all
-                        : `${user.allowedScreens.length}`}
+                        : Object.entries(user.screenRights ?? {}).length > 0
+                          ? Object.entries(user.screenRights)
+                              .map(([id, access]) => `${id}:${access}`)
+                              .slice(0, 4)
+                              .join(", ") +
+                            (Object.keys(user.screenRights).length > 4 ? "…" : "")
+                          : `${user.allowedScreens.length}`}
                     </td>
                     <td>
                       {user.isActive ? (
@@ -513,7 +928,6 @@ export function SettingsPage() {
                             setEditingUser(user);
                             setShowUserForm(true);
                             setUserError(null);
-                            setUserOk(null);
                           }}
                         >
                           {t.common.edit}
@@ -525,11 +939,45 @@ export function SettingsPage() {
                           onClick={() => {
                             setPasswordUser(user);
                             setUserError(null);
-                            setUserOk(null);
                           }}
                         >
                           {t.users.password}
                         </button>
+                        {!isSystemAdminUsername(user.username) &&
+                        user.id !== session?.userId ? (
+                          <button
+                            type="button"
+                            className="secondary danger"
+                            disabled={userBusy}
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  t.users.deleteConfirm.replace(
+                                    "{name}",
+                                    user.fullName || user.username,
+                                  ),
+                                )
+                              ) {
+                                return;
+                              }
+                              setUserBusy(true);
+                              setUserError(null);
+                              void deleteUser(user.id)
+                                .then(() => {
+                                  showSuccess(t.common.success);
+                                  return refreshUsers();
+                                })
+                                .catch((err: unknown) => {
+                                  setUserError(
+                                    err instanceof Error ? err.message : String(err),
+                                  );
+                                })
+                                .finally(() => setUserBusy(false));
+                            }}
+                          >
+                            {t.common.delete}
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -544,15 +992,34 @@ export function SettingsPage() {
         <div className="card stack">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.backup}</h2>
-            <button type="button" disabled={busy} onClick={() => void handleBackup()}>
-              {busy ? t.backup.inProgress : t.backup.createBackup}
-            </button>
+            <div className="row" style={{ gap: 8 }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => void handleRestoreFromFile()}
+              >
+                {t.backup.restoreFromFile}
+              </button>
+              <button type="button" disabled={busy} onClick={() => void handleBackup()}>
+                {busy ? t.backup.inProgress : t.backup.createBackup}
+              </button>
+            </div>
           </div>
           <p className="muted" style={{ margin: 0 }}>
             {t.backup.hint}
           </p>
+          <p className="muted" style={{ margin: 0 }}>
+            {t.backup.restoreFromFileHint}
+          </p>
+          {busy ? (
+            <p className="muted" style={{ margin: 0, fontWeight: 600 }}>
+              {fileRestorePhase === "validate"
+                ? t.backup.restoreFromFileValidating
+                : t.backup.restoreRestarting}
+            </p>
+          ) : null}
           {error ? <p className="error">{error}</p> : null}
-          {ok ? <p className="ok">{ok}</p> : null}
           <table>
             <thead>
               <tr>
@@ -598,6 +1065,7 @@ export function SettingsPage() {
           screens={screens}
           initial={editingUser}
           busy={userBusy}
+          error={userError}
           actorUserId={session?.userId}
           onClose={() => {
             setShowUserForm(false);
@@ -606,7 +1074,7 @@ export function SettingsPage() {
           onBusy={setUserBusy}
           onError={setUserError}
           onOk={(msg) => {
-            setUserOk(msg);
+            showSuccess(msg);
             setShowUserForm(false);
             setEditingUser(null);
             refreshUsers();
@@ -618,15 +1086,36 @@ export function SettingsPage() {
         <PasswordModal
           user={passwordUser}
           busy={userBusy}
+          error={userError}
           onClose={() => setPasswordUser(null)}
           onBusy={setUserBusy}
           onError={setUserError}
           onOk={(msg) => {
-            setUserOk(msg);
+            showSuccess(msg);
             setPasswordUser(null);
           }}
         />
       ) : null}
+
+      {fileRestoreAlert ? (
+        <Modal
+          title={fileRestoreAlert.title}
+          onClose={() => setFileRestoreAlert(null)}
+        >
+          <p style={{ margin: 0, whiteSpace: "pre-line" }}>{fileRestoreAlert.message}</p>
+          <div className="modal-actions" style={{ justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="btn btn-action btn-action--ok"
+              data-desk-action="ok"
+              onClick={() => setFileRestoreAlert(null)}
+            >
+              {t.backup.restoreFromFileOk}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+      {successModal}
     </div>
   );
 }
@@ -635,6 +1124,7 @@ function UserFormModal({
   screens,
   initial,
   busy,
+  error,
   actorUserId,
   onClose,
   onBusy,
@@ -644,6 +1134,7 @@ function UserFormModal({
   screens: DeskScreenOption[];
   initial: UserAccount | null;
   busy: boolean;
+  error: string | null;
   actorUserId?: string;
   onClose: () => void;
   onBusy: (v: boolean) => void;
@@ -657,20 +1148,49 @@ function UserFormModal({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState(initial?.role ?? "CASHIER");
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
-  const [allowedScreens, setAllowedScreens] = useState<string[]>(
-    initial?.allowedScreens?.length
-      ? initial.allowedScreens
-      : defaultScreensForRole(initial?.role ?? "CASHIER", screens),
+  const [screenRights, setScreenRights] = useState<Record<string, ScreenAccessLevel>>(
+    () => rightsFromUser(initial, screens),
   );
+  const [pinSetupOpen, setPinSetupOpen] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinConfigured, setPinConfigured] = useState(
+    Boolean(initial?.authPinConfigured),
+  );
+  const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
+  const [passwordPromptBusy, setPasswordPromptBusy] = useState(false);
+  const [passwordPromptError, setPasswordPromptError] = useState<string | null>(null);
+  const [passwordPending, setPasswordPending] = useState<"user-save" | null>(null);
 
-  function toggleScreen(id: string) {
-    setAllowedScreens((current) =>
-      current.includes(id) ? current.filter((s) => s !== id) : [...current, id],
-    );
+  const isSystemAdmin =
+    isEdit && isSystemAdminUsername(initial?.username);
+
+  useEffect(() => {
+    if (!isSystemAdmin) return;
+    let cancelled = false;
+    void getAdminAuthPinStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setPinConfigured(status.configured);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSystemAdmin]);
+
+  function setScreenAccess(id: string, access: ScreenAccessLevel | null) {
+    setScreenRights((current) => {
+      const next = { ...current };
+      if (access == null) delete next[id];
+      else next[id] = access;
+      return next;
+    });
   }
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  async function performUserSave(adminPassword: string | null) {
     onBusy(true);
     onError(null);
     try {
@@ -678,10 +1198,12 @@ function UserFormModal({
         await updateUser({
           id: initial.id,
           fullName: fullName.trim(),
-          role,
-          isActive,
-          allowedScreens,
+          role: isSystemAdmin ? "ADMIN" : role,
+          isActive: isSystemAdmin ? true : isActive,
+          allowedScreens: isSystemAdmin ? null : undefined,
+          screenRights: isSystemAdmin ? null : screenRights,
           actorUserId: actorUserId ?? null,
+          confirmPassword: isSystemAdmin ? adminPassword : null,
         });
         onOk(t.common.success);
       } else {
@@ -691,14 +1213,43 @@ function UserFormModal({
           password,
           role,
           isActive,
-          allowedScreens,
+          screenRights,
         });
         onOk(t.common.success);
       }
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : String(err));
+      throw err;
     } finally {
       onBusy(false);
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    onError(null);
+    if (isEdit && initial && isSystemAdmin) {
+      setPasswordPending("user-save");
+      setPasswordPromptError(null);
+      setPasswordPromptOpen(true);
+      return;
+    }
+    await performUserSave(null);
+  }
+
+  async function onAdminPasswordConfirmed(adminPassword: string) {
+    setPasswordPromptBusy(true);
+    setPasswordPromptError(null);
+    try {
+      if (passwordPending === "user-save") {
+        await performUserSave(adminPassword);
+        setPasswordPromptOpen(false);
+        setPasswordPending(null);
+      }
+    } catch (err: unknown) {
+      setPasswordPromptError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPasswordPromptBusy(false);
     }
   }
 
@@ -717,10 +1268,13 @@ function UserFormModal({
           <label>
             {t.users.username} *
             <input
+              className="ltr-text"
+              dir="ltr"
+              autoComplete="username"
               value={username}
               required
               disabled={isEdit}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              onChange={(e) => setUsername(e.target.value)}
             />
           </label>
           {!isEdit ? (
@@ -738,11 +1292,13 @@ function UserFormModal({
           <label>
             {t.users.role} *
             <select
-              value={role}
+              value={isSystemAdmin ? "ADMIN" : role}
+              disabled={isSystemAdmin}
               onChange={(e) => {
+                if (isSystemAdmin) return;
                 const next = e.target.value;
                 setRole(next);
-                setAllowedScreens(defaultScreensForRole(next, screens));
+                setScreenRights(defaultScreenRightsForRole(next, screens));
               }}
             >
               {ROLES.map((r) => (
@@ -755,8 +1311,12 @@ function UserFormModal({
           <label>
             {t.common.status}
             <select
-              value={isActive ? "active" : "inactive"}
-              onChange={(e) => setIsActive(e.target.value === "active")}
+              value={isSystemAdmin || isActive ? "active" : "inactive"}
+              disabled={isSystemAdmin}
+              onChange={(e) => {
+                if (isSystemAdmin) return;
+                setIsActive(e.target.value === "active");
+              }}
             >
               <option value="active">{t.common.active}</option>
               <option value="inactive">{t.common.inactive}</option>
@@ -767,31 +1327,132 @@ function UserFormModal({
         <div>
           <strong>{t.users.screenRights}</strong>
           <p className="muted" style={{ margin: "0.25rem 0 0.5rem" }}>
-            {t.users.permissions}
+            {isSystemAdmin
+              ? t.users.systemAdminRightsLocked
+              : t.users.screenRightsHint}
           </p>
-          <div className="settings-rights-grid">
-            {screens.map((screen) => (
-              <label key={screen.id} className="settings-right-item">
-                <input
-                  type="checkbox"
-                  checked={allowedScreens.includes(screen.id)}
-                  onChange={() => toggleScreen(screen.id)}
-                />
-                <span>{screen.label}</span>
-              </label>
-            ))}
+          <div className="settings-rights-grid settings-rights-grid-rw">
+            {screens.map((screen) => {
+              const access = screenRights[screen.id];
+              const hasRead = isSystemAdmin || access === "read" || access === "write";
+              const hasWrite = isSystemAdmin || access === "write";
+              return (
+                <div key={screen.id} className="settings-right-item settings-right-item-rw">
+                  <span className="settings-right-label">{screen.label}</span>
+                  <label className="settings-right-cap">
+                    <input
+                      type="checkbox"
+                      checked={hasRead}
+                      disabled={isSystemAdmin}
+                      onChange={() => {
+                        if (isSystemAdmin) return;
+                        if (hasWrite) setScreenAccess(screen.id, "read");
+                        else if (hasRead) setScreenAccess(screen.id, null);
+                        else setScreenAccess(screen.id, "read");
+                      }}
+                    />
+                    <span>{t.users.accessRead}</span>
+                  </label>
+                  <label className="settings-right-cap">
+                    <input
+                      type="checkbox"
+                      checked={hasWrite}
+                      disabled={isSystemAdmin}
+                      onChange={() => {
+                        if (isSystemAdmin) return;
+                        if (hasWrite) setScreenAccess(screen.id, "read");
+                        else setScreenAccess(screen.id, "write");
+                      }}
+                    />
+                    <span>{t.users.accessWrite}</span>
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="modal-actions">
-          <button type="button" className="secondary" onClick={onClose} disabled={busy}>
-            {t.common.cancel}
-          </button>
-          <button type="submit" className="btn primary" disabled={busy}>
-            {busy ? t.common.saving : isEdit ? t.users.saveUser : t.common.create}
-          </button>
+        {isSystemAdmin ? (
+          <div className="stack" style={{ gap: "0.5rem" }}>
+            <strong>{t.users.security}</strong>
+            <p className="muted" style={{ margin: 0 }}>
+              {t.users.authorizationPinHint}
+            </p>
+            <p style={{ margin: 0, fontWeight: 650 }}>
+              {t.users.authorizationPin}
+            </p>
+            <p className="muted" style={{ margin: 0 }}>
+              {pinConfigured ? t.users.pinStatusSet : t.users.pinStatusNotSet}
+            </p>
+            <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setPinError(null);
+                  setPinSetupOpen(true);
+                }}
+              >
+                {pinConfigured ? t.users.changeAuthPin : t.users.setAuthPin}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="modal-form-footer">
+          <ModalErrorBanner message={error} />
+          <div className="modal-actions">
+            <button type="button" className="secondary" onClick={onClose} disabled={busy}>
+              {t.common.cancel}
+            </button>
+            <button type="submit" className="btn primary" disabled={busy}>
+              {busy ? t.common.saving : isEdit ? t.users.saveUser : t.common.create}
+            </button>
+          </div>
         </div>
       </form>
+      <AdminPasswordConfirmModal
+        open={passwordPromptOpen}
+        busy={passwordPromptBusy}
+        error={passwordPromptError}
+        onCancel={() => {
+          if (passwordPromptBusy) return;
+          setPasswordPromptOpen(false);
+          setPasswordPending(null);
+          setPasswordPromptError(null);
+        }}
+        onConfirm={(adminPassword) => void onAdminPasswordConfirmed(adminPassword)}
+      />
+      <AuthPinSetupModal
+        open={pinSetupOpen}
+        changing={pinConfigured}
+        busy={pinBusy}
+        error={pinError}
+        onClose={() => {
+          if (!pinBusy) setPinSetupOpen(false);
+        }}
+        onSubmit={(input) => {
+          setPinBusy(true);
+          setPinError(null);
+          void setAdminAuthPin({
+            password: input.password,
+            pin: input.pin,
+            pinConfirm: input.pinConfirm,
+            actorUserId: actorUserId ?? null,
+            targetUserId: initial?.id ?? null,
+          })
+            .then((status) => {
+              setPinConfigured(status.configured);
+              clearVaultUnlockSession();
+              setPinSetupOpen(false);
+              onOk(t.users.authPinConfiguredOk);
+            })
+            .catch((err: unknown) => {
+              setPinError(errorMessage(err));
+            })
+            .finally(() => setPinBusy(false));
+        }}
+      />
     </Modal>
   );
 }
@@ -799,6 +1460,7 @@ function UserFormModal({
 function PasswordModal({
   user,
   busy,
+  error,
   onClose,
   onBusy,
   onError,
@@ -806,6 +1468,7 @@ function PasswordModal({
 }: {
   user: UserAccount;
   busy: boolean;
+  error: string | null;
   onClose: () => void;
   onBusy: (v: boolean) => void;
   onError: (msg: string | null) => void;
@@ -859,13 +1522,16 @@ function PasswordModal({
             onChange={(e) => setConfirm(e.target.value)}
           />
         </label>
-        <div className="modal-actions">
-          <button type="button" className="secondary" onClick={onClose} disabled={busy}>
-            {t.common.cancel}
-          </button>
-          <button type="submit" className="btn primary" disabled={busy}>
-            {busy ? t.common.saving : t.common.update}
-          </button>
+        <div className="modal-form-footer">
+          <ModalErrorBanner message={error} />
+          <div className="modal-actions">
+            <button type="button" className="secondary" onClick={onClose} disabled={busy}>
+              {t.common.cancel}
+            </button>
+            <button type="submit" className="btn primary" disabled={busy}>
+              {busy ? t.common.saving : t.common.update}
+            </button>
+          </div>
         </div>
       </form>
     </Modal>

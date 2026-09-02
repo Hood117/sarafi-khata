@@ -3,7 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Saraf</title>
+    <title>ASMS — Afghan Sarafi Management System</title>
+    <script>
+      (function () {
+        try {
+          var size = localStorage.getItem("saraf.ui.fontSize");
+          var bold = localStorage.getItem("saraf.ui.boldText");
+          var html = document.documentElement;
+          if (size === "small" || size === "default" || size === "large" || size === "extra-large") {
+            html.setAttribute("data-font-size", size);
+          } else {
+            html.setAttribute("data-font-size", "default");
+          }
+          if (bold === "true") html.setAttribute("data-bold-text", "true");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

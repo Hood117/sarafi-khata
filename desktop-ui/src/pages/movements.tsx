@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+﻿import { useEffect, useMemo, useState, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import {
   depositFunds,
@@ -13,61 +14,77 @@ import {
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { IconCash, IconTransfers } from "@desktop/icons";
+import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
+import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 type Tab = "deposit" | "withdraw" | "transfer";
 
+function parseTab(raw: string | null): Tab {
+  if (raw === "withdraw" || raw === "transfer" || raw === "deposit") return raw;
+  return "deposit";
+}
+
 export function MovementsPage() {
+  const t = useT();
   const { session } = useAuth();
-  const [tab, setTab] = useState<Tab>("deposit");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseTab(searchParams.get("tab"));
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [customerWallets, setCustomerWallets] = useState<WalletListItem[]>([]);
-  const [cashWallets, setCashWallets] = useState<WalletListItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const { showSuccess, successModal } = useSuccessModal();
 
-  const [reference, setReference] = useState(`REF-${Date.now()}`);
+  const [reference, setReference] = useState(() => `REF-${Date.now()}`);
   const [amount, setAmount] = useState("");
   const [currencyCode, setCurrencyCode] = useState("");
   const [customerWalletId, setCustomerWalletId] = useState("");
-  const [cashWalletId, setCashWalletId] = useState("");
   const [senderCustomerId, setSenderCustomerId] = useState("");
   const [receiverCustomerId, setReceiverCustomerId] = useState("");
   const [description, setDescription] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+
+  function selectTab(next: Tab) {
+    setError(null);
+    setSearchParams({ tab: next }, { replace: true });
+  }
 
   useEffect(() => {
+    let cancelled = false;
     void Promise.all([
       listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
       listCustomersPage({ archiveFilter: "active", page: 1, pageSize: 100 }),
       listWalletsPage({ walletType: "CUSTOMER", activeOnly: true, pageSize: 200 }),
-      listWalletsPage({ pageSize: 100, activeOnly: true }),
     ])
-      .then(([ccy, cust, cw, allWallets]) => {
+      .then(([ccy, cust, cw]) => {
+        if (cancelled) return;
         setCurrencies(ccy.items);
         setCustomers(cust.items);
         setCustomerWallets(cw.items);
-        const cash = allWallets.items.filter(
-          (w) => w.type === "TILL" || w.type === "VAULT",
-        );
-        setCashWallets(cash);
-        if (ccy.items[0]) setCurrencyCode(ccy.items[0].code);
+        if (ccy.items[0]) setCurrencyCode(pickDefaultCurrency(ccy.items));
         if (cw.items[0]) setCustomerWalletId(cw.items[0].id);
-        if (cash[0]) setCashWalletId(cash[0].id);
         if (cust.items[0]) setSenderCustomerId(cust.items[0].id);
         if (cust.items[1]) setReceiverCustomerId(cust.items[1].id);
+        setError(null);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const customerWalletOptions = useMemo(
     () =>
       customerWallets.map((w) => ({
         id: w.id,
-        label: `${w.name}${w.customerId ? "" : ""}`,
+        label: w.name,
       })),
     [customerWallets],
   );
@@ -77,32 +94,29 @@ export function MovementsPage() {
     if (!session) return;
     setBusy(true);
     setError(null);
-    setOk(null);
     try {
       if (tab === "deposit") {
         const posted = await depositFunds({
           reference,
           customerWalletId,
-          cashWalletId,
           currencyCode,
           amount,
           valueDate: todayIso(),
           description: description || undefined,
           createdById: session.userId,
         });
-        setOk(`Deposit posted: ${posted.reference}`);
+        showSuccess(`${t.txLine.typeDeposit}: ${txDisplayRef(posted)}`);
       } else if (tab === "withdraw") {
         const posted = await withdrawFunds({
           reference,
           customerWalletId,
-          cashWalletId,
           currencyCode,
           amount,
           valueDate: todayIso(),
           description: description || undefined,
           createdById: session.userId,
         });
-        setOk(`Withdrawal posted: ${posted.reference}`);
+        showSuccess(`${t.txLine.typeWithdrawal}: ${txDisplayRef(posted)}`);
       } else {
         const posted = await transferFunds({
           reference,
@@ -114,7 +128,7 @@ export function MovementsPage() {
           description: description || undefined,
           createdById: session.userId,
         });
-        setOk(`Transfer posted: ${posted.reference}`);
+        showSuccess(`${t.txLine.typeTransfer}: ${txDisplayRef(posted)}`);
       }
       setReference(`REF-${Date.now()}`);
       setAmount("");
@@ -127,30 +141,19 @@ export function MovementsPage() {
 
   return (
     <div className="stack">
-      <div>
-        <h1 style={{ margin: "0 0 0.25rem" }}>Cash desk</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          Deposit, withdrawal, and customer transfer — all via Rust posting
-        </p>
-      </div>
-
       <div className="nav-row">
         {(
           [
-            ["deposit", "Deposit", <IconCash key="d" />],
-            ["withdraw", "Withdrawal", <IconTransfers key="w" />],
-            ["transfer", "Transfer", <IconTransfers key="t" />],
+            ["deposit", t.txLine.typeDeposit, <IconCash key="d" />],
+            ["withdraw", t.txLine.typeWithdrawal, <IconTransfers key="w" />],
+            ["transfer", t.txLine.typeTransfer, <IconTransfers key="t" />],
           ] as const
         ).map(([id, label, icon]) => (
           <button
             key={id}
             type="button"
             className={tab === id ? "nav-link active" : "nav-link"}
-            onClick={() => {
-              setTab(id);
-              setError(null);
-              setOk(null);
-            }}
+            onClick={() => selectTab(id)}
           >
             <span className="nav-link-icon">{icon}</span>
             <span className="nav-link-label">{label}</span>
@@ -158,14 +161,25 @@ export function MovementsPage() {
         ))}
       </div>
 
-      <form className="card stack" onSubmit={(e) => void handleSubmit(e)}>
+      <form
+        ref={formRef}
+        className="card stack"
+        data-desk-form
+        onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
+          handleDeskFormKeyDown(e, {
+            busy,
+            onSubmit: () => formRef.current?.requestSubmit(),
+          })
+        }
+        onSubmit={(e) => void handleSubmit(e)}
+      >
         <label>
-          Reference *
+          {t.common.reference} *
           <input required value={reference} onChange={(e) => setReference(e.target.value)} />
         </label>
         <div className="row">
           <label style={{ flex: 1 }}>
-            Amount *
+            {t.common.amount} *
             <input
               required
               value={amount}
@@ -174,7 +188,7 @@ export function MovementsPage() {
             />
           </label>
           <label style={{ minWidth: 120 }}>
-            Currency *
+            {t.common.currency} *
             <select
               required
               value={currencyCode}
@@ -190,40 +204,24 @@ export function MovementsPage() {
         </div>
 
         {tab !== "transfer" ? (
-          <>
-            <label>
-              Customer wallet *
-              <select
-                required
-                value={customerWalletId}
-                onChange={(e) => setCustomerWalletId(e.target.value)}
-              >
-                {customerWalletOptions.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Cash wallet (till/vault) *
-              <select
-                required
-                value={cashWalletId}
-                onChange={(e) => setCashWalletId(e.target.value)}
-              >
-                {cashWallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.type})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
+          <label>
+            {t.common.wallet} *
+            <select
+              required
+              value={customerWalletId}
+              onChange={(e) => setCustomerWalletId(e.target.value)}
+            >
+              {customerWalletOptions.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.label}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
           <>
             <label>
-              Sender customer *
+              {t.common.sender} *
               <select
                 required
                 value={senderCustomerId}
@@ -237,7 +235,7 @@ export function MovementsPage() {
               </select>
             </label>
             <label>
-              Receiver customer *
+              {t.common.receiver} *
               <select
                 required
                 value={receiverCustomerId}
@@ -254,16 +252,16 @@ export function MovementsPage() {
         )}
 
         <label>
-          Description
+          {t.common.description}
           <input value={description} onChange={(e) => setDescription(e.target.value)} />
         </label>
 
         {error ? <p className="error">{error}</p> : null}
-        {ok ? <p className="ok">{ok}</p> : null}
         <button type="submit" disabled={busy}>
-          {busy ? "Posting…" : "Post"}
+          {busy ? t.common.posting : t.common.submit}
         </button>
       </form>
+      {successModal}
     </div>
   );
 }

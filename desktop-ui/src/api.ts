@@ -1,6 +1,70 @@
 /** Typed wrappers around Tauri `invoke` (ADR-042). */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+
+import { logAppError } from "@desktop/lib/app-error";
+
+const SESSION_KEY = "saraf.native.session";
+
+const SKIP_SESSION_BIND = new Set([
+  "bind_session",
+  "login",
+  "logout",
+  "current_user",
+  "ping",
+  "get_app_info",
+  "get_license_status",
+  "activate_license",
+  "clear_license_dev",
+  "open_external_url",
+]);
+
+function storedSessionToken(): string | null {
+  try {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore old auto-login store */
+    }
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { token?: unknown };
+    return typeof parsed.token === "string" && parsed.token.trim()
+      ? parsed.token.trim()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function bindStoredSession(): Promise<void> {
+  const token = storedSessionToken();
+  if (!token) return;
+  try {
+    await tauriInvoke("bind_session", { input: { token } });
+  } catch {
+    // Binding is best-effort; the privileged command will fail closed if unbound.
+  }
+}
+
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const run = async () => {
+    if (!SKIP_SESSION_BIND.has(cmd)) {
+      await bindStoredSession();
+    }
+    return tauriInvoke<T>(cmd, args);
+  };
+  return run().catch((err: unknown) => {
+    logAppError(`invoke:${cmd}`, err);
+    throw err;
+  });
+}
+
+export async function bindSession(token: string | null) {
+  return invoke<void>("bind_session", {
+    input: { token: token?.trim() || null },
+  });
+}
 
 export type AppInfo = {
   name: string;
@@ -8,6 +72,32 @@ export type AppInfo = {
   dbPath: string;
   backend: string;
 };
+
+export type LicenseStatus = {
+  licensed: boolean;
+  reason: string;
+  licenseKey: string | null;
+  customerName: string | null;
+  machineFingerprint: string;
+  allowDevBypass: boolean;
+};
+
+export type ActivateLicenseResult = LicenseStatus;
+
+export function getLicenseStatus() {
+  return invoke<LicenseStatus>("get_license_status");
+}
+
+/** Online activation — APP_TOKEN stays in Rust; WebView only sends the license key. */
+export async function activateLicense(licenseKey: string) {
+  return invoke<LicenseStatus>("activate_license", {
+    input: { licenseKey: licenseKey.trim() },
+  });
+}
+
+export function clearLicenseDev() {
+  return invoke<void>("clear_license_dev");
+}
 
 export type AuthSession = {
   userId: string;
@@ -25,6 +115,8 @@ export type CustomerListItem = {
   fatherName: string | null;
   phone: string | null;
   address: string | null;
+  /** PERMANENT | TEMPORARY */
+  customerType: string;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -37,6 +129,16 @@ export type CustomerListPage = {
   pageSize: number;
 };
 
+export type OpeningKataLineDetail = {
+  transactionId: string;
+  currencyCode: string;
+  amount: string;
+  direction: string;
+  description: string;
+  notes: string | null;
+  valueDate: string;
+};
+
 export type CustomerDetail = {
   id: string;
   code: string | null;
@@ -46,10 +148,15 @@ export type CustomerDetail = {
   address: string | null;
   nationalId: string | null;
   notes: string | null;
+  /** PERMANENT | TEMPORARY */
+  customerType: string;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
+  openingKata: OpeningKataLineDetail[];
+  linkedPartnerSarafiId?: string | null;
+  linkedPartnerName?: string | null;
 };
 
 export type CurrencyListItem = {
@@ -86,6 +193,7 @@ export type WalletListPage = {
 export type PostedTransaction = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   valueDate: string;
@@ -102,6 +210,7 @@ export type PostedTransaction = {
 export type TransactionListItem = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   customerName: string | null;
@@ -109,6 +218,8 @@ export type TransactionListItem = {
   valueDate: string;
   createdAt: string;
   amountSummary: string;
+  senderName?: string | null;
+  receiverName?: string | null;
 };
 
 export type TransactionListPage = {
@@ -121,6 +232,7 @@ export type TransactionListPage = {
 export type CustomerLedgerRow = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   description: string | null;
@@ -129,6 +241,15 @@ export type CustomerLedgerRow = {
   activity: string;
   amountSummary: string;
   flow: "IN" | "OUT" | "MIXED" | "NONE" | string;
+  senderName?: string | null;
+  receiverName?: string | null;
+  /** Customer-wallet debit for this currency (empty when none). */
+  debit: string;
+  /** Customer-wallet credit for this currency (empty when none). */
+  credit: string;
+  currencyCode: string;
+  /** Running balance in this currency after the line. */
+  balanceAfter: string;
 };
 
 export type CustomerLedgerPage = {
@@ -152,6 +273,7 @@ export type TransactionLedgerLine = {
 export type TransactionDetail = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   customerId: string | null;
@@ -164,6 +286,8 @@ export type TransactionDetail = {
   createdAt: string;
   activity: string;
   lines: TransactionLedgerLine[];
+  senderName?: string | null;
+  receiverName?: string | null;
 };
 
 export function ping() {
@@ -172,6 +296,14 @@ export function ping() {
 
 export function getAppInfo() {
   return invoke<AppInfo>("get_app_info");
+}
+
+export function saveTextExport(input: { filename: string; contents: string }) {
+  return invoke<{ path: string }>("save_text_export", { input });
+}
+
+export function openExternalUrl(url: string) {
+  return invoke<void>("open_external_url", { input: { url } });
 }
 
 export function login(username: string, password: string) {
@@ -189,6 +321,7 @@ export function currentUser(token: string) {
 export function listCustomersPage(input: {
   search?: string;
   archiveFilter?: "active" | "archived" | "all";
+  typeFilter?: "permanent" | "temporary" | "all";
   page?: number;
   pageSize?: number;
 }) {
@@ -197,6 +330,13 @@ export function listCustomersPage(input: {
 
 export function getCustomer(id: string) {
   return invoke<CustomerDetail>("get_customer", { input: { id } });
+}
+
+/** Most recent customer, or the one created before `beforeId` (for Previous in the form). */
+export function getPreviousCustomer(beforeId?: string | null) {
+  return invoke<CustomerDetail | null>("get_previous_customer", {
+    input: { beforeId: beforeId || null },
+  });
 }
 
 export type CustomerBalanceRow = {
@@ -229,6 +369,7 @@ export function createCustomer(input: {
   address?: string | null;
   nationalId?: string | null;
   notes?: string | null;
+  customerType?: "PERMANENT" | "TEMPORARY" | string | null;
   openingKata?: Array<{
     currencyCode: string;
     amount: string;
@@ -252,8 +393,10 @@ export function updateCustomer(input: {
   address?: string | null;
   nationalId?: string | null;
   notes?: string | null;
+  customerType?: "PERMANENT" | "TEMPORARY" | string | null;
   actorUserId?: string | null;
   openingKata?: Array<{
+    transactionId?: string | null;
     currencyCode: string;
     amount: string;
     direction?: string | null;
@@ -319,9 +462,50 @@ export type UserAccount = {
   role: string;
   isActive: boolean;
   allowedScreens: string[];
+  /** Per-screen access: read | write */
+  screenRights: Record<string, "read" | "write" | string>;
+  authPinConfigured?: boolean;
   createdAt: string;
   updatedAt: string;
 };
+
+export type AuthPinStatus = {
+  configured: boolean;
+  adminUserId: string | null;
+  adminUsername: string | null;
+};
+
+export function getAdminAuthPinStatus() {
+  return invoke<AuthPinStatus>("get_admin_auth_pin_status");
+}
+
+export function verifyAdminPassword(password: string) {
+  return invoke<void>("verify_admin_password", { input: { password } });
+}
+
+/** Verify authorization PIN to unlock the Main Vault screen (session unlock). */
+export function verifyAuthorizationPin(pin: string) {
+  return invoke<void>("verify_authorization_pin", { input: { pin } });
+}
+
+export function setAdminAuthPin(input: {
+  password: string;
+  pin: string;
+  pinConfirm: string;
+  actorUserId?: string | null;
+  targetUserId?: string | null;
+}) {
+  return invoke<AuthPinStatus>("set_admin_auth_pin", { input });
+}
+
+export function resetAuthPinWithAdminPassword(input: {
+  password: string;
+  pin: string;
+  pinConfirm: string;
+  actorUserId?: string | null;
+}) {
+  return invoke<AuthPinStatus>("reset_auth_pin_with_admin_password", { input });
+}
 
 export function listDeskScreens() {
   return invoke<DeskScreenOption[]>("list_desk_screens");
@@ -338,6 +522,7 @@ export function createUser(input: {
   role: string;
   isActive?: boolean;
   allowedScreens?: string[] | null;
+  screenRights?: Record<string, "read" | "write"> | null;
 }) {
   return invoke<UserAccount>("create_user", { input });
 }
@@ -348,9 +533,15 @@ export function updateUser(input: {
   role: string;
   isActive: boolean;
   allowedScreens?: string[] | null;
+  screenRights?: Record<string, "read" | "write"> | null;
   actorUserId?: string | null;
+  confirmPassword?: string | null;
 }) {
   return invoke<UserAccount>("update_user", { input });
+}
+
+export function deleteUser(id: string) {
+  return invoke<void>("delete_user", { input: { id } });
 }
 
 export function resetUserPassword(input: { id: string; password: string }) {
@@ -359,6 +550,8 @@ export function resetUserPassword(input: { id: string; password: string }) {
 
 export function listWalletsPage(input?: {
   walletType?: string;
+  /** Shop cash only — Main Vault (VAULT). Hides SYSTEM wallets. Legacy TILL may still appear in older DBs. */
+  cashOnly?: boolean;
   activeOnly?: boolean;
   customerId?: string;
   page?: number;
@@ -373,6 +566,8 @@ export function listTransactionsPage(input?: {
   txType?: string;
   search?: string;
   customerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
   return invoke<TransactionListPage>("list_transactions_page", {
     input: input ?? {},
@@ -383,6 +578,10 @@ export function listCustomerLedger(input: {
   customerId: string;
   page?: number;
   pageSize?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  txType?: string;
+  currencyCode?: string;
 }) {
   return invoke<CustomerLedgerPage>("list_customer_ledger", { input });
 }
@@ -396,7 +595,8 @@ export function getTransactionDetail(id: string) {
 export function depositFunds(input: {
   reference: string;
   customerWalletId: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   currencyCode: string;
   amount: string;
   valueDate?: string;
@@ -409,7 +609,8 @@ export function depositFunds(input: {
 export function withdrawFunds(input: {
   reference: string;
   customerWalletId: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   currencyCode: string;
   amount: string;
   valueDate?: string;
@@ -435,13 +636,22 @@ export function customerAddMoney(input: {
   customerId: string;
   currencyCode: string;
   amount: string;
+  /** Cash received when different from account currency. */
+  cashCurrencyCode?: string;
+  cashAmount?: string;
+  boardRate?: string;
+  highCurrencyCode?: string;
   valueDate?: string;
   description?: string;
   notes?: string;
+  /** Who paid/received cash. Omit for self ("by his own"). */
+  actedByName?: string;
   reference?: string;
   paymentMethod?: string;
   cashWalletId?: string;
   createdById: string;
+  /** Soft-delete this DEPOSIT first, then re-post (edit). */
+  replaceTransactionId?: string;
 }) {
   return invoke<CustomerMoneyResult>("customer_add_money", { input });
 }
@@ -450,13 +660,22 @@ export function customerTakeMoney(input: {
   customerId: string;
   currencyCode: string;
   amount: string;
+  /** Cash paid when different from account currency. */
+  cashCurrencyCode?: string;
+  cashAmount?: string;
+  boardRate?: string;
+  highCurrencyCode?: string;
   valueDate?: string;
   description?: string;
   notes?: string;
+  /** Who collected cash. Omit for self ("by his own"). */
+  actedByName?: string;
   reference?: string;
   paymentMethod?: string;
   cashWalletId?: string;
   createdById: string;
+  /** Soft-delete this WITHDRAWAL first, then re-post (edit). */
+  replaceTransactionId?: string;
 }) {
   return invoke<CustomerMoneyResult>("customer_take_money", { input });
 }
@@ -467,22 +686,122 @@ export function transferFunds(input: {
   receiverCustomerId: string;
   currencyCode: string;
   amount: string;
+  receiveAmount?: string;
+  receiveCurrencyCode?: string;
+  boardRate?: string;
+  highCurrencyCode?: string;
   valueDate?: string;
   description?: string;
   createdById: string;
+  /** Soft-delete this TRANSFER first, then re-post (edit). */
+  replaceTransactionId?: string;
 }) {
   return invoke<PostedTransaction>("transfer_funds", { input });
 }
 
+export type MovementEditSnapshot = {
+  id: string;
+  reference: string;
+  displayRef?: string;
+  type: string;
+  valueDate: string;
+  description: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  amount: string;
+  currencyCode: string;
+  cashAmount?: string | null;
+  cashCurrencyCode?: string | null;
+  receiveAmount?: string | null;
+  receiveCurrencyCode?: string | null;
+  actedByName: string | null;
+  senderCustomerId: string | null;
+  senderName: string | null;
+  receiverCustomerId: string | null;
+  receiverName: string | null;
+};
+
+export function softDeleteMovement(input: { id: string; createdById: string }) {
+  return invoke<{ id: string; reference: string; type: string }>("soft_delete_movement", {
+    input: {
+      id: input.id,
+      createdById: input.createdById,
+    },
+  });
+}
+
+export function getPreviousMovement(input: {
+  transactionType: string;
+  beforeId?: string;
+}) {
+  return invoke<MovementEditSnapshot | null>("get_previous_movement", { input });
+}
+
+export function getMovementForEdit(id: string) {
+  return invoke<MovementEditSnapshot>("get_movement_for_edit", { input: { id } });
+}
+
+export function previewDisplayRef(txType: string) {
+  return invoke<string>("preview_display_ref", { input: { txType } });
+}
+
 export type CashBalanceRow = {
   currencyCode: string;
+  currencyName: string;
   currencySymbol: string | null;
   balanceDisplay: string;
   amountMinor: string;
+  /** AVAILABLE | LOW | ZERO */
+  condition: string;
 };
 
 export function getCashBalances() {
   return invoke<CashBalanceRow[]>("get_cash_balances");
+}
+
+export type DebtorCreditorSide = "DEBTORS" | "CREDITORS";
+
+export type DebtorCreditorRow = {
+  customerId: string;
+  customerName: string;
+  accountCode: string;
+  currencyCode: string;
+  amountDisplay: string;
+};
+
+export type DebtorCreditorPage = {
+  items: DebtorCreditorRow[];
+  /** Row count for the requested side (all pages). */
+  total: number;
+  page: number;
+  pageSize: number;
+  /** Absolute sum for the requested side (compat). */
+  sideTotalDisplay: string;
+  /** Absolute sum of matching debtor balances (full filtered set). */
+  debtorsTotalDisplay: string;
+  /** Sum of matching creditor balances (full filtered set). */
+  creditorsTotalDisplay: string;
+};
+
+export function listDebtorsCreditors(input: {
+  side: DebtorCreditorSide;
+  currencyCode?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  /** When false, skips the expensive aggregate; keep prior totals client-side. */
+  includeTotals?: boolean;
+}) {
+  return invoke<DebtorCreditorPage>("list_debtors_creditors", {
+    input: {
+      side: input.side,
+      currencyCode: input.currencyCode,
+      search: input.search,
+      page: input.page,
+      pageSize: input.pageSize,
+      includeTotals: input.includeTotals,
+    },
+  });
 }
 
 export type ExchangeRateItem = {
@@ -542,6 +861,7 @@ export function saveMarketRatesCache(input: {
 export type HawalaListItem = {
   id: string;
   reference: string;
+  displayRef?: string;
   direction: string;
   status: string;
   priority?: string | null;
@@ -594,6 +914,7 @@ export type HawalaEventItem = {
 export type HawalaDetail = {
   id: string;
   reference: string;
+  displayRef?: string;
   direction: string;
   status: string;
   priority: string | null;
@@ -757,6 +1078,7 @@ export function exchangeFunds(input: {
   valueDate?: string;
   description?: string;
   createdById: string;
+  replaceTransactionId?: string | null;
 }) {
   return invoke<ExchangeFundsResult>("exchange_funds", { input });
 }
@@ -769,19 +1091,52 @@ export type ExchangePnLSummary = {
     profitAmount: string;
     dealCount: number;
   }>;
-  recent: Array<{
-    reference: string;
-    side: string;
-    fromAmount: string;
-    fromCurrency: string;
-    toAmount: string;
-    toCurrency: string;
-    dealRate: string;
-    boardRate: string | null;
-    profitAmount: string;
-    profitCurrency: string;
-    valueDate: string;
-  }>;
+  recent: ExchangeDealRecent[];
+};
+
+export type ExchangeDealRecent = {
+  id: string;
+  transactionId: string;
+  reference: string;
+  displayRef?: string;
+  side: string;
+  fromAmount: string;
+  fromCurrency: string;
+  toAmount: string;
+  toCurrency: string;
+  dealRate: string;
+  boardRate: string | null;
+  profitAmount: string;
+  profitCurrency: string;
+  valueDate: string;
+  customerName: string | null;
+  walkInName: string | null;
+  status: string;
+};
+
+export type ExchangeDealDetail = {
+  id: string;
+  transactionId: string;
+  reference: string;
+  displayRef?: string;
+  status: string;
+  side: string;
+  customerId: string | null;
+  customerName: string | null;
+  walkInName: string | null;
+  fromAmount: string;
+  fromCurrency: string;
+  toAmount: string;
+  toCurrency: string;
+  dealRate: string;
+  boardRate: string | null;
+  profitAmount: string;
+  profitCurrency: string;
+  isProfit: boolean;
+  valueDate: string;
+  postedAt: string | null;
+  createdAt: string;
+  description: string | null;
 };
 
 export function getExchangePnLSummary(businessDate?: string) {
@@ -790,9 +1145,22 @@ export function getExchangePnLSummary(businessDate?: string) {
   });
 }
 
+export function getExchangeDealDetail(id: string) {
+  return invoke<ExchangeDealDetail>("get_exchange_deal_detail", {
+    input: { id },
+  });
+}
+
+export function getPreviousExchangeDeal(beforeId?: string) {
+  return invoke<ExchangeDealDetail | null>("get_previous_exchange_deal", {
+    input: { beforeId: beforeId ?? null },
+  });
+}
+
 export type PartnerListItem = {
   id: string;
   name: string;
+  phone: string | null;
   city: string | null;
   country: string | null;
 };
@@ -817,6 +1185,10 @@ export type PartnerDetail = {
   commissionCurrencyCode: string | null;
   createdAt: string;
   updatedAt: string;
+  openingKata: OpeningKataLineDetail[];
+  customerId?: string | null;
+  linkedCustomerName?: string | null;
+  needsCustomerLink?: boolean;
 };
 
 export type PartnerListPage = {
@@ -845,8 +1217,41 @@ export function createPartner(input: {
   city?: string | null;
   country?: string | null;
   notes?: string | null;
+  openingKata?: Array<{
+    transactionId?: string | null;
+    currencyCode: string;
+    amount: string;
+    direction?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    valueDate?: string | null;
+  }> | null;
+  actorUserId?: string | null;
 }) {
   return invoke<PartnerDetail>("create_partner", { input });
+}
+
+export function createPartnerFromCustomer(input: {
+  customerId: string;
+  city?: string | null;
+  country?: string | null;
+  notes?: string | null;
+  commissionEnabled?: boolean;
+  commissionPerAmount?: string | null;
+  commissionFeeAmount?: string | null;
+  commissionCurrencyId?: string | null;
+  openingKata?: Array<{
+    transactionId?: string | null;
+    currencyCode: string;
+    amount: string;
+    direction?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    valueDate?: string | null;
+  }> | null;
+  actorUserId?: string | null;
+}) {
+  return invoke<PartnerDetail>("create_partner_from_customer", { input });
 }
 
 export function updatePartner(input: {
@@ -857,6 +1262,20 @@ export function updatePartner(input: {
   country?: string | null;
   notes?: string | null;
   isActive?: boolean;
+  commissionEnabled?: boolean;
+  commissionPerAmount?: string | null;
+  commissionFeeAmount?: string | null;
+  commissionCurrencyId?: string | null;
+  openingKata?: Array<{
+    transactionId?: string | null;
+    currencyCode: string;
+    amount: string;
+    direction?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    valueDate?: string | null;
+  }> | null;
+  actorUserId?: string | null;
 }) {
   return invoke<PartnerDetail>("update_partner", { input });
 }
@@ -875,6 +1294,7 @@ export type PartnerCommissionSummary = {
   partnerId: string;
   partnerName: string;
   byCurrency: PartnerCommissionCurrencyRow[];
+  principalByCurrency: PartnerCommissionCurrencyRow[];
 };
 
 export function getPartnerCommissionSummary(id: string) {
@@ -886,21 +1306,68 @@ export function getPartnerCommissionSummary(id: string) {
 export function settlePartnerCommission(input: {
   partnerSarafiId: string;
   kind: "PAY_PARTNER" | "COLLECT_FROM_PARTNER";
+  /** COMMISSION (default) | PRINCIPAL */
+  balanceType?: "COMMISSION" | "PRINCIPAL";
   currencyCode: string;
   amount: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   notes?: string;
   valueDate?: string;
   createdById: string;
+  /** Soft-delete + re-post when editing an existing settlement. */
+  replaceSettlementId?: string;
+  /** CASH (default) | CUSTOMER_BALANCE — commission pay to linked customer wallet */
+  settlementDestination?: "CASH" | "CUSTOMER_BALANCE";
 }) {
   return invoke<{
     settlementId: string;
     transactionId: string;
     reference: string;
+    displayRef?: string;
     kind: string;
+    balanceType: string;
     amount: string;
     currencyCode: string;
   }>("settle_partner_commission", { input });
+}
+
+export type PartnerSettlementRow = {
+  id: string;
+  kind: string;
+  balanceType: string;
+  currencyCode: string;
+  amount: string;
+  notes: string | null;
+  valueDate: string;
+  transactionId: string;
+  reference: string;
+  displayRef?: string;
+  createdAt: string;
+};
+
+export type PartnerSettlementPage = {
+  items: PartnerSettlementRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export function listPartnerSettlements(input: {
+  partnerSarafiId: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return invoke<PartnerSettlementPage>("list_partner_settlements", { input });
+}
+
+export function deletePartnerSettlement(input: {
+  id: string;
+  partnerSarafiId: string;
+}) {
+  return invoke<{ id: string; deleted: boolean }>("delete_partner_settlement", {
+    input,
+  });
 }
 
 export function archivePartner(id: string) {
@@ -910,6 +1377,7 @@ export function archivePartner(id: string) {
 export type HawalaPostResult = {
   id: string;
   reference: string;
+  displayRef?: string;
   direction: string;
   status: string;
   transactionId: string;
@@ -920,7 +1388,8 @@ export type HawalaPostInput = {
   partnerSarafiId: string;
   currencyCode: string;
   amount: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   clearingWalletId?: string | null;
   senderName?: string | null;
   senderPhone?: string | null;
@@ -935,6 +1404,8 @@ export type HawalaPostInput = {
   notes?: string | null;
   partnerCommissionAmount?: string | null;
   ownCommissionAmount?: string | null;
+  /** Currency for commissions (defaults to hawala currency). */
+  commissionCurrencyCode?: string | null;
   additionalCharges?: string | null;
   discountAmount?: string | null;
   ownCommissionMode?: string | null;
@@ -960,6 +1431,7 @@ export type HawalaPostInput = {
   privateNotes?: string | null;
   valueDate?: string;
   createdById: string;
+  replaceTransactionId?: string | null;
 };
 
 export function sendHawala(input: HawalaPostInput) {
@@ -1003,8 +1475,33 @@ export function listDbBackups() {
   return invoke<BackupListItem[]>("list_db_backups");
 }
 
-export function restoreDbBackup(stamp: string) {
-  return invoke<RestoreOutcome>("restore_db_backup", { input: { stamp } });
+export function restoreDbBackup(stamp: string, sessionToken?: string) {
+  return invoke<RestoreOutcome>("restore_db_backup", {
+    input: { stamp, sessionToken: sessionToken || undefined },
+  });
+}
+
+export type ValidatedBackupFile = {
+  path: string;
+  stamp: string;
+  sizeBytes: number;
+  checksum: string | null;
+};
+
+export function pickBackupFile() {
+  return invoke<string | null>("pick_backup_file");
+}
+
+export function validateBackupFile(path: string) {
+  return invoke<ValidatedBackupFile>("validate_backup_file", {
+    input: { path },
+  });
+}
+
+export function restoreDbBackupFromFile(path: string, sessionToken?: string) {
+  return invoke<RestoreOutcome>("restore_db_backup_from_file", {
+    input: { path, sessionToken: sessionToken || undefined },
+  });
 }
 
 export type LocaleSetting = {
@@ -1017,6 +1514,36 @@ export function getAppLocale() {
 
 export function setAppLocale(locale: string) {
   return invoke<LocaleSetting>("set_app_locale", { input: { locale } });
+}
+
+export type BusinessNameSetting = {
+  businessName: string;
+};
+
+export function getBusinessName() {
+  return invoke<BusinessNameSetting>("get_business_name");
+}
+
+export function setBusinessName(businessName: string) {
+  return invoke<BusinessNameSetting>("set_business_name", {
+    input: { businessName },
+  });
+}
+
+export type UiTextPrefs = {
+  fontSize: string;
+  boldText: boolean;
+  theme: string;
+};
+
+export function getUiTextPrefs() {
+  return invoke<UiTextPrefs>("get_ui_text_prefs");
+}
+
+export function setUiTextPrefs(fontSize: string, boldText: boolean, theme = "light") {
+  return invoke<UiTextPrefs>("set_ui_text_prefs", {
+    input: { fontSize, boldText, theme },
+  });
 }
 
 export type DashboardMonthCounts = {
@@ -1034,7 +1561,7 @@ export type DashboardSnapshot = {
   asOfMonth: string;
   monthKey: string;
   month: DashboardMonthCounts;
-  customers: { active: number; total: number };
+  customers: { active: number; total: number; newThisMonth: number };
   cash: CashBalanceRow[];
   recentTransactions: TransactionListItem[];
   recentHawala: HawalaListItem[];
@@ -1052,7 +1579,8 @@ export type TradeBuyInput = {
   rate: string;
   paymentCurrencyCode: string;
   paymentAmount?: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   counterpartyType: string;
   customerId?: string | null;
   partnerSarafiId?: string | null;
@@ -1213,12 +1741,25 @@ export type CapitalCurrencyBreakdown = {
   currencySymbol: string | null;
   cash: string;
   customerFunds: string;
+  customerOwes: string;
   partnerPayable: string;
   partnerReceivable: string;
   pendingHawala: string;
   tradingInventoryCost: string;
   commissionIncome: string;
+  ownerInvested: string;
+  ownerWithdrawn: string;
+  iOwe: string;
+  peopleOweMe: string;
   ownerCapital: string;
+  /** Main Vault ledger cash (physical pool). */
+  mainVaultCash: string;
+  /** Ownership total expected to equal Main Vault. */
+  expectedMainVault: string;
+  /** actual − expected */
+  vaultDifference: string;
+  /** BALANCED | DIFFERENCE */
+  vaultStatus: string;
   percentOfTotal: string;
 };
 
@@ -1226,11 +1767,16 @@ export type OwnerCapitalSnapshot = {
   asOf: string;
   totalCash: string;
   totalCustomerFunds: string;
+  totalCustomerOwes: string;
   totalPartnerPayable: string;
   totalPartnerReceivable: string;
   totalPendingHawala: string;
   totalTradingInventory: string;
   totalCommissionIncome: string;
+  totalOwnerInvested: string;
+  totalOwnerWithdrawn: string;
+  totalIOwe: string;
+  totalPeopleOweMe: string;
   totalOwnerCapital: string;
   profitToday: string;
   profitMonth: string;
@@ -1240,15 +1786,18 @@ export type OwnerCapitalSnapshot = {
   byCurrency: CapitalCurrencyBreakdown[];
 };
 
-export function getOwnerCapitalSnapshot() {
-  return invoke<OwnerCapitalSnapshot>("get_owner_capital_snapshot");
+export function getOwnerCapitalSnapshot(input?: { asOf?: string }) {
+  return invoke<OwnerCapitalSnapshot>("get_owner_capital_snapshot", {
+    input: input ?? {},
+  });
 }
 
 export function postOwnerCapitalMove(input: {
   kind: "INVEST" | "WITHDRAW";
   currencyCode: string;
   amount: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   notes?: string;
   reason?: string;
   valueDate?: string;
@@ -1303,7 +1852,8 @@ export function postExpense(input: {
   category: string;
   currencyCode: string;
   amount: string;
-  cashWalletId: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
   notes?: string;
   valueDate?: string;
   createdById: string;
@@ -1311,6 +1861,7 @@ export function postExpense(input: {
   return invoke<{
     transactionId: string;
     reference: string;
+    displayRef?: string;
     category: string;
     amount: string;
     currencyCode: string;
@@ -1320,6 +1871,7 @@ export function postExpense(input: {
 export type ExpenseRow = {
   transactionId: string;
   reference: string;
+  displayRef?: string;
   category: string;
   categoryLabel: string;
   amount: string;
@@ -1367,6 +1919,147 @@ export function getExpenseSummary(input?: {
   return invoke<ExpenseSummary>("get_expense_summary", { input: input ?? {} });
 }
 
+/* ── Employees ─────────────────────────────────────────────────── */
+
+export type EmployeeRow = {
+  id: string;
+  fullName: string;
+  fatherName: string | null;
+  nationalId: string | null;
+  idNumber: string | null;
+  dateOfBirth: string | null;
+  address: string | null;
+  phone: string | null;
+  title: string | null;
+  notes: string | null;
+  startDate: string | null;
+  monthlySalary: string | null;
+  salaryCurrencyCode: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function listEmployees(input?: {
+  search?: string;
+  activeOnly?: boolean;
+  page?: number;
+  pageSize?: number;
+}) {
+  return invoke<{
+    items: EmployeeRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>("list_employees", { input: input ?? {} });
+}
+
+export function upsertEmployee(input: {
+  id?: string;
+  fullName: string;
+  fatherName?: string;
+  nationalId?: string;
+  idNumber?: string;
+  dateOfBirth?: string;
+  address?: string;
+  phone?: string;
+  title?: string;
+  notes?: string;
+  startDate?: string;
+  monthlySalary?: string;
+  salaryCurrencyCode?: string;
+  isActive?: boolean;
+}) {
+  return invoke<EmployeeRow>("upsert_employee", { input });
+}
+
+export function archiveEmployee(id: string, actorUserId?: string) {
+  return invoke<void>("archive_employee", {
+    input: { id, actorUserId: actorUserId || undefined },
+  });
+}
+
+export function payEmployeeSalary(input: {
+  employeeId: string;
+  currencyCode: string;
+  amount: string;
+  /** Optional — ignored; shop cash is always Main Vault. */
+  cashWalletId?: string;
+  notes?: string;
+  valueDate?: string;
+  createdById: string;
+  /** Edit: replace an existing salary payment (restores old cash, posts new). */
+  replacePaymentId?: string;
+}) {
+  return invoke<{
+    paymentId: string;
+    transactionId: string;
+    reference: string;
+    displayRef?: string;
+    amount: string;
+    currencyCode: string;
+    employeeName: string;
+  }>("pay_employee_salary", { input });
+}
+
+export type EmployeeSalaryPaymentRow = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  currencyCode: string;
+  currencySymbol: string | null;
+  amount: string;
+  notes: string | null;
+  valueDate: string;
+  reference: string;
+  displayRef?: string;
+  transactionId: string;
+  cashWalletId: string;
+  cashWalletName: string;
+  cashWalletType: string;
+};
+
+export type EmployeeSalaryMonthTotal = {
+  currencyCode: string;
+  currencySymbol: string | null;
+  amount: string;
+};
+
+export type EmployeeSalaryMonthlyBreakdown = {
+  month: string;
+  currencyCode: string;
+  currencySymbol: string | null;
+  amount: string;
+};
+
+export function listEmployeeSalaryPayments(input?: {
+  employeeId?: string;
+  search?: string;
+  month?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return invoke<{
+    items: EmployeeSalaryPaymentRow[];
+    monthTotals: EmployeeSalaryMonthTotal[];
+    monthlyBreakdown: EmployeeSalaryMonthlyBreakdown[];
+    total: number;
+    page: number;
+    pageSize: number;
+    month: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+  }>("list_employee_salary_payments", { input: input ?? {} });
+}
+
+export function deleteEmployeeSalaryPayment(id: string, actorUserId?: string) {
+  return invoke<void>("delete_employee_salary_payment", {
+    input: { id, actorUserId: actorUserId || undefined },
+  });
+}
+
 export function transferCashBetweenVaults(input: {
   fromWalletId: string;
   toWalletId: string;
@@ -1391,6 +2084,8 @@ export type ReportFilterInput = {
   search?: string;
   page?: number;
   pageSize?: number;
+  partnersPage?: number;
+  commissionPage?: number;
   direction?: string;
   reference?: string;
   fromCurrencyCode?: string;
@@ -1461,6 +2156,30 @@ export function getPeriodSummaryReport(input?: ReportFilterInput) {
   });
 }
 
+export type ProfitLossReport = {
+  dateFrom: string;
+  dateTo: string;
+  exchangeCount: number;
+  tradingSellCount: number;
+  hawalaCount: number;
+  expenseCount: number;
+  employeeSalaryCount: number;
+  exchangeProfit: ReportCurrencyAmount[];
+  tradingProfit: ReportCurrencyAmount[];
+  hawalaCommission: ReportCurrencyAmount[];
+  employeeSalary: ReportCurrencyAmount[];
+  otherExpenses: ReportCurrencyAmount[];
+  expenses: ReportCurrencyAmount[];
+  incomeTotal: ReportCurrencyAmount[];
+  netProfit: ReportCurrencyAmount[];
+};
+
+export function getProfitLossReport(input?: ReportFilterInput) {
+  return invoke<ProfitLossReport>("get_profit_loss_report", {
+    input: input ?? {},
+  });
+}
+
 export type CashByCurrencyRow = {
   currencyCode: string;
   currencySymbol: string | null;
@@ -1492,6 +2211,7 @@ export type HawalaReportRow = {
   id: string;
   transactionId: string | null;
   reference: string;
+  displayRef?: string;
   direction: string;
   status: string;
   amount: string;
@@ -1559,6 +2279,67 @@ export function getPartnerBalanceReport() {
   return invoke<PartnerBalanceReportRow[]>("get_partner_balance_report");
 }
 
+export type PartnerSarafiCurrencyBucket = {
+  currencyCode: string;
+  currencySymbol: string | null;
+  amount: string;
+  count: number;
+};
+
+export type PartnerSarafiPartnerRow = {
+  partnerId: string;
+  partnerName: string;
+  sendCount: number;
+  receiveCount: number;
+  sendTotals: PartnerSarafiCurrencyBucket[];
+  receiveTotals: PartnerSarafiCurrencyBucket[];
+  paymentTotals: PartnerSarafiCurrencyBucket[];
+  collectionTotals: PartnerSarafiCurrencyBucket[];
+};
+
+export type PartnerSarafiHawalaLine = {
+  id: string;
+  partnerId: string;
+  partnerName: string;
+  reference: string;
+  displayRef?: string;
+  direction: string;
+  status: string;
+  amount: string;
+  currencyCode: string;
+  commissionAmount: string | null;
+  commissionSide: string | null;
+  valueDate: string;
+};
+
+export type PartnerSarafiReport = {
+  dateFrom: string;
+  dateTo: string;
+  partnerCount: number;
+  sendCount: number;
+  receiveCount: number;
+  sendTotals: PartnerSarafiCurrencyBucket[];
+  receiveTotals: PartnerSarafiCurrencyBucket[];
+  paymentTotals: PartnerSarafiCurrencyBucket[];
+  collectionTotals: PartnerSarafiCurrencyBucket[];
+  openCommission: PartnerBalanceReportRow[];
+  openCommissionTotal: number;
+  openCommissionPage: number;
+  partners: PartnerSarafiPartnerRow[];
+  partnersTotal: number;
+  partnersPage: number;
+  hawalas: PartnerSarafiHawalaLine[];
+  totalHawalas: number;
+  page: number;
+  pageSize: number;
+};
+
+export function getPartnerSarafiReport(input?: ReportFilterInput) {
+  return invoke<PartnerSarafiReport>("get_partner_sarafi_report", {
+    input: input ?? {},
+  });
+}
+
 export type ReportsOverview = {
   dateFrom: string;
   dateTo: string;
@@ -1581,6 +2362,9 @@ export type ReportsOverview = {
   exchangeCount: number;
   exchangeProfit: ReportCurrencyAmount[];
   balancesByCurrency: CashByCurrencyRow[];
+  balancesTotal: number;
+  balancesPage: number;
+  balancesPageSize: number;
 };
 
 export function getReportsOverview(input?: ReportFilterInput) {
@@ -1606,6 +2390,9 @@ export type CashFlowReport = {
   moneyIn: ReportCurrencyAmount[];
   moneyOut: ReportCurrencyAmount[];
   byType: CashFlowTypeRow[];
+  byTypeTotal: number;
+  page: number;
+  pageSize: number;
 };
 
 export function getCashFlowReport(input?: ReportFilterInput) {
@@ -1614,10 +2401,33 @@ export function getCashFlowReport(input?: ReportFilterInput) {
   });
 }
 
+export type MovementBucketTotals = {
+  count: number;
+  totals: ReportCurrencyAmount[];
+};
+
+export type MovementSumReport = {
+  dateFrom: string;
+  dateTo: string;
+  deposit: MovementBucketTotals;
+  withdrawal: MovementBucketTotals;
+  transfer: MovementBucketTotals;
+  exchangeGiven: MovementBucketTotals;
+  exchangeReceived: MovementBucketTotals;
+  exchangeProfit: MovementBucketTotals;
+};
+
+export function getMovementSumReport(input?: ReportFilterInput) {
+  return invoke<MovementSumReport>("get_movement_sum_report", {
+    input: input ?? {},
+  });
+}
+
 export type ExchangeReportRow = {
   id: string;
   transactionId: string;
   reference: string;
+  displayRef?: string;
   side: string;
   fromAmount: string;
   fromCurrency: string;
@@ -1654,6 +2464,7 @@ export function getExchangePeriodReport(input?: ReportFilterInput) {
 export type CustomerStatementLine = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   description: string | null;
@@ -1662,6 +2473,8 @@ export type CustomerStatementLine = {
   credit: string;
   currencyCode: string;
   balanceAfter: string;
+  senderName?: string | null;
+  receiverName?: string | null;
 };
 
 export type CustomerStatementBalance = {
@@ -1683,6 +2496,9 @@ export type CustomerStatementReport = {
   moneyOut: ReportCurrencyAmount[];
   balances: CustomerStatementBalance[];
   lines: CustomerStatementLine[];
+  linesTotal: number;
+  page: number;
+  pageSize: number;
 };
 
 export function getCustomerStatementReport(input: ReportFilterInput) {
@@ -1694,6 +2510,7 @@ export function getCustomerStatementReport(input: ReportFilterInput) {
 export type TransactionsReportRow = {
   id: string;
   reference: string;
+  displayRef?: string;
   type: string;
   status: string;
   customerId: string | null;
@@ -1701,6 +2518,8 @@ export type TransactionsReportRow = {
   description: string | null;
   valueDate: string;
   amountSummary: string;
+  senderName?: string | null;
+  receiverName?: string | null;
 };
 
 export type TransactionsReportPage = {
@@ -1752,10 +2571,21 @@ export type DailyReport = {
   exchangeCount: number;
   exchangeProfit: ReportCurrencyAmount[];
   transactions: TransactionsReportRow[];
+  transactionsTotal: number;
+  page: number;
+  pageSize: number;
 };
 
-export function getDailyReport(businessDate: string) {
-  return invoke<DailyReport>("get_daily_report", { businessDate });
+export function getDailyReport(
+  businessDate: string,
+  page?: number,
+  pageSize?: number,
+) {
+  return invoke<DailyReport>("get_daily_report", {
+    businessDate,
+    page: page ?? null,
+    pageSize: pageSize ?? null,
+  });
 }
 
 export type MonthlyDayRow = {
@@ -1776,6 +2606,9 @@ export type MonthlyReport = {
   dateFrom: string;
   dateTo: string;
   positions: DayCurrencyPosition[];
+  positionsTotal: number;
+  page: number;
+  pageSize: number;
   moneyIn: ReportCurrencyAmount[];
   moneyOut: ReportCurrencyAmount[];
   netMovement: ReportCurrencyAmount[];
@@ -1794,8 +2627,16 @@ export type MonthlyReport = {
   days: MonthlyDayRow[];
 };
 
-export function getMonthlyReport(yearMonth: string) {
-  return invoke<MonthlyReport>("get_monthly_report", { yearMonth });
+export function getMonthlyReport(
+  yearMonth: string,
+  page?: number,
+  pageSize?: number,
+) {
+  return invoke<MonthlyReport>("get_monthly_report", {
+    yearMonth,
+    page: page ?? null,
+    pageSize: pageSize ?? null,
+  });
 }
 
 /* ── Daybook (Daily Journal) ───────────────────────────────────── */
@@ -1854,6 +2695,7 @@ export type DaybookSnapshot = {
     id: string;
     time: string;
     reference: string;
+    displayRef?: string;
     module: string;
     transactionType: string;
     customerName: string | null;
@@ -1937,6 +2779,45 @@ export function getDaybookSnapshot(input?: {
   timelinePageSize?: number;
 }) {
   return invoke<DaybookSnapshot>("get_daybook_snapshot", { input: input ?? {} });
+}
+
+export type DaybookJournalLine = {
+  rowNo: number;
+  valueDate: string;
+  accountCode: string;
+  accountName: string;
+  oppositeAccountCode: string;
+  oppositeAccountName: string;
+  description: string;
+  debit: string;
+  credit: string;
+  /** Running balance of this row's account after the entry. */
+  balanceAfter: string;
+  currencyCode: string;
+  transactionId: string;
+  reference: string;
+  displayRef?: string;
+  transactionType: string;
+};
+
+export type DaybookJournalPage = {
+  businessDate: string;
+  items: DaybookJournalLine[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export function listDaybookJournal(input?: {
+  businessDate?: string;
+  currencyCode?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return invoke<DaybookJournalPage>("list_daybook_journal", {
+    input: input ?? {},
+  });
 }
 
 export function openBusinessDay(input: {
@@ -2099,6 +2980,7 @@ export function transferBetweenVaults(input: {
 export type VaultMovementRow = {
   transactionId: string;
   reference: string;
+  displayRef?: string;
   transactionType: string;
   valueDate: string;
   currencyCode: string;
@@ -2110,6 +2992,34 @@ export type VaultMovementRow = {
   description: string | null;
   status: string;
 };
+
+export function postMainVaultCashMove(input: {
+  direction: "CASH_IN" | "CASH_OUT";
+  currencyCode: string;
+  amount: string;
+  /** Required for foreign Cash In: AFN per 1 unit of currencyCode. */
+  costRate?: string;
+  /** Defaults to AFN on the server. */
+  costCurrencyCode?: string;
+  /** Register trading stock for cash already in the vault (no cash ledger move). */
+  inventoryOnly?: boolean;
+  reference?: string;
+  notes?: string;
+  valueDate?: string;
+  createdById: string;
+  authorizationPin: string;
+  /** Soft-delete prior Cash In / Cash Out before posting (edit from Daybook). */
+  replaceTransactionId?: string;
+}) {
+  return invoke<{
+    transactionId: string;
+    reference: string;
+    displayRef?: string;
+    direction: string;
+    amount: string;
+    currencyCode: string;
+  }>("post_main_vault_cash_move", { input });
+}
 
 export function listVaultMovements(input?: {
   vaultId?: string;

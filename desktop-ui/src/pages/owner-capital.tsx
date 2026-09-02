@@ -1,124 +1,114 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   getOwnerCapitalSnapshot,
   listCurrenciesPage,
-  listOwnerCapitalEvents,
-  listWalletsPage,
-  postOwnerCapitalMove,
-  transferCashBetweenVaults,
   type CapitalCurrencyBreakdown,
   type CurrencyListItem,
-  type OwnerCapitalEventRow,
   type OwnerCapitalSnapshot,
-  type WalletListItem,
 } from "@desktop/api";
-import { useAuth } from "@desktop/auth";
-import { IconCapital, IconDashboard, IconHistory } from "@desktop/icons";
-import { Pagination } from "@desktop/ui/pagination";
+import { IconDashboard } from "@desktop/icons";
+import { useLocale, useT } from "@desktop/i18n";
+import { formatCurrencyLabel, moneyToneClass } from "@desktop/lib/currency-labels";
+import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import { errorMessage, todayIso } from "@desktop/lib/datetime";
+import { PageLoadError } from "@desktop/ui/page-load-error";
+import type { AppLocale } from "@/lib/i18n/locale";
+import { CurrencyPicker } from "@desktop/ui/currency-picker";
+import { Modal } from "@desktop/ui/modal";
 import { Stat } from "@desktop/ui/stat";
-import { useT } from "@desktop/i18n";
 
-function currencyOptionLabel(c: Pick<CurrencyListItem, "code" | "name" | "symbol">) {
-  const sym = c.symbol?.trim();
-  return sym ? `${c.code} — ${c.name} (${sym})` : `${c.code} — ${c.name}`;
+function currencyTitle(row: CapitalCurrencyBreakdown, locale: AppLocale) {
+  return formatCurrencyLabel(
+    {
+      code: row.currencyCode,
+      name: row.currencyName || row.currencyCode,
+      symbol: row.currencySymbol,
+    },
+    locale,
+  );
 }
 
-function currencyTitle(row: CapitalCurrencyBreakdown) {
-  return currencyOptionLabel({
-    code: row.currencyCode,
-    name: row.currencyName || row.currencyCode,
-    symbol: row.currencySymbol,
+function parseAmt(s: string): number {
+  return Number.parseFloat(String(s).replace(/,/g, "")) || 0;
+}
+
+function formatAmt(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
   });
 }
 
+/** Display-only minus for amounts customers owe Sarafi (does not change totals). */
+function formatCustomersOweDisplay(amount: string): string {
+  const raw = String(amount ?? "").trim();
+  if (!raw) return "0";
+  if (raw.startsWith("-") || raw.startsWith("−")) return raw;
+  const n = Number.parseFloat(raw.replace(/,/g, ""));
+  if (!Number.isFinite(n) || n === 0) return raw;
+  return `−${raw}`;
+}
+
+type CapitalView = "dashboard" | "ownership" | "money";
+
 export function OwnerCapitalPage() {
   const t = useT();
-  const { session } = useAuth();
+  const { locale } = useLocale();
+  const today = todayIso();
+  const [asOfDate, setAsOfDate] = useState(today);
   const [snap, setSnap] = useState<OwnerCapitalSnapshot | null>(null);
-  const [events, setEvents] = useState<OwnerCapitalEventRow[]>([]);
-  const [eventsTotal, setEventsTotal] = useState(0);
-  const [eventsPage, setEventsPage] = useState(1);
-  const eventsPageSize = 25;
-  const [wallets, setWallets] = useState<WalletListItem[]>([]);
+  const [snapNow, setSnapNow] = useState<OwnerCapitalSnapshot | null>(null);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
-  const [currencyFilter, setCurrencyFilter] = useState("");
+  const [focusCurrency, setFocusCurrency] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
-  const [tab, setTab] = useState<"overview" | "invest" | "history">("overview");
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [breakdownRow, setBreakdownRow] = useState<CapitalCurrencyBreakdown | null>(null);
+  const [view, setView] = useState<CapitalView>("dashboard");
 
-  const [kind, setKind] = useState<"INVEST" | "WITHDRAW">("INVEST");
-  const [amount, setAmount] = useState("");
-  const [currencyCode, setCurrencyCode] = useState("USD");
-  const [cashWalletId, setCashWalletId] = useState("");
-  const [reason, setReason] = useState("");
-  const [notes, setNotes] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  const [fromWalletId, setFromWalletId] = useState("");
-  const [toWalletId, setToWalletId] = useState("");
-  const [xferAmount, setXferAmount] = useState("");
-  const [xferCurrency, setXferCurrency] = useState("USD");
-
-  const loadCore = useCallback(async () => {
+  const load = useCallback(async () => {
     setBusy(true);
     try {
-      const [s, w, c] = await Promise.all([
-        getOwnerCapitalSnapshot(),
-        listWalletsPage({ page: 1, pageSize: 100 }),
+      const comparing = asOfDate !== today;
+      const [s, nowSnap, c] = await Promise.all([
+        getOwnerCapitalSnapshot({ asOf: asOfDate }),
+        comparing ? getOwnerCapitalSnapshot({ asOf: today }) : Promise.resolve(null),
         listCurrenciesPage({ page: 1, pageSize: 200 }),
       ]);
       setSnap(s);
-      const cash = w.items.filter((x) => x.type === "VAULT" || x.type === "TILL");
-      setWallets(cash);
+      setSnapNow(comparing ? nowSnap : s);
       setCurrencies(c.items);
-      if (!cashWalletId && cash[0]) setCashWalletId(cash[0].id);
-      if (!fromWalletId && cash[0]) setFromWalletId(cash[0].id);
-      if (!toWalletId && cash[1]) setToWalletId(cash[1].id);
-      if (c.items[0] && !currencyCode) setCurrencyCode(c.items[0].code);
+      setFocusCurrency((prev) => {
+        if (prev && s.byCurrency.some((r) => r.currencyCode === prev)) return prev;
+        const afn = s.byCurrency.find((r) => {
+          const code = r.currencyCode.trim().toUpperCase();
+          return code === "AFN" || code === "AF";
+        });
+        if (afn) return afn.currencyCode;
+        return s.byCurrency[0]?.currencyCode || pickDefaultCurrency(c.items);
+      });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.loadGeneric));
     } finally {
       setBusy(false);
     }
-  }, [cashWalletId, currencyCode, fromWalletId, toWalletId]);
-
-  const loadEvents = useCallback(async () => {
-    try {
-      const ev = await listOwnerCapitalEvents({
-        page: eventsPage,
-        pageSize: eventsPageSize,
-      });
-      setEvents(ev.items);
-      setEventsTotal(ev.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [eventsPage]);
+  }, [asOfDate, today, t.errors.loadGeneric]);
 
   useEffect(() => {
-    void loadCore();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
-  }, []);
+    void load();
+  }, [load]);
 
-  useEffect(() => {
-    void loadEvents();
-  }, [loadEvents]);
+  const comparing = asOfDate !== today;
 
-  const load = useCallback(async () => {
-    await loadCore();
-    await loadEvents();
-  }, [loadCore, loadEvents]);
+  const focusRow = useMemo(() => {
+    if (!snap || !focusCurrency) return null;
+    return snap.byCurrency.find((r) => r.currencyCode === focusCurrency) ?? null;
+  }, [snap, focusCurrency]);
 
-  const cashWallets = useMemo(() => wallets, [wallets]);
-
-  const filteredRow = useMemo(() => {
-    if (!snap || !currencyFilter) return null;
-    return snap.byCurrency.find((r) => r.currencyCode === currencyFilter) ?? null;
-  }, [snap, currencyFilter]);
-
-  const filterOptions = useMemo(() => {
+  const currencyOptions = useMemo(() => {
     const map = new Map<string, CurrencyListItem>();
     for (const c of currencies) map.set(c.code, c);
     if (snap) {
@@ -135,277 +125,177 @@ export function OwnerCapitalPage() {
         }
       }
     }
-    return [...map.values()].sort((a, b) => a.code.localeCompare(b.code));
+    return [...map.values()].sort((a, b) => {
+      const rank = (code: string) => {
+        const u = code.trim().toUpperCase();
+        return u === "AFN" || u === "AF" ? 0 : 1;
+      };
+      const ra = rank(a.code);
+      const rb = rank(b.code);
+      if (ra !== rb) return ra - rb;
+      return a.code.localeCompare(b.code);
+    });
   }, [currencies, snap]);
 
-  async function onCapitalMove(e: FormEvent) {
-    e.preventDefault();
-    if (!session?.userId) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await postOwnerCapitalMove({
-        kind,
-        currencyCode,
-        amount,
-        cashWalletId,
-        reason: reason || undefined,
-        notes: notes || undefined,
-        createdById: session.userId,
+  const compareRows = useMemo(() => {
+    if (!snap || !snapNow || !comparing) return [];
+    const codes = new Set<string>();
+    for (const r of snap.byCurrency) codes.add(r.currencyCode);
+    for (const r of snapNow.byCurrency) codes.add(r.currencyCode);
+    return [...codes]
+      .sort((a, b) => a.localeCompare(b))
+      .map((code) => {
+        const then = snap.byCurrency.find((r) => r.currencyCode === code);
+        const now = snapNow.byCurrency.find((r) => r.currencyCode === code);
+        const thenAmt = parseAmt(then?.ownerCapital ?? "0");
+        const nowAmt = parseAmt(now?.ownerCapital ?? "0");
+        return {
+          currencyCode: code,
+          then: then?.ownerCapital ?? "0",
+          now: now?.ownerCapital ?? "0",
+          change: formatAmt(nowAmt - thenAmt),
+          changeNum: nowAmt - thenAmt,
+        };
       });
-      setAmount("");
-      setReason("");
-      setNotes("");
-      await load();
-      setTab("history");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onVaultTransfer(e: FormEvent) {
-    e.preventDefault();
-    if (!session?.userId) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await transferCashBetweenVaults({
-        fromWalletId,
-        toWalletId,
-        currencyCode: xferCurrency,
-        amount: xferAmount,
-        createdById: session.userId,
-      });
-      setXferAmount("");
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
+  }, [snap, snapNow, comparing]);
 
   return (
     <div className="stack">
-      <div>
-        <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.ownerCapital}</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          {t.desk.capitalCalculationFormula}
-        </p>
-      </div>
-
-      <div className="nav-row">
-        {(
-          [
-            ["overview", t.nav.dashboard, <IconDashboard key="o" />],
-            ["invest", t.desk.investmentTab, <IconCapital key="i" />],
-            ["history", t.common.history, <IconHistory key="h" />],
-          ] as const
-        ).map(([id, label, icon]) => (
-          <button
-            key={id}
-            type="button"
-            className={tab === id ? "nav-link active" : "nav-link"}
-            onClick={() => setTab(id)}
-          >
-            <span className="nav-link-icon">{icon}</span>
-            <span className="nav-link-label">{label}</span>
-          </button>
-        ))}
-        <button type="button" className="btn" onClick={() => void load()} disabled={busy}>
-          {t.desk.refresh}
+      <div className="nav-row" role="tablist" aria-label={t.pages.ownerCapital}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "dashboard"}
+          className={view === "dashboard" ? "nav-link active" : "nav-link"}
+          onClick={() => setView("dashboard")}
+        >
+          <span className="nav-link-icon">
+            <IconDashboard />
+          </span>
+          <span className="nav-link-label">{t.nav.dashboard}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "ownership"}
+          className={view === "ownership" ? "nav-link active" : "nav-link"}
+          onClick={() => setView("ownership")}
+        >
+          <span className="nav-link-label">{t.desk.capitalOwnershipRecon}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "money"}
+          className={view === "money" ? "nav-link active" : "nav-link"}
+          onClick={() => setView("money")}
+        >
+          <span className="nav-link-label">{t.desk.capitalMoneyByCurrency}</span>
         </button>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <PageLoadError message={error} onRetry={() => void load()} /> : null}
       {busy && !snap ? <p className="muted">{t.common.loading}</p> : null}
 
-      {tab === "overview" && snap ? (
+      {snap ? (
         <>
-          <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end", gap: "0.75rem" }}>
-            <label className="stack" style={{ gap: "0.25rem", minWidth: "16rem" }}>
-              <span className="muted">{t.desk.filterByCurrency}</span>
-              <select
-                value={currencyFilter}
-                onChange={(e) => setCurrencyFilter(e.target.value)}
-              >
-                <option value="">{t.desk.allCurrenciesFilter}</option>
-                {filterOptions.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {currencyOptionLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {currencyFilter ? (
-              <p className="muted" style={{ margin: 0 }}>
-                {t.desk.viewingCurrency.replace(
-                  "{currency}",
-                  filteredRow
-                    ? currencyTitle(filteredRow)
-                    : currencyFilter,
-                )}
-              </p>
+          <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+            {view === "dashboard" ? (
+              <div style={{ minWidth: "16rem", flex: "1 1 16rem", maxWidth: "24rem" }}>
+                <CurrencyPicker
+                  label={t.desk.capitalSelectCurrency}
+                  currencies={currencyOptions}
+                  value={focusCurrency}
+                  onChange={setFocusCurrency}
+                  emptyLabel={t.common.select}
+                  searchPlaceholder={t.common.search}
+                />
+              </div>
             ) : null}
+            <label className="stack" style={{ gap: "0.25rem", minWidth: "12rem" }}>
+              <span className="muted">{t.desk.asOfDate}</span>
+              <input
+                type="date"
+                value={asOfDate}
+                max={today}
+                onChange={(e) => setAsOfDate(e.target.value || today)}
+              />
+            </label>
           </div>
 
-          {currencyFilter && filteredRow ? (
+          {view === "dashboard" ? (
             <>
-              <div className="stat-grid">
-                <Stat
-                  label={t.desk.totalBusinessCapital}
-                  value={`${filteredRow.ownerCapital} ${filteredRow.currencyCode}`}
-                  hint={currencyTitle(filteredRow)}
-                />
-                <Stat
-                  label={t.desk.netWorth}
-                  value={`${filteredRow.ownerCapital} ${filteredRow.currencyCode}`}
-                  hint={t.desk.ownerCapitalIdentity}
-                />
-                <Stat
-                  label={t.desk.totalCash}
-                  value={`${filteredRow.cash} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.desk.customerFunds}
-                  value={`${filteredRow.customerFunds} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.desk.partnerPayables}
-                  value={`${filteredRow.partnerPayable} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.desk.pendingHawalas}
-                  value={`${filteredRow.pendingHawala} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.reports.receivables}
-                  value={`${filteredRow.partnerReceivable} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.reports.tradingInventory}
-                  value={`${filteredRow.tradingInventoryCost} ${filteredRow.currencyCode}`}
-                />
-                <Stat
-                  label={t.desk.commissionProfit}
-                  value={`${filteredRow.commissionIncome} ${filteredRow.currencyCode}`}
-                />
-              </div>
-              <div className="section-card stack">
-                <h2>{t.desk.capitalCalculation}</h2>
-                <p className="muted" style={{ margin: 0 }}>
-                  {t.desk.capitalCalculationFormula}
-                </p>
-                <div
-                  className="row"
-                  style={{ gap: "1rem", flexWrap: "wrap", fontFamily: "monospace" }}
-                >
-                  <span>
-                    {filteredRow.cash} {filteredRow.currencyCode}
-                  </span>
-                  <span>
-                    − {filteredRow.customerFunds}
-                  </span>
-                  <span>
-                    − {filteredRow.partnerPayable}
-                  </span>
-                  <span>
-                    − {filteredRow.pendingHawala}
-                  </span>
-                  <span>
-                    + {filteredRow.partnerReceivable}
-                  </span>
-                  <span>
-                    + {filteredRow.tradingInventoryCost}
-                  </span>
-                  <span>
-                    ={" "}
-                    <strong>
-                      {filteredRow.ownerCapital} {filteredRow.currencyCode}
-                    </strong>
-                  </span>
-                </div>
-              </div>
-              <p className="muted" style={{ margin: 0 }}>
-                {t.desk.pnlAllCurrenciesNote}
-              </p>
-              <div className="stat-grid">
-                <Stat label={t.desk.profitToday} value={snap.profitToday} />
-                <Stat label={t.desk.monthlyProfit} value={snap.profitMonth} />
-                <Stat label={t.desk.realizedTradingProfit} value={snap.tradingProfitMonth} />
-                <Stat
-                  label={t.desk.exchangeActivity}
-                  value={String(snap.exchangeCountMonth)}
-                  hint={t.desk.exchangesThisMonth}
-                />
-              </div>
-            </>
-          ) : currencyFilter && !filteredRow ? (
-            <p className="muted">{t.desk.noCurrencyBalances}</p>
-          ) : (
-            <>
-              <div className="stat-grid">
-                <Stat label={t.desk.totalBusinessCapital} value={snap.totalOwnerCapital} />
-                <Stat
-                  label={t.desk.netWorth}
-                  value={snap.totalOwnerCapital}
-                  hint={t.desk.ownerCapitalIdentity}
-                />
-                <Stat label={t.desk.profitToday} value={snap.profitToday} />
-                <Stat label={t.desk.monthlyProfit} value={snap.profitMonth} />
-                <Stat label={t.desk.realizedTradingProfit} value={snap.tradingProfitMonth} />
-                <Stat
-                  label={t.desk.exchangeActivity}
-                  value={String(snap.exchangeCountMonth)}
-                  hint={t.desk.exchangesThisMonth}
-                />
-                <Stat label={t.desk.commissionProfit} value={snap.hawalaCommissionMonth} />
-                <Stat label={t.desk.totalCash} value={snap.totalCash} />
-                <Stat label={t.desk.customerFunds} value={snap.totalCustomerFunds} />
-                <Stat label={t.desk.partnerPayables} value={snap.totalPartnerPayable} />
-                <Stat label={t.desk.pendingHawalas} value={snap.totalPendingHawala} />
-                <Stat label={t.reports.receivables} value={snap.totalPartnerReceivable} />
-                <Stat label={t.reports.tradingInventory} value={snap.totalTradingInventory} />
-              </div>
+              {!focusRow ? (
+                <p className="muted">{t.desk.noCurrencyBalances}</p>
+              ) : (
+                <div className="section-card stack">
+                  <div>
+                    <h2 style={{ margin: "0 0 0.25rem" }}>{currencyTitle(focusRow, locale)}</h2>
+                  </div>
 
-              <div className="section-card stack">
-                <h2>{t.desk.capitalCalculation}</h2>
-                <p className="muted" style={{ margin: 0 }}>
-                  {t.desk.capitalCalculationFormula}
-                </p>
-                <div
-                  className="row"
-                  style={{ gap: "1rem", flexWrap: "wrap", fontFamily: "monospace" }}
-                >
-                  <span>{snap.totalCash}</span>
-                  <span>− {snap.totalCustomerFunds}</span>
-                  <span>− {snap.totalPartnerPayable}</span>
-                  <span>− {snap.totalPendingHawala}</span>
-                  <span>+ {snap.totalPartnerReceivable}</span>
-                  <span>+ {snap.totalTradingInventory}</span>
-                  <span>
-                    = <strong>{snap.totalOwnerCapital}</strong>
-                  </span>
+                  <div className="section-card stack" style={{ margin: 0 }}>
+                    <h3 className="section-title" style={{ margin: 0 }}>
+                      {t.desk.capitalOwnershipRecon}
+                    </h3>
+                    <dl className="capital-recon-list">
+                      <div className="capital-recon-row">
+                        <dt>{t.desk.capitalOwnerClaim}</dt>
+                        <dd className={moneyToneClass(focusRow.ownerCapital)}>
+                          {focusRow.ownerCapital} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                      <div className="capital-recon-row">
+                        <dt>{t.desk.capitalCustomersHeld}</dt>
+                        <dd className="money-in">
+                          {focusRow.customerFunds} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                      <div className="capital-recon-row">
+                        <dt>{t.desk.capitalCustomersOweSarafi}</dt>
+                        <dd className="money-out">
+                          {formatCustomersOweDisplay(focusRow.customerOwes)} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                      <div className="capital-recon-row">
+                        <dt>{t.desk.capitalPartnersOwed}</dt>
+                        <dd className="money-out">
+                          {focusRow.partnerPayable} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                      <div className="capital-recon-row">
+                        <dt>{t.desk.capitalPartnersOweSarafi}</dt>
+                        <dd className="money-in">
+                          {focusRow.partnerReceivable} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                      <div className="capital-recon-row capital-recon-row-vault">
+                        <dt>{t.desk.capitalActualVault}</dt>
+                        <dd className={moneyToneClass(focusRow.mainVaultCash)}>
+                          {focusRow.mainVaultCash} {focusRow.currencyCode}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="section-card stack">
-                <h2>{t.desk.currencyBreakdown}</h2>
-                <div className="stat-grid">
-                  {snap.byCurrency.map((row) => (
-                    <CurrencyCard
-                      key={row.currencyId}
-                      row={row}
-                      onSelect={() => setCurrencyFilter(row.currencyCode)}
-                    />
-                  ))}
+              {comparing && snapNow ? (
+                <div className="section-card stack">
+                  <h2 style={{ margin: 0 }}>
+                    {t.desk.capitalThen} ({asOfDate}) → {t.desk.capitalNow} ({today})
+                  </h2>
+                  <div className="stat-grid">
+                    {compareRows.map((r) => (
+                      <Stat
+                        key={r.currencyCode}
+                        label={r.currencyCode}
+                        value={`${r.then} → ${r.now}`}
+                        hint={`${t.desk.capitalChange}: ${r.changeNum >= 0 ? "+" : ""}${r.change}`}
+                      />
+                    ))}
+                  </div>
                 </div>
-                {snap.byCurrency.length === 0 ? (
-                  <p className="muted">{t.desk.noCurrencyBalances}</p>
-                ) : null}
-              </div>
+              ) : null}
 
               <div className="section-card stack">
                 <h2>{t.desk.capitalAnalytics}</h2>
@@ -413,187 +303,285 @@ export function OwnerCapitalPage() {
                 <IncomeSourcesChart snap={snap} />
               </div>
             </>
-          )}
+          ) : null}
+
+          {view === "money" ? (
+            <div className="section-card stack">
+              <h2 style={{ margin: 0 }}>{t.desk.capitalMoneyByCurrency}</h2>
+              {snap.byCurrency.length === 0 ? (
+                <p className="muted">{t.desk.noCurrencyBalances}</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t.common.currency}</th>
+                        <th>{t.desk.capitalDeposited}</th>
+                        <th>{t.desk.capitalWithdrawn}</th>
+                        <th>{t.desk.capitalCashIHave}</th>
+                        <th>{t.desk.capitalIOwe}</th>
+                        <th>{t.desk.capitalPeopleOweMe}</th>
+                        <th>{t.desk.capitalNetPosition}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snap.byCurrency.map((row) => (
+                        <tr
+                          key={row.currencyId}
+                          className="customer-row-clickable"
+                          tabIndex={0}
+                          role="button"
+                          onClick={() => {
+                            setFocusCurrency(row.currencyCode);
+                            setView("dashboard");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setFocusCurrency(row.currencyCode);
+                              setView("dashboard");
+                            }
+                          }}
+                        >
+                          <td>
+                            <strong>{row.currencyCode}</strong>
+                            {row.currencySymbol ? (
+                              <span className="muted"> {row.currencySymbol}</span>
+                            ) : null}
+                          </td>
+                          <td className="money-in">
+                            {row.ownerInvested} {row.currencyCode}
+                          </td>
+                          <td className="money-out">
+                            {row.ownerWithdrawn} {row.currencyCode}
+                          </td>
+                          <td className={moneyToneClass(row.cash)}>
+                            {row.cash} {row.currencyCode}
+                          </td>
+                          <td className="money-out">
+                            {row.iOwe} {row.currencyCode}
+                          </td>
+                          <td className="money-in">
+                            {row.peopleOweMe} {row.currencyCode}
+                          </td>
+                          <td className={moneyToneClass(row.ownerCapital)}>
+                            <strong>
+                              {row.ownerCapital} {row.currencyCode}
+                            </strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th>{t.common.total}</th>
+                        <th className="money-in">{snap.totalOwnerInvested}</th>
+                        <th className="money-out">{snap.totalOwnerWithdrawn}</th>
+                        <th className={moneyToneClass(snap.totalCash)}>{snap.totalCash}</th>
+                        <th className="money-out">{snap.totalIOwe}</th>
+                        <th className="money-in">{snap.totalPeopleOweMe}</th>
+                        <th className={moneyToneClass(snap.totalOwnerCapital)}>
+                          <strong>{snap.totalOwnerCapital}</strong>
+                        </th>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {view === "ownership" ? (
+            <div className="section-card stack">
+              <h2 style={{ margin: 0 }}>{t.desk.capitalOwnershipRecon}</h2>
+              {snap.byCurrency.length === 0 ? (
+                <p className="muted">{t.desk.noCurrencyBalances}</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t.common.currency}</th>
+                        <th>{t.desk.capitalOwnerClaim}</th>
+                        <th>{t.desk.capitalCustomersHeld}</th>
+                        <th>{t.desk.capitalCustomersOweSarafi}</th>
+                        <th>{t.desk.capitalPartnersOwed}</th>
+                        <th>{t.desk.capitalPartnersOweSarafi}</th>
+                        <th>{t.desk.capitalActualVault}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {snap.byCurrency.map((row) => (
+                        <tr
+                          key={`recon-${row.currencyId}`}
+                          className="customer-row-clickable"
+                          tabIndex={0}
+                          role="button"
+                          onClick={() => {
+                            setFocusCurrency(row.currencyCode);
+                            setView("dashboard");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setFocusCurrency(row.currencyCode);
+                              setView("dashboard");
+                            }
+                          }}
+                        >
+                          <td>
+                            <strong>{row.currencyCode}</strong>
+                          </td>
+                          <td className={moneyToneClass(row.ownerCapital)}>
+                            {row.ownerCapital} {row.currencyCode}
+                          </td>
+                          <td className="money-in">
+                            {row.customerFunds} {row.currencyCode}
+                          </td>
+                          <td className="money-out">
+                            {formatCustomersOweDisplay(row.customerOwes)} {row.currencyCode}
+                          </td>
+                          <td className="money-out">
+                            {row.partnerPayable} {row.currencyCode}
+                          </td>
+                          <td className="money-in">
+                            {row.partnerReceivable} {row.currencyCode}
+                          </td>
+                          <td className={moneyToneClass(row.mainVaultCash)}>
+                            {row.mainVaultCash} {row.currencyCode}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="row no-print" style={{ justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => {
+                    setBreakdownRow(null);
+                    setBreakdownOpen(true);
+                  }}
+                >
+                  {t.desk.viewCapitalBreakdown}
+                </button>
+              </div>
+            </div>
+          ) : null}
         </>
       ) : null}
 
-      {tab === "invest" ? (
-        <div className="dash-grid">
-          <form className="section-card stack" onSubmit={onCapitalMove}>
-            <h2>{t.desk.addWithdrawCapital}</h2>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.desk.operation}</span>
-              <select
-                value={kind}
-                onChange={(e) => setKind(e.target.value as "INVEST" | "WITHDRAW")}
-              >
-                <option value="INVEST">{t.desk.addOwnerCapital}</option>
-                <option value="WITHDRAW">{t.desk.withdrawCapital}</option>
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.amount}</span>
-              <input value={amount} onChange={(e) => setAmount(e.target.value)} required />
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.currency}</span>
-              <select value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)}>
-                {currencies.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {currencyOptionLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.desk.cashVaultTill}</span>
-              <select value={cashWalletId} onChange={(e) => setCashWalletId(e.target.value)} required>
-                {cashWallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.type})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.reason}</span>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.notes}</span>
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? t.common.posting : t.desk.postAccountingEntry}
-            </button>
-          </form>
-
-          <form className="section-card stack" onSubmit={onVaultTransfer}>
-            <h2>{t.desk.transferBetweenVaults}</h2>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.from}</span>
-              <select value={fromWalletId} onChange={(e) => setFromWalletId(e.target.value)}>
-                {cashWallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.to}</span>
-              <select value={toWalletId} onChange={(e) => setToWalletId(e.target.value)}>
-                {cashWallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.currency}</span>
-              <select value={xferCurrency} onChange={(e) => setXferCurrency(e.target.value)}>
-                {currencies.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {currencyOptionLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.amount}</span>
-              <input value={xferAmount} onChange={(e) => setXferAmount(e.target.value)} required />
-            </label>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {t.reports.transfer}
-            </button>
-            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-              For currency conversion use the Exchange module — it posts ledger entries the same way.
-            </p>
-          </form>
-        </div>
-      ) : null}
-
-      {tab === "history" ? (
-        <div className="section-card stack">
-            <h2>{t.desk.capitalHistory}</h2>
-          {events.length === 0 ? (
-            <p className="muted">{t.desk.noCapitalHistory}</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>{t.common.date}</th>
-                  <th>{t.desk.kind}</th>
-                  <th>{t.common.amount}</th>
-                  <th>{t.common.currency}</th>
-                  <th>{t.common.user}</th>
-                  <th>{t.common.reason}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((ev) => (
-                  <tr key={ev.id}>
-                    <td>{ev.valueDate.slice(0, 19)}</td>
-                    <td>{ev.kind}</td>
-                    <td>{ev.amount}</td>
-                    <td>{ev.currencyCode}</td>
-                    <td>{ev.createdByName ?? "—"}</td>
-                    <td>{ev.reason || ev.notes || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <Pagination
-            page={eventsPage}
-            pageSize={eventsPageSize}
-            total={eventsTotal}
-            busy={busy}
-            onPageChange={setEventsPage}
+      {breakdownOpen && snap ? (
+        <Modal
+          title={
+            breakdownRow
+              ? `${t.desk.capitalBreakdownTitle} · ${breakdownRow.currencyCode}`
+              : t.desk.capitalBreakdownTitle
+          }
+          size="wide"
+          onClose={() => {
+            setBreakdownOpen(false);
+            setBreakdownRow(null);
+          }}
+        >
+          <CapitalBreakdownList
+            rows={
+              breakdownRow
+                ? breakdownRowsForCurrency(breakdownRow, t)
+                : breakdownRowsForSnapshot(snap, t)
+            }
+            suffix={breakdownRow?.currencyCode}
           />
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
 }
 
-function CurrencyCard({
-  row,
-  onSelect,
+type BreakdownLine = {
+  label: string;
+  amount: string;
+  tone: "in" | "out" | "auto" | "strong";
+};
+
+function breakdownRowsForSnapshot(
+  snap: OwnerCapitalSnapshot,
+  t: ReturnType<typeof useT>,
+): BreakdownLine[] {
+  return [
+    { label: t.desk.capitalActualVault, amount: snap.totalCash, tone: "auto" },
+    { label: t.desk.capitalCustomersHeld, amount: snap.totalCustomerFunds, tone: "in" },
+    { label: t.desk.capitalCustomersOweSarafi, amount: snap.totalCustomerOwes, tone: "out" },
+    { label: t.desk.partnerPayables, amount: snap.totalPartnerPayable, tone: "out" },
+    { label: t.desk.pendingHawalas, amount: snap.totalPendingHawala, tone: "out" },
+    { label: t.reports.receivables, amount: snap.totalPartnerReceivable, tone: "in" },
+    { label: t.desk.capitalDeposited, amount: snap.totalOwnerInvested, tone: "in" },
+    { label: t.desk.capitalWithdrawn, amount: snap.totalOwnerWithdrawn, tone: "out" },
+    { label: t.desk.capitalIOwe, amount: snap.totalIOwe, tone: "out" },
+    { label: t.desk.capitalPeopleOweMe, amount: snap.totalPeopleOweMe, tone: "in" },
+    { label: t.desk.capitalNetPosition, amount: snap.totalOwnerCapital, tone: "strong" },
+  ];
+}
+
+function breakdownRowsForCurrency(
+  row: CapitalCurrencyBreakdown,
+  t: ReturnType<typeof useT>,
+): BreakdownLine[] {
+  return [
+    { label: t.desk.capitalActualVault, amount: row.mainVaultCash, tone: "auto" },
+    { label: t.desk.capitalCustomersHeld, amount: row.customerFunds, tone: "in" },
+    { label: t.desk.capitalCustomersOweSarafi, amount: formatCustomersOweDisplay(row.customerOwes), tone: "out" },
+    { label: t.desk.partnerPayables, amount: row.partnerPayable, tone: "out" },
+    { label: t.desk.pendingHawalas, amount: row.pendingHawala, tone: "out" },
+    { label: t.reports.receivables, amount: row.partnerReceivable, tone: "in" },
+    { label: t.desk.capitalDeposited, amount: row.ownerInvested, tone: "in" },
+    { label: t.desk.capitalWithdrawn, amount: row.ownerWithdrawn, tone: "out" },
+    { label: t.desk.capitalIOwe, amount: row.iOwe, tone: "out" },
+    { label: t.desk.capitalPeopleOweMe, amount: row.peopleOweMe, tone: "in" },
+    { label: t.desk.capitalNetPosition, amount: row.ownerCapital, tone: "strong" },
+  ];
+}
+
+function CapitalBreakdownList({
+  rows,
+  suffix,
 }: {
-  row: CapitalCurrencyBreakdown;
-  onSelect?: () => void;
+  rows: BreakdownLine[];
+  suffix?: string;
 }) {
-  const t = useT();
   return (
-    <button
-      type="button"
-      className="stat-card"
-      onClick={onSelect}
-      style={{
-        textAlign: "start",
-        cursor: onSelect ? "pointer" : "default",
-        border: "none",
-        width: "100%",
-      }}
-    >
-      <div className="stat-label">{currencyTitle(row)}</div>
-      <div className="stat-value" style={{ fontSize: "1.25rem" }}>
-        {row.ownerCapital} {row.currencyCode}
-        {row.currencySymbol ? ` (${row.currencySymbol})` : ""}
-      </div>
-      <div className="muted" style={{ fontSize: "0.8rem" }}>
-        {t.desk.cashCapitalShare
-          .replace("{cash}", `${row.cash} ${row.currencyCode}`)
-          .replace("{percent}", row.percentOfTotal)}
-      </div>
-    </button>
+    <dl className="capital-recon-list">
+      {rows.map((row) => {
+        const cls =
+          row.tone === "in"
+            ? "money-in"
+            : row.tone === "out"
+              ? "money-out"
+              : row.tone === "strong"
+                ? moneyToneClass(row.amount)
+                : moneyToneClass(row.amount);
+        return (
+          <div
+            key={row.label}
+            className={`capital-recon-row${row.tone === "strong" ? " capital-recon-row-strong" : ""}`}
+          >
+            <dt>{row.label}</dt>
+            <dd className={cls}>
+              {row.tone === "strong" ? <strong>{row.amount}</strong> : row.amount}
+              {suffix ? ` ${suffix}` : ""}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 
 function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] }) {
   const t = useT();
+  const { locale } = useLocale();
   const total = rows.reduce((s, r) => s + Math.abs(parseFloat(r.ownerCapital) || 0), 0);
   if (total < 1e-9) {
     return <p className="muted">{t.desk.currencyDistributionUnavailable}</p>;
@@ -609,24 +597,22 @@ function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] 
         return (
           <div key={r.currencyId} className="stack" style={{ gap: "0.15rem" }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span>{currencyTitle(r)}</span>
-              <span className="muted">
-                {r.ownerCapital} {r.currencyCode} ({pct.toFixed(1)}%)
-              </span>
+              <span>{currencyTitle(r, locale)}</span>
+              <span className="muted">{pct.toFixed(1)}%</span>
             </div>
             <div
               style={{
-                height: 8,
-                borderRadius: 99,
-                background: "rgba(20,32,28,0.08)",
+                height: "0.45rem",
+                borderRadius: "999px",
+                background: "var(--border, #d5ddd8)",
                 overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: `${pct}%`,
+                  width: `${Math.min(100, pct)}%`,
                   height: "100%",
-                  background: "var(--accent, #1f6f54)",
+                  background: "var(--money-in, #1a7a45)",
                 }}
               />
             </div>
@@ -639,42 +625,40 @@ function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] 
 
 function IncomeSourcesChart({ snap }: { snap: OwnerCapitalSnapshot }) {
   const t = useT();
-  const items = [
+  const sources = [
     { label: t.nav.trading, value: Math.abs(parseFloat(snap.tradingProfitMonth) || 0) },
-    { label: t.reports.hawalaCommission, value: Math.abs(parseFloat(snap.hawalaCommissionMonth) || 0) },
-  ];
-  const total = items.reduce((s, i) => s + i.value, 0);
+    { label: t.desk.commissionProfit, value: Math.abs(parseFloat(snap.hawalaCommissionMonth) || 0) },
+  ].filter((s) => s.value > 0);
+  const total = sources.reduce((s, r) => s + r.value, 0);
   if (total < 1e-9) {
     return <p className="muted">{t.desk.noIncomeSources}</p>;
   }
   return (
-    <div className="stack" style={{ gap: "0.4rem", marginTop: "0.75rem" }}>
+    <div className="stack" style={{ gap: "0.4rem" }}>
       <div className="muted" style={{ fontSize: "0.8rem", fontWeight: 600 }}>
         {t.desk.incomeSourcesMonth}
       </div>
-      {items.map((i) => {
-        const pct = (i.value / total) * 100;
+      {sources.map((s) => {
+        const pct = (s.value / total) * 100;
         return (
-          <div key={i.label} className="stack" style={{ gap: "0.15rem" }}>
+          <div key={s.label} className="stack" style={{ gap: "0.15rem" }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span>{i.label}</span>
-              <span className="muted">
-                {i.value} ({pct.toFixed(0)}%)
-              </span>
+              <span>{s.label}</span>
+              <span className="money-in">{formatAmt(s.value)}</span>
             </div>
             <div
               style={{
-                height: 8,
-                borderRadius: 99,
-                background: "rgba(20,32,28,0.08)",
+                height: "0.45rem",
+                borderRadius: "999px",
+                background: "var(--border, #d5ddd8)",
                 overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: `${pct}%`,
+                  width: `${Math.min(100, pct)}%`,
                   height: "100%",
-                  background: "#3d6b8e",
+                  background: "var(--money-in, #1a7a45)",
                 }}
               />
             </div>

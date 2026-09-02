@@ -13,6 +13,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::now_sqlite;
+use crate::commands::authorize::{require_screen};
 
 const CACHE_ID: &str = "default";
 const PROVIDER_NAME: &str = "exchangerate-api.com (open access)";
@@ -258,6 +259,7 @@ pub fn get_market_rates_config(
   state: State<'_, AppState>,
 ) -> Result<MarketRatesConfig, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "rates")?;
   let desk = active_currency_codes(&conn)?;
   let base = pick_base_code(&desk);
   Ok(MarketRatesConfig {
@@ -273,6 +275,7 @@ pub fn get_cached_market_rates(
   state: State<'_, AppState>,
 ) -> Result<MarketRatesSnapshot, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "rates")?;
   snapshot_from_cache(&conn, false, None)
 }
 
@@ -288,6 +291,7 @@ pub fn save_market_rates_cache(
   }
 
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "rates")?;
   if let Some(err) = input.last_error.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
     // Failed refresh: keep previous payload if any, stamp error.
     if let Some((base_c, _fetched, provider, provider_time, payload_json, _)) =

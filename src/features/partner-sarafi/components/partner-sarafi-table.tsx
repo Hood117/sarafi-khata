@@ -17,7 +17,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EditPartnerSarafiDialog } from "@/features/partner-sarafi/components/edit-partner-sarafi-dialog";
-import type { PartnerCurrencyOption } from "@/features/partner-sarafi/components/partner-sarafi-form";
+import type {
+  PartnerCurrencyOption,
+  PartnerCustomerOption,
+} from "@/features/partner-sarafi/components/partner-sarafi-form";
 import { PartnerSarafiEmptyState } from "@/features/partner-sarafi/components/partner-sarafi-empty-state";
 import { SetPartnerSarafiActiveButton } from "@/features/partner-sarafi/components/set-partner-sarafi-active-button";
 import type { PartnerSarafiListItem } from "@/features/partner-sarafi/domain/types";
@@ -25,6 +28,7 @@ import { useT } from "@/lib/i18n";
 
 type PartnerSarafiTableProps = {
   partners: PartnerSarafiListItem[];
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
   onPartnerChanged?: (message: string) => void;
 };
@@ -36,6 +40,7 @@ function displayValue(value: string | null | undefined): string {
 
 export function PartnerSarafiTable({
   partners,
+  customerOptions,
   currencyOptions,
   onPartnerChanged,
 }: PartnerSarafiTableProps) {
@@ -67,7 +72,14 @@ export function PartnerSarafiTable({
 
               return (
                 <ClickableTableRow key={partner.id} href={detailHref}>
-                  <TableCell className="font-semibold">{partner.name}</TableCell>
+                  <TableCell className="font-semibold">
+                    {partner.name}
+                    {partner.needsCustomerLink ? (
+                      <div className="text-muted-foreground text-xs font-normal">
+                        {t.partner.needsCustomerLink}
+                      </div>
+                    ) : null}
+                  </TableCell>
                   <TableCell>{displayValue(partner.phone)}</TableCell>
                   <TableCell>{displayValue(location)}</TableCell>
                   <TableCell className="text-sm">
@@ -94,6 +106,7 @@ export function PartnerSarafiTable({
                       </Button>
                       <EditPartnerSarafiDialog
                         partnerId={partner.id}
+                        customerOptions={customerOptions}
                         currencyOptions={currencyOptions}
                         onSuccess={onPartnerChanged}
                       />

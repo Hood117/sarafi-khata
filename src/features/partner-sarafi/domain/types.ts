@@ -13,6 +13,8 @@ export type PartnerSarafiInput = {
 
 export type PartnerSarafiListItem = {
   id: string;
+  customerId: string | null;
+  needsCustomerLink: boolean;
   name: string;
   phone: string | null;
   city: string | null;
@@ -30,6 +32,7 @@ export type PartnerSarafiListItem = {
 
 export type PartnerSarafiFormData = {
   id: string;
+  customerId: string | null;
   name: string;
   phone: string | null;
   city: string | null;

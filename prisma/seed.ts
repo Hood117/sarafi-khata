@@ -17,7 +17,7 @@ const BCRYPT_ROUNDS = 12;
 
 const SUPPORTED_CURRENCIES = [
   // Afghanistan + regional corridors (Latin symbols for English UI)
-  { code: "AFN", name: "Afghan Afghani", symbol: "Afs", decimalPlaces: 2 },
+  { code: "AFN", name: "Afghan Afghani", symbol: "؋", decimalPlaces: 2 },
   { code: "PKR", name: "Pakistani Rupee", symbol: "Rs", decimalPlaces: 2 },
   { code: "IRR", name: "Iranian Rial", symbol: "Rl", decimalPlaces: 0 },
   { code: "INR", name: "Indian Rupee", symbol: "₹", decimalPlaces: 2 },
@@ -25,6 +25,7 @@ const SUPPORTED_CURRENCIES = [
   { code: "SAR", name: "Saudi Riyal", symbol: "SR", decimalPlaces: 2 },
   { code: "AED", name: "UAE Dirham", symbol: "Dh", decimalPlaces: 2 },
   { code: "QAR", name: "Qatari Riyal", symbol: "QR", decimalPlaces: 2 },
+  { code: "OMR", name: "Omani Rial", symbol: "OR", decimalPlaces: 3 },
   { code: "KWD", name: "Kuwaiti Dinar", symbol: "KD", decimalPlaces: 3 },
   // Most-traded / globally common
   { code: "USD", name: "US Dollar", symbol: "$", decimalPlaces: 2 },
@@ -41,14 +42,14 @@ const SUPPORTED_CURRENCIES = [
 ] as const;
 
 const DEFAULT_SYSTEM_SETTINGS = [
-  { key: "app.name", value: "Saraf" },
+  { key: "app.name", value: "ASMS" },
   { key: "app.baseCurrencyCode", value: "AFN" },
   { key: "app.locale", value: "en" },
 ] as const;
 
 const DEFAULT_SYSTEM_WALLETS = [
   { name: "Main Vault", type: WalletType.VAULT },
-  { name: "Cash Till", type: WalletType.TILL },
+  // SYSTEM contra / P&L wallets — NOT physical cash drawers (ADR-044).
   { name: "Exchange Difference", type: WalletType.SYSTEM },
   { name: "Hawala Clearing", type: WalletType.SYSTEM },
   { name: "Hawala Walk-in Outbound", type: WalletType.SYSTEM },

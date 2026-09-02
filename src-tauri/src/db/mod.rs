@@ -25,15 +25,17 @@ pub fn open_database(path: &Path) -> Result<Connection, AppError> {
 }
 
 fn apply_pragmas(conn: &Connection) -> Result<(), AppError> {
-  // Match the Node Prisma client pragmas used in production.
+  // WAL + NORMAL sync for desktop; larger cache keeps million-row scans responsive.
   conn
     .execute_batch(
       "
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
       PRAGMA foreign_keys = ON;
-      PRAGMA busy_timeout = 5000;
+      PRAGMA busy_timeout = 8000;
       PRAGMA temp_store = MEMORY;
+      PRAGMA cache_size = -65536;
+      PRAGMA mmap_size = 268435456;
       ",
     )
     .map_err(|e| AppError::Db(format!("pragma: {e}")))?;

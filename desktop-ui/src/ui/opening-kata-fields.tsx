@@ -1,7 +1,12 @@
 import { type ReactNode } from "react";
+
+import type { CurrencyListItem } from "@desktop/api";
+import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
+import { CurrencyPicker } from "@desktop/ui/currency-picker";
 
 export type OpeningLine = {
+  transactionId?: string;
   currencyCode: string;
   amount: string;
   direction: "GIVE" | "TAKE";
@@ -10,12 +15,15 @@ export type OpeningLine = {
   valueDate: string;
 };
 
-export function emptyOpeningLine(defaultCurrency: string): OpeningLine {
+export function emptyOpeningLine(
+  defaultCurrency: string,
+  description = "Opening customer balance",
+): OpeningLine {
   return {
-    currencyCode: defaultCurrency,
+    currencyCode: defaultCurrency || "AFN",
     amount: "",
     direction: "GIVE",
-    description: "Opening customer balance",
+    description,
     notes: "",
     valueDate: todayIso(),
   };
@@ -28,18 +36,28 @@ export function OpeningKataFields({
   onAdd,
   onRemove,
   helper,
+  giveLabel,
+  takeLabel,
+  onCurrenciesChange,
+  allowAdd = true,
 }: {
-  currencies: Array<{ id: string; code: string }>;
+  currencies: CurrencyListItem[];
   lines: OpeningLine[];
   onChange: (index: number, patch: Partial<OpeningLine>) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   helper: ReactNode;
+  giveLabel?: string;
+  takeLabel?: string;
+  onCurrenciesChange?: (items: CurrencyListItem[]) => void;
+  /** When false, hide “Add currency” (single-line journal edit). */
+  allowAdd?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="stack" style={{ gap: "0.75rem" }}>
       <div>
-        <strong>Opening balance</strong>
+        <strong>{t.openingKata.title}</strong>
         <p className="muted" style={{ margin: "0.25rem 0 0" }}>
           {helper}
         </p>
@@ -47,41 +65,41 @@ export function OpeningKataFields({
       {lines.map((line, index) => (
         <div key={index} className="customer-opening-block stack">
           <div className="customer-form-grid">
-            <label>
-              Currency
-              <select
+            <div className="money-ccy-row customer-form-span">
+              <label className="money-ccy-amount">
+                {t.openingKata.amount}
+                <input
+                  className="deposit-amount-input"
+                  value={line.amount}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  onChange={(e) => onChange(index, { amount: e.target.value })}
+                />
+              </label>
+              <CurrencyPicker
+                label={t.openingKata.currency}
+                currencies={currencies}
                 value={line.currencyCode}
-                onChange={(e) => onChange(index, { currencyCode: e.target.value })}
-              >
-                {currencies.map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {c.code}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Amount
-              <input
-                value={line.amount}
-                placeholder="0.00"
-                onChange={(e) => onChange(index, { amount: e.target.value })}
+                onChange={(code) => onChange(index, { currencyCode: code })}
+                onCurrenciesChange={onCurrenciesChange}
+                emptyLabel={t.common.noData}
+                searchPlaceholder={t.common.search}
               />
-            </label>
+            </div>
             <label>
-              Direction
+              {t.openingKata.direction}
               <select
                 value={line.direction}
                 onChange={(e) =>
                   onChange(index, { direction: e.target.value as OpeningLine["direction"] })
                 }
               >
-                <option value="GIVE">Customer Gives Money</option>
-                <option value="TAKE">Customer Takes Money</option>
+                <option value="GIVE">{giveLabel ?? t.openingKata.customerGives}</option>
+                <option value="TAKE">{takeLabel ?? t.openingKata.customerTakes}</option>
               </select>
             </label>
             <label>
-              Date
+              {t.openingKata.date}
               <input
                 type="date"
                 value={line.valueDate}
@@ -89,14 +107,14 @@ export function OpeningKataFields({
               />
             </label>
             <label className="customer-form-span">
-              Description
+              {t.openingKata.description}
               <input
                 value={line.description}
                 onChange={(e) => onChange(index, { description: e.target.value })}
               />
             </label>
             <label className="customer-form-span">
-              Notes
+              {t.openingKata.notes}
               <input
                 value={line.notes}
                 onChange={(e) => onChange(index, { notes: e.target.value })}
@@ -105,14 +123,16 @@ export function OpeningKataFields({
           </div>
           {lines.length > 1 ? (
             <button type="button" className="secondary" onClick={() => onRemove(index)}>
-              Remove currency
+              {t.openingKata.removeCurrency}
             </button>
           ) : null}
         </div>
       ))}
-      <button type="button" className="secondary" onClick={onAdd}>
-        Add Currency
-      </button>
+      {allowAdd ? (
+        <button type="button" className="secondary" onClick={onAdd}>
+          {t.openingKata.addCurrency}
+        </button>
+      ) : null}
     </div>
   );
 }

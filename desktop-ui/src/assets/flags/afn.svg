@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 24" role="img" aria-label="Islamic Republic of Afghanistan (2004–2021)">
+  <!-- Vertical tricolor: black · red · green (Constitution Art. 19) -->
+  <rect width="12" height="24" fill="#000000"/>
+  <rect x="12" width="12" height="24" fill="#d32011"/>
+  <rect x="24" width="12" height="24" fill="#007a36"/>
+  <!-- White national emblem (simplified for ~24×16px display) -->
+  <g fill="#ffffff" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round" transform="translate(18 12)">
+    <!-- Outer wheat wreath -->
+    <path fill="none" stroke-width="1" d="M-5.6 4.6c-1.7-2.4-1.8-5.8-.2-8.2"/>
+    <path fill="none" stroke-width="1" d="M5.6 4.6c1.7-2.4 1.8-5.8.2-8.2"/>
+    <path fill="none" stroke-width="0.75" d="M-4.6 4c-1.2-1.8-1.3-4.4-.2-6.2"/>
+    <path fill="none" stroke-width="0.75" d="M4.6 4c1.2-1.8 1.3-4.4.2-6.2"/>
+    <!-- Wheat heads -->
+    <ellipse cx="-5.5" cy="-3.8" rx="0.7" ry="0.95" stroke="none" transform="rotate(-18 -5.5 -3.8)"/>
+    <ellipse cx="-5.8" cy="-1.6" rx="0.7" ry="0.95" stroke="none" transform="rotate(-8 -5.8 -1.6)"/>
+    <ellipse cx="-5.5" cy="0.5" rx="0.7" ry="0.95" stroke="none" transform="rotate(4 -5.5 0.5)"/>
+    <ellipse cx="-4.9" cy="2.5" rx="0.7" ry="0.95" stroke="none" transform="rotate(16 -4.9 2.5)"/>
+    <ellipse cx="5.5" cy="-3.8" rx="0.7" ry="0.95" stroke="none" transform="rotate(18 5.5 -3.8)"/>
+    <ellipse cx="5.8" cy="-1.6" rx="0.7" ry="0.95" stroke="none" transform="rotate(8 5.8 -1.6)"/>
+    <ellipse cx="5.5" cy="0.5" rx="0.7" ry="0.95" stroke="none" transform="rotate(-4 5.5 0.5)"/>
+    <ellipse cx="4.9" cy="2.5" rx="0.7" ry="0.95" stroke="none" transform="rotate(-16 4.9 2.5)"/>
+    <!-- Rising sun rays -->
+    <path fill="none" stroke-width="0.65" d="M0-7v1.35M-1.85-6.55l.7 1.15M1.85-6.55l-.7 1.15M-3.2-5.5l1 .95M3.2-5.5l-1 .95"/>
+    <!-- Twin flags flanking mosque -->
+    <path stroke="none" d="M-3.9-3.9h.55v4.2h-.55z"/>
+    <path stroke="none" d="M-3.35-3.9l2.1.55v1.35l-2.1-.55z"/>
+    <path stroke="none" d="M3.35-3.9h.55v4.2h-.55z"/>
+    <path stroke="none" d="M3.35-3.9l-2.1.55v1.35l2.1-.55z"/>
+    <!-- Minarets -->
+    <rect x="-2.85" y="-3.5" width="0.9" height="5.5" stroke="none"/>
+    <rect x="1.95" y="-3.5" width="0.9" height="5.5" stroke="none"/>
+    <rect x="-3.05" y="-4.15" width="1.3" height="0.75" rx="0.12" stroke="none"/>
+    <rect x="1.75" y="-4.15" width="1.3" height="0.75" rx="0.12" stroke="none"/>
+    <!-- Mosque body + dome -->
+    <rect x="-1.75" y="-1.35" width="3.5" height="3.35" stroke="none"/>
+    <path stroke="none" d="M-1.75-1.35c0-1.55.85-2.55 1.75-2.55s1.75 1 1.75 2.55z"/>
+    <!-- Mihrab doorway (red of center stripe shows through) -->
+    <path fill="#d32011" stroke="none" d="M-0.85 0.35v1.45h1.7V0.35a0.85 0.85 0 0 0-1.7 0z"/>
+    <!-- Base ribbon -->
+    <path fill="none" stroke-width="0.9" d="M-3.4 4.45h6.8"/>
+    <path fill="none" stroke-width="0.55" d="M-2.6 5.35h5.2"/>
+  </g>
+</svg>

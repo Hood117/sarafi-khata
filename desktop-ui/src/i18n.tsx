@@ -17,6 +17,7 @@ import {
   localeIntlTag,
   type AppLocale,
 } from "@/lib/i18n/locale";
+import { installWesternDigitsGuard } from "@desktop/lib/western-digits";
 
 const STORAGE_KEY = "saraf.locale";
 
@@ -55,6 +56,8 @@ export function DesktopLocaleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyDocumentLocale(locale);
   }, [locale]);
+
+  useEffect(() => installWesternDigitsGuard(), []);
 
   useEffect(() => {
     let cancelled = false;

@@ -1,15 +1,19 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
   archivePartner,
-  createPartner,
   listPartnersPage,
+  type PartnerListItem,
   type PartnerListPage,
 } from "@desktop/api";
+import { DESK_PARTNER_CREATED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
+import { PartnerCreateForm } from "@desktop/pages/partner-forms";
+import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 export function PartnersPage() {
   const t = useT();
@@ -21,14 +25,20 @@ export function PartnersPage() {
   const pageSize = 25;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const { showSuccess, successModal } = useSuccessModal();
   const [reloadKey, setReloadKey] = useState(0);
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
-  const [notes, setNotes] = useState("");
+  const [rowMenu, setRowMenu] = useState<{
+    x: number;
+    y: number;
+    partner: PartnerListItem;
+  } | null>(null);
+
+  useEffect(() => {
+    const onCreated = () => setReloadKey((k) => k + 1);
+    window.addEventListener(DESK_PARTNER_CREATED_EVENT, onCreated);
+    return () => window.removeEventListener(DESK_PARTNER_CREATED_EVENT, onCreated);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -68,41 +78,23 @@ export function PartnersPage() {
     };
   }, [search, page, reloadKey]);
 
-  async function handleCreate(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setOk(null);
-    try {
-      await createPartner({
-        name,
-        phone: phone || null,
-        city: city || null,
-        country: country || null,
-        notes: notes || null,
-      });
-      setName("");
-      setPhone("");
-      setCity("");
-      setCountry("");
-      setNotes("");
-      setShowForm(false);
-      setOk(t.partner.savePartner);
-      setReloadKey((k) => k + 1);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleArchive(partnerId: string, partnerName: string) {
     if (!window.confirm(`${t.common.archive} “${partnerName}”?`)) return;
     setBusy(true);
     setError(null);
     try {
       await archivePartner(partnerId);
+      setPageData((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.filter((p) => p.id !== partnerId),
+              total: Math.max(0, prev.total - 1),
+            }
+          : prev,
+      );
       setReloadKey((k) => k + 1);
+      showSuccess(t.common.success);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -112,34 +104,31 @@ export function PartnersPage() {
 
   return (
     <div className="stack partner-page">
-      <div
-        className="row"
-        style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}
-      >
-        <div>
-          <h1 style={{ margin: "0 0 0.2rem" }}>{t.nav.partnerSarafi}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.partner.emptyHint}
-          </p>
-        </div>
-        <button type="button" className="btn primary" onClick={() => setShowForm(true)}>
-          {t.partner.add}
-        </button>
-      </div>
-
       <div className="section-card stack">
-        <label className="partner-search">
-          <span className="muted" style={{ fontSize: "0.8rem" }}>
-            {t.common.search}
-          </span>
-          <input
-            value={searchInput}
-            placeholder={t.partner.searchPlaceholder}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-        </label>
-        {error ? <p className="error">{error}</p> : null}
-        {ok ? <p className="ok">{ok}</p> : null}
+        <div className="row partner-toolbar">
+          <label className="partner-search">
+            <span className="muted" style={{ fontSize: "0.8rem" }}>
+              {t.common.search}
+            </span>
+            <input
+              type="search"
+              className="desk-search"
+              value={searchInput}
+              placeholder={t.partner.searchPlaceholder}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn primary"
+            data-desk-action="new"
+            data-desk-primary
+            onClick={() => setShowForm(true)}
+          >
+            {t.partner.add}
+          </button>
+        </div>
+        {error && !showForm ? <p className="error">{error}</p> : null}
         {busy && !pageData ? (
           <p className="muted">{t.partner.loadingPartners}</p>
         ) : null}
@@ -153,13 +142,12 @@ export function PartnersPage() {
                     <th>{t.common.phone}</th>
                     <th>{t.common.city}</th>
                     <th>{t.common.country}</th>
-                    <th>{t.common.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageData.items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="muted">
+                      <td colSpan={4} className="muted">
                         {t.partner.emptyTitle}
                       </td>
                     </tr>
@@ -169,6 +157,10 @@ export function PartnersPage() {
                         key={p.id}
                         className="customer-row-clickable"
                         onClick={() => navigate(`/partners/${p.id}`)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setRowMenu({ x: e.clientX, y: e.clientY, partner: p });
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
@@ -185,16 +177,6 @@ export function PartnersPage() {
                         <td>{p.phone ?? "—"}</td>
                         <td>{p.city ?? "—"}</td>
                         <td>{p.country ?? "—"}</td>
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() => void handleArchive(p.id, p.name)}
-                          >
-                            {t.common.archive}
-                          </button>
-                        </td>
                       </tr>
                     ))
                   )}
@@ -212,54 +194,40 @@ export function PartnersPage() {
         ) : null}
       </div>
 
+      {rowMenu ? (
+        <DeskContextMenu
+          x={rowMenu.x}
+          y={rowMenu.y}
+          items={[
+            {
+              id: "archive",
+              label: t.common.archive,
+              danger: true,
+              disabled: busy,
+              onSelect: () => void handleArchive(rowMenu.partner.id, rowMenu.partner.name),
+            },
+          ]}
+          onClose={() => setRowMenu(null)}
+        />
+      ) : null}
+
       {showForm ? (
-        <Modal title={t.partner.add} onClose={() => !busy && setShowForm(false)}>
-          <form className="stack" onSubmit={(e) => void handleCreate(e)}>
-            <label>
-              {t.common.name} *
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            <div className="exchange-fields-grid">
-              <label>
-                {t.common.phone}
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </label>
-              <label>
-                {t.common.city}
-                <input value={city} onChange={(e) => setCity(e.target.value)} />
-              </label>
-              <label>
-                {t.common.country}
-                <input
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                />
-              </label>
-              <label>
-                {t.common.notes}
-                <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </label>
-            </div>
-            <div className="row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() => setShowForm(false)}
-              >
-                {t.common.cancel}
-              </button>
-              <button type="submit" disabled={busy}>
-                {busy ? t.common.saving : t.partner.savePartner}
-              </button>
-            </div>
-          </form>
+        <Modal
+          title={t.partner.add}
+          size="lg"
+          onClose={() => !busy && setShowForm(false)}
+        >
+          <PartnerCreateForm
+            onCancel={() => setShowForm(false)}
+            onCreated={() => {
+              setShowForm(false);
+              showSuccess(t.partner.savePartner);
+              setReloadKey((k) => k + 1);
+            }}
+          />
         </Modal>
       ) : null}
+      {successModal}
     </div>
   );
 }

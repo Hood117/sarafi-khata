@@ -7,10 +7,11 @@ use tauri::State;
 use crate::error::AppError;
 use crate::ledger::{
   find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction,
-  PostTransactionInput, PostingLineDto,
+  resolve_shop_cash_wallet_id, PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{format_f64, now_sqlite};
+use crate::commands::authorize::{require_screen};
 
 /// Stable category ids → SYSTEM wallet display names (matched by daybook expense_totals).
 const CATEGORIES: &[(&str, &str)] = &[
@@ -62,23 +63,6 @@ fn ensure_expense_wallet(conn: &Connection, name: &str) -> Result<String, AppErr
   Ok(id)
 }
 
-fn assert_cash_wallet(conn: &Connection, id: &str) -> Result<(), AppError> {
-  let row: Option<(String, i64)> = conn
-    .query_row(
-      "SELECT type, isActive FROM Wallet WHERE id = ?1 AND deletedAt IS NULL",
-      [id],
-      |row| Ok((row.get(0)?, row.get(1)?)),
-    )
-    .optional()?;
-  let (t, active) = row.ok_or_else(|| AppError::NotFound("Cash wallet not found.".into()))?;
-  if active != 1 || (t != "VAULT" && t != "TILL") {
-    return Err(AppError::Validation(
-      "Cash wallet must be an active vault or till.".into(),
-    ));
-  }
-  Ok(())
-}
-
 fn expense_wallet_filter_sql() -> &'static str {
   r#"(
     LOWER(w.name) LIKE '%expense%'
@@ -115,7 +99,11 @@ pub struct ExpenseCategoryOption {
 }
 
 #[tauri::command]
-pub fn list_expense_categories() -> Result<Vec<ExpenseCategoryOption>, AppError> {
+pub fn list_expense_categories(state: State<'_, AppState>) -> Result<Vec<ExpenseCategoryOption>, AppError> {
+  {
+    let conn = state.db.lock();
+    let _actor = require_screen(&state, &conn, "expenses")?;
+  }
   Ok(
     CATEGORIES
       .iter()
@@ -133,7 +121,8 @@ pub struct PostExpenseInput {
   pub category: String,
   pub currency_code: String,
   pub amount: String,
-  pub cash_wallet_id: String,
+  /// Optional — shop cash is always Main Vault.
+  pub cash_wallet_id: Option<String>,
   pub notes: Option<String>,
   pub value_date: Option<String>,
   pub created_by_id: String,
@@ -144,6 +133,7 @@ pub struct PostExpenseInput {
 pub struct PostExpenseResult {
   pub transaction_id: String,
   pub reference: String,
+  pub display_ref: String,
   pub category: String,
   pub amount: String,
   pub currency_code: String,
@@ -154,19 +144,14 @@ pub fn post_expense(
   state: State<'_, AppState>,
   input: PostExpenseInput,
 ) -> Result<PostExpenseResult, AppError> {
-  let created_by = input.created_by_id.trim().to_string();
-  if created_by.is_empty() {
-    return Err(AppError::Validation("createdById is required.".into()));
-  }
-  let cash_wallet_id = input.cash_wallet_id.trim().to_string();
-  if cash_wallet_id.is_empty() {
-    return Err(AppError::Validation("cashWalletId is required.".into()));
-  }
+  let _ = input.created_by_id.trim();
   let wallet_name = category_wallet_name(&input.category)?;
   let category_id = input.category.trim().to_ascii_uppercase();
 
   let conn = state.db.lock();
-  assert_cash_wallet(&conn, &cash_wallet_id)?;
+  let actor = require_screen(&state, &conn, "expenses")?;
+  let created_by = actor.id.clone();
+  let cash_wallet_id = resolve_shop_cash_wallet_id(&conn, input.cash_wallet_id.as_deref())?;
   let expense_wallet_id = ensure_expense_wallet(&conn, wallet_name)?;
   let (_cid, code, places) = find_currency_by_code(&conn, &input.currency_code)?;
   let minor = money_from_major_units(input.amount.trim(), places)?;
@@ -222,7 +207,8 @@ pub fn post_expense(
 
   Ok(PostExpenseResult {
     transaction_id: posted.id,
-    reference,
+    reference: posted.reference,
+    display_ref: posted.display_ref,
     category: category_id,
     amount: amount_major,
     currency_code: code,
@@ -245,6 +231,7 @@ pub struct ListExpensesInput {
 pub struct ExpenseRow {
   pub transaction_id: String,
   pub reference: String,
+  pub display_ref: String,
   pub category: String,
   pub category_label: String,
   pub amount: String,
@@ -275,6 +262,7 @@ pub fn list_expenses(
   let page_size = input.page_size.unwrap_or(25).clamp(1, 100);
   let offset = (page - 1) * page_size;
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "expenses")?;
 
   let mut where_parts: Vec<String> = vec![
     "t.deletedAt IS NULL".into(),
@@ -331,7 +319,7 @@ pub fn list_expenses(
   let total: i64 = conn.query_row(&count_sql, param_refs.as_slice(), |row| row.get(0))?;
 
   let list_sql = format!(
-    r#"SELECT t.id, t.reference, w.name, CAST(le.amount AS TEXT), c.code, c.name, c.symbol,
+    r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), w.name, CAST(le.amount AS TEXT), c.code, c.name, c.symbol,
               t.description, t.valueDate, u.fullName,
               (
                 SELECT cw.name FROM LedgerEntry cle
@@ -358,7 +346,7 @@ pub fn list_expenses(
   let mut stmt = conn.prepare(&list_sql)?;
   let items = stmt
     .query_map(list_refs.as_slice(), |row| {
-      let wallet_name: String = row.get(2)?;
+      let wallet_name: String = row.get(3)?;
       let cat = categorize_wallet_name(&wallet_name);
       let label = CATEGORIES
         .iter()
@@ -368,16 +356,17 @@ pub fn list_expenses(
       Ok(ExpenseRow {
         transaction_id: row.get(0)?,
         reference: row.get(1)?,
+        display_ref: row.get(2)?,
         category: cat.into(),
         category_label: label,
-        amount: row.get(3)?,
-        currency_code: row.get(4)?,
-        currency_name: row.get(5)?,
-        currency_symbol: row.get(6)?,
-        notes: row.get(7)?,
-        value_date: row.get(8)?,
-        created_by_name: row.get(9)?,
-        cash_wallet_name: row.get(10)?,
+        amount: row.get(4)?,
+        currency_code: row.get(5)?,
+        currency_name: row.get(6)?,
+        currency_symbol: row.get(7)?,
+        notes: row.get(8)?,
+        value_date: row.get(9)?,
+        created_by_name: row.get(10)?,
+        cash_wallet_name: row.get(11)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
@@ -425,6 +414,7 @@ pub fn get_expense_summary(
   input: ExpenseSummaryInput,
 ) -> Result<ExpenseSummary, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "expenses")?;
   let mut where_parts: Vec<String> = vec![
     "t.deletedAt IS NULL".into(),
     "w.type = 'SYSTEM'".into(),

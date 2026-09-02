@@ -1,0 +1,517 @@
+/**
+ * Liquid Glass preview theme (one frosted recipe, three tiers).
+ *
+ * Enable:  html[data-ui="liquid-glass"]  (set in main.tsx)
+ * Reverse: remove that attribute and/or stop importing this file.
+ *
+ * Recipe: light frosted glass only — do not mix with dark volumetric glass.
+ * Tiers: 1 chrome/nav · 2 cards/panels · 3 controls (buttons/inputs)
+ */
+
+html[data-ui="liquid-glass"] {
+  --lg-blur: 18px;
+  --lg-sat: 165%;
+  --lg-fill: rgba(255, 255, 255, 0.38);
+  --lg-fill-strong: rgba(255, 255, 255, 0.55);
+  --lg-fill-soft: rgba(255, 255, 255, 0.26);
+  --lg-border: rgba(255, 255, 255, 0.62);
+  --lg-border-dim: rgba(255, 255, 255, 0.32);
+  /* Row hover: soft frost lift (still subtle; money columns excluded) */
+  --table-row-hover: rgba(255, 255, 255, 0.42);
+  --table-row-hover-selected: color-mix(in srgb, var(--brand) 12%, rgba(255, 255, 255, 0.5));
+  --table-row-hover-duration: 120ms;
+  --lg-edge: rgba(15, 40, 30, 0.08);
+  --lg-inset:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(15, 40, 30, 0.05);
+  --lg-shadow:
+    0 14px 36px -18px rgba(10, 40, 28, 0.32),
+    0 4px 14px -8px rgba(10, 40, 28, 0.14);
+  --lg-glow: 0 16px 42px -20px color-mix(in srgb, var(--brand) 42%, transparent);
+  --surface: var(--lg-fill-strong);
+  --surface-solid: rgba(255, 255, 255, 0.72);
+  --shadow: var(--lg-shadow);
+  --radius: 20px;
+  --radius-sm: 14px;
+
+  background-color: #d9ebe2;
+  background-image:
+    radial-gradient(ellipse 80% 55% at 12% -8%, rgba(255, 255, 255, 0.7), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 8%, color-mix(in srgb, var(--brand) 18%, transparent), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 70% 100%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 48%),
+    linear-gradient(165deg, #eaf6ef 0%, #dceee5 48%, #e7f3ec 100%);
+}
+
+/* ---------- Tier 1: shell chrome / nav / quick actions ---------- */
+
+html[data-ui="liquid-glass"] .app-chrome-actions {
+  background: color-mix(in srgb, var(--brand) 22%, var(--lg-fill-strong, var(--lg-fill)));
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--lg-border));
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .app-tabbar {
+  background: color-mix(in srgb, var(--lg-fill-strong) 88%, var(--brand-soft));
+  border: 1px solid color-mix(in srgb, var(--brand) 22%, var(--lg-border));
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .app-menu-btn {
+  background: var(--lg-fill-strong);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .app-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html[data-ui="liquid-glass"] .app-menu-btn[aria-expanded="true"] {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--brand) 88%, #fff) 0%,
+    var(--brand-deep) 100%
+  );
+  border-color: transparent;
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 22px -12px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+html[data-ui="liquid-glass"] .nav-curtain-panel {
+  background: color-mix(in srgb, var(--lg-fill-strong) 82%, var(--brand-soft));
+  border-bottom-color: var(--lg-border-dim);
+  box-shadow: var(--lg-inset), 0 18px 40px -20px rgba(10, 40, 28, 0.4);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .nav-curtain-nav {
+  background: var(--lg-fill);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .nav-curtain-link.nav-link:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+html[data-ui="liquid-glass"] .settings-menu-btn {
+  background: var(--lg-fill-strong);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .settings-menu-btn:hover,
+html[data-ui="liquid-glass"] .settings-menu-btn[aria-expanded="true"] {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--brand) 88%, #fff) 0%,
+    var(--brand-deep) 100%
+  );
+  color: #fff;
+  border-color: transparent;
+}
+
+html[data-ui="liquid-glass"] .settings-menu-panel {
+  background: color-mix(in srgb, var(--lg-fill-strong) 88%, var(--brand-soft));
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow), var(--lg-glow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .settings-menu-item:hover {
+  background: color-mix(in srgb, var(--brand) 14%, rgba(255, 255, 255, 0.35));
+}
+
+html[data-ui="liquid-glass"] .quick-actions-bar {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-ui="liquid-glass"] .nav-link {
+  border-radius: 999px;
+}
+
+html[data-ui="liquid-glass"] .nav-link:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+html[data-ui="liquid-glass"] .nav-link.active {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--brand) 88%, #fff) 0%,
+    var(--brand-deep) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 10px 22px -12px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+html[data-ui="liquid-glass"] .quick-action-chip {
+  background: var(--lg-fill-strong);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), 0 8px 18px -12px rgba(10, 40, 28, 0.3);
+  backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(12px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .quick-action-chip:hover {
+  border-color: color-mix(in srgb, var(--qa-accent, var(--brand)) 35%, white);
+  box-shadow:
+    var(--lg-inset),
+    0 12px 24px -12px color-mix(in srgb, var(--qa-accent, var(--brand)) 45%, transparent);
+}
+
+/* ---------- Tier 2: cards / panels / modals ---------- */
+
+html[data-ui="liquid-glass"] .card,
+html[data-ui="liquid-glass"] .section-card,
+html[data-ui="liquid-glass"] .stat-card,
+html[data-ui="liquid-glass"] .partner-kata-card,
+html[data-ui="liquid-glass"] .dash-quick-panel.section-card {
+  background: var(--lg-fill-strong);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow), var(--lg-glow);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .card:hover,
+html[data-ui="liquid-glass"] .section-card:hover {
+  border-color: color-mix(in srgb, var(--brand) 28%, white);
+  box-shadow:
+    var(--lg-inset),
+    0 18px 40px -18px rgba(10, 40, 28, 0.36),
+    var(--lg-glow);
+}
+
+html[data-ui="liquid-glass"] .stat-card::after {
+  opacity: 0.35;
+}
+
+html[data-ui="liquid-glass"] .modal-backdrop,
+html[data-ui="liquid-glass"] .global-search-backdrop {
+  background: rgba(12, 28, 22, 0.28);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+html[data-ui="liquid-glass"] .modal-panel,
+html[data-ui="liquid-glass"] .global-search-panel {
+  background: color-mix(in srgb, var(--lg-fill-strong) 88%, #fff);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), 0 24px 56px -20px rgba(8, 40, 28, 0.45);
+  backdrop-filter: blur(22px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(22px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .modal-header {
+  background: transparent;
+  border-bottom-color: var(--lg-edge);
+}
+
+html[data-ui="liquid-glass"] .modal-form-footer {
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--lg-fill-strong) 70%, transparent) 28%,
+      color-mix(in srgb, var(--lg-fill-strong) 92%, #fff) 100%
+    );
+  border-top-color: var(--lg-edge);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+html[data-ui="liquid-glass"] .modal-form-footer.is-inline {
+  background: none;
+  border-top: 1px solid var(--lg-edge);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-ui="liquid-glass"] table {
+  background: transparent;
+}
+
+html[data-ui="liquid-glass"] thead th {
+  background: color-mix(in srgb, var(--lg-fill) 70%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+html[data-ui="liquid-glass"] tbody tr:nth-child(even) td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+html[data-ui="liquid-glass"] tbody tr:hover > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background-color: var(--table-row-hover);
+}
+
+html[data-ui="liquid-glass"] tbody tr.is-selected > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr[aria-selected="true"] > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background-color: var(--table-row-hover-selected);
+}
+
+html[data-ui="liquid-glass"] tbody tr.is-selected:hover > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr[aria-selected="true"]:hover > td:not(.money-in):not(.money-out):not(.col-debit):not(.col-credit) {
+  background-color: color-mix(in srgb, var(--brand) 16%, rgba(255, 255, 255, 0.55));
+}
+
+html[data-ui="liquid-glass"] .money-in {
+  color: var(--money-in);
+}
+
+html[data-ui="liquid-glass"] .money-out {
+  color: var(--money-out);
+}
+
+/* Currency summary / generic money cells */
+html[data-ui="liquid-glass"] td.money-in:not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr:nth-child(even) td.money-in:not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr:hover td.money-in:not(.col-debit):not(.col-credit) {
+  color: var(--money-in);
+  background: var(--money-in-bg);
+}
+
+html[data-ui="liquid-glass"] td.money-out:not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr:nth-child(even) td.money-out:not(.col-debit):not(.col-credit),
+html[data-ui="liquid-glass"] tbody tr:hover td.money-out:not(.col-debit):not(.col-credit) {
+  color: var(--money-out);
+  background: var(--money-out-bg);
+}
+
+/* Daybook journal: column tint like before (debit green / credit red) */
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr td.col-debit,
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr:nth-child(even) td.col-debit {
+  background: var(--money-in-bg);
+}
+
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr td.col-credit,
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr:nth-child(even) td.col-credit {
+  background: var(--money-out-bg);
+}
+
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr.is-clickable:hover > td {
+  background-color: var(--table-row-hover);
+}
+
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr.is-clickable:hover > td.col-debit {
+  background-color: color-mix(in srgb, var(--money-in-bg) 50%, var(--table-row-hover));
+}
+
+html[data-ui="liquid-glass"] .daybook-journal-table tbody tr.is-clickable:hover > td.col-credit {
+  background-color: color-mix(in srgb, var(--money-out-bg) 50%, var(--table-row-hover));
+}
+
+/* ---------- Tier 3: controls (same recipe, stronger fill for readability) ---------- */
+
+html[data-ui="liquid-glass"] .button-link,
+html[data-ui="liquid-glass"] .btn,
+html[data-ui="liquid-glass"]
+  button:not(.nav-link):not(.daybook-quick-link):not(.quick-action-chip):not(.hawala-mode):not(
+    .report-period-preset
+  ):not(.app-menu-btn):not(.nav-curtain-backdrop):not(.settings-menu-btn):not(.settings-menu-item):not(
+    .app-chrome-refresh
+  ):not(.daybook-wa-icon-btn):not(.settings-tab):not(.dashboard-footer-link) {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, white);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 12px 24px -14px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+html[data-ui="liquid-glass"] .button-link.secondary,
+html[data-ui="liquid-glass"] .btn:not(.primary):not(.btn-action),
+html[data-ui="liquid-glass"] button.secondary:not(.btn-action) {
+  background: var(--lg-fill-strong);
+  color: var(--ink);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), 0 8px 18px -12px rgba(10, 40, 28, 0.22);
+  backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(12px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .btn.primary:not(.btn-action),
+html[data-ui="liquid-glass"] button.primary:not(.btn-action) {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--brand) 82%, #fff) 0%,
+    var(--brand-deep) 100%
+  );
+}
+
+/* Desk action buttons — keep kit accents, add glass edge */
+html[data-ui="liquid-glass"] .btn.btn-action--save,
+html[data-ui="liquid-glass"] button.btn-action--save {
+  background: linear-gradient(145deg, #9b7dff 0%, #6b4aef 52%, #5533d6 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 14px 30px -14px rgba(91, 63, 212, 0.9);
+}
+
+html[data-ui="liquid-glass"] .btn.btn-action--new,
+html[data-ui="liquid-glass"] button.btn-action--new {
+  background: linear-gradient(145deg, #7af0df 0%, #2dd4bf 48%, #0faba0 100%);
+  color: #043f3a;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 14px 30px -14px rgba(13, 148, 136, 0.85);
+}
+
+html[data-ui="liquid-glass"] .btn.btn-action--previous,
+html[data-ui="liquid-glass"] button.btn-action--previous {
+  background: linear-gradient(145deg, #fda4af 0%, #f0abfc 45%, #d946ef 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 14px 30px -14px rgba(192, 38, 211, 0.8);
+}
+
+html[data-ui="liquid-glass"] .btn.btn-action--cancel,
+html[data-ui="liquid-glass"] button.btn-action--cancel {
+  background: var(--lg-fill-strong);
+  color: #334155;
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), 0 8px 18px -12px rgba(10, 40, 28, 0.18);
+  backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(12px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] input,
+html[data-ui="liquid-glass"] select,
+html[data-ui="liquid-glass"] textarea {
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid color-mix(in srgb, var(--ink) 28%, var(--lg-border-dim));
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgba(15, 40, 30, 0.04), 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+html[data-ui="liquid-glass"] textarea {
+  border-radius: 16px;
+}
+
+html[data-ui="liquid-glass"] input:focus,
+html[data-ui="liquid-glass"] select:focus,
+html[data-ui="liquid-glass"] textarea:focus {
+  border-color: color-mix(in srgb, var(--brand) 45%, white);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent),
+    inset 0 1px 2px rgba(15, 40, 30, 0.04);
+}
+
+html[data-ui="liquid-glass"] input[type="search"],
+html[data-ui="liquid-glass"] input.desk-search,
+html[data-ui="liquid-glass"] .partner-search input,
+html[data-ui="liquid-glass"] .hawala-filter-grow input,
+html[data-ui="liquid-glass"] .tx-filter-search input,
+html[data-ui="liquid-glass"] .dc-search input,
+html[data-ui="liquid-glass"] .customer-search-wrap > input,
+html[data-ui="liquid-glass"] .global-search-input {
+  border: 2px solid color-mix(in srgb, var(--ink) 55%, var(--lg-border-dim));
+  background: #fff;
+}
+
+html[data-ui="liquid-glass"] .hawala-mode-toggle {
+  background: var(--lg-fill);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset);
+  backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  border-radius: 999px;
+}
+
+html[data-ui="liquid-glass"] .hawala-mode {
+  color: var(--brand-deep);
+}
+
+html[data-ui="liquid-glass"] .hawala-mode.active,
+html[data-ui="liquid-glass"] .hawala-fx-ops .hawala-mode.active {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--brand) 88%, #fff) 0%,
+    var(--brand-deep) 100%
+  );
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 8px 16px -12px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+
+html[data-ui="liquid-glass"] .customer-suggest,
+html[data-ui="liquid-glass"] .currency-picker-menu {
+  background: color-mix(in srgb, var(--lg-fill-strong) 90%, #fff);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow);
+  backdrop-filter: blur(16px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .login-shell {
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 0%, rgba(255, 255, 255, 0.55), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 90% 20%, rgba(139, 108, 255, 0.18), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(45, 212, 191, 0.16), transparent 48%),
+    linear-gradient(165deg, #eaf6ef 0%, #dceee5 48%, #e7f3ec 100%);
+}
+
+html[data-ui="liquid-glass"] .login-card {
+  background: var(--lg-fill-strong);
+  border: 1px solid var(--lg-border);
+  box-shadow: var(--lg-inset), var(--lg-shadow), 0 24px 60px -24px rgba(91, 63, 212, 0.28);
+  backdrop-filter: blur(22px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(22px) saturate(var(--lg-sat));
+}
+
+html[data-ui="liquid-glass"] .pagination,
+html[data-ui="liquid-glass"] .exchange-pnl-strip,
+html[data-ui="liquid-glass"] .partner-stats-strip,
+html[data-ui="liquid-glass"] .capital-recon-list,
+html[data-ui="liquid-glass"] .fx-simple,
+html[data-ui="liquid-glass"] .customer-opening-block {
+  background: var(--lg-fill);
+  border: 1px solid var(--lg-border-dim);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--lg-inset);
+  backdrop-filter: blur(12px) saturate(var(--lg-sat));
+  -webkit-backdrop-filter: blur(12px) saturate(var(--lg-sat));
+}
+
+/* Keep print / receipt surfaces opaque */
+@media print {
+  html[data-ui="liquid-glass"] .card,
+  html[data-ui="liquid-glass"] .section-card,
+  html[data-ui="liquid-glass"] .modal-panel {
+    background: #fff !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-ui="liquid-glass"] {
+    --lg-blur: 0px;
+    --lg-fill: rgba(255, 252, 247, 0.92);
+    --lg-fill-strong: #fffcf7;
+  }
+}

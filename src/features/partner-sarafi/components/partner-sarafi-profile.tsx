@@ -17,7 +17,10 @@ import {
 import { Typography } from "@/design-system/typography";
 import type { HawalaDirection, HawalaListItem } from "@/features/hawala/domain/types";
 import { EditPartnerSarafiDialog } from "@/features/partner-sarafi/components/edit-partner-sarafi-dialog";
-import type { PartnerCurrencyOption } from "@/features/partner-sarafi/components/partner-sarafi-form";
+import type {
+  PartnerCurrencyOption,
+  PartnerCustomerOption,
+} from "@/features/partner-sarafi/components/partner-sarafi-form";
 import { PartnerSarafiCommissionSection } from "@/features/partner-sarafi/components/partner-sarafi-commission-section";
 import { PartnerSarafiHawalaSection } from "@/features/partner-sarafi/components/partner-sarafi-hawala-section";
 import { SetPartnerSarafiActiveButton } from "@/features/partner-sarafi/components/set-partner-sarafi-active-button";
@@ -31,6 +34,7 @@ type PartnerSarafiProfileViewProps = {
   partner: PartnerSarafiListItem;
   transfers: HawalaListItem[];
   commissionSummary: PartnerCommissionSummary;
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
   cashWallets: Array<{ id: string; label: string }>;
   search: string;
@@ -67,6 +71,7 @@ export function PartnerSarafiProfileView({
   partner,
   transfers,
   commissionSummary,
+  customerOptions,
   currencyOptions,
   cashWallets,
   search,
@@ -119,6 +124,7 @@ export function PartnerSarafiProfileView({
         <div className="flex flex-wrap items-center gap-2">
           <EditPartnerSarafiDialog
             partnerId={partner.id}
+            customerOptions={customerOptions}
             currencyOptions={currencyOptions}
             triggerVariant="default"
             triggerSize="default"

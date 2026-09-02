@@ -5,7 +5,7 @@ mod auto;
 pub use auto::queue_auto_backup;
 
 use chrono::Local;
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File};
@@ -17,7 +17,18 @@ use crate::error::AppError;
 pub const BACKUP_FOLDER_NAME: &str = "SarafBackups";
 pub const PENDING_RESTORE_FILE: &str = "saraf.db.pending-restore";
 pub const PENDING_RESTORE_META: &str = "saraf.db.pending-restore.meta.json";
-pub const MAX_BACKUP_COPIES: usize = 50;
+pub const MAX_BACKUP_COPIES: usize = 30;
+
+const SQLITE_HEADER: &[u8] = b"SQLite format 3\0";
+const REQUIRED_BACKUP_TABLES: &[&str] = &["User", "Transaction", "LedgerEntry"];
+
+pub const ERR_BACKUP_FILE_INVALID: &str = "BACKUP_FILE_INVALID";
+pub const ERR_BACKUP_FILE_INCOMPATIBLE: &str = "BACKUP_FILE_INCOMPATIBLE";
+pub const ERR_BACKUP_FILE_DAMAGED: &str = "BACKUP_FILE_DAMAGED";
+pub const ERR_BACKUP_FILE_SAFETY_FAILED: &str = "BACKUP_FILE_SAFETY_FAILED";
+pub const ERR_BACKUP_FILE_RESTORE_FAILED: &str = "BACKUP_FILE_RESTORE_FAILED";
+pub const ERR_BACKUP_FILE_VERIFY_FAILED: &str = "BACKUP_FILE_VERIFY_FAILED";
+pub const ERR_BACKUP_FILE_LIVE_DB: &str = "BACKUP_FILE_LIVE_DB";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -109,10 +120,16 @@ fn list_windows_drive_roots() -> Vec<PathBuf> {
   #[cfg(windows)]
   {
     let mut roots = Vec::new();
-    for letter in b'C'..=b'Z' {
+    for letter in b'A'..=b'Z' {
       let root = PathBuf::from(format!("{}:\\", letter as char));
-      if root.exists() {
-        roots.push(root);
+      if !root.exists() {
+        continue;
+      }
+      // Skip non-writable / media-only volumes (probe by creating the folder).
+      let probe = root.join(BACKUP_FOLDER_NAME);
+      match fs::create_dir_all(&probe) {
+        Ok(()) => roots.push(root),
+        Err(_) => continue,
       }
     }
     roots
@@ -127,10 +144,13 @@ fn backup_destinations(db_path: &Path) -> Vec<PathBuf> {
   let mut dests = vec![primary_backup_root(db_path)];
   for root in list_windows_drive_roots() {
     let candidate = root.join(BACKUP_FOLDER_NAME);
-    if dests.iter().any(|d| d == &candidate) {
+    if dests.iter().any(|d| {
+      // Compare after canonicalize when possible so E:\data\SarafBackups == primary.
+      d == &candidate
+        || d.canonicalize().ok().zip(candidate.canonicalize().ok()).is_some_and(|(a, b)| a == b)
+    }) {
       continue;
     }
-    // Skip the drive that already holds the primary root when it's the same path.
     dests.push(candidate);
   }
   dests
@@ -301,7 +321,7 @@ pub fn list_backups(db_path: &Path) -> Result<Vec<BackupListItem>, AppError> {
   Ok(items)
 }
 
-fn find_backup_dir(db_path: &Path, stamp: &str) -> Result<PathBuf, AppError> {
+pub(crate) fn find_backup_dir(db_path: &Path, stamp: &str) -> Result<PathBuf, AppError> {
   let stamp = stamp.trim();
   if stamp.is_empty() || stamp.contains("..") || stamp.contains('/') || stamp.contains('\\') {
     return Err(AppError::Validation("Invalid backup stamp.".into()));
@@ -319,7 +339,35 @@ fn find_backup_dir(db_path: &Path, stamp: &str) -> Result<PathBuf, AppError> {
   Err(AppError::NotFound(format!("Backup \"{stamp}\" was not found.")))
 }
 
-/// Restore a backup into the live DB. If the live file is locked, stage a pending restore.
+/// Fast safety snapshot before restore (file copy after WAL checkpoint).
+/// Prefer this over full `VACUUM INTO` so restore does not freeze the UI for long.
+fn create_pre_restore_snapshot(conn: &Connection, db_path: &Path) -> Result<(), AppError> {
+  let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+  let stamp = format!("{}-pre-restore", stamp_now());
+  let created_at = chrono::Utc::now().to_rfc3339();
+  let primary_root = primary_backup_root(db_path);
+  let dest_dir = primary_root.join(&stamp);
+  fs::create_dir_all(&dest_dir).map_err(|e| AppError::Io(format!("create pre-restore dir: {e}")))?;
+  let dest_db = dest_dir.join("saraf.db");
+  fs::copy(db_path, &dest_db).map_err(|e| AppError::Io(format!("copy live db for pre-restore: {e}")))?;
+  let checksum = sha256_file(&dest_db)?;
+  fs::write(dest_dir.join("saraf.db.sha256"), format!("{checksum}\n"))
+    .map_err(|e| AppError::Io(format!("write pre-restore sha256: {e}")))?;
+  write_meta(
+    &dest_dir,
+    &BackupMeta {
+      stamp: stamp.clone(),
+      reason: "pre-restore".into(),
+      checksum,
+      created_at,
+      source_db: db_path.display().to_string(),
+    },
+  )?;
+  let _ = prune_old_backups(&primary_root);
+  Ok(())
+}
+
+/// Restore a backup into the live DB. Stages a pending restore; caller should restart the app.
 pub fn restore_backup(
   conn: &Connection,
   db_path: &Path,
@@ -330,7 +378,7 @@ pub fn restore_backup(
   let expected = fs::read_to_string(backup_dir.join("saraf.db.sha256"))
     .ok()
     .map(|s| s.trim().to_string())
-    .unwrap_or_else(|| sha256_file(&backup_db).unwrap_or_default());
+    .unwrap_or_default();
   if !expected.is_empty() {
     let actual = sha256_file(&backup_db)?;
     if actual != expected {
@@ -340,31 +388,270 @@ pub fn restore_backup(
     }
   }
 
-  // Safety snapshot before restore.
-  let _ = create_backup(conn, db_path, "pre-restore");
+  // Quick safety snapshot (not a full VACUUM) so the UI does not hang.
+  if let Err(e) = create_pre_restore_snapshot(conn, db_path) {
+    log::warn!("pre-restore snapshot failed (continuing restore): {e}");
+  }
 
   let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
 
-  // Try direct replace via VACUUM INTO live path is unsafe while open.
-  // Stage pending restore and instruct restart — safest with an open connection.
+  stage_pending_restore(db_path, &backup_db, stamp, &expected)?;
+
+  Ok(RestoreOutcome {
+    stamp: stamp.to_string(),
+    pending: true,
+    message: "Backup staged. Applying restore…".into(),
+  })
+}
+
+fn stage_pending_restore(
+  db_path: &Path,
+  backup_db: &Path,
+  stamp: &str,
+  checksum: &str,
+) -> Result<(), AppError> {
   let data_dir = db_path.parent().unwrap_or_else(|| Path::new("."));
   let pending = data_dir.join(PENDING_RESTORE_FILE);
-  fs::copy(&backup_db, &pending).map_err(|e| AppError::Io(format!("stage pending restore: {e}")))?;
+  fs::copy(backup_db, &pending).map_err(|e| AppError::Io(format!("stage pending restore: {e}")))?;
   let meta = PendingRestoreMeta {
     stamp: stamp.to_string(),
-    checksum: expected,
+    checksum: checksum.to_string(),
     created_at: chrono::Utc::now().to_rfc3339(),
   };
   let meta_json = serde_json::to_string_pretty(&meta)
     .map_err(|e| AppError::Internal(format!("pending meta: {e}")))?;
   fs::write(data_dir.join(PENDING_RESTORE_META), meta_json)
     .map_err(|e| AppError::Io(format!("write pending meta: {e}")))?;
+  Ok(())
+}
 
+/// Stage an existing Backup History stamp as a pending restore (used to roll back a failed file restore).
+pub fn stage_pending_from_stamp(db_path: &Path, stamp: &str) -> Result<(), AppError> {
+  let backup_dir = find_backup_dir(db_path, stamp)?;
+  let backup_db = backup_dir.join("saraf.db");
+  let checksum = fs::read_to_string(backup_dir.join("saraf.db.sha256"))
+    .ok()
+    .map(|s| s.trim().to_string())
+    .unwrap_or_default();
+  stage_pending_restore(db_path, &backup_db, stamp, &checksum)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidatedBackupFile {
+  pub path: String,
+  pub stamp: String,
+  pub size_bytes: u64,
+  pub checksum: Option<String>,
+}
+
+fn coded_validation(code: &str) -> AppError {
+  AppError::Validation(code.to_string())
+}
+
+fn paths_point_to_same_file(a: &Path, b: &Path) -> bool {
+  match (fs::canonicalize(a), fs::canonicalize(b)) {
+    (Ok(left), Ok(right)) => left == right,
+    _ => a == b,
+  }
+}
+
+/// Resolve a user-picked path (saraf.db, backup.json, sidecar, or copied .db) to the SQLite file.
+pub fn resolve_backup_db_path(picked: &Path) -> Result<PathBuf, AppError> {
+  if !picked.exists() {
+    log::warn!("backup file not found: {}", picked.display());
+    return Err(coded_validation(ERR_BACKUP_FILE_INVALID));
+  }
+  if picked.is_dir() {
+    let db = picked.join("saraf.db");
+    if db.is_file() {
+      return Ok(db);
+    }
+    log::warn!("picked folder has no saraf.db: {}", picked.display());
+    return Err(coded_validation(ERR_BACKUP_FILE_INVALID));
+  }
+  if !picked.is_file() {
+    return Err(coded_validation(ERR_BACKUP_FILE_INVALID));
+  }
+
+  let name = picked
+    .file_name()
+    .and_then(|n| n.to_str())
+    .unwrap_or("")
+    .to_lowercase();
+
+  if name == "backup.json" || name == "saraf.db.sha256" {
+    if let Some(parent) = picked.parent() {
+      let db = parent.join("saraf.db");
+      if db.is_file() {
+        return Ok(db);
+      }
+    }
+    log::warn!("sidecar without saraf.db: {}", picked.display());
+    return Err(coded_validation(ERR_BACKUP_FILE_INVALID));
+  }
+
+  if name == "saraf.db" {
+    return Ok(picked.to_path_buf());
+  }
+
+  if name.ends_with(".db") || name.ends_with(".sqlite") || name.ends_with(".sqlite3") {
+    return Ok(picked.to_path_buf());
+  }
+
+  if let Some(parent) = picked.parent() {
+    let db = parent.join("saraf.db");
+    if db.is_file() {
+      return Ok(db);
+    }
+  }
+
+  log::warn!("picked file is not a Saraf backup: {}", picked.display());
+  Err(coded_validation(ERR_BACKUP_FILE_INVALID))
+}
+
+fn ensure_required_saraf_tables(conn: &Connection, err_code: &str) -> Result<(), AppError> {
+  for table in REQUIRED_BACKUP_TABLES {
+    let exists: i64 = conn
+      .query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+        [*table],
+        |row| row.get(0),
+      )
+      .map_err(|e| {
+        log::error!("backup schema check failed for {table}: {e}");
+        coded_validation(err_code)
+      })?;
+    if exists == 0 {
+      log::warn!("backup missing required table {table}");
+      return Err(coded_validation(err_code));
+    }
+  }
+  Ok(())
+}
+
+fn integrity_ok(conn: &Connection, err_code: &str) -> Result<(), AppError> {
+  let integrity: String = conn
+    .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+    .map_err(|e| {
+      log::error!("backup integrity_check query failed: {e}");
+      coded_validation(err_code)
+    })?;
+  if integrity != "ok" {
+    log::error!("backup integrity_check: {integrity}");
+    return Err(coded_validation(err_code));
+  }
+  Ok(())
+}
+
+/// Validate a manually selected backup without touching the live database.
+pub fn validate_backup_file(
+  picked: &Path,
+  live_db_path: Option<&Path>,
+) -> Result<ValidatedBackupFile, AppError> {
+  let db_file = resolve_backup_db_path(picked)?;
+  if let Some(live) = live_db_path {
+    if paths_point_to_same_file(&db_file, live) {
+      return Err(coded_validation(ERR_BACKUP_FILE_LIVE_DB));
+    }
+  }
+
+  let mut header = [0u8; 16];
+  {
+    let mut file = File::open(&db_file).map_err(|e| {
+      log::error!("open backup for header: {e}");
+      coded_validation(ERR_BACKUP_FILE_INVALID)
+    })?;
+    if file.read_exact(&mut header).is_err() || header.as_slice() != SQLITE_HEADER {
+      log::warn!("backup file is not SQLite: {}", db_file.display());
+      return Err(coded_validation(ERR_BACKUP_FILE_INVALID));
+    }
+  }
+
+  let checksum_sidecar = db_file
+    .parent()
+    .map(|p| p.join("saraf.db.sha256"))
+    .filter(|p| p.is_file());
+  let expected = checksum_sidecar
+    .as_ref()
+    .and_then(|p| fs::read_to_string(p).ok())
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty());
+  let actual = sha256_file(&db_file).map_err(|e| {
+    log::error!("hash backup file: {e}");
+    coded_validation(ERR_BACKUP_FILE_DAMAGED)
+  })?;
+  if let Some(ref expected_hash) = expected {
+    if actual != *expected_hash {
+      log::warn!("backup checksum mismatch for {}", db_file.display());
+      return Err(coded_validation(ERR_BACKUP_FILE_DAMAGED));
+    }
+  }
+
+  let conn = Connection::open_with_flags(
+    &db_file,
+    OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_FULL_MUTEX,
+  )
+  .map_err(|e| {
+    log::error!("open backup read-only failed: {e}");
+    coded_validation(ERR_BACKUP_FILE_INVALID)
+  })?;
+  integrity_ok(&conn, ERR_BACKUP_FILE_DAMAGED)?;
+  ensure_required_saraf_tables(&conn, ERR_BACKUP_FILE_INCOMPATIBLE)?;
+
+  let size_bytes = fs::metadata(&db_file).map(|m| m.len()).unwrap_or(0);
+  let stamp = db_file
+    .parent()
+    .and_then(|p| {
+      fs::read_to_string(p.join("backup.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<BackupMeta>(&s).ok())
+        .map(|m| m.stamp)
+        .or_else(|| {
+          p.file_name()
+            .and_then(|n| n.to_str())
+            .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+            .map(|s| s.to_string())
+        })
+    })
+    .unwrap_or_else(|| "file".into());
+
+  Ok(ValidatedBackupFile {
+    path: db_file.display().to_string(),
+    stamp,
+    size_bytes,
+    checksum: expected.or(Some(actual)),
+  })
+}
+
+/// After the user confirms: safety-backup the live DB (must succeed), then stage the selected file.
+pub fn stage_backup_file_restore(
+  conn: &Connection,
+  live_db_path: &Path,
+  backup_db: &Path,
+  stamp: &str,
+  checksum: &str,
+) -> Result<RestoreOutcome, AppError> {
+  let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+  stage_pending_restore(live_db_path, backup_db, stamp, checksum)?;
   Ok(RestoreOutcome {
     stamp: stamp.to_string(),
     pending: true,
-    message: "Backup staged. Restart the app to finish restore.".into(),
+    message: "Backup staged. Applying restore…".into(),
   })
+}
+
+/// Confirm the live connection is a usable Saraf database after restore.
+pub fn verify_saraf_database(conn: &Connection) -> Result<(), AppError> {
+  integrity_ok(conn, ERR_BACKUP_FILE_VERIFY_FAILED)?;
+  ensure_required_saraf_tables(conn, ERR_BACKUP_FILE_VERIFY_FAILED)?;
+  conn
+    .query_row(r#"SELECT COUNT(*) FROM "User""#, [], |row| row.get::<_, i64>(0))
+    .map_err(|e| {
+      log::error!("restored database is not queryable: {e}");
+      coded_validation(ERR_BACKUP_FILE_VERIFY_FAILED)
+    })?;
+  Ok(())
 }
 
 #[derive(Debug, Serialize)]
@@ -406,4 +693,104 @@ pub fn apply_pending_restore_if_any(db_path: &Path) -> Result<Option<String>, Ap
   let _ = fs::remove_file(&pending);
   let _ = fs::remove_file(&meta_path);
   Ok(Some(stamp))
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use rusqlite::Connection;
+  use std::fs;
+
+  fn temp_dir() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("saraf-backup-test-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&dir).unwrap();
+    dir
+  }
+
+  fn write_saraf_schema(path: &Path) {
+    let conn = Connection::open(path).unwrap();
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE "User" (id TEXT PRIMARY KEY);
+        CREATE TABLE "Transaction" (id TEXT PRIMARY KEY);
+        CREATE TABLE "LedgerEntry" (id TEXT PRIMARY KEY);
+        INSERT INTO "User" (id) VALUES ('u1');
+        "#,
+      )
+      .unwrap();
+  }
+
+  #[test]
+  fn resolve_backup_json_to_sibling_db() {
+    let dir = temp_dir();
+    let db = dir.join("saraf.db");
+    fs::write(&db, b"SQLite format 3\0placeholder").unwrap();
+    fs::write(dir.join("backup.json"), "{}").unwrap();
+    let resolved = resolve_backup_db_path(&dir.join("backup.json")).unwrap();
+    assert_eq!(resolved, db);
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn resolve_rejects_unrelated_file() {
+    let dir = temp_dir();
+    let file = dir.join("notes.txt");
+    fs::write(&file, b"hello").unwrap();
+    assert!(resolve_backup_db_path(&file).is_err());
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn validate_rejects_non_sqlite() {
+    let dir = temp_dir();
+    let file = dir.join("saraf.db");
+    fs::write(&file, b"not a database").unwrap();
+    let err = validate_backup_file(&file, None).unwrap_err().to_string();
+    assert!(err.contains(ERR_BACKUP_FILE_INVALID), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn validate_rejects_incompatible_schema() {
+    let dir = temp_dir();
+    let file = dir.join("saraf.db");
+    let conn = Connection::open(&file).unwrap();
+    conn.execute_batch(r#"CREATE TABLE "User" (id TEXT);"#).unwrap();
+    drop(conn);
+    let err = validate_backup_file(&file, None).unwrap_err().to_string();
+    assert!(err.contains(ERR_BACKUP_FILE_INCOMPATIBLE), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn validate_accepts_compatible_saraf_db() {
+    let dir = temp_dir();
+    let file = dir.join("saraf.db");
+    write_saraf_schema(&file);
+    let info = validate_backup_file(&file, None).unwrap();
+    assert_eq!(PathBuf::from(&info.path), file);
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn validate_rejects_checksum_mismatch() {
+    let dir = temp_dir();
+    let file = dir.join("saraf.db");
+    write_saraf_schema(&file);
+    fs::write(dir.join("saraf.db.sha256"), "deadbeef\n").unwrap();
+    let err = validate_backup_file(&file, None).unwrap_err().to_string();
+    assert!(err.contains(ERR_BACKUP_FILE_DAMAGED), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn validate_rejects_live_database_path() {
+    let dir = temp_dir();
+    let file = dir.join("saraf.db");
+    write_saraf_schema(&file);
+    let err = validate_backup_file(&file, Some(&file)).unwrap_err().to_string();
+    assert!(err.contains(ERR_BACKUP_FILE_LIVE_DB), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+  }
 }

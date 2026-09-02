@@ -64,6 +64,8 @@ enum WalletType {
   VAULT
   TILL
   CUSTOMER
+  /// Counterpart partner sarafi claim wallet (opening kata / partner ledger).
+  PARTNER
   SYSTEM
 }
 
@@ -171,6 +173,8 @@ model Customer {
   address    String?
   nationalId String?
   notes      String?
+  /// PERMANENT (default) stays until manually archived; TEMPORARY auto-archives when balances settle to zero.
+  customerType String   @default("PERMANENT")
   isActive   Boolean   @default(true)
   deletedAt  DateTime?
   createdAt  DateTime  @default(now())
@@ -186,6 +190,7 @@ model Customer {
   @@index([fatherName])
   @@index([phone])
   @@index([code])
+  @@index([customerType])
   @@index([isActive, deletedAt])
   @@index([deletedAt])
 }
@@ -195,6 +200,8 @@ model Wallet {
   name       String
   type       WalletType
   customerId String?
+  /// Partner sarafi claim wallet (Opening Kata / partner balances).
+  partnerSarafiId String?
   /// Optional staff till owner (cashier / manager float).
   userId     String?
   isActive   Boolean    @default(true)
@@ -204,6 +211,7 @@ model Wallet {
 
   /// Restrict hard-delete so historical wallets stay linked for audit.
   customer      Customer?     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  partnerSarafi PartnerSarafi? @relation(fields: [partnerSarafiId], references: [id], onDelete: Restrict)
   user          User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
   ledgerEntries LedgerEntry[]
   hawalaCashTransfers     HawalaTransfer[] @relation("HawalaCashWallet")
@@ -213,6 +221,7 @@ model Wallet {
   @@index([type, isActive, deletedAt])
   @@index([name, type])
   @@index([customerId])
+  @@index([partnerSarafiId])
   @@index([userId])
   @@index([deletedAt])
 }
@@ -279,6 +288,7 @@ model PartnerSarafi {
   commissionCurrency Currency? @relation("PartnerSarafiCommissionCurrency", fields: [commissionCurrencyId], references: [id], onDelete: Restrict)
   hawalaTransfers HawalaTransfer[]
   commissionSettlements PartnerCommissionSettlement[]
+  wallets Wallet[]
 
   @@index([name])
   @@index([isActive, deletedAt])

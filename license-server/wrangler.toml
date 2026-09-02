@@ -1,0 +1,19 @@
+name = "saraf-license-server"
+main = "src/index.ts"
+compatibility_date = "2025-08-01"
+workers_dev = true
+
+# After `npm run db:create`, paste the database_id Wrangler prints here.
+[[d1_databases]]
+binding = "DB"
+database_name = "saraf-licenses"
+database_id = "e5b6ea58-fc33-489a-902f-e07327d554c2"
+migrations_dir = "migrations"
+
+# Secrets (set with wrangler, do not commit):
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put APP_TOKEN   (optional shared secret the desktop app sends)
+#
+# Local secrets go in `.dev.vars` (gitignored). Example:
+#   ADMIN_TOKEN=dev-admin-token-change-me
+#   APP_TOKEN=dev-app-token-change-me

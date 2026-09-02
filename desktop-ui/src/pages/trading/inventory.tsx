@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { useOutletContext } from "react-router-dom";
 
 import {
   listTradingInventory,
   type TradingInventoryRow,
 } from "@desktop/api";
 import { useT } from "@desktop/i18n";
+import type { TradingOutletContext } from "@desktop/pages/trading/outlet-context";
 
 function money(amount: string, currency: string) {
   return `${amount} ${currency}`;
@@ -16,6 +18,7 @@ function ratePerUnit(rate: string, payCcy: string, invCcy: string) {
 
 export function TradingInventoryPage() {
   const t = useT();
+  const { reloadKey } = useOutletContext<TradingOutletContext>();
   const [rows, setRows] = useState<TradingInventoryRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -42,7 +45,7 @@ export function TradingInventoryPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const filtered = rows.filter((r) => {
     if (!q.trim()) return true;
@@ -56,15 +59,12 @@ export function TradingInventoryPage() {
   return (
     <div className="card stack">
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div className="stack" style={{ gap: "0.25rem" }}>
-          <h2 className="section-title" style={{ margin: 0 }}>
-            {t.desk.currencyInventory}
-          </h2>
-          <p className="muted" style={{ margin: 0, maxWidth: "42rem" }}>
-            {t.desk.inventoryHint}
-          </p>
-        </div>
+        <h2 className="section-title" style={{ margin: 0 }}>
+          {t.desk.currencyInventory}
+        </h2>
         <input
+          type="search"
+          className="desk-search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t.common.search}

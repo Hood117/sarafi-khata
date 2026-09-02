@@ -9,6 +9,8 @@ use std::sync::Arc;
 pub struct AppState {
   pub db: Arc<Mutex<Connection>>,
   pub db_path: PathBuf,
+  /// Bound WebView session token (raw). Used by `authorize::require_*`.
+  pub session_token: Arc<Mutex<Option<String>>>,
 }
 
 impl AppState {
@@ -16,6 +18,7 @@ impl AppState {
     Self {
       db: Arc::new(Mutex::new(conn)),
       db_path,
+      session_token: Arc::new(Mutex::new(None)),
     }
   }
 }

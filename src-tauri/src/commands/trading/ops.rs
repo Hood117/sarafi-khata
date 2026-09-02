@@ -4,16 +4,18 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction,
-  PostTransactionInput, PostingLineDto,
+  find_currency_by_code, money_from_major_units, money_from_major_units_allow_zero,
+  money_from_major_units_signed, money_to_major_unit_string, post_transaction,
+  signed_balance_to_display, PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
+use crate::commands::authorize::{require_screen};
 
 use super::util::{
-  assert_cash_wallet, ensure_system_wallet, load_inventory, major_to_scaled, next_trade_reference,
-  normalize_counterparty, now_sqlite, parse_positive_major, payment_from_qty_rate, require_nonempty,
-  scaled_to_major, trading_allow_negative, trim_opt, upsert_inventory, weighted_avg_scaled,
-  TRADING_CLEARING, TRADING_INVENTORY,
+  assert_cash_wallet, cover_inventory_shortfall_from_vault, ensure_system_wallet, load_inventory,
+  major_to_scaled, next_trade_reference, normalize_counterparty, now_sqlite, parse_positive_major,
+  payment_from_qty_rate, require_nonempty, scaled_to_major, trading_allow_negative, trim_opt,
+  upsert_inventory, weighted_avg_scaled, TRADING_CLEARING, TRADING_INVENTORY,
 };
 
 #[derive(Debug, Deserialize)]
@@ -25,7 +27,8 @@ pub struct TradeBuyInput {
   pub rate: String,
   pub payment_currency_code: String,
   pub payment_amount: Option<String>,
-  pub cash_wallet_id: String,
+  /// Optional — shop cash is always Main Vault.
+  pub cash_wallet_id: Option<String>,
   pub counterparty_type: String,
   pub customer_id: Option<String>,
   pub partner_sarafi_id: Option<String>,
@@ -45,7 +48,8 @@ pub struct TradeSellInput {
   pub rate: String,
   pub payment_currency_code: String,
   pub payment_amount: Option<String>,
-  pub cash_wallet_id: String,
+  /// Optional — shop cash is always Main Vault.
+  pub cash_wallet_id: Option<String>,
   pub counterparty_type: String,
   pub customer_id: Option<String>,
   pub partner_sarafi_id: Option<String>,
@@ -74,8 +78,7 @@ pub struct TradeResult {
 
 #[tauri::command]
 pub fn trade_buy(state: State<'_, AppState>, input: TradeBuyInput) -> Result<TradeResult, AppError> {
-  let created_by = require_nonempty(&input.created_by_id, "createdById")?;
-  let cash_wallet_id = require_nonempty(&input.cash_wallet_id, "cashWalletId")?;
+  let _ = input.created_by_id.trim();
   let qty_s = parse_positive_major(&input.quantity, "quantity")?;
   let rate_s = parse_positive_major(&input.rate, "rate")?;
   let inv_code = require_nonempty(&input.inventory_currency_code, "inventoryCurrencyCode")?
@@ -89,7 +92,9 @@ pub fn trade_buy(state: State<'_, AppState>, input: TradeBuyInput) -> Result<Tra
   }
 
   let conn = state.db.lock();
-  assert_cash_wallet(&conn, &cash_wallet_id)?;
+  let actor = require_screen(&state, &conn, "trading")?;
+  let created_by = actor.id.clone();
+  let cash_wallet_id = assert_cash_wallet(&conn, input.cash_wallet_id.as_deref())?;
   let (inv_id, inv_code, inv_places) = find_currency_by_code(&conn, &inv_code)?;
   let (pay_id, pay_code, pay_places) = find_currency_by_code(&conn, &pay_code)?;
   let qty_minor = money_from_major_units(&qty_s, inv_places)?;
@@ -125,17 +130,27 @@ pub fn trade_buy(state: State<'_, AppState>, input: TradeBuyInput) -> Result<Tra
           "Payment currency must match this inventory's average-cost currency.".into(),
         ));
       }
-      let old_qty_minor = money_from_major_units(&old_qty, inv_places)?;
-      let old_avg_scaled = major_to_scaled(&old_avg, old_pay_places)?;
-      let new_avg_scaled =
-        weighted_avg_scaled(old_qty_minor, old_avg_scaled, qty_minor, rate_scaled);
+      let old_qty_minor = money_from_major_units_signed(&old_qty, inv_places)?;
       let new_qty_minor = old_qty_minor + qty_minor;
-      let new_qty = money_to_major_unit_string(new_qty_minor, inv_places)?;
-      let new_avg = scaled_to_major(new_avg_scaled, pay_places)?;
-      let cost_value = scaled_to_major(
-        major_to_scaled(&new_qty, inv_places)?.saturating_mul(new_avg_scaled) / 100_000_000,
-        pay_places,
-      )?;
+      let (new_avg, new_avg_scaled) = if old_qty_minor <= 0 {
+        (rate_s.clone(), rate_scaled)
+      } else {
+        let old_avg_scaled = major_to_scaled(&old_avg, old_pay_places)?;
+        let new_avg_scaled =
+          weighted_avg_scaled(old_qty_minor, old_avg_scaled, qty_minor, rate_scaled);
+        (scaled_to_major(new_avg_scaled, pay_places)?, new_avg_scaled)
+      };
+      let new_qty = signed_balance_to_display(new_qty_minor, inv_places)?;
+      let cost_value = if new_qty_minor <= 0 {
+        "0".into()
+      } else {
+        scaled_to_major(
+          major_to_scaled(new_qty.trim_start_matches('-'), inv_places)?
+            .saturating_mul(new_avg_scaled)
+            / 100_000_000,
+          pay_places,
+        )?
+      };
       (new_qty, new_avg, cost_value)
     }
     None => (qty_s.clone(), rate_s.clone(), payment_major.clone()),
@@ -266,8 +281,7 @@ pub fn trade_sell(
   state: State<'_, AppState>,
   input: TradeSellInput,
 ) -> Result<TradeResult, AppError> {
-  let created_by = require_nonempty(&input.created_by_id, "createdById")?;
-  let cash_wallet_id = require_nonempty(&input.cash_wallet_id, "cashWalletId")?;
+  let _ = input.created_by_id.trim();
   let qty_s = parse_positive_major(&input.quantity, "quantity")?;
   let rate_s = parse_positive_major(&input.rate, "rate")?;
   let inv_code = require_nonempty(&input.inventory_currency_code, "inventoryCurrencyCode")?
@@ -281,7 +295,9 @@ pub fn trade_sell(
   }
 
   let conn = state.db.lock();
-  assert_cash_wallet(&conn, &cash_wallet_id)?;
+  let actor = require_screen(&state, &conn, "trading")?;
+  let created_by = actor.id.clone();
+  let cash_wallet_id = assert_cash_wallet(&conn, input.cash_wallet_id.as_deref())?;
   let (inv_id, inv_code, inv_places) = find_currency_by_code(&conn, &inv_code)?;
   let (pay_id, pay_code, pay_places) = find_currency_by_code(&conn, &pay_code)?;
   let qty_minor = money_from_major_units(&qty_s, inv_places)?;
@@ -310,15 +326,35 @@ pub fn trade_sell(
   };
 
   let allow_neg = trading_allow_negative(&conn)?;
-  let (old_qty, old_avg, old_pay_ccy, _) = load_inventory(&conn, &inv_id)?
-    .ok_or_else(|| AppError::Validation("No inventory for this currency.".into()))?;
+  let (old_qty, old_avg, old_pay_ccy) = if allow_neg {
+    match load_inventory(&conn, &inv_id)? {
+      Some((q, a, p, _)) => (q, a, p),
+      None => ("0".into(), rate_s.clone(), pay_id.clone()),
+    }
+  } else {
+    cover_inventory_shortfall_from_vault(
+      &conn,
+      &inv_id,
+      &inv_code,
+      inv_places,
+      &pay_id,
+      pay_places,
+      qty_minor,
+      &rate_s,
+      &cash_wallet_id,
+      &created_by,
+      false, // trade_sell posts cash after this check
+    )?
+  };
   if old_pay_ccy != pay_id {
     return Err(AppError::Validation(
       "Payment currency must match inventory average-cost currency.".into(),
     ));
   }
-  let old_qty_minor = money_from_major_units(&old_qty, inv_places)?;
-  if qty_minor > old_qty_minor && !allow_neg {
+  let old_qty_minor = money_from_major_units_signed(&old_qty, inv_places)?;
+  if qty_minor > old_qty_minor && allow_neg {
+    // allowed short sale
+  } else if qty_minor > old_qty_minor {
     return Err(AppError::Validation(
       "Insufficient inventory for this sale.".into(),
     ));
@@ -329,7 +365,7 @@ pub fn trade_sell(
     major_to_scaled(&qty_s, inv_places)?.saturating_mul(avg_scaled) / 100_000_000,
     pay_places,
   )?;
-  let cogs_minor = money_from_major_units(&cogs_major, pay_places)?;
+  let cogs_minor = money_from_major_units_allow_zero(&cogs_major, pay_places)?;
   let profit_minor = pay_minor - cogs_minor;
   let profit_abs = money_to_major_unit_string(profit_minor.abs(), pay_places)?;
   let profit_signed = if profit_minor < 0 {
@@ -339,17 +375,19 @@ pub fn trade_sell(
   };
 
   let new_qty_minor = old_qty_minor - qty_minor;
-  let new_qty = money_to_major_unit_string(new_qty_minor, inv_places)?;
-  let new_avg = if new_qty_minor == 0 {
+  let new_qty = signed_balance_to_display(new_qty_minor, inv_places)?;
+  let new_avg = if new_qty_minor <= 0 {
     "0".into()
   } else {
     old_avg.clone()
   };
-  let cost_value = if new_qty_minor == 0 {
+  let cost_value = if new_qty_minor <= 0 {
     "0".into()
   } else {
     scaled_to_major(
-      major_to_scaled(&new_qty, inv_places)?.saturating_mul(avg_scaled) / 100_000_000,
+      major_to_scaled(new_qty.trim_start_matches('-'), inv_places)?
+        .saturating_mul(avg_scaled)
+        / 100_000_000,
       pay_places,
     )?
   };
@@ -507,6 +545,7 @@ pub fn get_trade(
 ) -> Result<TradeDetail, AppError> {
   let id = require_nonempty(&input.id, "id")?;
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
   conn
     .query_row(
       "SELECT t.id, t.reference, t.direction, t.status, ic.code, CAST(t.quantity AS TEXT),
@@ -571,6 +610,7 @@ pub fn update_trade(
 ) -> Result<TradeDetail, AppError> {
   let id = require_nonempty(&input.id, "id")?;
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
   let exists: i64 = conn.query_row(
     "SELECT COUNT(*) FROM TradingTrade WHERE id = ?1 AND deletedAt IS NULL",
     [&id],
@@ -668,6 +708,7 @@ pub fn archive_trade(
 ) -> Result<TradeDetail, AppError> {
   let id = require_nonempty(&input.id, "id")?;
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "trading")?;
   let row: (String, Option<String>) = conn
     .query_row(
       "SELECT inventoryCurrencyId, transactionId FROM TradingTrade

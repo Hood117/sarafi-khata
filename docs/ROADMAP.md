@@ -1,6 +1,6 @@
 # Saraf — Product / Engineering Roadmap
 
-**Last updated:** 2026-08-09 (Reports Center complete)  
+**Last updated:** 2026-08-17  
 **Related:** `docs/HANDOFF.md`, `docs/DECISIONS.md`
 
 Suggested implementation order. Adjust when product priorities change.
@@ -46,11 +46,13 @@ Suggested implementation order. Adjust when product priorities change.
 - [x] **Currency Exchange** — `exchangeFunds` → `postTransaction` (existing customer + walk-in; ADR-036)
 - [x] **UI simplification**
   - [x] Hide wallet selection on Deposit, Withdrawal, Currency Exchange, Hawala
-  - [x] Auto-resolve internal wallets in UI layer (Cash Till, customer wallet, Hawala Clearing)
+  - [x] Auto-resolve shop cash to **Main Vault** (ADR-044); Hawala Clearing / Exchange Difference stay SYSTEM
   - [x] Customer profile: tabbed Information | Balances | History (ADR-034)
   - [x] Remove Wallets from primary sidebar; keep under Settings → System
   - [x] `/wallets` redirects to `/settings/wallets`
-- [x] **Business Cash Overview** (`/cash`) — VAULT + TILL balances by currency from ledger
+- [x] **Business Cash Overview** (`/cash`) — Main Vault balances by currency from ledger
+- [x] **One shop cash wallet (ADR-044)** — Cash Till retired from seed/ops; consolidate on migrate; no cash-wallet pickers on desk forms
+- [x] **Unified account numbers (ADR-045)** — Main Vault #1; customers #2+; wipe resets to clean slate; Daybook Opposite Account from ledger
 - [x] **Customer Transfer** — `transferFunds` → `postTransaction` (`type: TRANSFER`)
 - [x] **Dashboard** — read-only `getDashboardStats` + `/` UI
 - [x] **Reports Center** — **complete** (ADR-043): Overview, Daily, Monthly, Cash Flow, Hawala, Exchange, Customer Statement, Transactions Report; read-only ledger SQL; green/red = money direction; clickable rows → transaction detail; print/CSV
@@ -67,10 +69,13 @@ Suggested implementation order. Adjust when product priorities change.
 
 ## Next (near-term)
 
-1. Expand i18n dictionary coverage beyond nav/common strings
-2. Server-side pagination for hawala / customer history / desk search where still in-memory
-3. Deeper integration tests for posting / hawala / exchange
-4. Remove unused `argon2` if still present
+1. Global developer footer (`Developed by Rahmat & Samsoor · © 2026` + phones) — **not in code yet**
+2. Decide whether to hide **Transactions** from primary nav (page still exists)
+3. Optionally surface Debtors/Creditors **totals** using existing `includeTotals` (SPA currently skips)
+4. P&L: transfer/service fees only if those fees are posted
+5. Expand i18n dictionary coverage beyond nav/common strings
+6. Deeper integration tests for posting / hawala / exchange
+7. Remove unused `argon2` if still present
 
 ---
 
@@ -118,6 +123,7 @@ Suggested implementation order. Adjust when product priorities change.
 - Ledger is the source of truth; balances are derived.
 - Every post balances per currency inside one `prisma.$transaction()`.
 - Append-only ledger history; soft-archive master data.
-- Normal operators should not pick internal wallets; resolve them in the UI/feature layer.
+- Normal operators should not pick shop cash wallets; resolve **Main Vault** in the feature layer (ADR-044).
+- Do **not** fold Hawala Clearing or Exchange Difference into Main Vault — they are required SYSTEM contras for balanced multi-currency / hawala posting.
 - Dashboard and Reports must stay read-only — compose existing readers; never post (ADR-043 for Reports Center).
 - Audit Log records who did what; it must never write `LedgerEntry` or invent balances.

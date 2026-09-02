@@ -18,11 +18,13 @@ import {
   emptyPartnerSarafiFormValues,
   PartnerSarafiForm,
   type PartnerCurrencyOption,
+  type PartnerCustomerOption,
   type PartnerSarafiFormValues,
 } from "@/features/partner-sarafi/components/partner-sarafi-form";
 import { useT } from "@/lib/i18n";
 
 type AddPartnerSarafiDialogProps = {
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
   onSuccess?: (message: string) => void;
   triggerLabel?: string;
@@ -31,6 +33,7 @@ type AddPartnerSarafiDialogProps = {
 };
 
 export function AddPartnerSarafiDialog({
+  customerOptions,
   currencyOptions,
   onSuccess,
   triggerLabel,
@@ -55,6 +58,7 @@ export function AddPartnerSarafiDialog({
 
   async function handleSubmit(values: PartnerSarafiFormValues) {
     const result = await createPartnerSarafiAction({
+      customerId: values.customerId,
       name: values.name,
       phone: values.phone,
       city: values.city,
@@ -99,7 +103,9 @@ export function AddPartnerSarafiDialog({
         <PartnerSarafiForm
           key={formKey}
           initialValues={emptyPartnerSarafiFormValues}
+          customerOptions={customerOptions}
           currencyOptions={currencyOptions}
+          requireCustomer
           submitLabel={resolvedSubmit}
           errorFallbackMessage={t.common.tryAgain}
           onCancel={() => handleOpenChange(false)}

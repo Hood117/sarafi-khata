@@ -1,31 +1,70 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import {
   listTransactionsPage,
   type TransactionListPage,
 } from "@desktop/api";
+import {
+  TransactionDetailModal,
+  clickableTxRowProps,
+  useTransactionDetailModal,
+} from "@desktop/components/transaction-detail-modal";
+import {
+  ExchangeDealDetailModal,
+  useExchangeDealDetailModal,
+} from "@desktop/components/exchange-deal-detail-modal";
+import { TransactionLine } from "@desktop/components/transaction-line";
+import { LedgerAmount } from "@desktop/components/ledger-amount";
 import { useT } from "@desktop/i18n";
-import { statusLabel } from "@desktop/lib/i18n-labels";
+import { amountPartsFromRow } from "@desktop/lib/format-transaction-line";
+import { txDisplayRef } from "@desktop/lib/tx-ref";
+
+const TX_TYPES = [
+  { value: "ALL", label: "All" },
+  { value: "DEPOSIT", label: "Deposit" },
+  { value: "WITHDRAWAL", label: "Withdraw" },
+  { value: "EXCHANGE", label: "Exchange" },
+  { value: "HAWALA", label: "Hawala" },
+  { value: "TRANSFER", label: "Transfer" },
+] as const;
 
 export function TransactionsPage() {
   const t = useT();
   const [params] = useSearchParams();
   const initialQ = params.get("q")?.trim() ?? "";
   const [pageData, setPageData] = useState<TransactionListPage | null>(null);
-  const [searchDraft, setSearchDraft] = useState(initialQ);
+
+  const [searchInput, setSearchInput] = useState(initialQ);
   const [search, setSearch] = useState(initialQ);
   const [txType, setTxType] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const txModal = useTransactionDetailModal();
+  const dealModal = useExchangeDealDetailModal();
+
+  function openTxOrDeal(id: string, type: string) {
+    if (type.toUpperCase() === "EXCHANGE") void dealModal.open(id);
+    else void txModal.open(id);
+  }
 
   useEffect(() => {
     const q = params.get("q")?.trim() ?? "";
-    setSearchDraft(q);
+    setSearchInput(q);
     setSearch(q);
     setPage(1);
   }, [params]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 280);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +74,8 @@ export function TransactionsPage() {
       pageSize: 25,
       txType: txType === "ALL" ? undefined : txType,
       search: search.trim() || undefined,
+      dateFrom: dateFrom.trim() || undefined,
+      dateTo: dateTo.trim() || undefined,
     })
       .then((result) => {
         if (!cancelled) {
@@ -53,13 +94,7 @@ export function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, search, txType]);
-
-  function handleSearch(event: FormEvent) {
-    event.preventDefault();
-    setPage(1);
-    setSearch(searchDraft.trim());
-  }
+  }, [page, search, txType, dateFrom, dateTo]);
 
   const totalPages = pageData
     ? Math.max(1, Math.ceil(pageData.total / pageData.pageSize))
@@ -67,25 +102,20 @@ export function TransactionsPage() {
 
   return (
     <div className="stack">
-      <div>
-        <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.transactions}</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          {t.common.ledgerEntries}
-        </p>
-      </div>
-
       <div className="card stack">
-        <form className="row" onSubmit={handleSearch}>
-          <label style={{ flex: 1, minWidth: 200 }}>
-            {t.common.search}
+        <div className="tx-filter-bar">
+          <label className="tx-filter-search">
+            <span className="visually-hidden">{t.common.search}</span>
             <input
-              value={searchDraft}
-              placeholder={t.common.search}
-              onChange={(e) => setSearchDraft(e.target.value)}
+              type="search"
+              className="desk-search"
+              value={searchInput}
+              placeholder={`${t.common.search}…`}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
           </label>
           <label>
-            {t.common.type}
+            <span>{t.common.type}</span>
             <select
               value={txType}
               onChange={(e) => {
@@ -93,25 +123,38 @@ export function TransactionsPage() {
                 setTxType(e.target.value);
               }}
             >
-              {[
-                "ALL",
-                "DEPOSIT",
-                "WITHDRAWAL",
-                "TRANSFER",
-                "EXCHANGE",
-                "HAWALA",
-                "ADJUSTMENT",
-              ].map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              {TX_TYPES.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
           </label>
-          <button type="submit" disabled={busy} style={{ alignSelf: "end" }}>
-            {t.common.search}
-          </button>
-        </form>
+          <label>
+            <span>{t.common.fromDate}</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setPage(1);
+                setDateFrom(e.target.value);
+              }}
+            />
+          </label>
+          <label>
+            <span>{t.common.toDate}</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => {
+                setPage(1);
+                setDateTo(e.target.value);
+              }}
+            />
+          </label>
+        </div>
+
         {error ? <p className="error">{error}</p> : null}
         {busy && !pageData ? <p className="muted">{t.common.loading}</p> : null}
         {pageData ? (
@@ -124,41 +167,56 @@ export function TransactionsPage() {
               <thead>
                 <tr>
                   <th>{t.common.date}</th>
+                  <th>{t.common.description}</th>
                   <th>{t.common.reference}</th>
-                  <th>{t.common.type}</th>
-                  <th>{t.common.customer}</th>
-                  <th>{t.common.amount}</th>
-                  <th>{t.common.status}</th>
+                  <th className="col-amount">{t.common.amount}</th>
                 </tr>
               </thead>
               <tbody>
                 {pageData.items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
+                    <td colSpan={4} className="muted">
                       {t.transactions.emptyTitle}
                     </td>
                   </tr>
                 ) : (
                   pageData.items.map((tx) => (
-                    <tr key={tx.id}>
+                    <tr
+                      key={tx.id}
+                      {...clickableTxRowProps(() => openTxOrDeal(tx.id, tx.type))}
+                      aria-label={txDisplayRef(tx)}
+                    >
                       <td>{String(tx.valueDate).slice(0, 10)}</td>
-                      <td>{tx.reference}</td>
-                      <td>{tx.type}</td>
-                      <td>{tx.customerName ?? "—"}</td>
                       <td>
-                        <strong>{tx.amountSummary || "—"}</strong>
+                        <TransactionLine
+                          strong
+                          hideAmounts
+                          input={{
+                            type: tx.type,
+                            reference: tx.reference,
+                            status: tx.status === "POSTED" ? null : tx.status,
+                            customerName: tx.customerName,
+                            description: tx.description,
+                            amountSummary: tx.amountSummary,
+                            senderName: tx.senderName,
+                            receiverName: tx.receiverName,
+                          }}
+                        />
                       </td>
-                      <td>{statusLabel(t, tx.status)}</td>
+                      <td>{txDisplayRef(tx)}</td>
+                      <td className="col-amount">
+                        <LedgerAmount parts={amountPartsFromRow(tx)} />
+                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
-            <div className="row">
+            <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
               <button
                 type="button"
                 className="secondary"
-                disabled={page <= 1 || busy}
+                disabled={busy || page <= 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
                 {t.common.previous}
@@ -166,7 +224,7 @@ export function TransactionsPage() {
               <button
                 type="button"
                 className="secondary"
-                disabled={page >= totalPages || busy}
+                disabled={busy || page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
               >
                 {t.common.next}
@@ -175,6 +233,19 @@ export function TransactionsPage() {
           </>
         ) : null}
       </div>
+
+      <TransactionDetailModal
+        detail={txModal.detail}
+        busy={txModal.busy}
+        error={txModal.error}
+        onClose={txModal.close}
+      />
+      <ExchangeDealDetailModal
+        detail={dealModal.detail}
+        busy={dealModal.busy}
+        error={dealModal.error}
+        onClose={dealModal.close}
+      />
     </div>
   );
 }

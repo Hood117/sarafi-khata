@@ -7,6 +7,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::util::{now_sqlite};
+use crate::commands::authorize::{require_screen};
 
 fn trim_opt(value: Option<String>) -> Option<String> {
   value
@@ -98,6 +99,7 @@ pub struct ListHawalaDeskInput {
 pub struct HawalaListItemRich {
   pub id: String,
   pub reference: String,
+  pub display_ref: String,
   pub direction: String,
   pub status: String,
   pub priority: Option<String>,
@@ -138,6 +140,7 @@ pub fn list_hawala_desk(
     .to_ascii_lowercase();
 
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "hawala")?;
   let mut where_sql = String::from("WHERE 1=1");
   let mut params_v: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -237,6 +240,8 @@ pub fn list_hawala_desk(
       where_sql.push_str(
         " AND (
           h.reference LIKE ?
+          OR IFNULL(t.displayRef,'') LIKE ?
+          OR IFNULL(t.reference,'') LIKE ?
           OR IFNULL(h.senderName,'') LIKE ?
           OR IFNULL(h.receiverName,'') LIKE ?
           OR IFNULL(h.partnerSarafi,'') LIKE ?
@@ -252,7 +257,7 @@ pub fn list_hawala_desk(
           format!("%{patterned}%")
         }
       };
-      for _ in 0..5 {
+      for _ in 0..7 {
         params_v.push(Box::new(like.clone()));
       }
     }
@@ -269,6 +274,7 @@ pub fn list_hawala_desk(
   let count_sql = format!(
     "SELECT COUNT(*) FROM HawalaTransfer h
      INNER JOIN Currency c ON c.id = h.currencyId
+     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      {where_sql}"
   );
   let refs: Vec<&dyn rusqlite::types::ToSql> = params_v.iter().map(|p| p.as_ref()).collect();
@@ -289,10 +295,11 @@ pub fn list_hawala_desk(
             h.destinationCity, h.destinationCountry,
             CAST(h.amount AS TEXT), c.code,
             CAST(h.ownCommissionAmount AS TEXT), CAST(h.commissionAmount AS TEXT),
-            h.valueDate, u.fullName, h.deletedAt
+            h.valueDate, u.fullName, h.deletedAt, IFNULL(t.displayRef,'')
      FROM HawalaTransfer h
      INNER JOIN Currency c ON c.id = h.currencyId
      LEFT JOIN User u ON u.id = h.createdById
+     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      {where_sql}
      ORDER BY {order}
      LIMIT ? OFFSET ?"
@@ -309,6 +316,7 @@ pub fn list_hawala_desk(
       Ok(HawalaListItemRich {
         id: row.get(0)?,
         reference: row.get(1)?,
+        display_ref: row.get(17)?,
         direction: row.get(2)?,
         status: row.get(3)?,
         priority: row.get(4)?,
@@ -341,6 +349,7 @@ pub fn list_hawala_desk(
 pub struct HawalaDetail {
   pub id: String,
   pub reference: String,
+  pub display_ref: String,
   pub direction: String,
   pub status: String,
   pub priority: Option<String>,
@@ -480,6 +489,7 @@ fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
       Ok(HawalaDetail {
         id: row.get(0)?,
         reference: row.get(1)?,
+        display_ref: String::new(),
         direction: row.get(2)?,
         status: row.get(3)?,
         priority: row.get(4)?,
@@ -545,6 +555,22 @@ fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
     other => other.into(),
   })?;
   detail.events = load_events(conn, id)?;
+  if let Some(tid) = detail
+    .transaction_id
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+  {
+    if let Ok(shown) = conn.query_row(
+      r#"SELECT IFNULL(displayRef, '') FROM "Transaction" WHERE id = ?1"#,
+      [tid],
+      |row| row.get::<_, String>(0),
+    ) {
+      if !shown.trim().is_empty() {
+        detail.display_ref = shown;
+      }
+    }
+  }
   Ok(detail)
 }
 
@@ -555,7 +581,30 @@ pub fn get_hawala(
 ) -> Result<HawalaDetail, AppError> {
   let id = require_id(&input.id)?;
   let conn = state.db.lock();
-  map_detail(&conn, &id)
+  let _actor = require_screen(&state, &conn, "hawala")?;
+  // Accept HawalaTransfer.id or linked Transaction.id (dashboard recent activity).
+  let hawala_id: String = conn
+    .query_row(
+      "SELECT id FROM HawalaTransfer
+       WHERE (id = ?1 OR transactionId = ?1) AND deletedAt IS NULL
+       LIMIT 1",
+      [&id],
+      |row| row.get(0),
+    )
+    .or_else(|_| {
+      conn.query_row(
+        "SELECT id FROM HawalaTransfer WHERE id = ?1 OR transactionId = ?1 LIMIT 1",
+        [&id],
+        |row| row.get(0),
+      )
+    })
+    .map_err(|e| match e {
+      rusqlite::Error::QueryReturnedNoRows => {
+        AppError::NotFound("Hawala was not found.".into())
+      }
+      other => other.into(),
+    })?;
+  map_detail(&conn, &hawala_id)
 }
 
 #[derive(Debug, Deserialize)]
@@ -599,6 +648,7 @@ pub fn set_hawala_status(
     return Err(AppError::Validation("Invalid hawala status.".into()));
   }
   let conn = state.db.lock();
+  let actor = require_screen(&state, &conn, "hawala")?;
   let (from, deleted): (String, Option<String>) = conn.query_row(
     "SELECT status, deletedAt FROM HawalaTransfer WHERE id = ?1 LIMIT 1",
     [&id],
@@ -673,7 +723,7 @@ pub fn set_hawala_status(
     Some(&from),
     Some(&to),
     reason.as_deref(),
-    input.actor_user_id.as_deref(),
+    Some(actor.id.as_str()),
   )?;
   map_detail(&conn, &id)
 }
@@ -693,6 +743,7 @@ pub fn archive_hawala(
 ) -> Result<HawalaDetail, AppError> {
   let id = require_id(&input.id)?;
   let conn = state.db.lock();
+  let actor = require_screen(&state, &conn, "hawala")?;
   let (status, deleted): (String, Option<String>) = conn.query_row(
     "SELECT status, deletedAt FROM HawalaTransfer WHERE id = ?1",
     [&id],
@@ -716,7 +767,7 @@ pub fn archive_hawala(
     None,
     None,
     trim_opt(input.reason).as_deref(),
-    input.actor_user_id.as_deref(),
+    Some(actor.id.as_str()),
   )?;
   map_detail(&conn, &id)
 }
@@ -728,6 +779,7 @@ pub fn restore_hawala(
 ) -> Result<HawalaDetail, AppError> {
   let id = require_id(&input.id)?;
   let conn = state.db.lock();
+  let actor = require_screen(&state, &conn, "hawala")?;
   let (status, deleted): (String, Option<String>) = conn.query_row(
     "SELECT status, deletedAt FROM HawalaTransfer WHERE id = ?1",
     [&id],
@@ -751,7 +803,7 @@ pub fn restore_hawala(
     None,
     None,
     trim_opt(input.reason).as_deref(),
-    input.actor_user_id.as_deref(),
+    Some(actor.id.as_str()),
   )?;
   map_detail(&conn, &id)
 }
@@ -789,6 +841,7 @@ pub fn update_hawala_meta(
 ) -> Result<HawalaDetail, AppError> {
   let id = require_id(&input.id)?;
   let conn = state.db.lock();
+  let actor = require_screen(&state, &conn, "hawala")?;
   let (status, deleted): (String, Option<String>) = conn.query_row(
     "SELECT status, deletedAt FROM HawalaTransfer WHERE id = ?1",
     [&id],
@@ -855,7 +908,7 @@ pub fn update_hawala_meta(
     None,
     None,
     trim_opt(input.reason).as_deref(),
-    input.actor_user_id.as_deref(),
+    Some(actor.id.as_str()),
   )?;
   map_detail(&conn, &id)
 }
@@ -896,6 +949,7 @@ pub fn get_hawala_customer_context(
     return Err(AppError::Validation("Customer id is required.".into()));
   }
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "hawala")?;
   let (full_name, phone, address, national_id): (
     String,
     Option<String>,
@@ -980,6 +1034,7 @@ pub fn get_partner_hawala_stats(
     return Err(AppError::Validation("Partner id is required.".into()));
   }
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "hawala")?;
   let total: i64 = conn.query_row(
     "SELECT COUNT(*) FROM HawalaTransfer WHERE partnerSarafiId=?1 AND deletedAt IS NULL",
     [&id],
@@ -1026,20 +1081,7 @@ pub fn get_partner_hawala_stats(
 
 #[tauri::command]
 pub fn next_hawala_reference(state: State<'_, AppState>) -> Result<String, AppError> {
-  let day = chrono::Local::now().format("%Y%m%d").to_string();
-  let prefix = format!("HW-{day}-");
   let conn = state.db.lock();
-  let last: Option<String> = conn
-    .query_row(
-      "SELECT reference FROM HawalaTransfer
-       WHERE reference LIKE ?1 ORDER BY reference DESC LIMIT 1",
-      [format!("{prefix}%")],
-      |row| row.get(0),
-    )
-    .optional()?;
-  let seq = last
-    .and_then(|r| r.rsplit('-').next().and_then(|s| s.parse::<u32>().ok()))
-    .unwrap_or(0)
-    + 1;
-  Ok(format!("{prefix}{seq:04}"))
+  let _actor = require_screen(&state, &conn, "hawala")?;
+  super::hawala::next_daily_hawala_reference(&conn)
 }

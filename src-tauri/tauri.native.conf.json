@@ -1,9 +1,9 @@
 {
   "build": {
     "frontendDist": "../desktop-ui/dist",
-    "devUrl": "http://127.0.0.1:1420",
+    "devUrl": "http://127.0.0.1:1421",
     "beforeDevCommand": "npm run dev:spa",
-    "beforeBuildCommand": "npm run build:spa"
+    "beforeBuildCommand": "node ./scripts/ensure-spa-dist.mjs"
   },
   "bundle": {
     "resources": [

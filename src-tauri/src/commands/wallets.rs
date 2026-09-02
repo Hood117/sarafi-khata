@@ -5,6 +5,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::commands::authorize::{require_any_screen};
 
 const DEFAULT_PAGE_SIZE: i64 = 50;
 const MAX_PAGE_SIZE: i64 = 200;
@@ -14,6 +15,8 @@ const MAX_PAGE_SIZE: i64 = 200;
 pub struct ListWalletsInput {
   /// Optional: CASH | CUSTOMER | SYSTEM | …
   pub wallet_type: Option<String>,
+  /// When true, only the Main Vault (sole shop cash). Ignores SYSTEM / Till / extras.
+  pub cash_only: Option<bool>,
   pub active_only: Option<bool>,
   pub customer_id: Option<String>,
   pub page: Option<i64>,
@@ -52,15 +55,20 @@ pub fn list_wallets_page(
   let active_only = input.active_only.unwrap_or(true);
 
   let conn = state.db.lock();
+  let _actor = require_any_screen(&state, &conn, &["cash", "vaults", "customers"])?;
   let mut where_sql = String::from("WHERE deletedAt IS NULL");
   let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
   if active_only {
     where_sql.push_str(" AND isActive = 1");
   }
-  if let Some(ref t) = input.wallet_type {
+  if input.cash_only.unwrap_or(false) {
+    where_sql.push_str(" AND type = 'VAULT' AND name = 'Main Vault'");
+  } else if let Some(ref t) = input.wallet_type {
     let t = t.trim().to_ascii_uppercase();
-    if !t.is_empty() {
+    if t == "CASH" {
+      where_sql.push_str(" AND type = 'VAULT' AND name = 'Main Vault'");
+    } else if !t.is_empty() {
       where_sql.push_str(" AND type = ?");
       params.push(Box::new(t));
     }
@@ -92,7 +100,7 @@ pub fn list_wallets_page(
     "SELECT id, name, type, customerId, isActive
      FROM Wallet
      {where_sql}
-     ORDER BY name ASC
+     ORDER BY CASE type WHEN 'VAULT' THEN 0 WHEN 'TILL' THEN 1 ELSE 2 END, name ASC
      LIMIT ? OFFSET ?"
   );
   let mut list_params = params;

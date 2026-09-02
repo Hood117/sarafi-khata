@@ -1,19 +1,31 @@
-//! Business cash overview — SQL SUM over VAULT + TILL wallets.
+//! Main Vault physical cash overview — read-only SUM over the Main Vault ledger.
 
 use serde::Serialize;
 use tauri::State;
 
+use crate::commands::authorize::require_any_screen;
 use crate::error::AppError;
 use crate::ledger::money_from_major_units;
 use crate::state::AppState;
+
+/// Preferred display order for desk cash (then remaining active currencies by code).
+const CASH_CURRENCY_ORDER: &[&str] = &[
+  "AFN", "USD", "EUR", "PKR", "AED", "SAR", "GBP", "QAR", "OMR",
+];
+
+/// Major-unit amount below this (and > 0) is treated as Low cash.
+const LOW_CASH_MAJOR: i128 = 1_000;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CashBalanceRow {
   pub currency_code: String,
+  pub currency_name: String,
   pub currency_symbol: Option<String>,
   pub balance_display: String,
   pub amount_minor: String,
+  /// `AVAILABLE` | `LOW` | `ZERO`
+  pub condition: String,
 }
 
 fn format_balance_display(amount_minor: i128, decimal_places: i64) -> String {
@@ -61,92 +73,136 @@ fn format_balance_display(amount_minor: i128, decimal_places: i64) -> String {
   }
 }
 
+fn cash_condition(amount_minor: i128, decimal_places: i64) -> &'static str {
+  if amount_minor == 0 {
+    return "ZERO";
+  }
+  let places = decimal_places.max(0) as u32;
+  let scale = 10_i128.pow(places);
+  let major_abs = amount_minor.abs() / scale;
+  if amount_minor < 0 || major_abs < LOW_CASH_MAJOR {
+    "LOW"
+  } else {
+    "AVAILABLE"
+  }
+}
+
+fn currency_sort_key(code: &str) -> (usize, String) {
+  let upper = code.to_ascii_uppercase();
+  let idx = CASH_CURRENCY_ORDER
+    .iter()
+    .position(|c| *c == upper.as_str())
+    .unwrap_or(CASH_CURRENCY_ORDER.len());
+  (idx, upper)
+}
+
+fn parse_net_major_to_minor(net_major: &str, places: i64) -> i128 {
+  let trimmed = net_major.trim();
+  let negative = trimmed.starts_with('-');
+  let unsigned = if negative { &trimmed[1..] } else { trimmed };
+  let minor = if unsigned.chars().all(|c| c == '0' || c == '.') {
+    0
+  } else {
+    match money_from_major_units(unsigned, places) {
+      Ok(v) => v,
+      Err(_) => {
+        let (whole, frac) = match unsigned.split_once('.') {
+          Some((w, f)) => (w, f),
+          None => (unsigned, ""),
+        };
+        let mut f = frac.to_string();
+        while f.len() < places as usize {
+          f.push('0');
+        }
+        format!("{whole}{f}").parse().unwrap_or(0)
+      }
+    }
+  };
+  if negative {
+    -minor
+  } else {
+    minor
+  }
+}
+
+/// Main Vault ledger balances for every active currency (zeros included).
 pub(crate) fn query_cash_balances(
   conn: &rusqlite::Connection,
 ) -> Result<Vec<CashBalanceRow>, AppError> {
-  let mut wallet_stmt = conn.prepare(
-    "SELECT id FROM Wallet
-     WHERE deletedAt IS NULL AND isActive = 1 AND type IN ('VAULT','TILL')",
-  )?;
-  let wallet_ids: Vec<String> = wallet_stmt
-    .query_map([], |row| row.get(0))?
-    .collect::<Result<Vec<_>, _>>()?;
+  let main_vault_id: Option<String> = conn
+    .query_row(
+      r#"SELECT id FROM Wallet
+         WHERE deletedAt IS NULL AND isActive = 1
+           AND type = 'VAULT' AND name = 'Main Vault'
+         LIMIT 1"#,
+      [],
+      |row| row.get(0),
+    )
+    .ok();
 
-  if wallet_ids.is_empty() {
-    return Ok(vec![]);
-  }
+  let sql = if main_vault_id.is_some() {
+    // Prefer cached balances (O(currencies)) over full ledger SUM.
+    r#"SELECT c.code, c.name, c.symbol, c.decimalPlaces,
+              CAST(COALESCE(b.balance, 0) AS TEXT) AS netMajor
+       FROM Currency c
+       LEFT JOIN WalletCurrencyBalance b
+         ON b.currencyId = c.id AND b.walletId = ?1
+       WHERE c.deletedAt IS NULL AND c.isActive = 1
+       GROUP BY c.id, c.code, c.name, c.symbol, c.decimalPlaces, b.balance"#
+  } else {
+    r#"SELECT c.code, c.name, c.symbol, c.decimalPlaces, '0' AS netMajor
+       FROM Currency c
+       WHERE c.deletedAt IS NULL AND c.isActive = 1
+       GROUP BY c.id, c.code, c.name, c.symbol, c.decimalPlaces"#
+  };
 
-  let placeholders = wallet_ids
-    .iter()
-    .map(|_| "?")
-    .collect::<Vec<_>>()
-    .join(",");
-  let sql = format!(
-    r#"SELECT c.code, c.symbol, c.decimalPlaces,
-            CAST(COALESCE(SUM(
-              CASE WHEN le.direction = 'DEBIT' THEN le.amount ELSE -le.amount END
-            ), 0) AS TEXT) AS netMajor
-     FROM LedgerEntry le
-     INNER JOIN "Transaction" tx
-       ON tx.id = le.transactionId AND tx.deletedAt IS NULL
-     INNER JOIN Currency c ON c.id = le.currencyId
-     WHERE le.walletId IN ({placeholders})
-       AND c.deletedAt IS NULL
-     GROUP BY c.id, c.code, c.symbol, c.decimalPlaces
-     HAVING ABS(COALESCE(SUM(
-       CASE WHEN le.direction = 'DEBIT' THEN le.amount ELSE -le.amount END
-     ), 0)) > 0
-     ORDER BY c.code ASC"#
-  );
-
-  let params: Vec<&dyn rusqlite::types::ToSql> = wallet_ids
-    .iter()
-    .map(|id| id as &dyn rusqlite::types::ToSql)
-    .collect();
-
-  let mut stmt = conn.prepare(&sql)?;
-  let rows = stmt
-    .query_map(params.as_slice(), |row| {
-      Ok((
-        row.get::<_, String>(0)?,
-        row.get::<_, Option<String>>(1)?,
-        row.get::<_, i64>(2)?,
-        row.get::<_, String>(3)?,
-      ))
-    })?
-    .collect::<Result<Vec<_>, _>>()?;
+  let mut stmt = conn.prepare(sql)?;
+  let rows = if let Some(ref vault_id) = main_vault_id {
+    stmt
+      .query_map(rusqlite::params![vault_id], |row| {
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get::<_, String>(1)?,
+          row.get::<_, Option<String>>(2)?,
+          row.get::<_, i64>(3)?,
+          row.get::<_, String>(4)?,
+        ))
+      })?
+      .collect::<Result<Vec<_>, _>>()?
+  } else {
+    stmt
+      .query_map([], |row| {
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get::<_, String>(1)?,
+          row.get::<_, Option<String>>(2)?,
+          row.get::<_, i64>(3)?,
+          row.get::<_, String>(4)?,
+        ))
+      })?
+      .collect::<Result<Vec<_>, _>>()?
+  };
 
   let mut out = Vec::with_capacity(rows.len());
-  for (code, symbol, places, net_major) in rows {
-    let trimmed = net_major.trim();
-    let negative = trimmed.starts_with('-');
-    let unsigned = if negative { &trimmed[1..] } else { trimmed };
-    let minor = if unsigned.chars().all(|c| c == '0' || c == '.') {
-      0
-    } else {
-      match money_from_major_units(unsigned, places) {
-        Ok(v) => v,
-        Err(_) => {
-          let (whole, frac) = match unsigned.split_once('.') {
-            Some((w, f)) => (w, f),
-            None => (unsigned, ""),
-          };
-          let mut f = frac.to_string();
-          while f.len() < places as usize {
-            f.push('0');
-          }
-          format!("{whole}{f}").parse().unwrap_or(0)
-        }
-      }
-    };
-    let signed = if negative { -minor } else { minor };
+  for (code, name, symbol, places, net_major) in rows {
+    let signed = parse_net_major_to_minor(&net_major, places);
+    // Cash page / overview: only physical cash currently held (> 0).
+    if signed <= 0 {
+      continue;
+    }
     out.push(CashBalanceRow {
       currency_code: code,
+      currency_name: name,
       currency_symbol: symbol,
       balance_display: format_balance_display(signed, places),
       amount_minor: signed.to_string(),
+      condition: cash_condition(signed, places).to_string(),
     });
   }
+
+  out.sort_by(|a, b| {
+    currency_sort_key(&a.currency_code).cmp(&currency_sort_key(&b.currency_code))
+  });
 
   Ok(out)
 }
@@ -156,5 +212,6 @@ pub fn get_cash_balances(
   state: State<'_, AppState>,
 ) -> Result<Vec<CashBalanceRow>, AppError> {
   let conn = state.db.lock();
+  let _actor = require_any_screen(&state, &conn, &["cash", "vaults"])?;
   query_cash_balances(&conn)
 }

@@ -12,21 +12,29 @@ import {
   currentUser,
   login as apiLogin,
   logout as apiLogout,
+  bindSession,
   type AuthSession,
 } from "@desktop/api";
+import { clearVaultUnlockSession } from "@desktop/components/vault-unlock-gate";
 
-/** Persist across app restarts (sessionStorage is cleared every Tauri launch). */
+/**
+ * Login lasts only while the app is open.
+ * sessionStorage is cleared when Tauri fully exits — reopening requires the password.
+ * Older builds used localStorage (auto-login); that is cleared on start.
+ */
 const SESSION_KEY = "saraf.native.session";
 
-function loadSession(): AuthSession | null {
+function clearPersistedLogin() {
   try {
-    // Migrate from older sessionStorage (cleared on every app restart).
-    const legacy = sessionStorage.getItem(SESSION_KEY);
-    if (legacy && !localStorage.getItem(SESSION_KEY)) {
-      localStorage.setItem(SESSION_KEY, legacy);
-      sessionStorage.removeItem(SESSION_KEY);
-    }
-    const raw = localStorage.getItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readRuntimeSession(): AuthSession | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AuthSession;
     if (!parsed?.token || !parsed?.userId) return null;
@@ -38,11 +46,12 @@ function loadSession(): AuthSession | null {
 
 function saveSession(session: AuthSession | null) {
   try {
+    clearPersistedLogin();
     if (!session) {
-      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem(SESSION_KEY);
       return;
     }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch {
     // storage full / blocked — keep in-memory session only
   }
@@ -58,12 +67,16 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(() => loadSession());
-  const [bootstrapping, setBootstrapping] = useState(() => Boolean(loadSession()));
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
   useEffect(() => {
-    const existing = loadSession();
+    clearPersistedLogin();
+
+    // Soft SPA reload within the same app run can keep sessionStorage.
+    const existing = readRuntimeSession();
     if (!existing?.token) {
+      setSession(null);
       setBootstrapping(false);
       return;
     }
@@ -77,7 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .then((next) => {
           if (cancelled) return;
           if (!next) {
-            // Server rejected the token — clear and show login.
+            if (attempts < 5) {
+              window.setTimeout(restore, 300 * attempts);
+              return;
+            }
             saveSession(null);
             setSession(null);
             setBootstrapping(false);
@@ -85,17 +101,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           saveSession(next);
           setSession(next);
+          void bindSession(next.token);
           setBootstrapping(false);
         })
         .catch(() => {
           if (cancelled) return;
-          // Backend may still be starting after a rebuild — keep local session and retry.
           if (attempts < 8) {
             window.setTimeout(restore, 400 * attempts);
             return;
           }
-          // Keep cached session so the user is not bounced to login on transient failures.
-          setSession(existing);
+          saveSession(null);
+          setSession(null);
           setBootstrapping(false);
         });
     };
@@ -110,12 +126,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const next = await apiLogin(username, password);
     saveSession(next);
     setSession(next);
+    void bindSession(next.token);
   }, []);
 
   const logout = useCallback(async () => {
     const token = session?.token;
     saveSession(null);
+    clearVaultUnlockSession();
     setSession(null);
+    void bindSession(null);
     if (token) {
       try {
         await apiLogout(token);

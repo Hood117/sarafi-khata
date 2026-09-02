@@ -1,69 +1,70 @@
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "@desktop/auth";
+import { GlobalSearchOverlay } from "@desktop/components/global-search-overlay";
+import { SettingsMenu } from "@desktop/components/settings-menu";
+import { QuickActionsBar } from "@desktop/components/quick-actions-bar";
+import { RequireScreen } from "@desktop/components/require-screen";
+import {
+  TransactionDetailModal,
+  useTransactionDetailModal,
+} from "@desktop/components/transaction-detail-modal";
 import {
   IconCapital,
   IconCash,
   IconCustomers,
   IconDashboard,
   IconDaybook,
-  IconExchange,
+  IconDebtorsCreditors,
   IconExpenses,
   IconHawala,
   IconPartners,
-  IconRates,
-  IconReports,
-  IconSettings,
+  IconRefresh,
   IconTrading,
-  IconTransactions,
   IconVault,
 } from "@desktop/icons";
 import { useT } from "@desktop/i18n";
-
-function parseAllowedScreens(raw: string | null | undefined): string[] | null {
-  if (raw == null || raw.trim() === "") return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return null;
-    return parsed.filter((v): v is string => typeof v === "string");
-  } catch {
-    return null;
-  }
-}
-
-function pathToScreenId(path: string): string {
-  if (path === "/") return "dashboard";
-  if (path.startsWith("/partners")) return "partners";
-  if (path.startsWith("/capital")) return "capital";
-  if (path.startsWith("/expenses")) return "expenses";
-  if (path.startsWith("/daybook")) return "daybook";
-  if (path.startsWith("/vaults")) return "vaults";
-  if (path.startsWith("/trading")) return "trading";
-  if (path.startsWith("/customers")) return "customers";
-  if (path.startsWith("/exchange")) return "exchange";
-  if (path.startsWith("/hawala")) return "hawala";
-  if (path.startsWith("/reports")) return "reports";
-  if (path.startsWith("/transactions")) return "transactions";
-  if (path.startsWith("/rates")) return "rates";
-  if (path.startsWith("/settings")) return "settings";
-  if (path.startsWith("/cash")) return "cash";
-  return path.replace(/^\//, "").split("/")[0] || "dashboard";
-}
+import { triggerDeskAction } from "@desktop/lib/desk-actions";
+import { canAccessPath, pathToScreenId } from "@desktop/lib/permissions";
+import { useBackspaceNavigate } from "@desktop/lib/use-backspace-navigate";
+import { useDeskAction } from "@desktop/lib/use-desk-action";
+import { useGlobalShortcuts } from "@desktop/lib/use-global-shortcuts";
 
 export function AppLayout() {
   const { session } = useAuth();
   const t = useT();
   const location = useLocation();
   const screenId = pathToScreenId(location.pathname);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const remountScreen = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
+  useDeskAction("refresh", remountScreen);
 
-  const allowed = parseAllowedScreens(session?.allowedScreens);
-  const canSee = (to: string) => {
-    // No explicit list stored → full access (legacy / role defaults).
-    if (allowed === null) return true;
-    if (session?.role?.toUpperCase() === "ADMIN") return true;
-    return allowed.includes(pathToScreenId(to));
-  };
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    window.requestAnimationFrame(() => {
+      const input = document.querySelector<HTMLInputElement>(".global-search-input");
+      input?.focus();
+      input?.select();
+    });
+  }, []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const txModal = useTransactionDetailModal();
+  const openTx = txModal.open;
+  const openTransaction = useCallback(
+    (transactionId: string) => {
+      void openTx(transactionId);
+    },
+    [openTx],
+  );
+
+  useBackspaceNavigate();
+  useGlobalShortcuts({ onOpenSearch: openSearch });
+
+  const canSee = (to: string) => canAccessPath(session, to);
 
   const links: Array<{
     to: string;
@@ -79,13 +80,14 @@ export function AppLayout() {
       end: true,
       icon: <IconDashboard />,
     },
-    { to: "/cash", screen: "cash", label: t.nav.cash, icon: <IconCash /> },
     {
-      to: "/vaults",
-      screen: "vaults",
-      label: t.nav.vaults,
-      icon: <IconVault />,
+      to: "/daybook",
+      screen: "daybook",
+      label: t.nav.dailyBook,
+      icon: <IconDaybook />,
     },
+    { to: "/cash", screen: "cash", label: t.nav.cash, icon: <IconCash /> },
+    { to: "/vaults", screen: "vaults", label: t.nav.vaults, icon: <IconVault /> },
     {
       to: "/customers",
       screen: "customers",
@@ -93,10 +95,10 @@ export function AppLayout() {
       icon: <IconCustomers />,
     },
     {
-      to: "/exchange",
-      screen: "exchange",
-      label: t.nav.exchange,
-      icon: <IconExchange />,
+      to: "/debtors-creditors",
+      screen: "debtorsCreditors",
+      label: t.nav.debtorsCreditors,
+      icon: <IconDebtorsCreditors />,
     },
     {
       to: "/hawala",
@@ -117,95 +119,75 @@ export function AppLayout() {
       icon: <IconTrading />,
     },
     {
-      to: "/capital",
-      screen: "capital",
-      label: t.nav.ownerCapital,
-      icon: <IconCapital />,
-    },
-    {
       to: "/expenses",
       screen: "expenses",
       label: t.nav.expenses,
       icon: <IconExpenses />,
     },
     {
-      to: "/daybook",
-      screen: "daybook",
-      label: t.nav.dailyBook,
-      icon: <IconDaybook />,
-    },
-    {
-      to: "/reports",
-      screen: "reports",
-      label: t.nav.reports,
-      icon: <IconReports />,
-    },
-    {
-      to: "/transactions",
-      screen: "transactions",
-      label: t.nav.transactions,
-      icon: <IconTransactions />,
-    },
-    {
-      to: "/rates",
-      screen: "rates",
-      label: t.pages.exchangeRates,
-      icon: <IconRates />,
-    },
-    {
-      to: "/settings",
-      screen: "settings",
-      label: t.nav.settings,
-      icon: <IconSettings />,
+      to: "/capital",
+      screen: "capital",
+      label: t.nav.ownerCapital,
+      icon: <IconCapital />,
     },
   ].filter((link) => canSee(link.to));
 
   return (
-    <div className="app-shell stack" data-screen={screenId}>
-      <header className="app-header">
-        <div className="brand-block">
-          <div className="brand-mark" aria-hidden>
-            <span className="brand-mark-inner">S</span>
-          </div>
-          <div className="brand-text">
-            <div className="brand">{t.brand.name}</div>
-            <p className="muted brand-meta">
-              {session?.fullName}
-              {session?.role ? (
-                <>
-                  <span className="meta-dot" />
-                  {session.role}
-                </>
-              ) : null}
-            </p>
+    <div className="app-frame">
+      <div className="app-shell stack" data-screen={screenId}>
+        <div className="app-topbar">
+          <nav className="app-tabbar" aria-label={t.brand.name}>
+            {links.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                data-nav={link.screen}
+                className={({ isActive }) =>
+                  isActive ? "nav-link app-tabbar-link active" : "nav-link app-tabbar-link"
+                }
+                title={link.label}
+              >
+                <span className="nav-link-icon">{link.icon}</span>
+                <span className="nav-link-label">{link.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="app-chrome-actions">
+            <QuickActionsBar />
+            <button
+              type="button"
+              className="btn primary app-chrome-refresh"
+              title={`${t.desk.refresh} (F5)`}
+              aria-label={t.desk.refresh}
+              onClick={() => {
+                if (!triggerDeskAction("refresh")) remountScreen();
+              }}
+            >
+              <IconRefresh />
+              <span className="app-chrome-label">{t.desk.refresh}</span>
+            </button>
+            <SettingsMenu />
           </div>
         </div>
-        <div className="header-actions">
-          <div className="header-chip" title={t.settings.session}>
-            <span className="header-chip-dot" />
-            {t.settings.onlineDesk}
-          </div>
-        </div>
-      </header>
-      <nav className="nav-row" aria-label={t.brand.name}>
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            data-nav={link.screen}
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            <span className="nav-link-icon">{link.icon}</span>
-            <span className="nav-link-label">{link.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-      <main className="app-main stack" key={screenId}>
-        <Outlet />
-      </main>
+        <main className="app-main stack" key={`${screenId}-${refreshKey}`}>
+          <RequireScreen>
+            <Outlet />
+          </RequireScreen>
+        </main>
+      </div>
+      {searchOpen ? (
+        <GlobalSearchOverlay
+          onClose={closeSearch}
+          onOpenTransaction={openTransaction}
+        />
+      ) : null}
+      <TransactionDetailModal
+        detail={txModal.detail}
+        busy={txModal.busy}
+        error={txModal.error}
+        onClose={txModal.close}
+      />
     </div>
   );
 }

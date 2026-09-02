@@ -6,7 +6,8 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::{now_sqlite, today_local, format_f64};
+use crate::util::{format_amount_commas, format_f64, now_sqlite, today_local};
+use crate::commands::authorize::{require_screen};
 
 fn parse_f64(s: &str) -> f64 {
   s.replace(',', "").parse().unwrap_or(0.0)
@@ -45,32 +46,40 @@ fn write_audit(
 }
 
 fn cash_balances_as_of(conn: &Connection, before_date: &str) -> Result<Vec<(String, String, Option<String>, f64)>, AppError> {
-  // Balance of VAULT+TILL before the start of `before_date` (exclusive).
-  // Sargable: compare valueDate as ISO text prefix (YYYY-MM-DD…) without wrapping the column.
-  let mut stmt = conn.prepare(
-    r#"SELECT c.id, c.code, c.symbol,
-              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
-                                ELSE -CAST(le.amount AS REAL) END), 0)
-       FROM Wallet w
-       INNER JOIN LedgerEntry le ON le.walletId = w.id
-       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
-       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
-       WHERE w.type IN ('VAULT','TILL') AND w.deletedAt IS NULL AND w.isActive = 1
-         AND t.valueDate < ?1
-       GROUP BY c.id, c.code, c.symbol
-       ORDER BY c.code"#,
-  )?;
-  let rows = stmt
-    .query_map([before_date], |row| {
-      Ok((
-        row.get::<_, String>(0)?,
-        row.get::<_, String>(1)?,
-        row.get::<_, Option<String>>(2)?,
-        row.get::<_, f64>(3)?,
-      ))
-    })?
-    .collect::<Result<Vec<_>, _>>()?;
-  Ok(rows)
+  // Prefer: current cache − net flow since `before_date` (fast for recent days / today).
+  let current = current_cash_balances(conn)?;
+  let mut since = std::collections::HashMap::<String, f64>::new();
+  {
+    let mut stmt = conn.prepare(
+      r#"SELECT c.id,
+                COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                  ELSE -CAST(le.amount AS REAL) END), 0)
+         FROM Wallet w
+         INNER JOIN LedgerEntry le ON le.walletId = w.id
+         INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+         INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+         WHERE w.deletedAt IS NULL AND w.isActive = 1
+           AND ((w.type = 'VAULT' AND w.name = 'Main Vault') OR w.type = 'TILL')
+           AND t.valueDate >= ?1
+         GROUP BY c.id"#,
+    )?;
+    for row in stmt.query_map([before_date], |row| {
+      Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+    })? {
+      let (cid, net) = row?;
+      since.insert(cid, net);
+    }
+  }
+  Ok(
+    current
+      .into_iter()
+      .map(|(id, code, sym, bal)| {
+        let net_since = since.get(&id).copied().unwrap_or(0.0);
+        (id, code, sym, bal - net_since)
+      })
+      .filter(|(_, _, _, bal)| bal.abs() > 1e-12)
+      .collect(),
+  )
 }
 
 fn cash_flow_on_day(
@@ -87,7 +96,8 @@ fn cash_flow_on_day(
        INNER JOIN LedgerEntry le ON le.walletId = w.id
        INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
        INNER JOIN Currency c ON c.id = le.currencyId
-       WHERE w.type IN ('VAULT','TILL') AND w.deletedAt IS NULL AND w.isActive = 1
+       WHERE w.deletedAt IS NULL AND w.isActive = 1
+         AND ((w.type = 'VAULT' AND w.name = 'Main Vault') OR w.type = 'TILL')
          AND t.valueDate >= ?1 AND t.valueDate < date(?1, '+1 day')
        GROUP BY c.id"#,
   )?;
@@ -108,14 +118,13 @@ fn current_cash_balances(
   conn: &Connection,
 ) -> Result<Vec<(String, String, Option<String>, f64)>, AppError> {
   let mut stmt = conn.prepare(
-    r#"SELECT c.id, c.code, c.symbol,
-              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
-                                ELSE -CAST(le.amount AS REAL) END), 0)
-       FROM Wallet w
-       INNER JOIN LedgerEntry le ON le.walletId = w.id
-       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
-       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
-       WHERE w.type IN ('VAULT','TILL') AND w.deletedAt IS NULL AND w.isActive = 1
+    r#"SELECT c.id, c.code, c.symbol, COALESCE(SUM(b.balance), 0)
+       FROM WalletCurrencyBalance b
+       INNER JOIN Wallet w ON w.id = b.walletId
+         AND w.deletedAt IS NULL AND w.isActive = 1
+         AND ((w.type = 'VAULT' AND w.name = 'Main Vault') OR w.type = 'TILL')
+       INNER JOIN Currency c ON c.id = b.currencyId AND c.deletedAt IS NULL
+       WHERE ABS(b.balance) > 1e-12
        GROUP BY c.id, c.code, c.symbol
        ORDER BY c.code"#,
   )?;
@@ -197,6 +206,7 @@ pub struct DaybookTimelineItem {
   pub id: String,
   pub time: String,
   pub reference: String,
+  pub display_ref: String,
   pub module: String,
   pub transaction_type: String,
   pub customer_name: Option<String>,
@@ -409,7 +419,15 @@ fn module_for_type(tx_type: &str, reference: &str) -> &'static str {
     "EXCHANGE" => "Exchange",
     "HAWALA" => "Hawala",
     "TRADE_BUY" | "TRADE_SELL" => "Trading",
-    "ADJUSTMENT" => "Accounting",
+    "VAULT_CASH_IN" | "VAULT_CASH_OUT" => "Vault",
+    "ADJUSTMENT" => {
+      let r = reference.to_ascii_uppercase();
+      if r.starts_with("CASH-IN") || r.starts_with("CASH-OUT") {
+        "Vault"
+      } else {
+        "Accounting"
+      }
+    }
     _ => "Other",
   }
 }
@@ -869,11 +887,12 @@ fn build_currency_summary(
   }
 
   let mut inv: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+  // Inventory quantity in the stock currency (USD, etc.) — never convert via cash-in rate.
   if trading_exists {
     let mut stmt = conn.prepare(
-      r#"SELECT c.code, COALESCE(SUM(CAST(i.costValue AS REAL)),0)
+      r#"SELECT c.code, COALESCE(SUM(CAST(i.quantity AS REAL)),0)
          FROM TradingInventory i
-         INNER JOIN Currency c ON c.id = i.avgCostCurrencyId
+         INNER JOIN Currency c ON c.id = i.currencyId
          WHERE ABS(CAST(i.quantity AS REAL)) > 0
          GROUP BY c.code"#,
     )?;
@@ -946,8 +965,9 @@ fn build_timeline(
     if !q.is_empty() {
       let like = format!("%{q}%");
       where_sql.push_str(
-        " AND (t.reference LIKE ? OR IFNULL(c.fullName,'') LIKE ? OR IFNULL(t.description,'') LIKE ?)",
+        " AND (t.reference LIKE ? OR IFNULL(t.displayRef,'') LIKE ? OR IFNULL(c.fullName,'') LIKE ? OR IFNULL(t.description,'') LIKE ?)",
       );
+      params_v.push(Box::new(like.clone()));
       params_v.push(Box::new(like.clone()));
       params_v.push(Box::new(like.clone()));
       params_v.push(Box::new(like));
@@ -998,8 +1018,22 @@ fn build_timeline(
   }
   let offset = (*page - 1) * page_size;
 
+  let has_trading: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='TradingTrade')",
+    [],
+    |row| row.get(0),
+  )?;
+  let trading_href = if has_trading {
+    r#"WHEN t.type IN ('TRADE_BUY','TRADE_SELL') THEN (
+                  SELECT '/trading/trades/' || tt.id FROM TradingTrade tt
+                  WHERE tt.transactionId = t.id AND tt.deletedAt IS NULL LIMIT 1
+                )"#
+  } else {
+    "WHEN t.type IN ('TRADE_BUY','TRADE_SELL') THEN '/trading'"
+  };
+
   let sql = format!(
-    r#"SELECT t.id, t.valueDate, t.reference, t.type, t.status, c.fullName, u.fullName,
+    r#"SELECT t.id, t.valueDate, t.reference, IFNULL(t.displayRef,''), t.type, t.status, c.fullName, u.fullName,
               (SELECT cur.code FROM LedgerEntry le
                INNER JOIN Currency cur ON cur.id = le.currencyId
                WHERE le.transactionId = t.id LIMIT 1),
@@ -1016,10 +1050,7 @@ fn build_timeline(
                   SELECT '/hawala/' || h.id FROM HawalaTransfer h
                   WHERE h.transactionId = t.id LIMIT 1
                 )
-                WHEN t.type IN ('TRADE_BUY','TRADE_SELL') THEN (
-                  SELECT '/trading/trades/' || tt.id FROM TradingTrade tt
-                  WHERE tt.transactionId = t.id AND tt.deletedAt IS NULL LIMIT 1
-                )
+                {trading_href}
                 WHEN t.type = 'TRANSFER' AND (
                   t.reference LIKE 'VT-%' OR t.reference LIKE 'CASH-XFER-%'
                   OR LOWER(t.reference) LIKE '%vault%'
@@ -1052,16 +1083,29 @@ fn build_timeline(
       row.get::<_, String>(2)?,
       row.get::<_, String>(3)?,
       row.get::<_, String>(4)?,
-      row.get::<_, Option<String>>(5)?,
+      row.get::<_, String>(5)?,
       row.get::<_, Option<String>>(6)?,
       row.get::<_, Option<String>>(7)?,
       row.get::<_, Option<String>>(8)?,
       row.get::<_, Option<String>>(9)?,
       row.get::<_, Option<String>>(10)?,
+      row.get::<_, Option<String>>(11)?,
     ))
   })? {
-    let (id, value_date, reference, tx_type, status, customer, user, ccy, amount, partner, detail_path) =
-      row?;
+    let (
+      id,
+      value_date,
+      reference,
+      display_ref,
+      tx_type,
+      status,
+      customer,
+      user,
+      ccy,
+      amount,
+      partner,
+      detail_path,
+    ) = row?;
     let time = if value_date.len() >= 19 {
       value_date[11..19].to_string()
     } else if value_date.len() >= 10 {
@@ -1074,6 +1118,7 @@ fn build_timeline(
       id,
       time,
       reference,
+      display_ref,
       module,
       transaction_type: tx_type,
       customer_name: customer,
@@ -1313,11 +1358,22 @@ fn build_trading_summary(
     [day],
     |row| row.get(0),
   )?;
-  let open_pos: i64 = conn.query_row(
-    r#"SELECT COUNT(*) FROM TradingInventory WHERE ABS(CAST(quantity AS REAL)) > 0"#,
-    [],
-    |row| row.get(0),
-  )?;
+  let open_pos: i64 = {
+    let inv_exists: bool = conn.query_row(
+      "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='TradingInventory')",
+      [],
+      |row| row.get(0),
+    )?;
+    if inv_exists {
+      conn.query_row(
+        r#"SELECT COUNT(*) FROM TradingInventory WHERE ABS(CAST(quantity AS REAL)) > 0"#,
+        [],
+        |row| row.get(0),
+      )?
+    } else {
+      0
+    }
+  };
   let best: Option<String> = conn
     .query_row(
       r#"SELECT c.code FROM TradingTrade t
@@ -1444,7 +1500,767 @@ pub fn get_daybook_snapshot(
   input: DaybookQueryInput,
 ) -> Result<DaybookSnapshot, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
   compute_daybook_snapshot(&conn, &input)
+}
+
+/// One journal line for the Sarafi-style daybook grid.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaybookJournalLine {
+  pub row_no: i64,
+  pub value_date: String,
+  pub account_code: String,
+  pub account_name: String,
+  pub opposite_account_code: String,
+  pub opposite_account_name: String,
+  pub description: String,
+  pub debit: String,
+  pub credit: String,
+  /// Running balance of this row's account (wallet × currency) after the entry.
+  pub balance_after: String,
+  pub currency_code: String,
+  pub transaction_id: String,
+  pub reference: String,
+  pub display_ref: String,
+  pub transaction_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaybookJournalInput {
+  pub business_date: Option<String>,
+  pub currency_code: Option<String>,
+  pub search: Option<String>,
+  pub page: Option<i64>,
+  pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaybookJournalPage {
+  pub business_date: String,
+  pub items: Vec<DaybookJournalLine>,
+  pub total: i64,
+  pub page: i64,
+  pub page_size: i64,
+}
+
+#[derive(Clone)]
+struct TxParty {
+  wallet_id: String,
+  wallet_type: String,
+  wallet_name: String,
+  account_code: String,
+  account_name: String,
+}
+
+fn party_displayable(p: &TxParty) -> bool {
+  crate::ledger::is_displayable_wallet(&p.wallet_type, &p.wallet_name)
+}
+
+/// Pick the opposite ledger party for a journal line from the same transaction's postings.
+/// Only displayable wallets (never SYSTEM / equity / clearing noise).
+fn pick_opposite(parties: &[TxParty], self_wallet_id: &str) -> (String, String) {
+  let pick = parties
+    .iter()
+    .find(|p| p.wallet_id != self_wallet_id && party_displayable(p));
+  match pick {
+    Some(p) => (p.account_code.clone(), p.account_name.clone()),
+    None => (String::new(), String::new()),
+  }
+}
+
+/// User-facing daybook description — prefer the business transaction text, never ledger memos.
+fn daybook_description(tx_description: &str, tx_type: &str, reference: &str) -> String {
+  let desc = tx_description.trim();
+  if !desc.is_empty() {
+    return desc.to_string();
+  }
+  match tx_type.to_ascii_uppercase().as_str() {
+    "DEPOSIT" => "Customer deposited to his account".into(),
+    "WITHDRAWAL" => "Customer withdrew from his account".into(),
+    "TRANSFER" => "Customer transfer from his account".into(),
+    "EXCHANGE" => "Currency exchange".into(),
+    "HAWALA" => "Hawala".into(),
+    "EXPENSE" => "Expense".into(),
+    "VAULT_CASH_IN" => "Cash in to Main Vault".into(),
+    "VAULT_CASH_OUT" => "Cash out from Main Vault".into(),
+    "ADJUSTMENT" => {
+      let r = reference.trim();
+      if r.is_empty() {
+        "Adjustment".into()
+      } else {
+        r.to_string()
+      }
+    }
+    other if !other.is_empty() => other.to_string(),
+    _ => "Transaction".into(),
+  }
+}
+
+/// Display-only journal balance (ledger SUM; does not change posting).
+fn format_journal_balance(v: f64) -> String {
+  if !v.is_finite() || v.abs() < 1e-12 {
+    return "0".into();
+  }
+  let body = format_amount_commas(&format_f64(v.abs()));
+  if v < 0.0 {
+    format!("−{body}")
+  } else {
+    body
+  }
+}
+
+/// Load opening nets (wallet × currency) before `business_day` for the given wallets.
+fn journal_opening_balances(
+  conn: &Connection,
+  wallet_ids: &[String],
+  business_day: &str,
+  currency_code: Option<&str>,
+) -> Result<std::collections::HashMap<(String, String), f64>, AppError> {
+  let mut map = std::collections::HashMap::new();
+  if wallet_ids.is_empty() {
+    return Ok(map);
+  }
+  let placeholders = wallet_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+  let mut sql = format!(
+    r#"SELECT le.walletId, c.code,
+              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                ELSE -CAST(le.amount AS REAL) END), 0)
+       FROM LedgerEntry le
+       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       WHERE le.walletId IN ({placeholders})
+         AND substr(t.valueDate, 1, 10) < ?"#,
+  );
+  let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = wallet_ids
+    .iter()
+    .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
+    .collect();
+  params.push(Box::new(business_day.to_string()));
+  if let Some(code) = currency_code {
+    sql.push_str(" AND c.code = ?");
+    params.push(Box::new(code.to_string()));
+  }
+  sql.push_str(" GROUP BY le.walletId, c.code");
+  let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+  let mut stmt = conn.prepare(&sql)?;
+  for row in stmt.query_map(refs.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, f64>(2)?,
+    ))
+  })? {
+    let (wid, code, bal) = row?;
+    if bal.abs() >= 1e-12 {
+      map.insert((wid, code), bal);
+    }
+  }
+  Ok(map)
+}
+
+/// Intraday nets for wallets before the first transaction on this page (same business day).
+fn journal_prefix_balances(
+  conn: &Connection,
+  wallet_ids: &[String],
+  business_day: &str,
+  first_created_at: &str,
+  first_tx_id: &str,
+  currency_code: Option<&str>,
+) -> Result<std::collections::HashMap<(String, String), f64>, AppError> {
+  let mut map = std::collections::HashMap::new();
+  if wallet_ids.is_empty() {
+    return Ok(map);
+  }
+  let placeholders = wallet_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+  let mut sql = format!(
+    r#"SELECT le.walletId, c.code,
+              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                ELSE -CAST(le.amount AS REAL) END), 0)
+       FROM LedgerEntry le
+       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       WHERE le.walletId IN ({placeholders})
+         AND t.valueDate >= ? AND t.valueDate < date(?, '+1 day')
+         AND (t.createdAt < ? OR (t.createdAt = ? AND t.id < ?))"#,
+  );
+  let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = wallet_ids
+    .iter()
+    .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
+    .collect();
+  params.push(Box::new(business_day.to_string()));
+  params.push(Box::new(business_day.to_string()));
+  params.push(Box::new(first_created_at.to_string()));
+  params.push(Box::new(first_created_at.to_string()));
+  params.push(Box::new(first_tx_id.to_string()));
+  if let Some(code) = currency_code {
+    sql.push_str(" AND c.code = ?");
+    params.push(Box::new(code.to_string()));
+  }
+  sql.push_str(" GROUP BY le.walletId, c.code");
+  let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+  let mut stmt = conn.prepare(&sql)?;
+  for row in stmt.query_map(refs.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, f64>(2)?,
+    ))
+  })? {
+    let (wid, code, bal) = row?;
+    if bal.abs() >= 1e-12 {
+      map.insert((wid, code), bal);
+    }
+  }
+  Ok(map)
+}
+
+fn wallet_type_rank(wallet_type: &str) -> i32 {
+  match wallet_type.to_ascii_uppercase().as_str() {
+    "CUSTOMER" => 0,
+    "PARTNER" => 1,
+    "VAULT" | "TILL" => 2,
+    _ => 9,
+  }
+}
+
+/// Choose the primary wallet for a business daybook row (never both ledger sides).
+/// Prefer customer (tx.customerId when set; for transfers the CREDIT/sender), else partner, else cash.
+fn pick_primary_wallet_id(lines: &[RawJournalLine], tx_customer_id: &str) -> Option<String> {
+  if lines.is_empty() {
+    return None;
+  }
+  if !tx_customer_id.trim().is_empty() {
+    if let Some(line) = lines.iter().find(|l| {
+      l.wallet_type.eq_ignore_ascii_case("CUSTOMER")
+        && l.customer_id
+          .as_deref()
+          .map(|id| id == tx_customer_id)
+          .unwrap_or(false)
+    }) {
+      return Some(line.wallet_id.clone());
+    }
+  }
+  let customers: Vec<&RawJournalLine> = lines
+    .iter()
+    .filter(|l| l.wallet_type.eq_ignore_ascii_case("CUSTOMER"))
+    .collect();
+  if !customers.is_empty() {
+    // Transfers: CREDIT = sender (money leaves). Deposits: DEBIT. Prefer CREDIT when both exist.
+    if let Some(sender) = customers.iter().find(|l| l.credit > 0.0) {
+      return Some(sender.wallet_id.clone());
+    }
+    return Some(customers[0].wallet_id.clone());
+  }
+  let mut ranked = lines.to_vec();
+  ranked.sort_by(|a, b| {
+    wallet_type_rank(&a.wallet_type)
+      .cmp(&wallet_type_rank(&b.wallet_type))
+      .then_with(|| a.wallet_id.cmp(&b.wallet_id))
+  });
+  Some(ranked[0].wallet_id.clone())
+}
+
+#[derive(Clone)]
+struct RawJournalLine {
+  wallet_id: String,
+  wallet_type: String,
+  customer_id: Option<String>,
+  account_code: String,
+  account_name: String,
+  tx_description: String,
+  debit: f64,
+  credit: f64,
+  currency_code: String,
+  tx_id: String,
+  tx_customer_id: String,
+  reference: String,
+  tx_type: String,
+  value_date: String,
+  sort_key: String,
+}
+
+fn load_tx_parties(
+  conn: &Connection,
+  tx_ids: &[String],
+) -> Result<std::collections::HashMap<String, Vec<TxParty>>, AppError> {
+  let mut out: std::collections::HashMap<String, Vec<TxParty>> =
+    std::collections::HashMap::new();
+  if tx_ids.is_empty() {
+    return Ok(out);
+  }
+  let placeholders = tx_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+  let sql = format!(
+    r#"SELECT le.transactionId, le.walletId, w.type, w.name,
+              COALESCE(w.code, ''), COALESCE(cust.code, ''), COALESCE(cust.fullName, ''),
+              COALESCE(t.walkInName, '')
+       FROM LedgerEntry le
+       INNER JOIN Wallet w ON w.id = le.walletId
+       INNER JOIN "Transaction" t ON t.id = le.transactionId
+       LEFT JOIN Customer cust ON cust.id = w.customerId
+       WHERE le.transactionId IN ({placeholders})
+       ORDER BY le.transactionId, le.createdAt, le.id"#
+  );
+  let params: Vec<&dyn rusqlite::types::ToSql> = tx_ids
+    .iter()
+    .map(|id| id as &dyn rusqlite::types::ToSql)
+    .collect();
+  let mut stmt = conn.prepare(&sql)?;
+  for row in stmt.query_map(params.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, String>(2)?,
+      row.get::<_, String>(3)?,
+      row.get::<_, String>(4)?,
+      row.get::<_, String>(5)?,
+      row.get::<_, String>(6)?,
+      row.get::<_, String>(7)?,
+    ))
+  })? {
+    let (tx_id, wallet_id, wallet_type, wallet_name, wallet_code, cust_code, cust_name, walk_in) =
+      row?;
+    let account_code = if !cust_code.trim().is_empty() {
+      cust_code.trim().to_string()
+    } else if !wallet_code.trim().is_empty() {
+      wallet_code.trim().to_string()
+    } else {
+      String::new()
+    };
+    let account_name = if !cust_name.trim().is_empty() {
+      cust_name
+    } else if !walk_in.trim().is_empty() {
+      walk_in
+    } else {
+      wallet_name.clone()
+    };
+    // Deduplicate by wallet within a transaction (multi-currency / multi-line same wallet).
+    let list = out.entry(tx_id).or_default();
+    if list.iter().any(|p| p.wallet_id == wallet_id) {
+      continue;
+    }
+    list.push(TxParty {
+      wallet_id,
+      wallet_type,
+      wallet_name,
+      account_code,
+      account_name,
+    });
+  }
+  Ok(out)
+}
+
+/// Sarafi daybook journal: **one user-facing row per business transaction**
+/// (per currency on the primary party). Opposite Account comes from the other
+/// displayable ledger party. Ledger postings are unchanged — this is display only.
+#[tauri::command]
+pub fn list_daybook_journal(
+  state: State<'_, AppState>,
+  input: DaybookJournalInput,
+) -> Result<DaybookJournalPage, AppError> {
+  let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
+  let day = input
+    .business_date
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .unwrap_or(&today_local())
+    .to_string();
+  let search = input
+    .search
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_string());
+  let currency_code = input
+    .currency_code
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_ascii_uppercase());
+  let mut page = input.page.unwrap_or(1).max(1);
+  let page_size = input.page_size.unwrap_or(50).clamp(1, 100);
+  let mut offset = 0i64;
+
+  // Paginate transactions first (never load the whole day's ledger into memory).
+  let mut tx_where = String::from(
+    r#"FROM "Transaction" t
+       WHERE t.deletedAt IS NULL
+         AND t.valueDate >= ?1 AND t.valueDate < date(?1, '+1 day')"#,
+  );
+  let mut tx_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(day.clone())];
+  if let Some(ref q) = search {
+    tx_where.push_str(
+      r#" AND (
+            t.reference LIKE ? OR IFNULL(t.displayRef,'') LIKE ? OR t.description LIKE ? OR COALESCE(t.walkInName,'') LIKE ?
+            OR EXISTS (
+              SELECT 1 FROM LedgerEntry le2
+              INNER JOIN Wallet w2 ON w2.id = le2.walletId AND w2.deletedAt IS NULL
+              LEFT JOIN Customer cust2 ON cust2.id = w2.customerId
+              INNER JOIN Currency c2 ON c2.id = le2.currencyId AND c2.deletedAt IS NULL
+              WHERE le2.transactionId = t.id
+                AND (w2.name LIKE ? OR cust2.fullName LIKE ? OR cust2.code LIKE ?
+                     OR w2.code LIKE ? OR c2.code LIKE ?)
+            )
+          )"#,
+    );
+    let like = format!("%{q}%");
+    for _ in 0..9 {
+      tx_params.push(Box::new(like.clone()));
+    }
+  }
+
+  let count_sql = format!("SELECT COUNT(*) {tx_where}");
+  let count_refs: Vec<&dyn rusqlite::types::ToSql> =
+    tx_params.iter().map(|p| p.as_ref()).collect();
+  let tx_total: i64 = conn.query_row(&count_sql, count_refs.as_slice(), |row| row.get(0))?;
+  let total_pages = if tx_total == 0 {
+    1
+  } else {
+    (tx_total + page_size - 1) / page_size
+  };
+  if page > total_pages {
+    page = total_pages;
+  }
+  offset = (page - 1) * page_size;
+
+  let tx_sql = format!(
+    r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.valueDate, t.createdAt,
+              COALESCE(t.description, ''), COALESCE(t.customerId, '')
+       {tx_where}
+       ORDER BY t.createdAt ASC, t.id ASC
+       LIMIT ? OFFSET ?"#,
+  );
+  tx_params.push(Box::new(page_size));
+  tx_params.push(Box::new(offset));
+
+  let tx_param_refs: Vec<&dyn rusqlite::types::ToSql> =
+    tx_params.iter().map(|p| p.as_ref()).collect();
+  let mut tx_stmt = conn.prepare(&tx_sql)?;
+
+  struct TxMeta {
+    id: String,
+    reference: String,
+    display_ref: String,
+    tx_type: String,
+    value_date: String,
+    created_at: String,
+    description: String,
+    customer_id: String,
+  }
+
+  let mut txs: Vec<TxMeta> = Vec::new();
+  let mut tx_ids: Vec<String> = Vec::new();
+  for row in tx_stmt.query_map(tx_param_refs.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, String>(2)?,
+      row.get::<_, String>(3)?,
+      row.get::<_, String>(4)?,
+      row.get::<_, String>(5)?,
+      row.get::<_, String>(6)?,
+      row.get::<_, String>(7)?,
+    ))
+  })? {
+    let (id, reference, display_ref, tx_type, value_date, created_at, description, customer_id) =
+      row?;
+    tx_ids.push(id.clone());
+    txs.push(TxMeta {
+      id,
+      reference,
+      display_ref,
+      tx_type,
+      value_date,
+      created_at,
+      description,
+      customer_id,
+    });
+  }
+
+  if txs.is_empty() {
+    return Ok(DaybookJournalPage {
+      business_date: day,
+      items: Vec::new(),
+      total: tx_total,
+      page,
+      page_size,
+    });
+  }
+
+  // All displayable ledger lines for those transactions (optional currency filter).
+  let placeholders = tx_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+  let mut le_sql = format!(
+    r#"SELECT le.transactionId, le.walletId, w.name, w.type, COALESCE(w.code, ''),
+              COALESCE(w.customerId, ''),
+              COALESCE(cust.code, ''), COALESCE(cust.fullName, ''),
+              COALESCE(t.walkInName, ''),
+              c.code, le.direction, CAST(le.amount AS REAL),
+              le.createdAt, le.id
+       FROM LedgerEntry le
+       INNER JOIN "Transaction" t ON t.id = le.transactionId
+       INNER JOIN Wallet w ON w.id = le.walletId AND w.deletedAt IS NULL
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       LEFT JOIN Customer cust ON cust.id = w.customerId
+       WHERE le.transactionId IN ({placeholders})
+         AND w.type != 'SYSTEM'"#
+  );
+  let mut le_params: Vec<Box<dyn rusqlite::types::ToSql>> = tx_ids
+    .iter()
+    .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
+    .collect();
+  if let Some(ref code) = currency_code {
+    le_sql.push_str(" AND c.code = ?");
+    le_params.push(Box::new(code.clone()));
+  }
+  le_sql.push_str(" ORDER BY le.transactionId, le.createdAt ASC, le.id ASC");
+
+  let le_param_refs: Vec<&dyn rusqlite::types::ToSql> =
+    le_params.iter().map(|p| p.as_ref()).collect();
+  let mut le_stmt = conn.prepare(&le_sql)?;
+
+  let mut lines_by_tx: std::collections::HashMap<String, Vec<RawJournalLine>> =
+    std::collections::HashMap::new();
+  let tx_meta: std::collections::HashMap<String, &TxMeta> =
+    txs.iter().map(|t| (t.id.clone(), t)).collect();
+
+  for row in le_stmt.query_map(le_param_refs.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,  // tx id
+      row.get::<_, String>(1)?,  // walletId
+      row.get::<_, String>(2)?,  // wallet name
+      row.get::<_, String>(3)?,  // wallet type
+      row.get::<_, String>(4)?,  // wallet code
+      row.get::<_, String>(5)?,  // wallet customerId
+      row.get::<_, String>(6)?,  // customer code
+      row.get::<_, String>(7)?,  // customer name
+      row.get::<_, String>(8)?,  // walk-in
+      row.get::<_, String>(9)?,  // currency
+      row.get::<_, String>(10)?, // direction
+      row.get::<_, f64>(11)?,    // amount
+      row.get::<_, String>(12)?, // le.createdAt
+      row.get::<_, String>(13)?, // le.id
+    ))
+  })? {
+    let (
+      tx_id,
+      wallet_id,
+      wallet_name,
+      wallet_type,
+      wallet_code,
+      wallet_customer_id,
+      customer_code,
+      customer_name,
+      walk_in,
+      currency,
+      direction,
+      amount,
+      le_created,
+      le_id,
+    ) = row?;
+
+    if !crate::ledger::is_displayable_wallet(&wallet_type, &wallet_name) {
+      continue;
+    }
+    let Some(meta) = tx_meta.get(&tx_id) else {
+      continue;
+    };
+
+    let account_code = if !customer_code.trim().is_empty() {
+      customer_code
+    } else if !wallet_code.trim().is_empty() {
+      wallet_code
+    } else {
+      String::new()
+    };
+    let account_name = if !customer_name.trim().is_empty() {
+      customer_name
+    } else if !walk_in.trim().is_empty() {
+      walk_in
+    } else {
+      wallet_name
+    };
+    let is_debit = direction.eq_ignore_ascii_case("DEBIT");
+    let date_display = meta
+      .value_date
+      .get(..10)
+      .unwrap_or(meta.value_date.as_str())
+      .to_string();
+    let cust_id = {
+      let s = wallet_customer_id.trim();
+      if s.is_empty() {
+        None
+      } else {
+        Some(s.to_string())
+      }
+    };
+
+    lines_by_tx.entry(tx_id.clone()).or_default().push(RawJournalLine {
+      wallet_id,
+      wallet_type,
+      customer_id: cust_id,
+      account_code,
+      account_name,
+      tx_description: meta.description.clone(),
+      debit: if is_debit { amount } else { 0.0 },
+      credit: if is_debit { 0.0 } else { amount },
+      currency_code: currency,
+      tx_id: tx_id.clone(),
+      tx_customer_id: meta.customer_id.clone(),
+      reference: meta.reference.clone(),
+      tx_type: meta.tx_type.clone(),
+      value_date: date_display,
+      sort_key: format!("{}|{}|{}", meta.created_at, le_created, le_id),
+    });
+  }
+
+  let parties_by_tx = load_tx_parties(&conn, &tx_ids)?;
+
+  // Collapse to one primary party per transaction (one row per currency on that party).
+  // Preserve posting order from `txs` (createdAt, id). Multi-currency rows from the same
+  // transaction stay together; currency code is only a tertiary display order within that tx.
+  // Tuple: (created_at, tx_id, currency, primary_wallet_id, line)
+  let mut pending: Vec<(String, String, String, String, DaybookJournalLine)> = Vec::new();
+  for meta in &txs {
+    let Some(group) = lines_by_tx.get(&meta.id) else {
+      continue;
+    };
+    if group.is_empty() {
+      continue;
+    }
+    let Some(primary_wallet) = pick_primary_wallet_id(group, &meta.customer_id) else {
+      continue;
+    };
+    let mut primary_lines: Vec<&RawJournalLine> = group
+      .iter()
+      .filter(|l| l.wallet_id == primary_wallet)
+      .collect();
+    // Aggregate same currency on the primary wallet (rare multi-line same ccy).
+    let mut by_ccy: std::collections::BTreeMap<String, (f64, f64, &RawJournalLine)> =
+      std::collections::BTreeMap::new();
+    primary_lines.sort_by(|a, b| a.sort_key.cmp(&b.sort_key));
+    for line in primary_lines {
+      let entry = by_ccy
+        .entry(line.currency_code.clone())
+        .or_insert((0.0, 0.0, line));
+      entry.0 += line.debit;
+      entry.1 += line.credit;
+    }
+
+    let (opp_code, opp_name) = parties_by_tx
+      .get(&meta.id)
+      .map(|parties| pick_opposite(parties, &primary_wallet))
+      .unwrap_or_default();
+    let description = daybook_description(&meta.description, &meta.tx_type, &meta.reference);
+
+    for (_ccy, (debit, credit, sample)) in by_ccy {
+      pending.push((
+        meta.created_at.clone(),
+        meta.id.clone(),
+        sample.currency_code.clone(),
+        primary_wallet.clone(),
+        DaybookJournalLine {
+          row_no: 0, // assigned after final chronological sort
+          value_date: sample.value_date.clone(),
+          account_code: sample.account_code.clone(),
+          account_name: sample.account_name.clone(),
+          opposite_account_code: opp_code.clone(),
+          opposite_account_name: opp_name.clone(),
+          description: description.clone(),
+          debit: if debit.abs() < 1e-12 {
+            String::new()
+          } else {
+            format_f64(debit)
+          },
+          credit: if credit.abs() < 1e-12 {
+            String::new()
+          } else {
+            format_f64(credit)
+          },
+          balance_after: String::new(),
+          currency_code: sample.currency_code.clone(),
+          transaction_id: meta.id.clone(),
+          reference: meta.reference.clone(),
+          display_ref: meta.display_ref.clone(),
+          transaction_type: meta.tx_type.clone(),
+        },
+      ));
+    }
+  }
+
+  // Deterministic posting order: createdAt, then transaction id, then currency within a tx.
+  pending.sort_by(|a, b| {
+    a.0.cmp(&b.0)
+      .then_with(|| a.1.cmp(&b.1))
+      .then_with(|| a.2.cmp(&b.2))
+  });
+
+  // Per-account running balance (wallet × currency), including activity before this day/page.
+  let wallet_ids: Vec<String> = pending
+    .iter()
+    .map(|p| p.3.clone())
+    .collect::<std::collections::BTreeSet<_>>()
+    .into_iter()
+    .collect();
+  let mut running = journal_opening_balances(
+    &conn,
+    &wallet_ids,
+    &day,
+    currency_code.as_deref(),
+  )?;
+  if offset > 0 {
+    if let Some(first) = txs.first() {
+      let prefix = journal_prefix_balances(
+        &conn,
+        &wallet_ids,
+        &day,
+        &first.created_at,
+        &first.id,
+        currency_code.as_deref(),
+      )?;
+      for (key, net) in prefix {
+        *running.entry(key).or_insert(0.0) += net;
+      }
+    }
+  }
+
+  // Apply each page tx's ledger legs for tracked wallets, then stamp balance on primary rows.
+  for meta in &txs {
+    let Some(group) = lines_by_tx.get(&meta.id) else {
+      continue;
+    };
+    let mut nets: std::collections::HashMap<(String, String), f64> =
+      std::collections::HashMap::new();
+    for line in group {
+      let key = (line.wallet_id.clone(), line.currency_code.clone());
+      *nets.entry(key).or_insert(0.0) += line.debit - line.credit;
+    }
+    for (key, net) in nets {
+      *running.entry(key).or_insert(0.0) += net;
+    }
+    for item in pending.iter_mut().filter(|p| p.1 == meta.id) {
+      let key = (item.3.clone(), item.2.clone());
+      let bal = running.get(&key).copied().unwrap_or(0.0);
+      item.4.balance_after = format_journal_balance(bal);
+    }
+  }
+
+  let mut items: Vec<DaybookJournalLine> = pending.into_iter().map(|(_, _, _, _, line)| line).collect();
+  for (idx, line) in items.iter_mut().enumerate() {
+    line.row_no = offset + (idx as i64) + 1;
+  }
+
+  Ok(DaybookJournalPage {
+    business_date: day,
+    items,
+    // Paginate by transaction so busy days never materialize the full journal.
+    total: tx_total,
+    page,
+    page_size,
+  })
 }
 
 #[derive(Debug, Deserialize)]
@@ -1481,6 +2297,7 @@ pub fn open_business_day(
   }
 
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
   if !table_exists_business_day(&conn)? {
     return Err(AppError::Internal(
       "BusinessDay table missing — restart app to apply migrations.".into(),
@@ -1625,6 +2442,7 @@ pub fn close_business_day(
   }
 
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
   let (day_id, status): (String, String) = conn
     .query_row(
       "SELECT id, status FROM BusinessDay WHERE businessDate=?1",
@@ -1833,6 +2651,7 @@ pub fn list_business_days(
   let page_size = input.page_size.unwrap_or(30).clamp(1, 100);
   let mut page = input.page.unwrap_or(1).max(1);
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
   if !table_exists_business_day(&conn)? {
     return Ok(BusinessDayHistoryPage {
       items: vec![],
@@ -1907,6 +2726,7 @@ pub fn get_daybook_dashboard_widget(
   state: State<'_, AppState>,
 ) -> Result<DaybookDashboardWidget, AppError> {
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "daybook")?;
   let day = today_local();
 
   let (status, cash_difference) = if table_exists_business_day(&conn)? {

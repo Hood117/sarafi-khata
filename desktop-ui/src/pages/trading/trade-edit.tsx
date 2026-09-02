@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -7,7 +7,6 @@ import {
   listCurrenciesPage,
   listCustomersPage,
   listPartners,
-  listWalletsPage,
   tradeBuy,
   tradeSell,
   updateTrade,
@@ -15,10 +14,17 @@ import {
   type CustomerListItem,
   type PartnerListItem,
   type TradeDetail,
-  type WalletListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
+import {
+  endSubmit,
+  errorMessage,
+  tryBeginSubmit,
+} from "@desktop/lib/datetime";
+import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { COUNTERPARTIES, CP_LABELS } from "./constants";
 
 export function TradingTradeEditPage() {
@@ -28,7 +34,6 @@ export function TradingTradeEditPage() {
   const t = useT();
   const [trade, setTrade] = useState<TradeDetail | null>(null);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
-  const [wallets, setWallets] = useState<WalletListItem[]>([]);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
   const [invCcy, setInvCcy] = useState("");
@@ -36,7 +41,6 @@ export function TradingTradeEditPage() {
   const [qty, setQty] = useState("");
   const [rate, setRate] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [cashWalletId, setCashWalletId] = useState("");
   const [cpType, setCpType] = useState<(typeof COUNTERPARTIES)[number]>("PARTNER");
   const [customerId, setCustomerId] = useState("");
   const [partnerId, setPartnerId] = useState("");
@@ -44,24 +48,24 @@ export function TradingTradeEditPage() {
   const [notes, setNotes] = useState("");
   const [valueDate, setValueDate] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const { showSuccess, successModal } = useSuccessModal();
 
   useEffect(() => {
     void Promise.all([
       listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
-      listWalletsPage({ activeOnly: true, pageSize: 100 }),
       listCustomersPage({ archiveFilter: "active", pageSize: 100 }),
       listPartners(),
     ])
-      .then(([ccy, w, cust, parts]) => {
+      .then(([ccy, cust, parts]) => {
         setCurrencies(ccy.items);
-        setWallets(w.items.filter((x) => x.type === "VAULT" || x.type === "TILL"));
         setCustomers(cust.items);
         setPartners(parts);
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err, t.errors.loadGeneric));
       });
   }, []);
 
@@ -78,7 +82,6 @@ export function TradingTradeEditPage() {
         setQty(t.quantity);
         setRate(t.rate);
         setPaymentAmount(t.paymentAmount);
-        setCashWalletId(t.cashWalletId);
         setCpType(
           (COUNTERPARTIES as readonly string[]).includes(t.counterpartyType)
             ? (t.counterpartyType as (typeof COUNTERPARTIES)[number])
@@ -92,7 +95,7 @@ export function TradingTradeEditPage() {
         setError(null);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(errorMessage(err, t.errors.loadGeneric));
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
@@ -109,17 +112,16 @@ export function TradingTradeEditPage() {
       rate !== trade.rate ||
       paymentAmount !== trade.paymentAmount ||
       invCcy !== trade.inventoryCurrencyCode ||
-      payCcy !== trade.paymentCurrencyCode ||
-      cashWalletId !== trade.cashWalletId
+      payCcy !== trade.paymentCurrencyCode
     );
-  }, [trade, qty, rate, paymentAmount, invCcy, payCcy, cashWalletId]);
+  }, [trade, qty, rate, paymentAmount, invCcy, payCcy]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!trade || !session) return;
+    if (!tryBeginSubmit(submittingRef)) return;
     setBusy(true);
     setError(null);
-    setOk(null);
     try {
       if (financialChanged) {
         if (
@@ -127,6 +129,7 @@ export function TradingTradeEditPage() {
             t.desk.replaceTradeConfirm,
           )
         ) {
+          endSubmit(submittingRef);
           setBusy(false);
           return;
         }
@@ -137,7 +140,6 @@ export function TradingTradeEditPage() {
           rate,
           paymentCurrencyCode: payCcy,
           paymentAmount: paymentAmount || undefined,
-          cashWalletId,
           counterpartyType: cpType,
           customerId: cpType === "CUSTOMER" ? customerId : null,
           partnerSarafiId: cpType === "PARTNER" ? partnerId : null,
@@ -150,7 +152,7 @@ export function TradingTradeEditPage() {
         };
         const posted =
           trade.direction === "SELL" ? await tradeSell(input) : await tradeBuy(input);
-        setOk(t.desk.replacedWith.replace("{reference}", posted.reference));
+        showSuccess(t.desk.replacedWith.replace("{reference}", posted.reference));
         navigate(`/trading/trades/${posted.id}`, { replace: true });
         return;
       }
@@ -166,10 +168,11 @@ export function TradingTradeEditPage() {
           cpType === "CUSTOMER" || cpType === "PARTNER" ? null : cpName || cpType,
       });
       setTrade(updated);
-      setOk(t.common.saved);
+      showSuccess(t.common.saved);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.tradingSave));
     } finally {
+      endSubmit(submittingRef);
       setBusy(false);
     }
   }
@@ -189,7 +192,7 @@ export function TradingTradeEditPage() {
       await archiveTrade(trade.id);
       navigate("/trading/history");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.tradingSave));
       setBusy(false);
     }
   }
@@ -201,25 +204,29 @@ export function TradingTradeEditPage() {
   return (
     <div className="card stack">
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h2 className="section-title" style={{ margin: 0 }}>
-            {t.desk.editTrade.replace("{reference}", trade?.reference ?? "")}
-          </h2>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.desk.editTradeHint.replace("{direction}", trade?.direction ?? "…")}
-          </p>
-        </div>
+        <h2 className="section-title" style={{ margin: 0 }}>
+          {t.desk.editTrade.replace("{reference}", trade?.reference ?? "")}
+        </h2>
         <Link className="button-link secondary" to="/trading/history">
           {t.common.back}
         </Link>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
-      {ok ? <p className="ok">{ok}</p> : null}
       {busy && !trade ? <p className="muted">{t.common.loading}</p> : null}
 
       {trade ? (
-        <form className="stack" onSubmit={(e) => void onSubmit(e)}>
+        <form
+          ref={formRef}
+          className="stack"
+          data-desk-form
+          onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
+            handleDeskFormKeyDown(e, {
+              busy,
+              onSubmit: () => formRef.current?.requestSubmit(),
+            })
+          }
+          onSubmit={(e) => void onSubmit(e)}
+        >
           <div className="row">
             <label>
               {t.common.currency}
@@ -257,20 +264,6 @@ export function TradingTradeEditPage() {
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
               />
-            </label>
-            <label>
-              {t.common.cashWallet}
-              <select
-                value={cashWalletId}
-                onChange={(e) => setCashWalletId(e.target.value)}
-                required
-              >
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name} ({w.type})
-                  </option>
-                ))}
-              </select>
             </label>
           </div>
           <div className="row" style={{ flexWrap: "wrap", alignItems: "end" }}>
@@ -350,6 +343,9 @@ export function TradingTradeEditPage() {
             </label>
           </div>
           <div className="row">
+            <ModalErrorBanner message={error} />
+          </div>
+          <div className="row">
             <button type="submit" disabled={busy}>
               {busy ? t.common.saving : t.common.save}
             </button>
@@ -364,6 +360,7 @@ export function TradingTradeEditPage() {
           </div>
         </form>
       ) : null}
+      {successModal}
     </div>
   );
 }

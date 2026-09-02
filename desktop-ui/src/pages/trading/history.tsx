@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 
 import {
   archiveTrade,
@@ -8,11 +8,24 @@ import {
   type CurrencyListItem,
   type TradingTradeRow,
 } from "@desktop/api";
+import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
+import {
+  ExchangeDealDetailModal,
+  useExchangeDealDetailModal,
+} from "@desktop/components/exchange-deal-detail-modal";
 import { useT } from "@desktop/i18n";
 import { statusLabel } from "@desktop/lib/i18n-labels";
+import type { TradingOutletContext } from "@desktop/pages/trading/outlet-context";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
+import { CurrencyFilter } from "@desktop/ui/currency-filter";
+import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 
 export function TradingHistoryPage() {
   const t = useT();
+  const navigate = useNavigate();
+  const { reloadKey: layoutReload } = useOutletContext<TradingOutletContext>();
+  const { showSuccess, successModal } = useSuccessModal();
+  const dealModal = useExchangeDealDetailModal();
   const [items, setItems] = useState<TradingTradeRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -25,6 +38,13 @@ export function TradingHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTransactionId, setEditTransactionId] = useState<string | null>(null);
+  const [rowMenu, setRowMenu] = useState<{
+    x: number;
+    y: number;
+    trade: TradingTradeRow;
+  } | null>(null);
   const pageSize = 25;
 
   useEffect(() => {
@@ -63,7 +83,7 @@ export function TradingHistoryPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, direction, search, currencyCode, dateFrom, dateTo, reloadKey]);
+  }, [page, direction, search, currencyCode, dateFrom, dateTo, reloadKey, layoutReload]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -75,10 +95,28 @@ export function TradingHistoryPage() {
     try {
       await archiveTrade(id);
       setReloadKey((k) => k + 1);
+      showSuccess(t.common.success);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
+  }
+
+  function openTrade(trade: TradingTradeRow) {
+    if (trade.transactionId) {
+      void dealModal.open(trade.transactionId);
+      return;
+    }
+    navigate(`/trading/trades/${trade.id}`);
+  }
+
+  function openEditTrade(trade: TradingTradeRow) {
+    if (trade.transactionId) {
+      setEditTransactionId(trade.transactionId);
+      setEditOpen(true);
+      return;
+    }
+    navigate(`/trading/trades/${trade.id}`);
   }
 
   return (
@@ -88,6 +126,8 @@ export function TradingHistoryPage() {
         <label style={{ flex: 1, minWidth: "12rem" }}>
           {t.common.search}
           <input
+            type="search"
+            className="desk-search"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -110,23 +150,17 @@ export function TradingHistoryPage() {
             <option value="SELL">{t.desk.sales}</option>
           </select>
         </label>
-        <label>
-          {t.common.currency}
-          <select
+        <div style={{ minWidth: "11rem" }}>
+          <CurrencyFilter
+            currencies={currencies}
             value={currencyCode}
-            onChange={(e) => {
-              setCurrencyCode(e.target.value);
+            onChange={(code) => {
+              setCurrencyCode(code);
               setPage(1);
             }}
-          >
-            <option value="">{t.common.all}</option>
-            {currencies.map((c) => (
-              <option key={c.id} value={c.code}>
-                {c.code}
-              </option>
-            ))}
-          </select>
-        </label>
+            allLabel={t.common.all}
+          />
+        </div>
         <label>
           {t.common.from}
           <input
@@ -164,23 +198,28 @@ export function TradingHistoryPage() {
             <th>{t.desk.profitLossShort}</th>
             <th>{t.desk.party}</th>
             <th>{t.common.date}</th>
-            <th />
           </tr>
         </thead>
         <tbody>
           {items.length === 0 && !busy ? (
             <tr>
-              <td colSpan={10} className="muted">
+              <td colSpan={9} className="muted">
                 {t.desk.noTradesMatch}
               </td>
             </tr>
           ) : null}
           {items.map((trade) => (
-            <tr key={trade.id}>
+            <tr
+              key={trade.id}
+              className="customer-row-clickable"
+              onClick={() => openTrade(trade)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setRowMenu({ x: e.clientX, y: e.clientY, trade });
+              }}
+            >
               <td>{statusLabel(t, trade.direction)}</td>
-              <td>
-                <Link to={`/trading/trades/${trade.id}`}>{trade.reference}</Link>
-              </td>
+              <td>{trade.reference}</td>
               <td>
                 <strong>
                   {trade.quantity} {trade.inventoryCurrencyCode}
@@ -204,19 +243,6 @@ export function TradingHistoryPage() {
               </td>
               <td>{trade.counterpartyName ?? trade.counterpartyType}</td>
               <td>{trade.valueDate.slice(0, 10)}</td>
-              <td className="row" style={{ gap: "0.35rem" }}>
-                <Link className="button-link secondary" to={`/trading/trades/${trade.id}`}>
-                  {t.common.edit}
-                </Link>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={busy}
-                  onClick={() => void handleArchive(trade.id, trade.reference)}
-                >
-                  {t.common.archive}
-                </button>
-              </td>
             </tr>
           ))}
         </tbody>
@@ -247,6 +273,48 @@ export function TradingHistoryPage() {
           </button>
         </div>
       </div>
+      {successModal}
+      {rowMenu ? (
+        <DeskContextMenu
+          x={rowMenu.x}
+          y={rowMenu.y}
+          items={[
+            {
+              id: "edit",
+              label: t.common.editAction,
+              disabled: busy,
+              onSelect: () => openEditTrade(rowMenu.trade),
+            },
+            {
+              id: "delete",
+              label: t.common.delete,
+              danger: true,
+              disabled: busy,
+              onSelect: () =>
+                void handleArchive(rowMenu.trade.id, rowMenu.trade.reference),
+            },
+          ]}
+          onClose={() => setRowMenu(null)}
+        />
+      ) : null}
+      <ExchangeFormModal
+        open={editOpen}
+        editTransactionId={editTransactionId}
+        onClose={() => {
+          setEditOpen(false);
+          setEditTransactionId(null);
+        }}
+        onSaved={() => {
+          setReloadKey((k) => k + 1);
+          showSuccess(t.common.success);
+        }}
+      />
+      <ExchangeDealDetailModal
+        detail={dealModal.detail}
+        busy={dealModal.busy}
+        error={dealModal.error}
+        onClose={dealModal.close}
+      />
     </div>
   );
 }

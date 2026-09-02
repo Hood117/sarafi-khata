@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { SearchInput } from "@/components/ui/search-input";
 import { Typography } from "@/design-system/typography";
-import type { PartnerCurrencyOption } from "@/features/partner-sarafi/components/partner-sarafi-form";
+import type {
+  PartnerCurrencyOption,
+  PartnerCustomerOption,
+} from "@/features/partner-sarafi/components/partner-sarafi-form";
 import { PartnerSarafiPageHeader } from "@/features/partner-sarafi/components/partner-sarafi-page-header";
 import { PartnerSarafiTable } from "@/features/partner-sarafi/components/partner-sarafi-table";
 import type { PartnerSarafiListItem } from "@/features/partner-sarafi/domain/types";
@@ -12,6 +15,7 @@ import { useT } from "@/lib/i18n";
 
 type PartnerSarafiViewProps = {
   partners: PartnerSarafiListItem[];
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
 };
 
@@ -35,6 +39,7 @@ function matchesPartner(partner: PartnerSarafiListItem, query: string): boolean 
 
 export function PartnerSarafiView({
   partners,
+  customerOptions,
   currencyOptions,
 }: PartnerSarafiViewProps) {
   const t = useT();
@@ -62,6 +67,7 @@ export function PartnerSarafiView({
       </div>
 
       <PartnerSarafiPageHeader
+        customerOptions={customerOptions}
         currencyOptions={currencyOptions}
         onSuccess={setSuccessMessage}
         successMessage={successMessage}
@@ -77,6 +83,7 @@ export function PartnerSarafiView({
 
       <PartnerSarafiTable
         partners={filtered}
+        customerOptions={customerOptions}
         currencyOptions={currencyOptions}
         onPartnerChanged={setSuccessMessage}
       />

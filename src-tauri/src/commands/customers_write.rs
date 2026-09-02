@@ -6,18 +6,17 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, post_transaction, wallet_currency_balance_minor,
+  allocate_next_account_number, find_currency_by_code, money_from_major_units, post_transaction,
   PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
-use crate::util::{now_sqlite};
+use crate::util::now_sqlite;
+use crate::commands::authorize::{require_screen_write};
 
-use super::customers::CustomerDetail;
+use super::customers::{load_customer_opening_kata, CustomerDetail, OpeningKataLineDetail};
+use super::trading::util::soft_delete_transaction;
 
-const CUSTOMER_CODE_START: i64 = 1001;
 const OPENING_EQUITY_WALLET_NAME: &str = "Opening Equity";
-const CASH_TILL_WALLET_NAME: &str = "Cash Till";
-const MAIN_VAULT_WALLET_NAME: &str = "Main Vault";
 
 fn trim_opt(value: Option<String>, max: usize) -> Result<Option<String>, AppError> {
   let Some(raw) = value else {
@@ -35,53 +34,80 @@ fn trim_opt(value: Option<String>, max: usize) -> Result<Option<String>, AppErro
   Ok(Some(trimmed))
 }
 
-fn next_customer_code(conn: &Connection) -> Result<String, AppError> {
-  let mut stmt = conn.prepare("SELECT code FROM Customer WHERE code IS NOT NULL")?;
-  let codes = stmt
-    .query_map([], |row| row.get::<_, String>(0))?
-    .collect::<Result<Vec<_>, _>>()?;
-  let mut max_seq = CUSTOMER_CODE_START - 1;
-  for code in codes {
-    if code.chars().all(|c| c.is_ascii_digit()) {
-      if let Ok(n) = code.parse::<i64>() {
-        if n > max_seq {
-          max_seq = n;
-        }
-      }
-    }
-  }
-  Ok((max_seq + 1).to_string())
-}
-
 fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, AppError> {
-  conn
+  let detail = conn
     .query_row(
       "SELECT id, code, fullName, fatherName, phone, address, nationalId, notes,
-              isActive, deletedAt, createdAt, updatedAt
+              IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt
        FROM Customer WHERE id = ?1 LIMIT 1",
       [id],
       |row| {
-        let deleted_at: Option<String> = row.get(9)?;
-        Ok(CustomerDetail {
-          id: row.get(0)?,
-          code: row.get(1)?,
-          full_name: row.get(2)?,
-          father_name: row.get(3)?,
-          phone: row.get(4)?,
-          address: row.get(5)?,
-          national_id: row.get(6)?,
-          notes: row.get(7)?,
-          is_active: row.get::<_, i64>(8)? != 0,
-          is_archived: deleted_at.is_some(),
-          created_at: row.get(10)?,
-          updated_at: row.get(11)?,
-        })
+        let deleted_at: Option<String> = row.get(10)?;
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get(1)?,
+          row.get(2)?,
+          row.get(3)?,
+          row.get(4)?,
+          row.get(5)?,
+          row.get(6)?,
+          row.get(7)?,
+          row.get::<_, String>(8)?,
+          row.get::<_, i64>(9)? != 0,
+          deleted_at.is_some(),
+          row.get(11)?,
+          row.get(12)?,
+        ))
       },
     )
     .map_err(|e| match e {
       rusqlite::Error::QueryReturnedNoRows => AppError::NotFound("Customer not found.".into()),
       other => other.into(),
-    })
+    })?;
+
+  let (
+    id,
+    code,
+    full_name,
+    father_name,
+    phone,
+    address,
+    national_id,
+    notes,
+    customer_type,
+    is_active,
+    is_archived,
+    created_at,
+    updated_at,
+  ) = detail;
+  let opening_kata = load_customer_opening_kata(conn, &id)?;
+  let linked_partner: Option<(String, String)> = conn
+    .query_row(
+      "SELECT id, name FROM PartnerSarafi
+       WHERE customerId = ?1 AND deletedAt IS NULL
+       LIMIT 1",
+      [&id],
+      |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .optional()?;
+  Ok(CustomerDetail {
+    id,
+    code,
+    full_name,
+    father_name,
+    phone,
+    address,
+    national_id,
+    notes,
+    customer_type,
+    is_active,
+    is_archived,
+    created_at,
+    updated_at,
+    opening_kata,
+    linked_partner_sarafi_id: linked_partner.as_ref().map(|(pid, _)| pid.clone()),
+    linked_partner_name: linked_partner.map(|(_, name)| name),
+  })
 }
 
 fn ensure_opening_equity(conn: &Connection) -> Result<String, AppError> {
@@ -107,43 +133,11 @@ fn ensure_opening_equity(conn: &Connection) -> Result<String, AppError> {
   Ok(id)
 }
 
-fn resolve_cash_wallet_id(conn: &Connection) -> Result<String, AppError> {
-  for (name, wtype) in [
-    (CASH_TILL_WALLET_NAME, "TILL"),
-    (MAIN_VAULT_WALLET_NAME, "VAULT"),
-  ] {
-    let id: Option<String> = conn
-      .query_row(
-        "SELECT id FROM Wallet
-         WHERE name = ?1 AND type = ?2 AND deletedAt IS NULL AND isActive = 1
-         LIMIT 1",
-        params![name, wtype],
-        |row| row.get(0),
-      )
-      .optional()?;
-    if let Some(id) = id {
-      return Ok(id);
-    }
-  }
-  let id: Option<String> = conn
-    .query_row(
-      "SELECT id FROM Wallet
-       WHERE type IN ('TILL','VAULT') AND deletedAt IS NULL AND isActive = 1
-       ORDER BY name ASC LIMIT 1",
-      [],
-      |row| row.get(0),
-    )
-    .optional()?;
-  id.ok_or_else(|| {
-    AppError::Validation(
-      "Cash Till or Main Vault is required to receive opening wallet money.".into(),
-    )
-  })
-}
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpeningKataLineInput {
+  /// Existing Opening Kata transaction id when editing an unchanged/changed line.
+  pub transaction_id: Option<String>,
   pub currency_code: String,
   pub amount: String,
   /// `GIVE` = customer gives money (default) | `TAKE` = customer takes money
@@ -162,6 +156,8 @@ pub struct CreateCustomerInput {
   pub address: Option<String>,
   pub national_id: Option<String>,
   pub notes: Option<String>,
+  /// `PERMANENT` (default) | `TEMPORARY`
+  pub customer_type: Option<String>,
   /// Preferred: one or more Opening Kata lines.
   pub opening_kata: Option<Vec<OpeningKataLineInput>>,
   /// Legacy single-field opening (maps to one GIVE Opening Kata).
@@ -170,6 +166,14 @@ pub struct CreateCustomerInput {
   pub actor_user_id: String,
 }
 
+/// Opening Kata = starting customer claim against cash already in Main Vault.
+///
+/// Does NOT touch Main Vault. Physical startup cash is entered separately via
+/// Cash In (Main Vault DEBIT + Opening Equity CREDIT). Live deposits/withdrawals
+/// still move both customer wallet and Main Vault in `movements.rs`.
+///
+/// GIVE (shop holds for customer): Customer DEBIT + Opening Equity CREDIT.
+/// TAKE (customer owes / already took): Customer CREDIT + Opening Equity DEBIT.
 fn post_opening_kata_line(
   conn: &Connection,
   customer_id: &str,
@@ -201,10 +205,6 @@ fn post_opening_kata_line(
   }
 
   let equity_id = ensure_opening_equity(conn)?;
-  let cash_id = resolve_cash_wallet_id(conn)?;
-  let equity_minor = minor
-    .checked_mul(2)
-    .ok_or_else(|| AppError::Validation("Opening amount too large.".into()))?;
 
   let value_date = line
     .value_date
@@ -230,9 +230,9 @@ fn post_opening_kata_line(
     })
     .unwrap_or_else(|| {
       if give {
-        format!("Opening Kata — {full_name} gave money")
+        format!("Opening Kata — {full_name} opening credit")
       } else {
-        format!("Opening Kata — {full_name} took money")
+        format!("Opening Kata — {full_name} opening debit")
       }
     });
 
@@ -242,64 +242,13 @@ fn post_opening_kata_line(
     uuid::Uuid::new_v4().simple()
   );
 
-  if take {
-    let (currency_id, _, _) = find_currency_by_code(conn, &line.currency_code)?;
-    let customer_bal =
-      wallet_currency_balance_minor(conn, wallet_id, &currency_id, places)?;
-    if customer_bal < minor {
-      return Err(AppError::Validation(
-        "Insufficient customer balance.".into(),
-      ));
-    }
-    let cash_bal = wallet_currency_balance_minor(conn, &cash_id, &currency_id, places)?;
-    if cash_bal < minor {
-      return Err(AppError::Validation(format!(
-        "Insufficient {currency_code} cash available."
-      )));
-    }
-    post_transaction(
-      conn,
-      PostTransactionInput {
-        reference,
-        r#type: "ADJUSTMENT".into(),
-        value_date,
-        customer_id: Some(customer_id.to_string()),
-        walk_in_name: None,
-        walk_in_phone: None,
-        description: Some(desc),
-        created_by_id: Some(actor.to_string()),
-        entries: vec![
-          PostingLineDto {
-            wallet_id: wallet_id.to_string(),
-            currency: currency_code.clone(),
-            direction: "CREDIT".into(),
-            amount_minor: minor.to_string(),
-            exchange_rate_id: None,
-            memo: Some("Opening Kata — money out".into()),
-          },
-          PostingLineDto {
-            wallet_id: cash_id,
-            currency: currency_code.clone(),
-            direction: "CREDIT".into(),
-            amount_minor: minor.to_string(),
-            exchange_rate_id: None,
-            memo: Some("Opening Kata — cash paid out".into()),
-          },
-          PostingLineDto {
-            wallet_id: equity_id,
-            currency: currency_code,
-            direction: "DEBIT".into(),
-            amount_minor: equity_minor.to_string(),
-            exchange_rate_id: None,
-            memo: Some("Opening equity balancing leg".into()),
-          },
-        ],
-      },
-    )?;
-    return Ok(());
-  }
+  // Keep customer-leg memos stable so get_customer can reload Opening Kata lines.
+  let (customer_dir, equity_dir, customer_memo) = if take {
+    ("CREDIT", "DEBIT", "Opening Kata — money out")
+  } else {
+    ("DEBIT", "CREDIT", "Opening Kata — money in")
+  };
 
-  // Customer Gives Money: customer + cash up, equity balances (unchanged accounting).
   post_transaction(
     conn,
     PostTransactionInput {
@@ -315,30 +264,110 @@ fn post_opening_kata_line(
         PostingLineDto {
           wallet_id: wallet_id.to_string(),
           currency: currency_code.clone(),
-          direction: "DEBIT".into(),
+          direction: customer_dir.into(),
           amount_minor: minor.to_string(),
           exchange_rate_id: None,
-          memo: Some("Opening Kata — money in".into()),
-        },
-        PostingLineDto {
-          wallet_id: cash_id,
-          currency: currency_code.clone(),
-          direction: "DEBIT".into(),
-          amount_minor: minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Opening Kata — cash received".into()),
+          memo: Some(customer_memo.into()),
         },
         PostingLineDto {
           wallet_id: equity_id,
           currency: currency_code,
-          direction: "CREDIT".into(),
-          amount_minor: equity_minor.to_string(),
+          direction: equity_dir.into(),
+          amount_minor: minor.to_string(),
           exchange_rate_id: None,
-          memo: Some("Opening equity balancing leg".into()),
+          memo: Some("Opening equity — customer claim".into()),
         },
       ],
     },
   )?;
+  Ok(())
+}
+
+fn normalize_opening_direction(raw: Option<&str>) -> String {
+  let direction = raw.unwrap_or("GIVE").trim().to_ascii_uppercase();
+  if direction == "TAKE" || direction == "OUT" || direction == "CUSTOMER_TAKES" {
+    "TAKE".into()
+  } else {
+    "GIVE".into()
+  }
+}
+
+fn opening_line_matches(
+  existing: &OpeningKataLineDetail,
+  line: &OpeningKataLineInput,
+  conn: &Connection,
+) -> Result<bool, AppError> {
+  let (_cid, _, places) = find_currency_by_code(conn, &line.currency_code)?;
+  let new_minor = money_from_major_units(line.amount.trim(), places)?;
+  let old_minor = money_from_major_units(existing.amount.trim(), places)?;
+  let new_dir = normalize_opening_direction(line.direction.as_deref());
+  let old_dir = normalize_opening_direction(Some(&existing.direction));
+  let new_date = line
+    .value_date
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| if s.len() >= 10 { &s[..10] } else { s })
+    .unwrap_or("");
+  let old_date = if existing.value_date.len() >= 10 {
+    &existing.value_date[..10]
+  } else {
+    existing.value_date.as_str()
+  };
+  let new_desc = line
+    .description
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .unwrap_or("");
+  let old_desc = existing.description.trim();
+
+  Ok(new_minor == old_minor
+    && new_dir == old_dir
+    && existing.currency_code.eq_ignore_ascii_case(line.currency_code.trim())
+    && new_date == old_date
+    && new_desc == old_desc)
+}
+
+fn sync_customer_opening_kata(
+  conn: &Connection,
+  customer_id: &str,
+  wallet_id: &str,
+  full_name: &str,
+  actor: &str,
+  submitted: Vec<OpeningKataLineInput>,
+) -> Result<(), AppError> {
+  let existing = load_customer_opening_kata(conn, customer_id)?;
+  let existing_by_id: std::collections::HashMap<String, OpeningKataLineDetail> = existing
+    .into_iter()
+    .map(|line| (line.transaction_id.clone(), line))
+    .collect();
+  let mut kept_ids = std::collections::HashSet::new();
+
+  for line in &submitted {
+    if let Some(tx_id) = line
+      .transaction_id
+      .as_deref()
+      .map(str::trim)
+      .filter(|s| !s.is_empty())
+    {
+      if let Some(ex) = existing_by_id.get(tx_id) {
+        if opening_line_matches(ex, line, conn)? {
+          kept_ids.insert(tx_id.to_string());
+          continue;
+        }
+        soft_delete_transaction(conn, tx_id)?;
+      }
+    }
+    post_opening_kata_line(conn, customer_id, wallet_id, full_name, line, actor)?;
+  }
+
+  for tx_id in existing_by_id.keys() {
+    if !kept_ids.contains(tx_id) {
+      soft_delete_transaction(conn, tx_id)?;
+    }
+  }
+
   Ok(())
 }
 
@@ -351,18 +380,22 @@ pub fn create_customer(
   if full_name.is_empty() || full_name.len() > 200 {
     return Err(AppError::Validation("fullName is required (1–200).".into()));
   }
-  let phone = input.phone.trim().to_string();
-  if phone.is_empty() || phone.len() > 50 {
-    return Err(AppError::Validation("phone is required (1–50).".into()));
-  }
+  let phone = {
+    let p = input.phone.trim().to_string();
+    if p.is_empty() {
+      None
+    } else if p.len() > 50 {
+      return Err(AppError::Validation("phone must be at most 50 characters.".into()));
+    } else {
+      Some(p)
+    }
+  };
   let father_name = trim_opt(input.father_name, 200)?;
   let address = trim_opt(input.address, 500)?;
   let national_id = trim_opt(input.national_id, 100)?;
   let notes = trim_opt(input.notes, 2000)?;
-  let actor = input.actor_user_id.trim().to_string();
-  if actor.is_empty() {
-    return Err(AppError::Validation("actorUserId is required.".into()));
-  }
+  let customer_type = crate::ledger::parse_customer_type(input.customer_type.as_deref());
+  let _ = input.actor_user_id.trim();
 
   let opening_amount = input
     .opening_balance_amount
@@ -385,6 +418,7 @@ pub fn create_customer(
   if opening_lines.is_empty() {
     if let (Some(amount), Some(ccy)) = (opening_amount, opening_ccy) {
       opening_lines.push(OpeningKataLineInput {
+        transaction_id: None,
         currency_code: ccy.to_string(),
         amount: amount.to_string(),
         direction: Some("GIVE".into()),
@@ -398,32 +432,37 @@ pub fn create_customer(
   opening_lines.retain(|l| !l.amount.trim().is_empty() && !l.currency_code.trim().is_empty());
 
   let conn = state.db.lock();
+  let actor = require_screen_write(&state, &conn, "customers")?;
+  let actor = actor.id.clone();
 
-  let phone_taken: bool = conn.query_row(
-    "SELECT EXISTS(
-       SELECT 1 FROM Customer
-       WHERE phone = ?1 AND deletedAt IS NULL
-     )",
-    [&phone],
-    |row| row.get(0),
-  )?;
-  if phone_taken {
-    return Err(AppError::Validation(
-      "A customer with this phone number already exists.".into(),
-    ));
+  if let Some(ref phone_val) = phone {
+    let phone_taken: bool = conn.query_row(
+      "SELECT EXISTS(
+         SELECT 1 FROM Customer
+         WHERE phone = ?1 AND deletedAt IS NULL
+       )",
+      [phone_val],
+      |row| row.get(0),
+    )?;
+    if phone_taken {
+      return Err(AppError::Validation(
+        "A customer with this phone number already exists.".into(),
+      ));
+    }
   }
 
   let mut customer_id = String::new();
+  let mut account_number = String::new();
   let mut last_err: Option<AppError> = None;
   for _ in 0..5 {
-    let code = next_customer_code(&conn)?;
+    let code = allocate_next_account_number(&conn)?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = now_sqlite();
     match conn.execute(
       "INSERT INTO Customer (
-         id, code, fullName, fatherName, phone, address, nationalId, notes,
+         id, code, fullName, fatherName, phone, address, nationalId, notes, customerType,
          isActive, deletedAt, createdAt, updatedAt
-       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, NULL, ?9, ?9)",
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, NULL, ?10, ?10)",
       params![
         id,
         code,
@@ -433,19 +472,24 @@ pub fn create_customer(
         address,
         national_id,
         notes,
+        customer_type,
         now
       ],
     ) {
       Ok(_) => {
         customer_id = id;
+        account_number = code;
         last_err = None;
         break;
       }
       Err(e) => {
         let msg = e.to_string();
-        if msg.contains("Customer_code_active_key") || msg.to_lowercase().contains("unique") {
+        if msg.contains("Customer_code_key")
+          || msg.contains("Customer_code_active_key")
+          || msg.to_lowercase().contains("unique")
+        {
           last_err = Some(AppError::Validation(
-            "Unable to allocate a unique customer code. Please try again.".into(),
+            "Unable to allocate a unique account number. Please try again.".into(),
           ));
           continue;
         }
@@ -463,9 +507,9 @@ pub fn create_customer(
   let now = now_sqlite();
   let wallet_name = format!("{full_name} Wallet");
   conn.execute(
-    "INSERT INTO Wallet (id, name, type, customerId, userId, isActive, deletedAt, createdAt, updatedAt)
-     VALUES (?1, ?2, 'CUSTOMER', ?3, NULL, 1, NULL, ?4, ?4)",
-    params![wallet_id, wallet_name, customer_id, now],
+    "INSERT INTO Wallet (id, name, type, customerId, userId, isActive, deletedAt, createdAt, updatedAt, code)
+     VALUES (?1, ?2, 'CUSTOMER', ?3, NULL, 1, NULL, ?4, ?4, ?5)",
+    params![wallet_id, wallet_name, customer_id, now, account_number],
   )?;
 
   for line in &opening_lines {
@@ -504,8 +548,10 @@ pub struct UpdateCustomerInput {
   pub address: Option<String>,
   pub national_id: Option<String>,
   pub notes: Option<String>,
+  /// `PERMANENT` | `TEMPORARY`
+  pub customer_type: Option<String>,
   pub actor_user_id: Option<String>,
-  /// Optional additional Opening Kata lines posted on save (ledger transactions).
+  /// Opening Kata lines to sync on save (replaces removed/changed rows via ledger).
   pub opening_kata: Option<Vec<OpeningKataLineInput>>,
 }
 
@@ -554,38 +600,50 @@ pub fn update_customer(
   if full_name.is_empty() || full_name.len() > 200 {
     return Err(AppError::Validation("fullName is required (1–200).".into()));
   }
-  let phone = input.phone.trim().to_string();
-  if phone.is_empty() || phone.len() > 50 {
-    return Err(AppError::Validation("phone is required (1–50).".into()));
-  }
+  let phone = {
+    let p = input.phone.trim().to_string();
+    if p.is_empty() {
+      None
+    } else if p.len() > 50 {
+      return Err(AppError::Validation("phone must be at most 50 characters.".into()));
+    } else {
+      Some(p)
+    }
+  };
   let father_name = trim_opt(input.father_name, 200)?;
   let address = trim_opt(input.address, 500)?;
   let national_id = trim_opt(input.national_id, 100)?;
   let notes = trim_opt(input.notes, 2000)?;
-  let actor = input
-    .actor_user_id
-    .as_deref()
-    .map(str::trim)
-    .filter(|s| !s.is_empty());
+  let _ = input.actor_user_id.as_deref();
 
   let conn = state.db.lock();
+  let actor = require_screen_write(&state, &conn, "customers")?;
+  let actor_id = actor.id.clone();
   let existing = load_customer_detail(&conn, &id)?;
   if existing.is_archived {
     return Err(AppError::Validation("Archived customers cannot be edited.".into()));
   }
+  let customer_type = crate::ledger::parse_customer_type(
+    input
+      .customer_type
+      .as_deref()
+      .or(Some(existing.customer_type.as_str())),
+  );
 
-  let phone_taken: bool = conn.query_row(
-    "SELECT EXISTS(
-       SELECT 1 FROM Customer
-       WHERE phone = ?1 AND deletedAt IS NULL AND id != ?2
-     )",
-    params![phone, id],
-    |row| row.get(0),
-  )?;
-  if phone_taken {
-    return Err(AppError::Validation(
-      "A customer with this phone number already exists.".into(),
-    ));
+  if let Some(ref phone_val) = phone {
+    let phone_taken: bool = conn.query_row(
+      "SELECT EXISTS(
+         SELECT 1 FROM Customer
+         WHERE phone = ?1 AND deletedAt IS NULL AND id != ?2
+       )",
+      params![phone_val, id],
+      |row| row.get(0),
+    )?;
+    if phone_taken {
+      return Err(AppError::Validation(
+        "A customer with this phone number already exists.".into(),
+      ));
+    }
   }
 
   let before = serde_json::json!({
@@ -595,6 +653,7 @@ pub fn update_customer(
     "address": existing.address,
     "nationalId": existing.national_id,
     "notes": existing.notes,
+    "customerType": existing.customer_type,
   })
   .to_string();
   let after = serde_json::json!({
@@ -604,6 +663,7 @@ pub fn update_customer(
     "address": address,
     "nationalId": national_id,
     "notes": notes,
+    "customerType": customer_type,
   })
   .to_string();
 
@@ -611,8 +671,8 @@ pub fn update_customer(
   conn.execute(
     "UPDATE Customer SET
        fullName = ?1, fatherName = ?2, phone = ?3, address = ?4,
-       nationalId = ?5, notes = ?6, updatedAt = ?7
-     WHERE id = ?8 AND deletedAt IS NULL",
+       nationalId = ?5, notes = ?6, customerType = ?7, updatedAt = ?8
+     WHERE id = ?9 AND deletedAt IS NULL",
     params![
       full_name,
       father_name,
@@ -620,6 +680,7 @@ pub fn update_customer(
       address,
       national_id,
       notes,
+      customer_type,
       now,
       id
     ],
@@ -628,7 +689,7 @@ pub fn update_customer(
   if before != after {
     write_customer_audit(
       &conn,
-      actor,
+      Some(actor_id.as_str()),
       "UPDATE_CUSTOMER",
       &id,
       Some(&before),
@@ -636,18 +697,20 @@ pub fn update_customer(
     )?;
   }
 
-  let mut opening_lines = input.opening_kata.unwrap_or_default();
-  opening_lines.retain(|l| !l.amount.trim().is_empty() && !l.currency_code.trim().is_empty());
-  if !opening_lines.is_empty() {
-    let actor_id = actor.ok_or_else(|| {
-      AppError::Validation("actorUserId is required when posting Opening Kata.".into())
-    })?;
+  if let Some(mut opening_lines) = input.opening_kata {
+    opening_lines.retain(|l| !l.amount.trim().is_empty() && !l.currency_code.trim().is_empty());
     let wallet_id = resolve_customer_wallet_id(&conn, &id)?;
-    for line in &opening_lines {
-      post_opening_kata_line(&conn, &id, &wallet_id, &full_name, line, actor_id)?;
-    }
+    sync_customer_opening_kata(
+      &conn,
+      &id,
+      &wallet_id,
+      &full_name,
+      actor_id.as_str(),
+      opening_lines,
+    )?;
   }
 
+  crate::ledger::maybe_auto_archive_temporary_customer(&conn, &id)?;
   load_customer_detail(&conn, &id)
 }
 
@@ -674,6 +737,7 @@ pub fn archive_customer(
     return Err(AppError::Validation("Customer id is required.".into()));
   }
   let conn = state.db.lock();
+  let _actor = require_screen_write(&state, &conn, "customers")?;
   let existing = load_customer_detail(&conn, &id)?;
   if existing.is_archived {
     return Ok(ArchiveCustomerResult {
@@ -749,6 +813,7 @@ pub fn restore_customer(
     return Err(AppError::Validation("Customer id is required.".into()));
   }
   let conn = state.db.lock();
+  let _actor = require_screen_write(&state, &conn, "customers")?;
   let existing = load_customer_detail(&conn, &id)?;
   if !existing.is_archived {
     return Ok(ArchiveCustomerResult {

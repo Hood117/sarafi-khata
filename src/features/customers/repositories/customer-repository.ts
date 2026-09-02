@@ -153,7 +153,7 @@ export async function listCustomers(
 ): Promise<Customer[]> {
   return prisma.customer.findMany({
     where: customerListWhere(options),
-    orderBy: { fullName: "asc" },
+    orderBy: [{ code: "asc" }, { fullName: "asc" }],
   });
 }
 
@@ -172,7 +172,7 @@ export async function listCustomersPage(
 
   const items = await prisma.customer.findMany({
     where,
-    orderBy: { fullName: "asc" },
+    orderBy: [{ code: "asc" }, { fullName: "asc" }],
     skip: paginationSkip(page, pageSize),
     take: pageSize,
   });

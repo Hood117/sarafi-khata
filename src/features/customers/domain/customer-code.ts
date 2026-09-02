@@ -1,8 +1,11 @@
-/** First auto-assigned customer code. */
-export const CUSTOMER_CODE_START = 1001;
+/** Main Vault is account #1; customers allocate from #2 upward (ADR-045). */
+export const CUSTOMER_ACCOUNT_NUMBER_START = 2;
+
+/** @deprecated Use CUSTOMER_ACCOUNT_NUMBER_START — unified account numbers replaced the 1001 system. */
+export const CUSTOMER_CODE_START = CUSTOMER_ACCOUNT_NUMBER_START;
 
 /**
- * Parses a customer code into a sequence number when it is a plain integer string.
+ * Parses an account number into a sequence when it is a plain integer string.
  * Non-numeric / empty codes are ignored for sequence allocation.
  */
 export function parseCustomerCodeSequence(
@@ -22,11 +25,12 @@ export function parseCustomerCodeSequence(
 }
 
 /**
- * Next code string given existing customer codes (active and archived).
- * Starts at 1001 and continues past the highest existing numeric code.
+ * Next account number given existing codes (active and archived).
+ * Starts at 2 (Main Vault is #1) and continues past the highest existing numeric code.
+ * Prefer the Tauri allocator (`allocate_next_account_number`) on the live desk path.
  */
 export function computeNextCustomerCode(existingCodes: Array<string | null>): string {
-  let maxSequence = CUSTOMER_CODE_START - 1;
+  let maxSequence = CUSTOMER_ACCOUNT_NUMBER_START - 1;
 
   for (const code of existingCodes) {
     const sequence = parseCustomerCodeSequence(code);
@@ -35,5 +39,6 @@ export function computeNextCustomerCode(existingCodes: Array<string | null>): st
     }
   }
 
-  return String(maxSequence + 1);
+  // Never assign #1 (reserved for Main Vault).
+  return String(Math.max(maxSequence + 1, CUSTOMER_ACCOUNT_NUMBER_START));
 }

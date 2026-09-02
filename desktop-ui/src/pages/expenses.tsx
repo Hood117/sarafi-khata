@@ -1,54 +1,60 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {
   getExpenseSummary,
   listCurrenciesPage,
   listExpenseCategories,
   listExpenses,
-  listWalletsPage,
   postExpense,
   type CurrencyListItem,
   type ExpenseCategoryOption,
   type ExpenseRow,
   type ExpenseSummary,
-  type WalletListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import {
+  ExpenseDetailModal,
+  clickableExpenseRowProps,
+} from "@desktop/components/expense-detail-modal";
+import { CurrencyFilter } from "@desktop/ui/currency-filter";
+import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { Modal } from "@desktop/ui/modal";
+import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { Pagination } from "@desktop/ui/pagination";
 import { Stat } from "@desktop/ui/stat";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { useT } from "@desktop/i18n";
-
-const DEFAULT_CURRENCY = "AFN";
-
-function currencyLabel(c: CurrencyListItem) {
-  const sym = c.symbol?.trim();
-  return sym ? `${c.code} — ${c.name} (${sym})` : `${c.code} — ${c.name}`;
-}
-
-function pickDefaultCurrency(items: CurrencyListItem[]) {
-  const preferred = items.find(
-    (c) => c.code.toUpperCase() === "AFN" || c.code.toUpperCase() === "AF",
-  );
-  return preferred?.code ?? items[0]?.code ?? DEFAULT_CURRENCY;
-}
+import {
+  endSubmit,
+  errorMessage,
+  tryBeginSubmit,
+} from "@desktop/lib/datetime";
+import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { PageLoadError } from "@desktop/ui/page-load-error";
+import {
+  DEFAULT_CURRENCY_CODE,
+  pickDefaultCurrency,
+} from "@desktop/lib/default-currency";
+import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 
 export function ExpensesPage() {
   const t = useT();
   const { session } = useAuth();
   const [categories, setCategories] = useState<ExpenseCategoryOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
-  const [wallets, setWallets] = useState<WalletListItem[]>([]);
   const [summary, setSummary] = useState<ExpenseSummary | null>(null);
   const [items, setItems] = useState<ExpenseRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const { showSuccess, successModal } = useSuccessModal();
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
+  const addFormRef = useRef<HTMLFormElement>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [detail, setDetail] = useState<ExpenseRow | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -62,23 +68,16 @@ export function ExpensesPage() {
 
   const [category, setCategory] = useState("RENT");
   const [amount, setAmount] = useState("");
-  const [currencyCode, setCurrencyCode] = useState(DEFAULT_CURRENCY);
-  const [cashWalletId, setCashWalletId] = useState("");
+  const [currencyCode, setCurrencyCode] = useState(DEFAULT_CURRENCY_CODE);
   const [notes, setNotes] = useState("");
   const [valueDate, setValueDate] = useState(() => new Date().toISOString().slice(0, 10));
-
-  const cashWallets = useMemo(
-    () => wallets.filter((w) => w.type === "VAULT" || w.type === "TILL"),
-    [wallets],
-  );
 
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const [cats, ccy, w, sum, list] = await Promise.all([
+      const [cats, ccy, sum, list] = await Promise.all([
         listExpenseCategories(),
         listCurrenciesPage({ activeOnly: true, pageSize: 200 }),
-        listWalletsPage({ page: 1, pageSize: 100 }),
         getExpenseSummary({
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
@@ -95,13 +94,10 @@ export function ExpensesPage() {
       ]);
       setCategories(cats);
       setCurrencies(ccy.items);
-      setWallets(w.items);
       setSummary(sum);
       setItems(list.items);
       setTotal(list.total);
 
-      const cash = w.items.find((x) => x.type === "VAULT" || x.type === "TILL");
-      setCashWalletId((prev) => prev || cash?.id || "");
       setCurrencyCode((prev) => {
         if (ccy.items.some((c) => c.code === prev)) return prev;
         return pickDefaultCurrency(ccy.items);
@@ -109,11 +105,11 @@ export function ExpensesPage() {
       setCategory((prev) => prev || cats[0]?.id || "RENT");
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.loadGeneric));
     } finally {
       setBusy(false);
     }
-  }, [dateFrom, dateTo, filterCategory, filterCurrency, page, reloadKey]);
+  }, [dateFrom, dateTo, filterCategory, filterCurrency, page, reloadKey, t.errors.loadGeneric]);
 
   useEffect(() => {
     void load();
@@ -130,7 +126,6 @@ export function ExpensesPage() {
     setValueDate(new Date().toISOString().slice(0, 10));
     setCategory(categories[0]?.id ?? "RENT");
     setCurrencyCode(pickDefaultCurrency(currencies));
-    if (!cashWalletId && cashWallets[0]) setCashWalletId(cashWallets[0].id);
     setShowAdd(true);
   }
 
@@ -143,15 +138,14 @@ export function ExpensesPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session?.userId) return;
+    if (saving || !tryBeginSubmit(submittingRef)) return;
     setSaving(true);
     setFormError(null);
-    setOk(null);
     try {
       const posted = await postExpense({
         category,
         currencyCode,
         amount,
-        cashWalletId,
         notes: notes || undefined,
         valueDate: valueDate || undefined,
         createdById: session.userId,
@@ -159,12 +153,13 @@ export function ExpensesPage() {
       setShowAdd(false);
       setAmount("");
       setNotes("");
-      setOk(t.expenses.postedOk.replace("{reference}", posted.reference));
+      showSuccess(t.expenses.postedOk.replace("{reference}", txDisplayRef(posted)));
       setPage(1);
       setReloadKey((k) => k + 1);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      setFormError(errorMessage(err, t.errors.expenseSave));
     } finally {
+      endSubmit(submittingRef);
       setSaving(false);
     }
   }
@@ -175,23 +170,9 @@ export function ExpensesPage() {
 
   return (
     <div className="stack">
-      <div
-        className="row"
-        style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}
-      >
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.expenses}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.expenses.hint}
-          </p>
-        </div>
-        <button type="button" className="btn primary" onClick={openAddModal}>
-          {t.expenses.addExpense}
-        </button>
-      </div>
-
-      {error ? <p className="error">{error}</p> : null}
-      {ok ? <p className="muted">{ok}</p> : null}
+      {error ? (
+        <PageLoadError message={error} onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : null}
 
       <div className="section-card stack">
         <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}>
@@ -203,17 +184,15 @@ export function ExpensesPage() {
             <span className="muted">{t.expenses.periodTo}</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
-          <label className="stack" style={{ gap: "0.25rem", minWidth: "12rem" }}>
-            <span className="muted">{t.expenses.filterCurrency}</span>
-            <select value={filterCurrency} onChange={(e) => setFilterCurrency(e.target.value)}>
-              <option value="">{t.desk.allCurrenciesFilter}</option>
-              {currencies.map((c) => (
-                <option key={c.id} value={c.code}>
-                  {currencyLabel(c)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div style={{ minWidth: "12rem" }}>
+            <CurrencyFilter
+              currencies={currencies}
+              value={filterCurrency}
+              onChange={setFilterCurrency}
+              allLabel={t.desk.allCurrenciesFilter}
+              label={t.expenses.filterCurrency}
+            />
+          </div>
           <label className="stack" style={{ gap: "0.25rem", minWidth: "10rem" }}>
             <span className="muted">{t.expenses.category}</span>
             <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
@@ -243,7 +222,18 @@ export function ExpensesPage() {
       </div>
 
       <div className="section-card stack">
-        <h2 style={{ margin: 0 }}>{t.nav.expenses}</h2>
+        <div className="row expenses-list-head">
+          <h2 style={{ margin: 0 }}>{t.nav.expenses}</h2>
+          <button
+            type="button"
+            className="btn primary"
+            data-desk-action="new"
+            data-desk-primary
+            onClick={openAddModal}
+          >
+            {t.expenses.addExpense}
+          </button>
+        </div>
         {items.length === 0 && !busy ? (
           <p className="muted">{t.expenses.noExpenses}</p>
         ) : (
@@ -263,11 +253,15 @@ export function ExpensesPage() {
               </thead>
               <tbody>
                 {items.map((row) => (
-                  <tr key={row.transactionId}>
+                  <tr
+                    key={row.transactionId}
+                    {...clickableExpenseRowProps(() => setDetail(row))}
+                    aria-label={`${t.common.view} ${txDisplayRef(row)}`}
+                  >
                     <td>{row.valueDate.slice(0, 10)}</td>
                     <td>{row.categoryLabel || categoryLabel(row.category)}</td>
                     <td>
-                      <strong>{row.amount}</strong>
+                      <strong className="money-out">{row.amount}</strong>
                     </td>
                     <td>
                       {row.currencyCode}
@@ -278,7 +272,7 @@ export function ExpensesPage() {
                         </div>
                       ) : null}
                     </td>
-                    <td>{row.reference}</td>
+                    <td>{txDisplayRef(row)}</td>
                     <td>{row.cashWalletName ?? "—"}</td>
                     <td>{row.createdByName ?? "—"}</td>
                     <td>{row.notes ?? "—"}</td>
@@ -299,8 +293,18 @@ export function ExpensesPage() {
 
       {showAdd ? (
         <Modal title={t.expenses.addExpense} onClose={closeAddModal}>
-          <form className="stack" onSubmit={(e) => void onSubmit(e)}>
-            {formError ? <p className="error">{formError}</p> : null}
+          <form
+            ref={addFormRef}
+            className="stack"
+            data-desk-form
+            onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
+              handleDeskFormKeyDown(e, {
+                busy: saving,
+                onSubmit: () => addFormRef.current?.requestSubmit(),
+              })
+            }
+            onSubmit={(e) => void onSubmit(e)}
+          >
             <label className="stack" style={{ gap: "0.25rem" }}>
               <span className="muted">{t.expenses.category}</span>
               <select value={category} onChange={(e) => setCategory(e.target.value)} required>
@@ -311,8 +315,8 @@ export function ExpensesPage() {
                 ))}
               </select>
             </label>
-            <div className="exchange-fields-grid">
-              <label className="stack" style={{ gap: "0.25rem" }}>
+            <div className="money-ccy-row">
+              <label className="money-ccy-amount stack" style={{ gap: "0.25rem" }}>
                 <span className="muted">{t.common.amount}</span>
                 <input
                   value={amount}
@@ -320,49 +324,33 @@ export function ExpensesPage() {
                   placeholder={t.common.amountPlaceholder}
                   required
                   autoFocus
+                  inputMode="decimal"
                 />
               </label>
-              <label className="stack" style={{ gap: "0.25rem" }}>
-                <span className="muted">{t.common.currency}</span>
-                <select
-                  value={currencyCode}
-                  onChange={(e) => setCurrencyCode(e.target.value)}
-                  required
-                >
-                  {currencies.map((c) => (
-                    <option key={c.id} value={c.code}>
-                      {currencyLabel(c)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="stack" style={{ gap: "0.25rem" }}>
-                <span className="muted">{t.common.date}</span>
-                <input
-                  type="date"
-                  value={valueDate}
-                  onChange={(e) => setValueDate(e.target.value)}
-                />
-              </label>
-              <label className="stack" style={{ gap: "0.25rem" }}>
-                <span className="muted">{t.expenses.cashWallet}</span>
-                <select
-                  value={cashWalletId}
-                  onChange={(e) => setCashWalletId(e.target.value)}
-                  required
-                >
-                  {cashWallets.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.type})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <CurrencyPicker
+                label={t.common.currency}
+                required
+                currencies={currencies}
+                value={currencyCode}
+                onChange={setCurrencyCode}
+                onCurrenciesChange={setCurrencies}
+                emptyLabel={t.common.noData}
+                searchPlaceholder={t.common.search}
+              />
             </div>
+            <label className="stack" style={{ gap: "0.25rem" }}>
+              <span className="muted">{t.common.date}</span>
+              <input
+                type="date"
+                value={valueDate}
+                onChange={(e) => setValueDate(e.target.value)}
+              />
+            </label>
             <label className="stack" style={{ gap: "0.25rem" }}>
               <span className="muted">{t.common.notes}</span>
               <input value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
+            <ModalErrorBanner message={formError} />
             <div className="modal-actions">
               <button type="button" className="btn" disabled={saving} onClick={closeAddModal}>
                 {t.common.cancel}
@@ -370,7 +358,8 @@ export function ExpensesPage() {
               <button
                 type="submit"
                 className="btn primary"
-                disabled={saving || !cashWalletId || !amount.trim()}
+                data-desk-action="save"
+                disabled={saving || !amount.trim()}
               >
                 {saving ? t.common.posting : t.expenses.postExpense}
               </button>
@@ -378,6 +367,9 @@ export function ExpensesPage() {
           </form>
         </Modal>
       ) : null}
+
+      <ExpenseDetailModal detail={detail} onClose={() => setDetail(null)} />
+      {successModal}
     </div>
   );
 }

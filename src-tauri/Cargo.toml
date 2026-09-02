@@ -1,6 +1,6 @@
 [package]
 name = "saraf"
-version = "0.1.0"
+version = "1.0.0"
 description = "Offline Sarafi Management System"
 authors = ["Saraf"]
 edition = "2021"
@@ -29,3 +29,17 @@ bcrypt = "0.17"
 parking_lot = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+base64 = "0.22"
+rfd = "0.15"
+# Sync HTTP for license activation only (APP_TOKEN never leaves Rust).
+# native-tls (not rustls/ring) — ring's MSVC build-script often exits 259
+# (STILL_ACTIVE) on Windows, same class of issue as compiling sqlite3.c.
+ureq = { version = "2.12", default-features = false, features = ["native-tls", "json", "proxy-from-env"] }
+
+# Production builds must enable custom-protocol so cfg(dev) is false and the
+# app loads embedded SPA assets instead of http://127.0.0.1:1421.
+# `tauri dev` disables this feature; `tauri build` / plain cargo release keep it.
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+

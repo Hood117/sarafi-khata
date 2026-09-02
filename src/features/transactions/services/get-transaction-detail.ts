@@ -140,7 +140,7 @@ export async function getTransactionDetail(
     valueDate: transaction.valueDate.toISOString(),
     postedAt: transaction.postedAt?.toISOString() ?? null,
     createdAt: transaction.createdAt.toISOString(),
-    appName: appNameSetting?.value?.trim() || "Saraf",
+    appName: appNameSetting?.value?.trim() || "ASMS",
     ledgerEntries,
   };
 }

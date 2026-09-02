@@ -1,20 +1,29 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {
   listCurrenciesPage,
   listCustomersPage,
   listPartners,
-  listWalletsPage,
   tradeBuy,
   tradeSell,
   type CurrencyListItem,
   type CustomerListItem,
   type PartnerListItem,
-  type TradeResult,
-  type WalletListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
+import {
+  endSubmit,
+  errorMessage,
+  tryBeginSubmit,
+} from "@desktop/lib/datetime";
+import {
+  pickDefaultCurrency,
+  pickSecondaryCurrency,
+} from "@desktop/lib/default-currency";
+import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
+import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { COUNTERPARTIES, CP_LABELS } from "./constants";
 
 type Mode = "buy" | "sell";
@@ -22,8 +31,8 @@ type Mode = "buy" | "sell";
 export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   const { session } = useAuth();
   const t = useT();
+  const { showSuccess, successModal } = useSuccessModal();
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
-  const [wallets, setWallets] = useState<WalletListItem[]>([]);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
   const [invCcy, setInvCcy] = useState("");
@@ -31,7 +40,6 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   const [qty, setQty] = useState("");
   const [rate, setRate] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
-  const [cashWalletId, setCashWalletId] = useState("");
   const [cpType, setCpType] = useState<(typeof COUNTERPARTIES)[number]>("WALK_IN");
   const [customerId, setCustomerId] = useState("");
   const [partnerId, setPartnerId] = useState("");
@@ -39,30 +47,28 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   const [walkInPhone, setWalkInPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<TradeResult | null>(null);
 
   useEffect(() => {
     void Promise.all([
       listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
-      listWalletsPage({ activeOnly: true, pageSize: 100 }),
       listCustomersPage({ archiveFilter: "active", pageSize: 100 }),
       listPartners(),
     ])
-      .then(([ccy, w, cust, parts]) => {
+      .then(([ccy, cust, parts]) => {
         setCurrencies(ccy.items);
-        setWallets(w.items.filter((x) => x.type === "VAULT" || x.type === "TILL"));
         setCustomers(cust.items);
         setPartners(parts);
-        if (ccy.items[0]) setInvCcy(ccy.items[0].code);
-        if (ccy.items[1]) setPayCcy(ccy.items[1].code);
-        else if (ccy.items[0]) setPayCcy(ccy.items[0].code);
-        if (w.items.find((x) => x.type === "VAULT")) {
-          setCashWalletId(w.items.find((x) => x.type === "VAULT")!.id);
+        if (ccy.items.length) {
+          const inv = pickDefaultCurrency(ccy.items);
+          setInvCcy(inv);
+          setPayCcy(pickSecondaryCurrency(ccy.items, inv));
         }
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err, t.errors.loadGeneric));
       });
   }, []);
 
@@ -76,16 +82,15 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
+    if (!tryBeginSubmit(submittingRef)) return;
     setBusy(true);
     setError(null);
-    setResult(null);
     const input = {
       inventoryCurrencyCode: invCcy,
       quantity: qty,
       rate,
       paymentCurrencyCode: payCcy,
       paymentAmount: paymentAmount || suggestedPayment || undefined,
-      cashWalletId,
       counterpartyType: cpType,
       customerId: cpType === "CUSTOMER" ? customerId : null,
       partnerSarafiId: cpType === "PARTNER" ? partnerId : null,
@@ -97,7 +102,13 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
     };
     try {
       const res = mode === "buy" ? await tradeBuy(input) : await tradeSell(input);
-      setResult(res);
+      showSuccess(
+        `${t.desk.tradePosted.replace("{reference}", res.reference)} · ${t.desk.inventoryAfter.replace("{quantity}", res.inventoryQtyAfter)}${
+          res.grossProfit
+            ? ` · ${t.desk.profitLoss.replace("{amount}", res.grossProfit)}`
+            : ""
+        }`,
+      );
       setQty("");
       setRate("");
       setPaymentAmount("");
@@ -107,8 +118,9 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
         setWalkInPhone("");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.tradingSave));
     } finally {
+      endSubmit(submittingRef);
       setBusy(false);
     }
   }
@@ -118,10 +130,18 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
       <h2 className="section-title">
         {mode === "buy" ? t.desk.newPurchase : t.desk.newSale}
       </h2>
-      <p className="muted" style={{ margin: 0 }}>
-        {mode === "buy" ? t.desk.buyInventoryHint : t.desk.sellInventoryHint}
-      </p>
-      <form className="stack" onSubmit={(e) => void onSubmit(e)}>
+      <form
+        ref={formRef}
+        className="stack"
+        data-desk-form
+        onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
+          handleDeskFormKeyDown(e, {
+            busy,
+            onSubmit: () => formRef.current?.requestSubmit(),
+          })
+        }
+        onSubmit={(e) => void onSubmit(e)}
+      >
         <div className="row">
           <label>
             {t.common.currency}
@@ -160,20 +180,6 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
               onChange={(e) => setPaymentAmount(e.target.value)}
               placeholder={suggestedPayment || t.desk.automatic}
             />
-          </label>
-          <label>
-            {t.common.cashWallet}
-            <select
-              value={cashWalletId}
-              onChange={(e) => setCashWalletId(e.target.value)}
-              required
-            >
-              {wallets.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name} ({w.type})
-                </option>
-              ))}
-            </select>
           </label>
         </div>
 
@@ -276,20 +282,12 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
           {t.common.notes}
           <input value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
-        {error ? <p className="error">{error}</p> : null}
-        {result ? (
-          <p className="ok">
-            {t.desk.tradePosted.replace("{reference}", result.reference)} ·{" "}
-            {t.desk.inventoryAfter.replace("{quantity}", result.inventoryQtyAfter)}
-            {result.grossProfit
-              ? ` · ${t.desk.profitLoss.replace("{amount}", result.grossProfit)}`
-              : ""}
-          </p>
-        ) : null}
+        <ModalErrorBanner message={error} />
         <button type="submit" disabled={busy}>
           {busy ? t.common.posting : mode === "buy" ? t.desk.tradingBuy : t.desk.tradingSell}
         </button>
       </form>
+      {successModal}
     </div>
   );
 }

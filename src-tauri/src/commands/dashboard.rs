@@ -9,6 +9,7 @@ use crate::commands::desks::{ExchangeRateItem, HawalaListItem};
 use crate::commands::transactions::TransactionListItem;
 use crate::error::AppError;
 use crate::state::AppState;
+use crate::commands::authorize::{require_screen};
 
 const RECENT_TX_LIMIT: i64 = 10;
 const RECENT_HAWALA_LIMIT: i64 = 5;
@@ -32,6 +33,8 @@ pub struct DashboardMonthCounts {
 pub struct DashboardCustomerCounts {
   pub active: i64,
   pub total: i64,
+  /// Customers whose `createdAt` falls in the current calendar month.
+  pub new_this_month: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,21 +117,35 @@ fn count_month_by_type(
   Ok(month)
 }
 
-fn customer_counts(conn: &rusqlite::Connection) -> Result<DashboardCustomerCounts, AppError> {
+fn customer_counts(
+  conn: &rusqlite::Connection,
+  start: &str,
+  end: &str,
+) -> Result<DashboardCustomerCounts, AppError> {
   let total: i64 = conn.query_row("SELECT COUNT(*) FROM Customer", [], |row| row.get(0))?;
   let active: i64 = conn.query_row(
-    "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+    "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL AND isActive = 1",
     [],
     |row| row.get(0),
   )?;
-  Ok(DashboardCustomerCounts { active, total })
+  let new_this_month: i64 = conn.query_row(
+    "SELECT COUNT(*) FROM Customer
+     WHERE createdAt >= ?1 AND createdAt < ?2",
+    rusqlite::params![start, end],
+    |row| row.get(0),
+  )?;
+  Ok(DashboardCustomerCounts {
+    active,
+    total,
+    new_this_month,
+  })
 }
 
 fn recent_transactions(
   conn: &rusqlite::Connection,
 ) -> Result<Vec<TransactionListItem>, AppError> {
   let mut stmt = conn.prepare(
-    "SELECT t.id, t.reference, t.type, t.status, c.fullName, t.description, t.valueDate, t.createdAt
+    "SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, c.fullName, t.description, t.valueDate, t.createdAt
      FROM \"Transaction\" t
      LEFT JOIN Customer c ON c.id = t.customerId
      WHERE t.deletedAt IS NULL
@@ -140,65 +157,47 @@ fn recent_transactions(
       Ok(TransactionListItem {
         id: row.get(0)?,
         reference: row.get(1)?,
-        r#type: row.get(2)?,
-        status: row.get(3)?,
-        customer_name: row.get(4)?,
-        description: row.get(5)?,
-        value_date: row.get(6)?,
-        created_at: row.get(7)?,
+        display_ref: row.get(2)?,
+        r#type: row.get(3)?,
+        status: row.get(4)?,
+        customer_name: row.get(5)?,
+        description: row.get(6)?,
+        value_date: row.get(7)?,
+        created_at: row.get(8)?,
         amount_summary: String::new(),
+        sender_name: None,
+        receiver_name: None,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
 
   if !items.is_empty() {
-    let placeholders = items.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let money_sql = format!(
-      r#"SELECT le.transactionId, c.code, le.direction,
-                COALESCE(SUM(CAST(le.amount AS REAL)), 0)
-         FROM LedgerEntry le
-         INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
-         WHERE le.transactionId IN ({placeholders})
-         GROUP BY le.transactionId, c.code, le.direction
-         ORDER BY le.transactionId, c.code"#
-    );
-    let money_params: Vec<&dyn rusqlite::types::ToSql> = items
+    let ids: Vec<String> = items.iter().map(|i| i.id.clone()).collect();
+    let by_tx = crate::ledger::fill_customer_facing_amount_summaries(conn, &ids)?;
+    let transfer_ids: Vec<String> = items
       .iter()
-      .map(|i| &i.id as &dyn rusqlite::types::ToSql)
+      .filter(|i| i.r#type.eq_ignore_ascii_case("TRANSFER"))
+      .map(|i| i.id.clone())
       .collect();
-    let mut money_stmt = conn.prepare(&money_sql)?;
-    let mut by_tx: std::collections::HashMap<String, Vec<String>> =
-      std::collections::HashMap::new();
-    for row in money_stmt.query_map(money_params.as_slice(), |row| {
-      Ok((
-        row.get::<_, String>(0)?,
-        row.get::<_, String>(1)?,
-        row.get::<_, String>(2)?,
-        row.get::<_, f64>(3)?,
-      ))
-    })? {
-      let (tx_id, code, direction, amount) = row?;
-      let display = if (amount - amount.round()).abs() < 1e-9 {
-        format!("{}", amount.round() as i64)
-      } else {
-        format!("{amount:.4}")
-          .trim_end_matches('0')
-          .trim_end_matches('.')
-          .to_string()
-      };
-      let signed = if direction.eq_ignore_ascii_case("DEBIT") {
-        format!("+ {code} {display}")
-      } else {
-        format!("− {code} {display}")
-      };
-      by_tx.entry(tx_id).or_default().push(signed);
+    let mut descs = std::collections::HashMap::new();
+    for i in &items {
+      if i.r#type.eq_ignore_ascii_case("TRANSFER") {
+        descs.insert(i.id.clone(), i.description.clone());
+      }
     }
+    let parties = crate::ledger::fill_transfer_parties(conn, &transfer_ids, &descs)?;
     for item in &mut items {
       item.amount_summary = by_tx
-        .remove(&item.id)
-        .map(|parts| parts.join(" · "))
-        .filter(|s| !s.is_empty())
+        .get(&item.id)
+        .cloned()
         .unwrap_or_else(|| "—".into());
+      if let Some(p) = parties.get(&item.id) {
+        item.sender_name = p.sender_name.clone();
+        item.receiver_name = p.receiver_name.clone();
+        if let Some(summary) = crate::ledger::transfer_amount_summary(p) {
+          item.amount_summary = summary;
+        }
+      }
     }
   }
 
@@ -209,9 +208,10 @@ fn recent_hawala(conn: &rusqlite::Connection) -> Result<Vec<HawalaListItem>, App
   let mut stmt = conn.prepare(
     "SELECT h.id, h.reference, h.direction, h.status,
             h.senderName, h.receiverName, h.partnerSarafi,
-            CAST(h.amount AS TEXT), c.code, h.valueDate
+            CAST(h.amount AS TEXT), c.code, h.valueDate, IFNULL(t.displayRef,'')
      FROM HawalaTransfer h
      INNER JOIN Currency c ON c.id = h.currencyId
+     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      WHERE h.deletedAt IS NULL
      ORDER BY h.valueDate DESC, h.createdAt DESC
      LIMIT ?",
@@ -221,6 +221,7 @@ fn recent_hawala(conn: &rusqlite::Connection) -> Result<Vec<HawalaListItem>, App
       Ok(HawalaListItem {
         id: row.get(0)?,
         reference: row.get(1)?,
+        display_ref: row.get(10)?,
         direction: row.get(2)?,
         status: row.get(3)?,
         sender_name: row.get(4)?,
@@ -274,12 +275,13 @@ pub fn get_dashboard_snapshot(
 ) -> Result<DashboardSnapshot, AppError> {
   let (start, end, month_key, as_of_month) = local_month_bounds(Local::now())?;
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "dashboard")?;
 
   Ok(DashboardSnapshot {
     as_of_month,
     month_key,
     month: count_month_by_type(&conn, &start, &end)?,
-    customers: customer_counts(&conn)?,
+    customers: customer_counts(&conn, &start, &end)?,
     cash: query_cash_balances(&conn)?,
     recent_transactions: recent_transactions(&conn)?,
     recent_hawala: recent_hawala(&conn)?,

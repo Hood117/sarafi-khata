@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
   archiveCustomer,
@@ -12,57 +18,125 @@ import {
   type CustomerListItem,
   type CustomerListPage,
 } from "@desktop/api";
+import { DESK_CUSTOMER_CREATED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
-import { CustomerCreateForm, CustomerEditForm } from "@desktop/pages/customer-forms";
+import { moneyToneClass } from "@desktop/lib/currency-labels";
+import { errorMessage } from "@desktop/lib/datetime";
+import { CustomerEditForm } from "@desktop/pages/customer-forms";
+import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
+import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
 type ArchiveFilter = "active" | "archived" | "all";
+type TypeFilter = "permanent" | "temporary";
 
-function formatBalances(rows: CustomerBalanceRow[] | undefined) {
-  if (!rows || rows.length === 0) return "—";
-  return rows.map((b) => `${b.currencyCode} ${b.balanceDisplay}`).join(" · ");
+function BalanceChips({ rows }: { rows: CustomerBalanceRow[] | undefined }) {
+  if (!rows || rows.length === 0) return <span>—</span>;
+  return (
+    <span className="balance-chip-row">
+      {rows.map((b, i) => (
+        <span key={b.currencyCode}>
+          {i > 0 ? <span className="muted"> · </span> : null}
+          <span className={moneyToneClass(b.balanceDisplay)}>
+            {b.currencyCode} {b.balanceDisplay}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export function CustomersPage() {
   const t = useT();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const [customers, setCustomers] = useState<CustomerListPage | null>(null);
   const [balancesById, setBalancesById] = useState<Record<string, CustomerBalanceRow[]>>({});
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState<CustomerListItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const searchWrapRef = useRef<HTMLLabelElement | null>(null);
   const [archiveFilter, setArchiveFilter] = useState<ArchiveFilter>("active");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("permanent");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [showNew, setShowNew] = useState(false);
   const [editCustomer, setEditCustomer] = useState<CustomerDetail | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [success, setSuccess] = useState<{ message: string; goToId?: string } | null>(null);
+  const [rowMenu, setRowMenu] = useState<{
+    x: number;
+    y: number;
+    customer: CustomerListItem;
+  } | null>(null);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setShowNew(true);
-      setSearchParams({}, { replace: true });
+    const onCreated = () => reload();
+    window.addEventListener(DESK_CUSTOMER_CREATED_EVENT, onCreated);
+    return () => window.removeEventListener(DESK_CUSTOMER_CREATED_EVENT, onCreated);
+  }, [reload]);
+
+  // Live-filter the customer table as the user types.
+  useEffect(() => {
+    const q = searchDraft.trim();
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setSearch(q);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [searchDraft]);
+
+  // Fetch name suggestions for the typeahead dropdown.
+  useEffect(() => {
+    const q = searchDraft.trim();
+    if (q.length < 1) {
+      setSuggestions([]);
+      setHighlight(-1);
+      return;
     }
-  }, [searchParams, setSearchParams]);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setSuggestBusy(true);
+      void listCustomersPage({
+        search: q,
+        archiveFilter,
+        typeFilter,
+        page: 1,
+        pageSize: 8,
+      })
+        .then((result) => {
+          if (cancelled) return;
+          setSuggestions(result.items);
+          setHighlight(result.items.length > 0 ? 0 : -1);
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSuggestBusy(false);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchDraft, archiveFilter, typeFilter]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
-      if (e.key.toLowerCase() !== "n") return;
-      // Don't steal Ctrl+N while another overlay is already up.
-      if (showNew || editCustomer || success) return;
-      e.preventDefault();
-      setShowNew(true);
+    const onDoc = (e: MouseEvent) => {
+      if (!searchWrapRef.current?.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [showNew, editCustomer, success]);
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +144,7 @@ export function CustomersPage() {
     void listCustomersPage({
       search: search.trim() || undefined,
       archiveFilter,
+      typeFilter,
       page,
       pageSize: 25,
     })
@@ -95,7 +170,7 @@ export function CustomersPage() {
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) setError(errorMessage(err, t.errors.loadCustomers));
       })
       .finally(() => {
         if (!cancelled) setBusy(false);
@@ -103,12 +178,34 @@ export function CustomersPage() {
     return () => {
       cancelled = true;
     };
-  }, [search, page, reloadKey, archiveFilter]);
+  }, [search, page, reloadKey, archiveFilter, typeFilter]);
 
-  function handleSearch(event: FormEvent) {
-    event.preventDefault();
+  function pickSuggestion(customer: CustomerListItem) {
+    setSearchDraft(customer.fullName);
+    setSearch(customer.fullName);
     setPage(1);
-    setSearch(searchDraft.trim());
+    setShowSuggestions(false);
+    navigate(`/customers/${customer.id}`);
+  }
+
+  function onSearchKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && highlight >= 0 && suggestions[highlight]) {
+      e.preventDefault();
+      pickSuggestion(suggestions[highlight]);
+      return;
+    }
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setShowSuggestions(false);
+    }
   }
 
   async function handleArchive(id: string, name: string) {
@@ -118,7 +215,7 @@ export function CustomersPage() {
       await archiveCustomer(id);
       reload();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.genericTryAgain));
     } finally {
       setBusy(false);
     }
@@ -130,7 +227,7 @@ export function CustomersPage() {
       await restoreCustomer(id);
       reload();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.genericTryAgain));
     } finally {
       setBusy(false);
     }
@@ -143,7 +240,7 @@ export function CustomersPage() {
       const detail = await getCustomer(customer.id);
       setEditCustomer(detail);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.errors.loadCustomers));
     } finally {
       setEditLoading(false);
     }
@@ -155,35 +252,57 @@ export function CustomersPage() {
 
   return (
     <div className="stack">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem" }}>{t.nav.customers}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.customers.emptyHint}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn primary"
-          onClick={() => setShowNew(true)}
-          title={t.customers.add}
-        >
-          {t.customers.add}
-          <span className="muted" style={{ marginLeft: "0.45rem", fontSize: "0.8rem" }}>
-            Ctrl+N
-          </span>
-        </button>
-      </div>
-
       <div className="card stack">
-        <form className="row" onSubmit={handleSearch} style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-          <label style={{ flex: 1, minWidth: 220 }}>
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+          <label ref={searchWrapRef} className="customer-search-wrap" style={{ flex: 1, minWidth: 220 }}>
             {t.common.search}
             <input
+              type="search"
+              className="desk-search"
               value={searchDraft}
               placeholder={t.customers.searchPlaceholder}
-              onChange={(e) => setSearchDraft(e.target.value)}
+              autoComplete="off"
+              aria-autocomplete="list"
+              aria-expanded={showSuggestions && suggestions.length > 0}
+              onChange={(e) => {
+                setSearchDraft(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={onSearchKeyDown}
             />
+            {showSuggestions && searchDraft.trim().length > 0 ? (
+              <ul className="customer-suggest" role="listbox">
+                {suggestBusy && suggestions.length === 0 ? (
+                  <li className="customer-suggest-empty muted">{t.common.loading}</li>
+                ) : null}
+                {!suggestBusy && suggestions.length === 0 ? (
+                  <li className="customer-suggest-empty muted">{t.customers.emptyFiltered}</li>
+                ) : null}
+                {suggestions.map((c, idx) => (
+                  <li key={c.id} role="option" aria-selected={idx === highlight}>
+                    <button
+                      type="button"
+                      className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
+                      onMouseEnter={() => setHighlight(idx)}
+                      onClick={() => pickSuggestion(c)}
+                    >
+                      <span className="customer-suggest-name">
+                        {c.fullName}
+                        {c.fatherName ? ` · ${c.fatherName}` : ""}
+                      </span>
+                      <span className="customer-suggest-meta muted">
+                        {c.code ? (
+                          <strong className="customer-list-code">{c.code}</strong>
+                        ) : null}
+                        {c.code && c.phone ? " · " : null}
+                        {c.phone || (!c.code ? "—" : null)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </label>
           <label style={{ minWidth: 140 }}>
             {t.common.status}
@@ -199,11 +318,38 @@ export function CustomersPage() {
               <option value="all">{t.common.all}</option>
             </select>
           </label>
-          <button type="submit" disabled={busy} style={{ alignSelf: "end" }}>
-            {t.common.search}
-          </button>
-        </form>
-        {error ? <p className="error">{error}</p> : null}
+          <div
+            className="settings-tabs currency-panel-tabs customer-type-tabs"
+            role="tablist"
+            aria-label={t.customers.customerType}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={typeFilter === "permanent"}
+              className={`settings-tab${typeFilter === "permanent" ? " active" : ""}`}
+              onClick={() => {
+                setPage(1);
+                setTypeFilter("permanent");
+              }}
+            >
+              {t.customers.permanent}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={typeFilter === "temporary"}
+              className={`settings-tab${typeFilter === "temporary" ? " active" : ""}`}
+              onClick={() => {
+                setPage(1);
+                setTypeFilter("temporary");
+              }}
+            >
+              {t.customers.temporary}
+            </button>
+          </div>
+        </div>
+        {error ? <PageLoadError message={error} onRetry={reload} /> : null}
         {editLoading ? <p className="muted">{t.customers.loadingCustomer}</p> : null}
         {busy && !customers ? <p className="muted">{t.common.loading}</p> : null}
         {customers ? (
@@ -215,11 +361,11 @@ export function CustomersPage() {
             <table>
               <thead>
                 <tr>
+                  <th className="customer-list-code-col">{t.customers.code}</th>
                   <th>{t.common.name}</th>
                   <th>{t.common.phone}</th>
                   <th>{t.customers.balances}</th>
                   <th>{t.common.status}</th>
-                  <th>{t.common.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,6 +385,10 @@ export function CustomersPage() {
                       key={customer.id}
                       className="customer-row-clickable"
                       onClick={() => navigate(`/customers/${customer.id}`)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setRowMenu({ x: e.clientX, y: e.clientY, customer });
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -249,15 +399,21 @@ export function CustomersPage() {
                       role="link"
                       aria-label={`${t.common.view} ${customer.fullName}`}
                     >
+                      <td className="customer-list-code-col">
+                        {customer.code ? (
+                          <strong className="customer-list-code">
+                            {customer.code.replace(/^#+/, "")}
+                          </strong>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td>
-                        <span style={{ fontWeight: 600 }}>{customer.fullName}</span>
-                        <div className="muted" style={{ fontSize: "0.8rem" }}>
-                          {customer.code ?? "—"}
-                        </div>
+                        <span className="customer-list-name">{customer.fullName}</span>
                       </td>
                       <td>{customer.phone ?? "—"}</td>
                       <td style={{ fontSize: "0.9rem" }}>
-                        {formatBalances(balancesById[customer.id])}
+                        <BalanceChips rows={balancesById[customer.id]} />
                       </td>
                       <td>
                         {customer.isArchived ? (
@@ -265,41 +421,6 @@ export function CustomersPage() {
                         ) : (
                           <span className="badge badge-ok">{t.common.active}</span>
                         )}
-                      </td>
-                      <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                        <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
-                          {customer.isArchived ? (
-                            <button
-                              type="button"
-                              className="secondary"
-                              disabled={busy}
-                              onClick={() => void handleRestore(customer.id)}
-                            >
-                              {t.common.restore}
-                            </button>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                className="secondary"
-                                disabled={editLoading}
-                                onClick={() => void openEdit(customer)}
-                              >
-                                {t.customers.edit}
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary"
-                                disabled={busy}
-                                onClick={() =>
-                                  void handleArchive(customer.id, customer.fullName)
-                                }
-                              >
-                                {t.common.archive}
-                              </button>
-                            </>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -328,20 +449,39 @@ export function CustomersPage() {
         ) : null}
       </div>
 
-      {showNew ? (
-        <Modal title={t.customers.add} size="lg" onClose={() => setShowNew(false)}>
-          <CustomerCreateForm
-            onCancel={() => setShowNew(false)}
-            onCreated={(created) => {
-              setShowNew(false);
-              setSuccess({
-                message: t.common.success,
-                goToId: created.id,
-              });
-              reload();
-            }}
-          />
-        </Modal>
+      {rowMenu ? (
+        <DeskContextMenu
+          x={rowMenu.x}
+          y={rowMenu.y}
+          items={
+            rowMenu.customer.isArchived
+              ? [
+                  {
+                    id: "restore",
+                    label: t.common.restore,
+                    disabled: busy,
+                    onSelect: () => void handleRestore(rowMenu.customer.id),
+                  },
+                ]
+              : [
+                  {
+                    id: "edit",
+                    label: t.customers.edit,
+                    disabled: editLoading,
+                    onSelect: () => void openEdit(rowMenu.customer),
+                  },
+                  {
+                    id: "archive",
+                    label: t.common.archive,
+                    danger: true,
+                    disabled: busy,
+                    onSelect: () =>
+                      void handleArchive(rowMenu.customer.id, rowMenu.customer.fullName),
+                  },
+                ]
+          }
+          onClose={() => setRowMenu(null)}
+        />
       ) : null}
 
       {editCustomer ? (

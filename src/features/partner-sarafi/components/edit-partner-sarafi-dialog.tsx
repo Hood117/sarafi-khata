@@ -20,12 +20,14 @@ import {
   emptyPartnerSarafiFormValues,
   PartnerSarafiForm,
   type PartnerCurrencyOption,
+  type PartnerCustomerOption,
   type PartnerSarafiFormValues,
 } from "@/features/partner-sarafi/components/partner-sarafi-form";
 import { useT } from "@/lib/i18n";
 
 type EditPartnerSarafiDialogProps = {
   partnerId: string;
+  customerOptions: PartnerCustomerOption[];
   currencyOptions: PartnerCurrencyOption[];
   onSuccess?: (message: string) => void;
   triggerVariant?: "default" | "outline" | "ghost" | "secondary";
@@ -35,6 +37,7 @@ type EditPartnerSarafiDialogProps = {
 
 export function EditPartnerSarafiDialog({
   partnerId,
+  customerOptions,
   currencyOptions,
   onSuccess,
   triggerVariant = "ghost",
@@ -70,6 +73,7 @@ export function EditPartnerSarafiDialog({
         return;
       }
       setInitialValues({
+        customerId: result.partner.customerId ?? "",
         name: result.partner.name,
         phone: result.partner.phone ?? "",
         city: result.partner.city ?? "",
@@ -98,6 +102,7 @@ export function EditPartnerSarafiDialog({
   async function handleSubmit(values: PartnerSarafiFormValues) {
     const result = await updatePartnerSarafiAction({
       id: partnerId,
+      customerId: values.customerId,
       name: values.name,
       phone: values.phone,
       city: values.city,
@@ -147,6 +152,7 @@ export function EditPartnerSarafiDialog({
           <PartnerSarafiForm
             key={formKey}
             initialValues={initialValues}
+            customerOptions={customerOptions}
             currencyOptions={currencyOptions}
             submitLabel={t.common.saveChanges}
             errorFallbackMessage={t.common.tryAgain}

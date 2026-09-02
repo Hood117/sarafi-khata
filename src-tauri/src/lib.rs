@@ -8,6 +8,7 @@ mod commands;
 mod db;
 mod error;
 mod ledger;
+mod license_config;
 mod migrate;
 mod state;
 mod util;
@@ -23,6 +24,7 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, RunEvent, Url};
 
+use crate::error::AppError;
 use crate::state::AppState;
 
 struct SidecarState(Mutex<Option<Child>>);
@@ -339,7 +341,39 @@ fn bootstrap_native_db(app: &AppHandle) -> Result<AppState, String> {
     .map_err(|e| e.to_string())?;
   migrate::apply_pending_migrations(&conn, &migrations).map_err(|e| e.to_string())?;
   migrate::ensure_schema_compat(&conn).map_err(|e| e.to_string())?;
+  // Re-bind the previous login token into the restored Session table (keep user signed in).
+  if let Err(e) = commands::auth::apply_restore_session_bridge(&conn, &db_path) {
+    log::warn!("restore session bridge failed: {e}");
+  }
   Ok(AppState::with_connection(conn, db_path))
+}
+
+/// Close the live SQLite handle, apply a staged restore, then reopen.
+/// Used so Restore does not kill the window (`request_restart` exits under `tauri dev`).
+pub(crate) fn reopen_native_db_after_restore(app: &AppHandle, state: &AppState) -> Result<Option<String>, AppError> {
+  {
+    let mut guard = state.db.lock();
+    let _ = guard.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+    let dummy = rusqlite::Connection::open_in_memory()
+      .map_err(|e| AppError::Db(format!("close live db: {e}")))?;
+    let old = std::mem::replace(&mut *guard, dummy);
+    drop(old);
+  }
+
+  let stamp = backup::apply_pending_restore_if_any(&state.db_path)?;
+  if let Some(ref applied) = stamp {
+    log::info!("applied in-place database restore from backup {applied}");
+  }
+
+  let conn = db::open_database(&state.db_path)?;
+  let migrations = migrate::migrations_dir(&migration_dir_candidates(app))?;
+  migrate::apply_pending_migrations(&conn, &migrations)?;
+  migrate::ensure_schema_compat(&conn)?;
+  if let Err(e) = commands::auth::apply_restore_session_bridge(&conn, &state.db_path) {
+    log::warn!("restore session bridge failed: {e}");
+  }
+  *state.db.lock() = conn;
+  Ok(stamp)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -352,11 +386,18 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::ping,
       commands::get_app_info,
+      commands::save_text_export,
+      commands::open_external_url,
+      commands::get_license_status,
+      commands::activate_license,
+      commands::clear_license_dev,
       commands::login,
       commands::logout,
       commands::current_user,
+      commands::authorize::bind_session,
       commands::list_customers_page,
       commands::get_customer,
+      commands::get_previous_customer,
       commands::get_customer_balances,
       commands::get_customers_balances_batch,
       commands::create_customer,
@@ -370,9 +411,16 @@ pub fn run() {
       commands::list_users,
       commands::create_user,
       commands::update_user,
+      commands::delete_user,
       commands::reset_user_password,
+      commands::get_admin_auth_pin_status,
+      commands::verify_admin_password,
+      commands::verify_authorization_pin,
+      commands::set_admin_auth_pin,
+      commands::reset_auth_pin_with_admin_password,
       commands::list_wallets_page,
       commands::list_transactions_page,
+      commands::preview_display_ref,
       commands::list_customer_ledger,
       commands::get_transaction_detail,
       commands::post_transaction,
@@ -381,7 +429,11 @@ pub fn run() {
       commands::customer_add_money,
       commands::customer_take_money,
       commands::transfer_funds,
+      commands::soft_delete_movement,
+      commands::get_previous_movement,
+      commands::get_movement_for_edit,
       commands::get_cash_balances,
+      commands::list_debtors_creditors,
       commands::get_dashboard_snapshot,
       commands::trading::ops::trade_buy,
       commands::trading::ops::trade_sell,
@@ -407,12 +459,17 @@ pub fn run() {
       commands::next_hawala_reference,
       commands::exchange_funds,
       commands::get_exchange_pnl_summary,
+      commands::get_exchange_deal_detail,
+      commands::get_previous_exchange_deal,
       commands::list_partners,
       commands::list_partners_page,
       commands::get_partner,
       commands::get_partner_commission_summary,
       commands::settle_partner_commission,
+      commands::list_partner_settlements,
+      commands::delete_partner_settlement,
       commands::create_partner,
+      commands::create_partner_from_customer,
       commands::update_partner,
       commands::archive_partner,
       commands::send_hawala,
@@ -420,8 +477,15 @@ pub fn run() {
       commands::create_db_backup,
       commands::list_db_backups,
       commands::restore_db_backup,
+      commands::pick_backup_file,
+      commands::validate_backup_file,
+      commands::restore_db_backup_from_file,
       commands::get_app_locale,
       commands::set_app_locale,
+      commands::get_business_name,
+      commands::set_business_name,
+      commands::get_ui_text_prefs,
+      commands::set_ui_text_prefs,
       commands::get_owner_capital_snapshot,
       commands::post_owner_capital_move,
       commands::list_owner_capital_events,
@@ -429,16 +493,25 @@ pub fn run() {
       commands::post_expense,
       commands::list_expenses,
       commands::get_expense_summary,
+      commands::list_employees,
+      commands::upsert_employee,
+      commands::archive_employee,
+      commands::pay_employee_salary,
+      commands::list_employee_salary_payments,
+      commands::delete_employee_salary_payment,
       commands::get_business_position_report,
       commands::get_currency_ownership_report,
       commands::get_period_summary_report,
+      commands::get_profit_loss_report,
       commands::get_cash_by_currency_report,
       commands::get_customer_balance_report,
       commands::get_hawala_status_report,
       commands::get_trading_performance_report,
       commands::get_partner_balance_report,
+      commands::get_partner_sarafi_report,
       commands::get_reports_overview,
       commands::get_cash_flow_report,
+      commands::get_movement_sum_report,
       commands::get_exchange_period_report,
       commands::get_customer_statement_report,
       commands::get_transactions_report,
@@ -446,6 +519,7 @@ pub fn run() {
       commands::get_monthly_report,
       commands::transfer_cash_between_vaults,
       commands::get_daybook_snapshot,
+      commands::list_daybook_journal,
       commands::open_business_day,
       commands::close_business_day,
       commands::list_business_days,
@@ -455,6 +529,7 @@ pub fn run() {
       commands::archive_vault,
       commands::get_vault_detail,
       commands::transfer_between_vaults,
+      commands::post_main_vault_cash_move,
       commands::list_vault_movements,
       commands::reconcile_vault,
       commands::list_currency_denominations,

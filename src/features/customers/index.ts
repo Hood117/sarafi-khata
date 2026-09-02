@@ -38,6 +38,7 @@ export type {
 } from "@/features/customers/domain/types";
 export { CustomerError, isCustomerError } from "@/features/customers/domain/errors";
 export {
+  CUSTOMER_ACCOUNT_NUMBER_START,
   CUSTOMER_CODE_START,
   computeNextCustomerCode,
   parseCustomerCodeSequence,

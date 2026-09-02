@@ -7,10 +7,11 @@ use tauri::State;
 use crate::error::AppError;
 use crate::ledger::{
   find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction,
-  PostTransactionInput, PostingLineDto,
+  resolve_shop_cash_wallet_id, PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{now_sqlite, format_f64};
+use crate::commands::authorize::{require_screen};
 
 const OPENING_EQUITY: &str = "Opening Equity";
 
@@ -41,23 +42,6 @@ fn ensure_opening_equity(conn: &Connection) -> Result<String, AppError> {
   Ok(id)
 }
 
-fn assert_cash_wallet(conn: &Connection, id: &str) -> Result<(), AppError> {
-  let row: Option<(String, i64)> = conn
-    .query_row(
-      "SELECT type, isActive FROM Wallet WHERE id = ?1 AND deletedAt IS NULL",
-      [id],
-      |row| Ok((row.get(0)?, row.get(1)?)),
-    )
-    .optional()?;
-  let (t, active) = row.ok_or_else(|| AppError::NotFound("Cash wallet not found.".into()))?;
-  if active != 1 || (t != "VAULT" && t != "TILL") {
-    return Err(AppError::Validation(
-      "Cash wallet must be an active vault or till.".into(),
-    ));
-  }
-  Ok(())
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapitalCurrencyBreakdown {
@@ -67,12 +51,31 @@ pub struct CapitalCurrencyBreakdown {
   pub currency_symbol: Option<String>,
   pub cash: String,
   pub customer_funds: String,
+  /// Absolute negative customer balances (customers owe the shop).
+  pub customer_owes: String,
   pub partner_payable: String,
   pub partner_receivable: String,
   pub pending_hawala: String,
   pub trading_inventory_cost: String,
   pub commission_income: String,
+  /// Lifetime owner INVEST into this currency (OwnerCapitalEvent).
+  pub owner_invested: String,
+  /// Lifetime owner WITHDRAW from this currency (OwnerCapitalEvent).
+  pub owner_withdrawn: String,
+  /// Liabilities: customer funds + partner payable + pending hawala.
+  pub i_owe: String,
+  /// Claims: partner receivable + customer overdrafts.
+  pub people_owe_me: String,
   pub owner_capital: String,
+  /// Main Vault ledger cash for this currency (physical cash pool).
+  pub main_vault_cash: String,
+  /// Ownership total that should equal Main Vault when books are consistent.
+  /// owner + customerFunds − customerOwes + payable + pending − receivable − trading
+  pub expected_main_vault: String,
+  /// actual Main Vault − expected
+  pub vault_difference: String,
+  /// `BALANCED` or `DIFFERENCE`
+  pub vault_status: String,
   pub percent_of_total: String,
 }
 
@@ -82,11 +85,16 @@ pub struct OwnerCapitalSnapshot {
   pub as_of: String,
   pub total_cash: String,
   pub total_customer_funds: String,
+  pub total_customer_owes: String,
   pub total_partner_payable: String,
   pub total_partner_receivable: String,
   pub total_pending_hawala: String,
   pub total_trading_inventory: String,
   pub total_commission_income: String,
+  pub total_owner_invested: String,
+  pub total_owner_withdrawn: String,
+  pub total_i_owe: String,
+  pub total_people_owe_me: String,
   pub total_owner_capital: String,
   pub profit_today: String,
   pub profit_month: String,
@@ -96,9 +104,51 @@ pub struct OwnerCapitalSnapshot {
   pub by_currency: Vec<CapitalCurrencyBreakdown>,
 }
 
+fn owner_capital_event_sums(
+  conn: &Connection,
+  as_of: &str,
+) -> Result<(std::collections::HashMap<String, f64>, std::collections::HashMap<String, f64>), AppError>
+{
+  let mut invested = std::collections::HashMap::new();
+  let mut withdrawn = std::collections::HashMap::new();
+  let has: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='OwnerCapitalEvent')",
+    [],
+    |row| row.get(0),
+  )?;
+  if !has {
+    return Ok((invested, withdrawn));
+  }
+  let mut stmt = conn.prepare(
+    r#"SELECT currencyId, kind, COALESCE(SUM(CAST(amount AS REAL)), 0)
+       FROM OwnerCapitalEvent
+       WHERE deletedAt IS NULL AND valueDate < date(?1, '+1 day')
+       GROUP BY currencyId, kind"#,
+  )?;
+  let rows = stmt
+    .query_map(params![as_of], |row| {
+      Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, f64>(2)?,
+      ))
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+  for (cid, kind, amt) in rows {
+    let k = kind.trim().to_ascii_uppercase();
+    if k == "INVEST" {
+      *invested.entry(cid).or_insert(0.0) += amt.max(0.0);
+    } else if k == "WITHDRAW" {
+      *withdrawn.entry(cid).or_insert(0.0) += amt.max(0.0);
+    }
+  }
+  Ok((invested, withdrawn))
+}
+
 fn wallet_type_sums(
   conn: &Connection,
   wallet_type: &str,
+  as_of: &str,
 ) -> Result<Vec<(String, String, String, Option<String>, f64)>, AppError> {
   let mut stmt = conn.prepare(
     r#"SELECT c.id, c.code, c.name, c.symbol,
@@ -109,11 +159,12 @@ fn wallet_type_sums(
        INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
        INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
        WHERE w.type = ?1 AND w.deletedAt IS NULL AND w.isActive = 1
+         AND t.valueDate < date(?2, '+1 day')
        GROUP BY c.id, c.code, c.name, c.symbol
        ORDER BY c.code"#,
   )?;
   let rows = stmt
-    .query_map([wallet_type], |row| {
+    .query_map(params![wallet_type, as_of], |row| {
       Ok((
         row.get::<_, String>(0)?,
         row.get::<_, String>(1)?,
@@ -126,9 +177,105 @@ fn wallet_type_sums(
   Ok(rows)
 }
 
+/// Main Vault ledger balance per currency (the only physical cash pool).
+fn main_vault_sums(
+  conn: &Connection,
+  as_of: &str,
+) -> Result<Vec<(String, String, String, Option<String>, f64)>, AppError> {
+  let mut stmt = conn.prepare(
+    r#"SELECT c.id, c.code, c.name, c.symbol,
+              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                ELSE -CAST(le.amount AS REAL) END), 0)
+       FROM Wallet w
+       INNER JOIN LedgerEntry le ON le.walletId = w.id
+       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       WHERE w.name = 'Main Vault' AND w.type = 'VAULT'
+         AND w.deletedAt IS NULL AND w.isActive = 1
+         AND t.valueDate < date(?1, '+1 day')
+       GROUP BY c.id, c.code, c.name, c.symbol
+       ORDER BY c.code"#,
+  )?;
+  let rows = stmt
+    .query_map(params![as_of], |row| {
+      Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?,
+        row.get::<_, Option<String>>(3)?,
+        row.get::<_, f64>(4)?,
+      ))
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+  Ok(rows)
+}
+
+/// Per-customer wallet balances first, then:
+/// - funds = Σ positive balances (money owed to customers)
+/// - owes  = Σ |negative| balances (customers owe Sarafi)
+fn customer_funds_and_owes_by_currency(
+  conn: &Connection,
+  as_of: &str,
+) -> Result<
+  (
+    Vec<(String, String, String, Option<String>)>,
+    std::collections::HashMap<String, f64>,
+    std::collections::HashMap<String, f64>,
+  ),
+  AppError,
+> {
+  let mut stmt = conn.prepare(
+    r#"SELECT c.id, c.code, c.name, c.symbol, w.id,
+              COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                ELSE -CAST(le.amount AS REAL) END), 0)
+       FROM Wallet w
+       INNER JOIN LedgerEntry le ON le.walletId = w.id
+       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       WHERE w.type = 'CUSTOMER' AND w.deletedAt IS NULL AND w.isActive = 1
+         AND t.valueDate < date(?1, '+1 day')
+       GROUP BY c.id, c.code, c.name, c.symbol, w.id
+       ORDER BY c.code"#,
+  )?;
+  let rows = stmt
+    .query_map(params![as_of], |row| {
+      Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?,
+        row.get::<_, Option<String>>(3)?,
+        row.get::<_, String>(4)?,
+        row.get::<_, f64>(5)?,
+      ))
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  let mut meta: std::collections::HashMap<String, (String, String, Option<String>)> =
+    std::collections::HashMap::new();
+  let mut funds: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+  let mut owes: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+
+  for (cid, code, name, symbol, _wallet_id, bal) in rows {
+    meta.entry(cid.clone())
+      .or_insert_with(|| (code, name, symbol));
+    if bal > 1e-9 {
+      *funds.entry(cid).or_insert(0.0) += bal;
+    } else if bal < -1e-9 {
+      *owes.entry(cid).or_insert(0.0) += -bal;
+    }
+  }
+
+  let currencies: Vec<(String, String, String, Option<String>)> = meta
+    .into_iter()
+    .map(|(cid, (code, name, symbol))| (cid, code, name, symbol))
+    .collect();
+  Ok((currencies, funds, owes))
+}
+
 fn named_system_sums(
   conn: &Connection,
   name: &str,
+  as_of: &str,
 ) -> Result<std::collections::HashMap<String, f64>, AppError> {
   let mut map = std::collections::HashMap::new();
   let mut stmt = conn.prepare(
@@ -140,10 +287,13 @@ fn named_system_sums(
        INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
        INNER JOIN Currency c ON c.id = le.currencyId
        WHERE w.name = ?1 AND w.type = 'SYSTEM' AND w.deletedAt IS NULL
+         AND t.valueDate < date(?2, '+1 day')
        GROUP BY c.id"#,
   )?;
   let rows = stmt
-    .query_map([name], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))?
+    .query_map(params![name, as_of], |row| {
+      Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+    })?
     .collect::<Result<Vec<_>, _>>()?;
   for (cid, v) in rows {
     map.insert(cid, v);
@@ -151,44 +301,129 @@ fn named_system_sums(
   Ok(map)
 }
 
-fn partner_commission_maps(
+fn partner_open_maps(
   conn: &Connection,
+  as_of: &str,
 ) -> Result<(std::collections::HashMap<String, f64>, std::collections::HashMap<String, f64>), AppError>
 {
   let mut payable = std::collections::HashMap::new();
   let mut receivable = std::collections::HashMap::new();
-  let mut stmt = conn.prepare(
-    r#"SELECT COALESCE(h.commissionCurrencyId, h.currencyId),
-              h.commissionSide,
-              COALESCE(SUM(CAST(h.commissionAmount AS REAL)), 0)
-       FROM HawalaTransfer h
-       WHERE h.deletedAt IS NULL AND h.status = 'COMPLETED'
-         AND h.commissionAmount IS NOT NULL
-         AND CAST(h.commissionAmount AS REAL) > 0
-       GROUP BY COALESCE(h.commissionCurrencyId, h.currencyId), h.commissionSide"#,
-  )?;
-  let rows = stmt
-    .query_map([], |row| {
-      Ok((
-        row.get::<_, String>(0)?,
-        row.get::<_, Option<String>>(1)?,
-        row.get::<_, f64>(2)?,
-      ))
-    })?
-    .collect::<Result<Vec<_>, _>>()?;
-  for (cid, side, amt) in rows {
-    match side.as_deref() {
-      Some("PAYABLE") => *payable.entry(cid).or_insert(0.0) += amt,
-      Some("RECEIVABLE") => *receivable.entry(cid).or_insert(0.0) += amt,
-      _ => {}
+
+  // 1) Hawala commission open
+  {
+    let mut stmt = conn.prepare(
+      r#"SELECT COALESCE(h.commissionCurrencyId, h.currencyId),
+                h.commissionSide,
+                COALESCE(SUM(CAST(h.commissionAmount AS REAL)), 0)
+         FROM HawalaTransfer h
+         WHERE h.deletedAt IS NULL AND h.status IN ('SENT','RECEIVED','COMPLETED','PENDING')
+           AND h.commissionAmount IS NOT NULL
+           AND CAST(h.commissionAmount AS REAL) > 0
+           AND h.valueDate < date(?1, '+1 day')
+         GROUP BY COALESCE(h.commissionCurrencyId, h.currencyId), h.commissionSide"#,
+    )?;
+    let rows = stmt
+      .query_map([as_of], |row| {
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get::<_, Option<String>>(1)?,
+          row.get::<_, f64>(2)?,
+        ))
+      })?
+      .collect::<Result<Vec<_>, _>>()?;
+    for (cid, side, amt) in rows {
+      match side.as_deref() {
+        Some("PAYABLE") => *payable.entry(cid).or_insert(0.0) += amt,
+        Some("RECEIVABLE") => *receivable.entry(cid).or_insert(0.0) += amt,
+        _ => {}
+      }
     }
   }
-  // Subtract settlements if present
+
+  // 2) Hawala principal open (SEND = you owe, RECEIVE = they owe)
+  {
+    let mut stmt = conn.prepare(
+      r#"SELECT
+           CASE
+             WHEN UPPER(h.direction) = 'SEND' THEN COALESCE(h.receiveCurrencyId, h.currencyId)
+             ELSE h.currencyId
+           END,
+           UPPER(h.direction),
+           COALESCE(SUM(CASE
+             WHEN UPPER(h.direction) = 'SEND' THEN CAST(COALESCE(h.receiveAmount, h.amount) AS REAL)
+             ELSE CAST(h.amount AS REAL)
+           END), 0)
+         FROM HawalaTransfer h
+         WHERE h.deletedAt IS NULL
+           AND h.status IN ('SENT','RECEIVED','COMPLETED','PENDING')
+           AND h.valueDate < date(?1, '+1 day')
+         GROUP BY 1, 2"#,
+    )?;
+    let rows = stmt
+      .query_map([as_of], |row| {
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get::<_, String>(1)?,
+          row.get::<_, f64>(2)?,
+        ))
+      })?
+      .collect::<Result<Vec<_>, _>>()?;
+    for (cid, direction, amt) in rows {
+      if direction == "SEND" {
+        *payable.entry(cid).or_insert(0.0) += amt;
+      } else if direction == "RECEIVE" {
+        *receivable.entry(cid).or_insert(0.0) += amt;
+      }
+    }
+  }
+
+  // 3) Partner wallet opening / claim balances
+  {
+    let mut stmt = conn.prepare(
+      r#"SELECT c.id,
+                COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
+                                  ELSE -CAST(le.amount AS REAL) END), 0)
+         FROM Wallet w
+         INNER JOIN LedgerEntry le ON le.walletId = w.id
+         INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+         INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+         WHERE w.type = 'PARTNER' AND w.deletedAt IS NULL AND w.isActive = 1
+           AND t.valueDate < date(?1, '+1 day')
+         GROUP BY c.id"#,
+    )?;
+    let rows = stmt
+      .query_map([as_of], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))?
+      .collect::<Result<Vec<_>, _>>()?;
+    for (cid, bal) in rows {
+      if bal > 1e-9 {
+        *payable.entry(cid).or_insert(0.0) += bal;
+      } else if bal < -1e-9 {
+        *receivable.entry(cid).or_insert(0.0) += -bal;
+      }
+    }
+  }
+
+  // 4) Subtract cash settlements (commission + hawala principal clearing settles).
+  //    Skip settlements that only reverse partner-wallet opening (no Hawala Clearing /
+  //    commission P&L) — those already reduced the wallet balance above.
   if let Ok(mut s) = conn.prepare(
     r#"SELECT currencyId, kind, COALESCE(SUM(CAST(amount AS REAL)),0)
-       FROM PartnerCommissionSettlement GROUP BY currencyId, kind"#,
+       FROM PartnerCommissionSettlement s
+       WHERE deletedAt IS NULL
+         AND valueDate < date(?1, '+1 day')
+         AND (
+           UPPER(COALESCE(balanceType, 'COMMISSION')) = 'COMMISSION'
+           OR EXISTS (
+             SELECT 1 FROM LedgerEntry le
+             INNER JOIN Wallet w ON w.id = le.walletId
+             WHERE le.transactionId = s.transactionId
+               AND w.type = 'SYSTEM'
+               AND w.name IN ('Hawala Clearing', 'Partner Commission Expense', 'Partner Commission Income')
+           )
+         )
+       GROUP BY currencyId, kind"#,
   ) {
-    if let Ok(mapped) = s.query_map([], |row| {
+    if let Ok(mapped) = s.query_map([as_of], |row| {
       Ok((
         row.get::<_, String>(0)?,
         row.get::<_, String>(1)?,
@@ -206,45 +441,63 @@ fn partner_commission_maps(
       }
     }
   }
+
+  // Normalize over-pay / over-collect flips
+  let keys: Vec<String> = payable
+    .keys()
+    .chain(receivable.keys())
+    .cloned()
+    .collect::<std::collections::HashSet<_>>()
+    .into_iter()
+    .collect();
+  for cid in keys {
+    let mut p = payable.get(&cid).copied().unwrap_or(0.0);
+    let mut r = receivable.get(&cid).copied().unwrap_or(0.0);
+    if r < -1e-9 {
+      p -= r;
+      r = 0.0;
+    }
+    if p < -1e-9 {
+      r -= p;
+      p = 0.0;
+    }
+    if p > 1e-9 {
+      payable.insert(cid.clone(), p);
+    } else {
+      payable.remove(&cid);
+    }
+    if r > 1e-9 {
+      receivable.insert(cid.clone(), r);
+    } else {
+      receivable.remove(&cid);
+    }
+  }
+
   Ok((payable, receivable))
 }
 
 fn pending_hawala_by_currency(
   conn: &Connection,
+  as_of: &str,
 ) -> Result<std::collections::HashMap<String, f64>, AppError> {
   let mut map = std::collections::HashMap::new();
+  // Open on as_of: started by that day, and not completed/cancelled until after that day.
   let mut stmt = conn.prepare(
     r#"SELECT currencyId, COALESCE(SUM(CAST(amount AS REAL)),0)
        FROM HawalaTransfer
-       WHERE deletedAt IS NULL AND status IN ('PENDING','SENT','RECEIVED')
+       WHERE deletedAt IS NULL
+         AND valueDate < date(?1, '+1 day')
+         AND (
+           status IN ('PENDING','SENT','RECEIVED')
+           OR (
+             status = 'COMPLETED'
+             AND completedAt IS NOT NULL
+             AND completedAt >= date(?1, '+1 day')
+           )
+         )
        GROUP BY currencyId"#,
   )?;
-  for row in stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))? {
-    let (cid, v) = row?;
-    map.insert(cid, v);
-  }
-  Ok(map)
-}
-
-fn trading_cost_by_currency(
-  conn: &Connection,
-) -> Result<std::collections::HashMap<String, f64>, AppError> {
-  let mut map = std::collections::HashMap::new();
-  let exists: bool = conn.query_row(
-    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='TradingInventory')",
-    [],
-    |row| row.get(0),
-  )?;
-  if !exists {
-    return Ok(map);
-  }
-  let mut stmt = conn.prepare(
-    r#"SELECT avgCostCurrencyId, COALESCE(SUM(CAST(costValue AS REAL)),0)
-       FROM TradingInventory
-       WHERE ABS(CAST(quantity AS REAL)) > 0
-       GROUP BY avgCostCurrencyId"#,
-  )?;
-  for row in stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))? {
+  for row in stmt.query_map([as_of], |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)))? {
     let (cid, v) = row?;
     map.insert(cid, v);
   }
@@ -281,9 +534,18 @@ fn hawala_own_commission_range(conn: &Connection, from: &str, to: &str) -> Resul
   )?)
 }
 
-pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalSnapshot, AppError> {
+pub fn compute_owner_capital_snapshot(
+  conn: &Connection,
+  as_of_opt: Option<&str>,
+) -> Result<OwnerCapitalSnapshot, AppError> {
   let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-  let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
+  let as_of = as_of_opt
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.chars().take(10).collect::<String>())
+    .filter(|s| s.len() == 10)
+    .unwrap_or_else(|| today.clone());
+  let month_start = format!("{}-01", &as_of[..7.min(as_of.len())]);
 
   let mut by_ccy: std::collections::HashMap<String, CapitalCurrencyBreakdown> =
     std::collections::HashMap::new();
@@ -300,37 +562,52 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
       currency_symbol: symbol,
       cash: "0".into(),
       customer_funds: "0".into(),
+      customer_owes: "0".into(),
       partner_payable: "0".into(),
       partner_receivable: "0".into(),
       pending_hawala: "0".into(),
       trading_inventory_cost: "0".into(),
       commission_income: "0".into(),
+      owner_invested: "0".into(),
+      owner_withdrawn: "0".into(),
+      i_owe: "0".into(),
+      people_owe_me: "0".into(),
       owner_capital: "0".into(),
+      main_vault_cash: "0".into(),
+      expected_main_vault: "0".into(),
+      vault_difference: "0".into(),
+      vault_status: "BALANCED".into(),
       percent_of_total: "0".into(),
     });
   };
 
-  // Cash = VAULT + TILL
+  // Physical cash = Main Vault only (ADR-044). Also keep VAULT+TILL sum as legacy `cash`
+  // display aligned to Main Vault when tills are empty after consolidation.
   let mut cash_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-  for (cid, code, name, symbol, v) in wallet_type_sums(conn, "VAULT")? {
+  for (cid, code, name, symbol, v) in main_vault_sums(conn, &as_of)? {
     ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
     *cash_map.entry(cid).or_insert(0.0) += v;
   }
-  for (cid, code, name, symbol, v) in wallet_type_sums(conn, "TILL")? {
-    ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
-    *cash_map.entry(cid).or_insert(0.0) += v;
-  }
-
-  // Customer funds: positive CUSTOMER wallet balances (deposit posts DEBIT to customer)
-  let mut customer_map: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
-  for (cid, code, name, symbol, v) in wallet_type_sums(conn, "CUSTOMER")? {
-    ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
-    if v > 0.0 {
-      customer_map.insert(cid, v);
+  // If Main Vault has no rows yet but other VAULT/TILL activity exists, fall back.
+  if cash_map.is_empty() {
+    for (cid, code, name, symbol, v) in wallet_type_sums(conn, "VAULT", &as_of)? {
+      ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
+      *cash_map.entry(cid).or_insert(0.0) += v;
+    }
+    for (cid, code, name, symbol, v) in wallet_type_sums(conn, "TILL", &as_of)? {
+      ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
+      *cash_map.entry(cid).or_insert(0.0) += v;
     }
   }
 
-  let (payable_map, receivable_map) = partner_commission_maps(conn)?;
+  // Customer funds / owes: balance each CUSTOMER wallet first, then Σ positives / Σ |negatives|.
+  let (customer_ccys, customer_map, customer_owes_map) =
+    customer_funds_and_owes_by_currency(conn, &as_of)?;
+  for (cid, code, name, symbol) in customer_ccys {
+    ensure_row(&mut by_ccy, &cid, &code, &name, symbol);
+  }
+
+  let (payable_map, receivable_map) = partner_open_maps(conn, &as_of)?;
   for (cid, v) in &payable_map {
     if let Ok((code, name, symbol)) = conn.query_row(
       "SELECT code, name, symbol FROM Currency WHERE id=?1",
@@ -363,7 +640,7 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
     }
   }
 
-  let pending_map = pending_hawala_by_currency(conn)?;
+  let pending_map = pending_hawala_by_currency(conn, &as_of)?;
   for cid in pending_map.keys() {
     if let Ok((code, name, symbol)) = conn.query_row(
       "SELECT code, name, symbol FROM Currency WHERE id=?1",
@@ -380,24 +657,7 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
     }
   }
 
-  let trading_map = trading_cost_by_currency(conn)?;
-  for cid in trading_map.keys() {
-    if let Ok((code, name, symbol)) = conn.query_row(
-      "SELECT code, name, symbol FROM Currency WHERE id=?1",
-      [cid],
-      |row| {
-        Ok((
-          row.get::<_, String>(0)?,
-          row.get::<_, String>(1)?,
-          row.get::<_, Option<String>>(2)?,
-        ))
-      },
-    ) {
-      ensure_row(&mut by_ccy, cid, &code, &name, symbol);
-    }
-  }
-
-  let income_map = named_system_sums(conn, "Hawala Commission Income")?;
+  let income_map = named_system_sums(conn, "Hawala Commission Income", &as_of)?;
   // Income wallet: CREDIT increases equity-like; balance DEBIT-CREDIT is typically negative for income.
   // Display commission income as abs of credit balance.
   for (cid, v) in &income_map {
@@ -417,13 +677,34 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
     let _ = v;
   }
 
+  let (invested_map, withdrawn_map) = owner_capital_event_sums(conn, &as_of)?;
+  for cid in invested_map.keys().chain(withdrawn_map.keys()) {
+    if let Ok((code, name, symbol)) = conn.query_row(
+      "SELECT code, name, symbol FROM Currency WHERE id=?1",
+      [cid],
+      |row| {
+        Ok((
+          row.get::<_, String>(0)?,
+          row.get::<_, String>(1)?,
+          row.get::<_, Option<String>>(2)?,
+        ))
+      },
+    ) {
+      ensure_row(&mut by_ccy, cid, &code, &name, symbol);
+    }
+  }
+
   let mut total_cash = 0.0;
   let mut total_customer = 0.0;
+  let mut total_customer_owes = 0.0;
   let mut total_pay = 0.0;
   let mut total_recv = 0.0;
   let mut total_pending = 0.0;
-  let mut total_trading = 0.0;
   let mut total_income = 0.0;
+  let mut total_invested = 0.0;
+  let mut total_withdrawn = 0.0;
+  let mut total_i_owe = 0.0;
+  let mut total_people_owe = 0.0;
   let mut total_owner = 0.0;
 
   let mut rows: Vec<CapitalCurrencyBreakdown> = by_ccy.into_values().collect();
@@ -433,34 +714,60 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
     let cid = row.currency_id.clone();
     let cash = cash_map.get(&cid).copied().unwrap_or(0.0);
     let customer = customer_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
+    let customer_owes = customer_owes_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
     let payable = payable_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
     let receivable = receivable_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
     let pending = pending_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
-    let trading = trading_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
     // Commission income credit balance → negative asset sum; use -min(0,v)
     let income_raw = income_map.get(&cid).copied().unwrap_or(0.0);
     let income = (-income_raw).max(0.0);
+    let invested = invested_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
+    let withdrawn = withdrawn_map.get(&cid).copied().unwrap_or(0.0).max(0.0);
+    let i_owe = customer + payable + pending;
+    let people_owe_me = receivable + customer_owes;
 
-    // Owner capital identity (per currency):
-    // cash - customer money - partner payables - pending hawala + receivables + trading stock
-    let owner = cash - customer - payable - pending + receivable + trading;
+    // Owner capital identity (per currency) — cash and claims in THIS currency only.
+    // Do not add trading inventory: that value is a converted cost for P&L.
+    let owner = cash - customer + customer_owes - payable - pending + receivable;
+
+    // Ownership total that should equal Main Vault when books are consistent.
+    let expected = owner + customer - customer_owes + payable + pending - receivable;
+    let difference = cash - expected;
+    let status = if difference.abs() < 0.005 {
+      "BALANCED"
+    } else {
+      "DIFFERENCE"
+    };
 
     row.cash = format_f64(cash);
     row.customer_funds = format_f64(customer);
+    row.customer_owes = format_f64(customer_owes);
     row.partner_payable = format_f64(payable);
     row.partner_receivable = format_f64(receivable);
     row.pending_hawala = format_f64(pending);
-    row.trading_inventory_cost = format_f64(trading);
+    row.trading_inventory_cost = "0".into();
     row.commission_income = format_f64(income);
+    row.owner_invested = format_f64(invested);
+    row.owner_withdrawn = format_f64(withdrawn);
+    row.i_owe = format_f64(i_owe);
+    row.people_owe_me = format_f64(people_owe_me);
     row.owner_capital = format_f64(owner);
+    row.main_vault_cash = format_f64(cash);
+    row.expected_main_vault = format_f64(expected);
+    row.vault_difference = format_f64(difference);
+    row.vault_status = status.to_string();
 
     total_cash += cash;
     total_customer += customer;
+    total_customer_owes += customer_owes;
     total_pay += payable;
     total_recv += receivable;
     total_pending += pending;
-    total_trading += trading;
     total_income += income;
+    total_invested += invested;
+    total_withdrawn += withdrawn;
+    total_i_owe += i_owe;
+    total_people_owe += people_owe_me;
     total_owner += owner;
   }
 
@@ -474,27 +781,32 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
     row.percent_of_total = format!("{pct:.1}");
   }
 
-  let profit_today = trading_profit_range(conn, &today, &today)?
-    + hawala_own_commission_range(conn, &today, &today)?;
-  let trading_month = trading_profit_range(conn, &month_start, &today)?;
-  let hawala_comm_month = hawala_own_commission_range(conn, &month_start, &today)?;
+  let profit_today = trading_profit_range(conn, &as_of, &as_of)?
+    + hawala_own_commission_range(conn, &as_of, &as_of)?;
+  let trading_month = trading_profit_range(conn, &month_start, &as_of)?;
+  let hawala_comm_month = hawala_own_commission_range(conn, &month_start, &as_of)?;
   let exchange_count_month: i64 = conn.query_row(
     r#"SELECT COUNT(*) FROM "Transaction"
        WHERE deletedAt IS NULL AND type='EXCHANGE'
          AND valueDate >= ?1 AND valueDate < date(?2, '+1 day')"#,
-    params![month_start, today],
+    params![month_start, as_of],
     |row| row.get(0),
   )?;
 
   Ok(OwnerCapitalSnapshot {
-    as_of: today,
+    as_of,
     total_cash: format_f64(total_cash),
     total_customer_funds: format_f64(total_customer),
+    total_customer_owes: format_f64(total_customer_owes),
     total_partner_payable: format_f64(total_pay),
     total_partner_receivable: format_f64(total_recv),
     total_pending_hawala: format_f64(total_pending),
-    total_trading_inventory: format_f64(total_trading),
+    total_trading_inventory: "0".into(),
     total_commission_income: format_f64(total_income),
+    total_owner_invested: format_f64(total_invested),
+    total_owner_withdrawn: format_f64(total_withdrawn),
+    total_i_owe: format_f64(total_i_owe),
+    total_people_owe_me: format_f64(total_people_owe),
     total_owner_capital: format_f64(total_owner),
     profit_today: format_f64(profit_today),
     profit_month: format_f64(trading_month + hawala_comm_month),
@@ -505,12 +817,25 @@ pub fn compute_owner_capital_snapshot(conn: &Connection) -> Result<OwnerCapitalS
   })
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnerCapitalSnapshotInput {
+  pub as_of: Option<String>,
+}
+
 #[tauri::command]
 pub fn get_owner_capital_snapshot(
   state: State<'_, AppState>,
+  input: Option<OwnerCapitalSnapshotInput>,
 ) -> Result<OwnerCapitalSnapshot, AppError> {
   let conn = state.db.lock();
-  compute_owner_capital_snapshot(&conn)
+  let _actor = require_screen(&state, &conn, "capital")?;
+  let as_of = input
+    .as_ref()
+    .and_then(|i| i.as_of.as_deref())
+    .map(str::trim)
+    .filter(|s| !s.is_empty());
+  compute_owner_capital_snapshot(&conn, as_of)
 }
 
 #[derive(Debug, Deserialize)]
@@ -519,7 +844,8 @@ pub struct OwnerCapitalMoveInput {
   pub kind: String, // INVEST | WITHDRAW
   pub currency_code: String,
   pub amount: String,
-  pub cash_wallet_id: String,
+  /// Optional — shop cash is always Main Vault.
+  pub cash_wallet_id: Option<String>,
   pub notes: Option<String>,
   pub reason: Option<String>,
   pub value_date: Option<String>,
@@ -547,17 +873,12 @@ pub fn post_owner_capital_move(
       "kind must be INVEST or WITHDRAW.".into(),
     ));
   }
-  let created_by = input.created_by_id.trim().to_string();
-  if created_by.is_empty() {
-    return Err(AppError::Validation("createdById is required.".into()));
-  }
-  let cash_wallet_id = input.cash_wallet_id.trim().to_string();
-  if cash_wallet_id.is_empty() {
-    return Err(AppError::Validation("cashWalletId is required.".into()));
-  }
+  let _ = input.created_by_id.trim();
 
   let conn = state.db.lock();
-  assert_cash_wallet(&conn, &cash_wallet_id)?;
+  let actor = require_screen(&state, &conn, "capital")?;
+  let created_by = actor.id.clone();
+  let cash_wallet_id = resolve_shop_cash_wallet_id(&conn, input.cash_wallet_id.as_deref())?;
   let equity_id = ensure_opening_equity(&conn)?;
   let (_cid, code, places) = find_currency_by_code(&conn, &input.currency_code)?;
   let minor = money_from_major_units(input.amount.trim(), places)?;
@@ -587,10 +908,30 @@ pub fn post_owner_capital_move(
     kind,
     chrono::Utc::now().timestamp_millis()
   );
-  let description = notes
-    .clone()
-    .or_else(|| reason.clone())
-    .unwrap_or_else(|| memo.to_string());
+  let amount_disp = crate::util::format_amount_commas(&amount_major);
+  let suffix = reason
+    .as_deref()
+    .or(notes.as_deref())
+    .map(str::trim)
+    .filter(|s| !s.is_empty());
+  let description = if kind == "INVEST" {
+    match suffix {
+      Some(s) if !s.eq_ignore_ascii_case("Owner Capital") => {
+        format!("Cash in {amount_disp} {code} to Main Vault — Owner Capital — {s}")
+      }
+      _ => format!("Cash in {amount_disp} {code} to Main Vault — Owner Capital"),
+    }
+  } else {
+    match suffix {
+      Some(s)
+        if !s.eq_ignore_ascii_case("Owner Withdrawal")
+          && !s.eq_ignore_ascii_case("Owner Capital") =>
+      {
+        format!("Cash out {amount_disp} {code} from Main Vault — Owner Withdrawal — {s}")
+      }
+      _ => format!("Cash out {amount_disp} {code} from Main Vault — Owner Withdrawal"),
+    }
+  };
 
   let posted = post_transaction(
     &conn,
@@ -701,6 +1042,7 @@ pub fn list_owner_capital_events(
   let page_size = input.page_size.unwrap_or(25).clamp(1, 100);
   let mut page = input.page.unwrap_or(1).max(1);
   let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "capital")?;
   let exists: bool = conn.query_row(
     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='OwnerCapitalEvent')",
     [],

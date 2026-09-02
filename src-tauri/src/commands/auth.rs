@@ -1,16 +1,22 @@
 //! Auth commands — bcrypt verify + Session rows (SHA-256 token hash).
 
 use chrono::{Duration, Utc};
+use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::Path;
 use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::{now_sqlite};
+use crate::util::now_sqlite;
 
 /// Desktop desk app — long-lived local session (was 12h web TTL).
 const SESSION_TTL_HOURS: i64 = 24 * 30;
+
+/// Written before restore restart; re-binds the same WebView token into the restored DB.
+const RESTORE_SESSION_BRIDGE: &str = "saraf.restore-session.json";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,10 +42,156 @@ pub struct AuthSession {
   pub allowed_screens: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreSessionBridge {
+  token: String,
+  user_id: String,
+  username: String,
+}
+
 fn hash_session_token(token: &str) -> String {
   let mut hasher = Sha256::new();
   hasher.update(token.as_bytes());
   hex::encode(hasher.finalize())
+}
+
+fn bridge_path(db_path: &Path) -> std::path::PathBuf {
+  db_path
+    .parent()
+    .unwrap_or_else(|| Path::new("."))
+    .join(RESTORE_SESSION_BRIDGE)
+}
+
+/// Save the current login so restore+restart can keep the user signed in.
+pub fn write_restore_session_bridge(
+  conn: &Connection,
+  db_path: &Path,
+  token: &str,
+) -> Result<(), AppError> {
+  let token = token.trim();
+  if token.is_empty() {
+    return Ok(());
+  }
+  let token_hash = hash_session_token(token);
+  let row = conn.query_row(
+    "SELECT u.id, u.username
+     FROM Session s
+     INNER JOIN User u ON u.id = s.userId
+     WHERE s.tokenHash = ?1 AND s.revokedAt IS NULL
+     LIMIT 1",
+    [&token_hash],
+    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+  );
+  let (user_id, username) = match row {
+    Ok(v) => v,
+    Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(()),
+    Err(e) => return Err(e.into()),
+  };
+  let payload = RestoreSessionBridge {
+    token: token.to_string(),
+    user_id,
+    username,
+  };
+  let json = serde_json::to_string_pretty(&payload)
+    .map_err(|e| AppError::Internal(format!("restore session bridge: {e}")))?;
+  fs::write(bridge_path(db_path), json)
+    .map_err(|e| AppError::Io(format!("write restore session bridge: {e}")))?;
+  Ok(())
+}
+
+/// After a pending DB restore, re-insert the previous session token for the same user.
+pub fn apply_restore_session_bridge(conn: &Connection, db_path: &Path) -> Result<(), AppError> {
+  let path = bridge_path(db_path);
+  if !path.is_file() {
+    return Ok(());
+  }
+  let raw = match fs::read_to_string(&path) {
+    Ok(s) => s,
+    Err(_) => {
+      let _ = fs::remove_file(&path);
+      return Ok(());
+    }
+  };
+  let bridge: RestoreSessionBridge = match serde_json::from_str(&raw) {
+    Ok(v) => v,
+    Err(e) => {
+      log::warn!("invalid restore session bridge: {e}");
+      let _ = fs::remove_file(&path);
+      return Ok(());
+    }
+  };
+  let _ = fs::remove_file(&path);
+
+  let token = bridge.token.trim();
+  if token.is_empty() {
+    return Ok(());
+  }
+
+  // Prefer same user id; fall back to username (ids can differ across old backups).
+  let user = conn
+    .query_row(
+      "SELECT id, isActive FROM User WHERE id = ?1 LIMIT 1",
+      [&bridge.user_id],
+      |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+    )
+    .or_else(|_| {
+      conn.query_row(
+        "SELECT id, isActive FROM User WHERE lower(username) = lower(?1) LIMIT 1",
+        [&bridge.username],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+      )
+    });
+
+  let (user_id, is_active) = match user {
+    Ok(v) => v,
+    Err(rusqlite::Error::QueryReturnedNoRows) => {
+      log::warn!(
+        "restore session bridge: user {} / {} missing in restored DB",
+        bridge.user_id,
+        bridge.username
+      );
+      return Ok(());
+    }
+    Err(e) => return Err(e.into()),
+  };
+  if is_active == 0 {
+    log::warn!("restore session bridge: user {user_id} is inactive");
+    return Ok(());
+  }
+
+  let token_hash = hash_session_token(token);
+  let expires_at = (Utc::now() + Duration::hours(SESSION_TTL_HOURS))
+    .format("%Y-%m-%d %H:%M:%S%.3f")
+    .to_string();
+  let now = now_sqlite();
+  let session_id = uuid::Uuid::new_v4().to_string();
+
+  conn.execute_batch("BEGIN IMMEDIATE;")?;
+  let persist = (|| -> Result<(), AppError> {
+    conn.execute(
+      "UPDATE Session SET revokedAt = ?1, updatedAt = ?1
+       WHERE userId = ?2 AND revokedAt IS NULL",
+      rusqlite::params![now, user_id],
+    )?;
+    // Drop any leftover row that already used this token hash.
+    conn.execute("DELETE FROM Session WHERE tokenHash = ?1", [&token_hash])?;
+    conn.execute(
+      "INSERT INTO Session (id, userId, tokenHash, expiresAt, revokedAt, createdAt, updatedAt)
+       VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?5)",
+      rusqlite::params![session_id, user_id, token_hash, expires_at, now],
+    )?;
+    Ok(())
+  })();
+  match persist {
+    Ok(()) => conn.execute_batch("COMMIT;")?,
+    Err(e) => {
+      let _ = conn.execute_batch("ROLLBACK;");
+      return Err(e);
+    }
+  }
+  log::info!("restored login session for user {user_id} after backup restore");
+  Ok(())
 }
 
 #[tauri::command]
@@ -124,6 +276,8 @@ pub fn login(
       return Err(e);
     }
   }
+  drop(conn);
+  crate::commands::authorize::set_session_token(&state, &token);
 
   Ok(AuthSession {
     user_id: id,
@@ -139,6 +293,7 @@ pub fn login(
 pub fn logout(state: State<'_, AppState>, input: TokenInput) -> Result<(), AppError> {
   let token = input.token.trim();
   if token.is_empty() {
+    crate::commands::authorize::clear_session_token(&state);
     return Ok(());
   }
   let token_hash = hash_session_token(token);
@@ -149,6 +304,8 @@ pub fn logout(state: State<'_, AppState>, input: TokenInput) -> Result<(), AppEr
      WHERE tokenHash = ?2 AND revokedAt IS NULL",
     rusqlite::params![now, token_hash],
   )?;
+  drop(conn);
+  crate::commands::authorize::clear_session_token(&state);
   Ok(())
 }
 
@@ -159,6 +316,7 @@ pub fn current_user(
 ) -> Result<Option<AuthSession>, AppError> {
   let token = input.token.trim();
   if token.is_empty() {
+    crate::commands::authorize::clear_session_token(&state);
     return Ok(None);
   }
   let token_hash = hash_session_token(token);
@@ -190,11 +348,17 @@ pub fn current_user(
   let (session_id, expires_at, revoked_at, user_id, username, full_name, role, is_active, allowed) =
     match row {
       Ok(v) => v,
-      Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+      Err(rusqlite::Error::QueryReturnedNoRows) => {
+        drop(conn);
+        crate::commands::authorize::clear_session_token(&state);
+        return Ok(None);
+      }
       Err(e) => return Err(e.into()),
     };
 
   if revoked_at.is_some() {
+    drop(conn);
+    crate::commands::authorize::clear_session_token(&state);
     return Ok(None);
   }
 
@@ -210,8 +374,13 @@ pub fn current_user(
        WHERE id = ?2 AND revokedAt IS NULL",
       rusqlite::params![now, session_id],
     );
+    drop(conn);
+    crate::commands::authorize::clear_session_token(&state);
     return Ok(None);
   }
+
+  drop(conn);
+  crate::commands::authorize::set_session_token(&state, token);
 
   Ok(Some(AuthSession {
     user_id,

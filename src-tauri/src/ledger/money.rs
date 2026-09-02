@@ -48,6 +48,20 @@ pub fn parse_amount_minor(raw: &str) -> Result<i128, AppError> {
 
 /// Parse a major-unit decimal string (e.g. "12.50") into positive minor units.
 pub fn money_from_major_units(major_amount: &str, decimal_places: i64) -> Result<i128, AppError> {
+  let minor = money_from_major_units_allow_zero(major_amount, decimal_places)?;
+  if minor <= 0 {
+    return Err(AppError::Validation("Amount must be greater than zero.".into()));
+  }
+  Ok(minor)
+}
+
+/// Like [`money_from_major_units`], but allows `0` (for COGS / empty inventory math).
+/// Extra fractional digits beyond `decimal_places` are rounded half-up (not rejected),
+/// so FX-derived amounts like `300.3334` can still be posted for a 3-decimal currency.
+pub fn money_from_major_units_allow_zero(
+  major_amount: &str,
+  decimal_places: i64,
+) -> Result<i128, AppError> {
   if !(0..=8).contains(&decimal_places) {
     return Err(AppError::Validation(
       "decimalPlaces must be an integer between 0 and 8.".into(),
@@ -64,23 +78,70 @@ pub fn money_from_major_units(major_amount: &str, decimal_places: i64) -> Result
     Some((w, f)) => (w, f),
     None => (normalized, ""),
   };
-  if fraction_part.len() > decimal_places as usize {
-    return Err(AppError::Validation(format!(
-      "Amount has more than {decimal_places} decimal places."
-    )));
-  }
-  let mut padded_fraction = fraction_part.to_string();
-  while padded_fraction.len() < decimal_places as usize {
-    padded_fraction.push('0');
-  }
-  let combined = format!("{whole_part}{padded_fraction}");
+
+  let places = decimal_places as usize;
+  let (whole_adj, frac_digits) = if fraction_part.len() <= places {
+    let mut padded = fraction_part.to_string();
+    while padded.len() < places {
+      padded.push('0');
+    }
+    (whole_part.to_string(), padded)
+  } else {
+    // Round half-up using the next digit after the kept scale.
+    let keep = &fraction_part[..places];
+    let next = fraction_part.as_bytes()[places];
+    let mut frac_num: i128 = if places == 0 {
+      0
+    } else {
+      keep
+        .parse()
+        .map_err(|_| AppError::Validation(format!("Invalid amount: {major_amount}")))?
+    };
+    let mut whole_num: i128 = whole_part
+      .parse()
+      .map_err(|_| AppError::Validation(format!("Invalid amount: {major_amount}")))?;
+    if next >= b'5' {
+      if places == 0 {
+        whole_num = whole_num.saturating_add(1);
+      } else {
+        frac_num = frac_num.saturating_add(1);
+        let scale = 10_i128.pow(places as u32);
+        if frac_num >= scale {
+          frac_num = 0;
+          whole_num = whole_num.saturating_add(1);
+        }
+      }
+    }
+    let frac_str = if places == 0 {
+      String::new()
+    } else {
+      format!("{:0>width$}", frac_num, width = places)
+    };
+    (whole_num.to_string(), frac_str)
+  };
+
+  let combined = format!("{whole_adj}{frac_digits}");
   let minor: i128 = combined
     .parse()
     .map_err(|_| AppError::Validation(format!("Invalid amount: {major_amount}")))?;
-  if minor <= 0 {
-    return Err(AppError::Validation("Amount must be greater than zero.".into()));
+  if minor < 0 {
+    return Err(AppError::Validation("Amount must not be negative.".into()));
   }
   Ok(minor)
+}
+
+/// Parse inventory / balance major units that may include a leading `-`.
+pub fn money_from_major_units_signed(
+  major_amount: &str,
+  decimal_places: i64,
+) -> Result<i128, AppError> {
+  let normalized = major_amount.trim();
+  if let Some(rest) = normalized.strip_prefix('-') {
+    let abs = money_from_major_units_allow_zero(rest, decimal_places)?;
+    Ok(-abs)
+  } else {
+    money_from_major_units_allow_zero(normalized, decimal_places)
+  }
 }
 
 fn major_amount_ok(value: &str) -> bool {
@@ -135,6 +196,19 @@ pub fn money_to_major_unit_string(amount_minor: i128, decimal_places: i64) -> Re
   Ok(format!("{}.{}", &padded[..split_at], &padded[split_at..]))
 }
 
+/// Format a **wallet balance** for display (may be negative = customer owes Sarafi).
+/// Never use this for LedgerEntry.amount — ledger amounts stay positive with direction.
+pub fn signed_balance_to_display(amount_minor: i128, decimal_places: i64) -> Result<String, AppError> {
+  if amount_minor < 0 {
+    Ok(format!(
+      "-{}",
+      money_to_major_unit_string(-amount_minor, decimal_places)?
+    ))
+  } else {
+    money_to_major_unit_string(amount_minor, decimal_places)
+  }
+}
+
 #[derive(Debug, Clone)]
 pub struct DomainEntry {
   pub wallet_id: String,
@@ -173,4 +247,50 @@ pub fn assert_ledger_balanced(entries: &[DomainEntry]) -> Result<(), AppError> {
     )));
   }
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn ledger_amount_rejects_negative() {
+    assert!(money_to_major_unit_string(-100, 2).is_err());
+  }
+
+  #[test]
+  fn signed_balance_display_allows_overdraft() {
+    assert_eq!(signed_balance_to_display(200_000, 2).unwrap(), "2000.00");
+    assert_eq!(signed_balance_to_display(-100_000, 2).unwrap(), "-1000.00");
+    // 2000 withdraw 3000 → -1000
+    let previous = 200_000i128;
+    let withdraw = 300_000i128;
+    assert_eq!(
+      signed_balance_to_display(previous - withdraw, 2).unwrap(),
+      "-1000.00"
+    );
+  }
+
+  #[test]
+  fn signed_major_units_round_trip() {
+    assert_eq!(money_from_major_units_signed("1515", 0).unwrap(), 1515);
+    assert_eq!(money_from_major_units_signed("-1515", 0).unwrap(), -1515);
+    assert_eq!(money_from_major_units_allow_zero("0", 0).unwrap(), 0);
+    assert!(money_from_major_units("0", 0).is_err());
+    assert!(money_from_major_units("-1515", 0).is_err());
+  }
+
+  #[test]
+  fn excess_decimals_round_half_up() {
+    // 300.3334 → 300.333 at 3 places
+    assert_eq!(money_from_major_units("300.3334", 3).unwrap(), 300_333);
+    // 300.3335 → 300.334 at 3 places
+    assert_eq!(money_from_major_units("300.3335", 3).unwrap(), 300_334);
+    // 1.995 → 2.00 at 2 places
+    assert_eq!(money_from_major_units("1.995", 2).unwrap(), 200);
+    // 1.4 → 1 at 0 places
+    assert_eq!(money_from_major_units("1.4", 0).unwrap(), 1);
+    // 1.5 → 2 at 0 places
+    assert_eq!(money_from_major_units("1.5", 0).unwrap(), 2);
+  }
 }

@@ -1,10 +1,72 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 
 import { getAppInfo, type AppInfo } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
+import { errorMessage } from "@desktop/lib/datetime";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
+
+const FINANCE_SYMBOLS = [
+  "$",
+  "€",
+  "£",
+  "¥",
+  "₣",
+  "₨",
+  "₦",
+  "₹",
+  "₩",
+  "฿",
+  "+",
+  "−",
+  "؋",
+] as const;
+
+type ScatterGlyph = {
+  id: number;
+  char: string;
+  top: number;
+  left: number;
+  size: number;
+  opacity: number;
+  rotate: number;
+};
+
+/** Deterministic PRNG so glyphs don't jump on re-render. */
+function mulberry32(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function buildScatterGlyphs(count: number, seed = 0x5a2af): ScatterGlyph[] {
+  const rand = mulberry32(seed);
+  const glyphs: ScatterGlyph[] = [];
+  for (let i = 0; i < count; i++) {
+    const sizeRoll = rand();
+    const size =
+      sizeRoll < 0.45
+        ? 18 + rand() * 18
+        : sizeRoll < 0.8
+          ? 36 + rand() * 28
+          : 64 + rand() * 48;
+    glyphs.push({
+      id: i,
+      char: FINANCE_SYMBOLS[Math.floor(rand() * FINANCE_SYMBOLS.length)]!,
+      top: rand() * 100,
+      left: rand() * 100,
+      size,
+      opacity: 0.03 + rand() * 0.05,
+      rotate: -35 + rand() * 70,
+    });
+  }
+  return glyphs;
+}
 
 export function LoginPage() {
   const { session, bootstrapping, login } = useAuth();
@@ -15,11 +77,13 @@ export function LoginPage() {
     ps: t.settings.languagePashto,
   };
   const { locale, setLocale } = useLocale();
-  const [username, setUsername] = useState("admin");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+
+  const scatter = useMemo(() => buildScatterGlyphs(52), []);
 
   useEffect(() => {
     void getAppInfo()
@@ -30,6 +94,23 @@ export function LoginPage() {
   if (bootstrapping) {
     return (
       <div className="login-shell">
+        <div className="login-scatter" aria-hidden="true">
+          {scatter.map((g) => (
+            <span
+              key={g.id}
+              className="login-scatter-glyph"
+              style={{
+                top: `${g.top}%`,
+                left: `${g.left}%`,
+                fontSize: `${g.size}px`,
+                opacity: g.opacity,
+                transform: `translate(-50%, -50%) rotate(${g.rotate}deg)`,
+              }}
+            >
+              {g.char}
+            </span>
+          ))}
+        </div>
         <p className="muted">…</p>
       </div>
     );
@@ -46,7 +127,7 @@ export function LoginPage() {
     try {
       await login(username, password);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err, t.login.unableToSignIn));
     } finally {
       setBusy(false);
     }
@@ -54,6 +135,23 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div className="login-scatter" aria-hidden="true">
+        {scatter.map((g) => (
+          <span
+            key={g.id}
+            className="login-scatter-glyph"
+            style={{
+              top: `${g.top}%`,
+              left: `${g.left}%`,
+              fontSize: `${g.size}px`,
+              opacity: g.opacity,
+              transform: `translate(-50%, -50%) rotate(${g.rotate}deg)`,
+            }}
+          >
+            {g.char}
+          </span>
+        ))}
+      </div>
       <div className="card login-card stack">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden>
@@ -88,6 +186,8 @@ export function LoginPage() {
           <label>
             {t.login.username}
             <input
+              className="ltr-text"
+              dir="ltr"
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}

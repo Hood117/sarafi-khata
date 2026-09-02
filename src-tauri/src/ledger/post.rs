@@ -17,6 +17,8 @@ const ALLOWED_TYPES: &[&str] = &[
   "EXCHANGE",
   "HAWALA",
   "ADJUSTMENT",
+  "VAULT_CASH_IN",
+  "VAULT_CASH_OUT",
   "EXPENSE",
   "TRADE_BUY",
   "TRADE_SELL",
@@ -65,6 +67,7 @@ pub struct PostedLedgerEntry {
 pub struct PostedTransaction {
   pub id: String,
   pub reference: String,
+  pub display_ref: String,
   pub r#type: String,
   pub status: String,
   pub value_date: String,
@@ -178,215 +181,8 @@ pub fn post_transaction(
   conn: &Connection,
   input: PostTransactionInput,
 ) -> Result<PostedTransaction, AppError> {
-  let (
-    reference,
-    tx_type,
-    value_date,
-    customer_id,
-    walk_in_name,
-    walk_in_phone,
-    description,
-    created_by_id,
-    domain,
-  ) = normalize(input)?;
-
   conn.execute_batch("BEGIN IMMEDIATE;")?;
-  let result = (|| -> Result<PostedTransaction, AppError> {
-    let existing: Option<String> = conn
-      .query_row(
-        "SELECT id FROM \"Transaction\" WHERE reference = ?1 AND deletedAt IS NULL LIMIT 1",
-        [&reference],
-        |row| row.get(0),
-      )
-      .optional()?;
-    if existing.is_some() {
-      return Err(AppError::Validation(format!(
-        "Transaction reference \"{reference}\" already exists."
-      )));
-    }
-
-    if let Some(ref cid) = customer_id {
-      let row: Option<(i64,)> = conn
-        .query_row(
-          "SELECT isActive FROM Customer WHERE id = ?1 AND deletedAt IS NULL LIMIT 1",
-          [cid],
-          |row| Ok((row.get::<_, i64>(0)?,)),
-        )
-        .optional()?;
-      match row {
-        None => {
-          return Err(AppError::NotFound("Customer was not found.".into()));
-        }
-        Some((0,)) => {
-          return Err(AppError::Validation(
-            "Customer is inactive and cannot be used for posting.".into(),
-          ));
-        }
-        Some(_) => {}
-      }
-    }
-
-    if let Some(ref uid) = created_by_id {
-      let row: Option<(i64,)> = conn
-        .query_row(
-          "SELECT isActive FROM User WHERE id = ?1 LIMIT 1",
-          [uid],
-          |row| Ok((row.get::<_, i64>(0)?,)),
-        )
-        .optional()?;
-      match row {
-        None => {
-          return Err(AppError::NotFound("Created-by user was not found.".into()));
-        }
-        Some((0,)) => {
-          return Err(AppError::Validation(
-            "Created-by user is inactive and cannot post transactions.".into(),
-          ));
-        }
-        Some(_) => {}
-      }
-    }
-
-    for entry in &domain {
-      let wallet: Option<(String, String, Option<String>, i64)> = conn
-        .query_row(
-          "SELECT name, type, customerId, isActive FROM Wallet
-           WHERE id = ?1 AND deletedAt IS NULL LIMIT 1",
-          [&entry.wallet_id],
-          |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
-        )
-        .optional()?;
-      let Some((name, wtype, customer_link, active)) = wallet else {
-        return Err(AppError::NotFound(format!(
-          "Wallet was not found: {}.",
-          entry.wallet_id
-        )));
-      };
-      if active == 0 {
-        return Err(AppError::Validation(format!(
-          "Wallet \"{name}\" is inactive and cannot receive postings."
-        )));
-      }
-      if wtype == "CUSTOMER" && customer_link.is_none() {
-        return Err(AppError::Validation(format!(
-          "Customer wallet \"{name}\" is missing a customer link."
-        )));
-      }
-    }
-
-    let mut currency_ids = std::collections::HashMap::new();
-    let mut decimal_places = std::collections::HashMap::new();
-    for entry in &domain {
-      if currency_ids.contains_key(&entry.currency) {
-        continue;
-      }
-      let row: Option<(String, i64, i64)> = conn
-        .query_row(
-          "SELECT id, decimalPlaces, isActive FROM Currency
-           WHERE code = ?1 AND deletedAt IS NULL LIMIT 1",
-          [&entry.currency],
-          |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .optional()?;
-      let Some((id, places, active)) = row else {
-        return Err(AppError::NotFound(format!(
-          "Currency was not found: {}.",
-          entry.currency
-        )));
-      };
-      if active == 0 {
-        return Err(AppError::Validation(format!(
-          "Currency {} is inactive and cannot be used for posting.",
-          entry.currency
-        )));
-      }
-      currency_ids.insert(entry.currency.clone(), id);
-      decimal_places.insert(entry.currency.clone(), places);
-    }
-
-    for entry in &domain {
-      if let Some(ref rate_id) = entry.exchange_rate_id {
-        let exists: bool = conn.query_row(
-          "SELECT EXISTS(SELECT 1 FROM ExchangeRate WHERE id = ?1)",
-          [rate_id],
-          |row| row.get(0),
-        )?;
-        if !exists {
-          return Err(AppError::NotFound(format!(
-            "Exchange rate was not found: {rate_id}."
-          )));
-        }
-      }
-    }
-
-    let tx_id = uuid::Uuid::new_v4().to_string();
-    let now = now_sqlite();
-    conn.execute(
-      "INSERT INTO \"Transaction\" (
-         id, reference, type, status, valueDate, postedAt, description,
-         walkInName, walkInPhone, customerId, createdById, deletedAt, createdAt, updatedAt
-       ) VALUES (?1, ?2, ?3, 'POSTED', ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, ?5, ?5)",
-      params![
-        tx_id,
-        reference,
-        tx_type,
-        value_date,
-        now,
-        description,
-        walk_in_name,
-        walk_in_phone,
-        customer_id,
-        created_by_id,
-      ],
-    )?;
-
-    let mut posted_entries = Vec::with_capacity(domain.len());
-    for entry in &domain {
-      let currency_id = currency_ids
-        .get(&entry.currency)
-        .ok_or_else(|| AppError::Internal("currency map miss".into()))?;
-      let places = *decimal_places
-        .get(&entry.currency)
-        .ok_or_else(|| AppError::Internal("decimalPlaces map miss".into()))?;
-      let amount = money_to_major_unit_string(entry.amount_minor, places)?;
-      let entry_id = uuid::Uuid::new_v4().to_string();
-      conn.execute(
-        "INSERT INTO LedgerEntry (
-           id, transactionId, walletId, currencyId, direction, amount,
-           exchangeRateId, memo, createdAt
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![
-          entry_id,
-          tx_id,
-          entry.wallet_id,
-          currency_id,
-          entry.direction.as_str(),
-          amount,
-          entry.exchange_rate_id,
-          entry.memo,
-          now,
-        ],
-      )?;
-      posted_entries.push(PostedLedgerEntry {
-        id: entry_id,
-        wallet_id: entry.wallet_id.clone(),
-        currency_id: currency_id.clone(),
-        direction: entry.direction.as_str().to_string(),
-        amount,
-        memo: entry.memo.clone(),
-      });
-    }
-
-    Ok(PostedTransaction {
-      id: tx_id,
-      reference,
-      r#type: tx_type,
-      status: "POSTED".into(),
-      value_date,
-      ledger_entries: posted_entries,
-    })
-  })();
-
+  let result = post_transaction_in_tx(conn, input);
   match result {
     Ok(posted) => {
       conn.execute_batch("COMMIT;")?;
@@ -410,4 +206,271 @@ pub fn post_transaction(
       Err(e)
     }
   }
+}
+
+/// Same as [`post_transaction`] but uses the caller's open SQLite transaction
+/// (no BEGIN/COMMIT). Used for atomic replace/edit flows.
+pub fn post_transaction_in_tx(
+  conn: &Connection,
+  input: PostTransactionInput,
+) -> Result<PostedTransaction, AppError> {
+  let (
+    reference,
+    tx_type,
+    value_date,
+    customer_id,
+    walk_in_name,
+    walk_in_phone,
+    description,
+    created_by_id,
+    domain,
+  ) = normalize(input)?;
+
+  crate::ledger::ensure_display_seq_schema(conn)?;
+
+  let existing: Option<String> = conn
+    .query_row(
+      "SELECT id FROM \"Transaction\" WHERE reference = ?1 AND deletedAt IS NULL LIMIT 1",
+      [&reference],
+      |row| row.get(0),
+    )
+    .optional()?;
+  if existing.is_some() {
+    return Err(AppError::Validation(format!(
+      "Transaction reference \"{reference}\" already exists."
+    )));
+  }
+
+  post_transaction_normalized(
+    conn,
+    reference,
+    tx_type,
+    value_date,
+    customer_id,
+    walk_in_name,
+    walk_in_phone,
+    description,
+    created_by_id,
+    domain,
+  )
+}
+
+fn post_transaction_normalized(
+  conn: &Connection,
+  reference: String,
+  tx_type: String,
+  value_date: String,
+  customer_id: Option<String>,
+  walk_in_name: Option<String>,
+  walk_in_phone: Option<String>,
+  description: Option<String>,
+  created_by_id: Option<String>,
+  domain: Vec<DomainEntry>,
+) -> Result<PostedTransaction, AppError> {
+  if let Some(ref cid) = customer_id {
+    let row: Option<(i64,)> = conn
+      .query_row(
+        "SELECT isActive FROM Customer WHERE id = ?1 AND deletedAt IS NULL LIMIT 1",
+        [cid],
+        |row| Ok((row.get::<_, i64>(0)?,)),
+      )
+      .optional()?;
+    match row {
+      None => {
+        return Err(AppError::NotFound("Customer was not found.".into()));
+      }
+      Some((0,)) => {
+        return Err(AppError::Validation(
+          "Customer is inactive and cannot be used for posting.".into(),
+        ));
+      }
+      Some(_) => {}
+    }
+  }
+
+  if let Some(ref uid) = created_by_id {
+    let row: Option<(i64,)> = conn
+      .query_row(
+        "SELECT isActive FROM User WHERE id = ?1 LIMIT 1",
+        [uid],
+        |row| Ok((row.get::<_, i64>(0)?,)),
+      )
+      .optional()?;
+    match row {
+      None => {
+        return Err(AppError::NotFound("Created-by user was not found.".into()));
+      }
+      Some((0,)) => {
+        return Err(AppError::Validation(
+          "Created-by user is inactive and cannot post transactions.".into(),
+        ));
+      }
+      Some(_) => {}
+    }
+  }
+
+  for entry in &domain {
+    let wallet: Option<(String, String, Option<String>, Option<String>, i64)> = conn
+      .query_row(
+        "SELECT name, type, customerId, partnerSarafiId, isActive FROM Wallet
+         WHERE id = ?1 AND deletedAt IS NULL LIMIT 1",
+        [&entry.wallet_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+      )
+      .optional()?;
+    let Some((name, wtype, customer_link, partner_link, active)) = wallet else {
+      return Err(AppError::NotFound(format!(
+        "Wallet was not found: {}.",
+        entry.wallet_id
+      )));
+    };
+    if active == 0 {
+      return Err(AppError::Validation(format!(
+        "Wallet \"{name}\" is inactive and cannot receive postings."
+      )));
+    }
+    if wtype == "CUSTOMER" && customer_link.is_none() {
+      return Err(AppError::Validation(format!(
+        "Customer wallet \"{name}\" is missing a customer link."
+      )));
+    }
+    if wtype == "PARTNER" && partner_link.is_none() {
+      return Err(AppError::Validation(format!(
+        "Partner wallet \"{name}\" is missing a partner link."
+      )));
+    }
+  }
+
+  let mut currency_ids = std::collections::HashMap::new();
+  let mut decimal_places = std::collections::HashMap::new();
+  for entry in &domain {
+    if currency_ids.contains_key(&entry.currency) {
+      continue;
+    }
+    let row: Option<(String, i64, i64)> = conn
+      .query_row(
+        "SELECT id, decimalPlaces, isActive FROM Currency
+         WHERE code = ?1 AND deletedAt IS NULL LIMIT 1",
+        [&entry.currency],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+      )
+      .optional()?;
+    let Some((id, places, active)) = row else {
+      return Err(AppError::NotFound(format!(
+        "Currency was not found: {}.",
+        entry.currency
+      )));
+    };
+    if active == 0 {
+      return Err(AppError::Validation(format!(
+        "Currency {} is inactive and cannot be used for posting.",
+        entry.currency
+      )));
+    }
+    currency_ids.insert(entry.currency.clone(), id);
+    decimal_places.insert(entry.currency.clone(), places);
+  }
+
+  for entry in &domain {
+    if let Some(ref rate_id) = entry.exchange_rate_id {
+      let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM ExchangeRate WHERE id = ?1)",
+        [rate_id],
+        |row| row.get(0),
+      )?;
+      if !exists {
+        return Err(AppError::NotFound(format!(
+          "Exchange rate was not found: {rate_id}."
+        )));
+      }
+    }
+  }
+
+  let tx_id = uuid::Uuid::new_v4().to_string();
+  let now = now_sqlite();
+  let display_seq = crate::ledger::allocate_display_seq(conn)?;
+  let display_ref = crate::ledger::format_display_ref(display_seq, &tx_type, &reference);
+  conn.execute(
+    "INSERT INTO \"Transaction\" (
+       id, reference, displaySeq, displayRef, type, status, valueDate, postedAt, description,
+       walkInName, walkInPhone, customerId, createdById, deletedAt, createdAt, updatedAt
+     ) VALUES (?1, ?2, ?3, ?4, ?5, 'POSTED', ?6, ?7, ?8, ?9, ?10, ?11, ?12, NULL, ?7, ?7)",
+    params![
+      tx_id,
+      reference,
+      display_seq,
+      display_ref,
+      tx_type,
+      value_date,
+      now,
+      description,
+      walk_in_name,
+      walk_in_phone,
+      customer_id,
+      created_by_id,
+    ],
+  )?;
+
+  let mut posted_entries = Vec::with_capacity(domain.len());
+  for entry in &domain {
+    let currency_id = currency_ids
+      .get(&entry.currency)
+      .ok_or_else(|| AppError::Internal("currency map miss".into()))?;
+    let places = *decimal_places
+      .get(&entry.currency)
+      .ok_or_else(|| AppError::Internal("decimalPlaces map miss".into()))?;
+    let amount = money_to_major_unit_string(entry.amount_minor, places)?;
+    let entry_id = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+      "INSERT INTO LedgerEntry (
+         id, transactionId, walletId, currencyId, direction, amount,
+         exchangeRateId, memo, createdAt
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+      params![
+        entry_id,
+        tx_id,
+        entry.wallet_id,
+        currency_id,
+        entry.direction.as_str(),
+        amount,
+        entry.exchange_rate_id,
+        entry.memo,
+        now,
+      ],
+    )?;
+    posted_entries.push(PostedLedgerEntry {
+      id: entry_id,
+      wallet_id: entry.wallet_id.clone(),
+      currency_id: currency_id.clone(),
+      direction: entry.direction.as_str().to_string(),
+      amount: amount.clone(),
+      memo: entry.memo.clone(),
+    });
+
+    let amount_f: f64 = amount.parse().unwrap_or(0.0);
+    crate::ledger::apply_balance_delta(
+      conn,
+      &entry.wallet_id,
+      currency_id,
+      entry.direction.as_str(),
+      amount_f,
+      &value_date,
+    )?;
+  }
+
+  let wallet_ids: Vec<String> = posted_entries
+    .iter()
+    .map(|e| e.wallet_id.clone())
+    .collect();
+  crate::ledger::maybe_auto_archive_temporary_customers_for_wallets(conn, &wallet_ids)?;
+
+  Ok(PostedTransaction {
+    id: tx_id,
+    reference,
+    display_ref,
+    r#type: tx_type,
+    status: "POSTED".into(),
+    value_date,
+    ledger_entries: posted_entries,
+  })
 }
