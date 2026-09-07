@@ -799,6 +799,12 @@ export type Dictionary = {
     receiverNameRequired: string;
     remoteSenderNameRequired: string;
     notSignedIn: string;
+    destinationCustomer: string;
+    ourCommission: string;
+    simpleSendHint: string;
+    simpleReceiveHint: string;
+    sendSplitPreview: string;
+    commissionMustBeLess: string;
   };
   partner: {
     add: string;

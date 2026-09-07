@@ -1385,7 +1385,7 @@ export type HawalaPostResult = {
 
 export type HawalaPostInput = {
   reference: string;
-  partnerSarafiId: string;
+  partnerSarafiId?: string | null;
   currencyCode: string;
   amount: string;
   /** Optional — ignored; shop cash is always Main Vault. */

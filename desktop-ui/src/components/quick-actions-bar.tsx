@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@desktop/auth";
 import { DepositFormModal } from "@desktop/components/deposit-form-modal";
 import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
-import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { TransferFormModal } from "@desktop/components/transfer-form-modal";
 import { WithdrawFormModal } from "@desktop/components/withdraw-form-modal";
 import {
@@ -290,13 +290,13 @@ export function QuickActionsBar() {
         onClose={close}
         onSaved={onSaved}
       />
-      <HawalaFormModal
+      <SendHawalaFormModal
         open={open === "sendHawala"}
         direction="SEND"
         onClose={close}
         onSaved={onSaved}
       />
-      <HawalaFormModal
+      <SendHawalaFormModal
         open={open === "receiveHawala"}
         direction="RECEIVE"
         onClose={close}

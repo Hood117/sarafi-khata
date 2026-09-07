@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getAppInfo,
+  getHawala,
   getTransactionDetail,
   listCurrenciesPage,
   listDaybookJournal,
@@ -17,6 +18,7 @@ import {
   useExchangeDealDetailModal,
 } from "@desktop/components/exchange-deal-detail-modal";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { OpeningBalanceFormModal, isOpeningBalanceMovement } from "@desktop/components/opening-balance-form-modal";
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
@@ -49,6 +51,7 @@ import {
 } from "@desktop/lib/export-table";
 import { statusLabel, transactionTypeLabel } from "@desktop/lib/i18n-labels";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
+import { isSimpleDeskHawala } from "@desktop/pages/hawala-helpers";
 import {
   printTransactionReceipt,
   type TransactionReceiptLabels,
@@ -133,6 +136,7 @@ export function DaybookPage() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [exchangeOpen, setExchangeOpen] = useState(false);
   const [sendHawalaOpen, setSendHawalaOpen] = useState(false);
+  const [simpleHawalaOpen, setSimpleHawalaOpen] = useState(false);
   const [editDepositId, setEditDepositId] = useState<string | null>(null);
   const [editWithdrawId, setEditWithdrawId] = useState<string | null>(null);
   const [editTransferId, setEditTransferId] = useState<string | null>(null);
@@ -306,9 +310,28 @@ export function DaybookPage() {
       return;
     }
     if (upper === "HAWALA") {
-      setEditHawalaId(id);
-      setEditHawalaDirection("SEND");
-      setSendHawalaOpen(true);
+      void (async () => {
+        try {
+          const detail = await getHawala(id);
+          if (isSimpleDeskHawala(detail)) {
+            setEditHawalaId(id);
+            setEditHawalaDirection(
+              detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+            );
+            setSimpleHawalaOpen(true);
+            return;
+          }
+          setEditHawalaId(id);
+          setEditHawalaDirection(
+            detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+          );
+          setSendHawalaOpen(true);
+        } catch {
+          setEditHawalaId(id);
+          setEditHawalaDirection("SEND");
+          setSendHawalaOpen(true);
+        }
+      })();
       return;
     }
     openTxOrDeal(id, type);
@@ -931,6 +954,18 @@ export function DaybookPage() {
         editTransactionId={editHawalaId}
         onClose={() => {
           setSendHawalaOpen(false);
+          setEditHawalaId(null);
+        }}
+        onSaved={() => {
+          void load();
+        }}
+      />
+      <SendHawalaFormModal
+        open={simpleHawalaOpen}
+        direction={editHawalaDirection}
+        editTransactionId={editHawalaId}
+        onClose={() => {
+          setSimpleHawalaOpen(false);
           setEditHawalaId(null);
         }}
         onSaved={() => {

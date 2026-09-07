@@ -817,6 +817,14 @@ export const ps: Dictionary = {
     receiverNameRequired: "د ترلاسه کوونکي نوم اړین دی.",
     remoteSenderNameRequired: "د لرې لېږونکي نوم اړین دی.",
     notSignedIn: "نه یاست ننوتي.",
+    destinationCustomer: "اخیستونکی / د منزل پیرودونکی",
+    ourCommission: "زموږ کمیشن",
+    simpleSendHint:
+      "مبلغ منهای زموږ کمیشن منزل ته ځي. د حضوري پیرودونکي نغدي خزانه ته ځي؛ که لېږونکی موجود پیرودونکی وي نو د هغه له حسابه کمېږي. خالص مبلغ په اتومات ډول حسابېږي.",
+    simpleReceiveHint:
+      "راتلونکی مبلغ منهای زموږ کمیشن سیمه‌ییز اخیستونکي ته ثبتېږي. خالص مبلغ په اتومات ډول حسابېږي.",
+    sendSplitPreview: "مبلغ {gross} • کمیشن {fee} • خالص {net}",
+    commissionMustBeLess: "کمیشن باید د ترلاسه شوي مبلغ څخه کم وي.",
   },
   partner: {
     add: "شریکه صرافي زیاتول",

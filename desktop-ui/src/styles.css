@@ -3758,6 +3758,15 @@ html[dir="rtl"] .fx-simple-amount {
   resize: vertical;
 }
 
+.hawala-send-split-preview {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-2, color-mix(in srgb, var(--fg) 6%, var(--bg)));
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
 .movement-form-party-row {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);

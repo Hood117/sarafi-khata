@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
   archiveHawala,
+  getHawala,
   listCurrenciesPage,
   listHawalaDesk,
   listPartners,
@@ -14,6 +15,7 @@ import {
 import type { Dictionary } from "@/lib/i18n/messages/types";
 import { useAuth } from "@desktop/auth";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
 import { useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
@@ -25,7 +27,11 @@ import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { SearchableSelect } from "@desktop/ui/searchable-select";
-import { statusBadgeClass, todayIso } from "@desktop/pages/hawala-helpers";
+import {
+  isSimpleDeskHawala,
+  statusBadgeClass,
+  todayIso,
+} from "@desktop/pages/hawala-helpers";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
 
 function Field({
@@ -141,14 +147,36 @@ export function HawalaPage() {
   } | null>(null);
   const { showSuccess, successModal } = useSuccessModal();
   const [editOpen, setEditOpen] = useState(false);
+  const [simpleEditOpen, setSimpleEditOpen] = useState(false);
   const [editHawalaId, setEditHawalaId] = useState<string | null>(null);
   const [editDirection, setEditDirection] = useState<"SEND" | "RECEIVE">("SEND");
   const [whatsappBusy, setWhatsappBusy] = useState(false);
 
   function openEditModal(row: HawalaListItem) {
-    setEditHawalaId(row.id);
-    setEditDirection(row.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND");
-    setEditOpen(true);
+    void (async () => {
+      try {
+        const detail = await getHawala(row.id);
+        if (isSimpleDeskHawala(detail)) {
+          setEditHawalaId(row.id);
+          setEditDirection(
+            detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+          );
+          setSimpleEditOpen(true);
+          return;
+        }
+        setEditHawalaId(row.id);
+        setEditDirection(
+          detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+        );
+        setEditOpen(true);
+      } catch {
+        setEditHawalaId(row.id);
+        setEditDirection(
+          row.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+        );
+        setEditOpen(true);
+      }
+    })();
   }
 
   useEffect(() => {
@@ -578,6 +606,19 @@ export function HawalaPage() {
         editTransactionId={editHawalaId}
         onClose={() => {
           setEditOpen(false);
+          setEditHawalaId(null);
+        }}
+        onSaved={() => {
+          setReloadKey((k) => k + 1);
+          showSuccess(t.common.success);
+        }}
+      />
+      <SendHawalaFormModal
+        open={simpleEditOpen}
+        direction={editDirection}
+        editTransactionId={editHawalaId}
+        onClose={() => {
+          setSimpleEditOpen(false);
           setEditHawalaId(null);
         }}
         onSaved={() => {

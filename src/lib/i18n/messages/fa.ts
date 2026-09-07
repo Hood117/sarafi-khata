@@ -817,6 +817,14 @@ export const fa: Dictionary = {
     receiverNameRequired: "نام گیرنده لازم است.",
     remoteSenderNameRequired: "نام فرستندهٔ دور لازم است.",
     notSignedIn: "وارد سیستم نشده‌اید.",
+    destinationCustomer: "گیرنده / مشتری مقصد",
+    ourCommission: "کمیشن ما",
+    simpleSendHint:
+      "مبلغ منهای کمیشن ما به مقصد می‌رود. نقد حضوری وارد خزانه می‌شود؛ اگر فرستنده مشتری موجود باشد از حسابش کم می‌شود. مبلغ خالص خودکار حساب می‌شود.",
+    simpleReceiveHint:
+      "مبلغ ورودی منهای کمیشن ما به حساب گیرنده محلی می‌رود. مبلغ خالص خودکار حساب می‌شود.",
+    sendSplitPreview: "مبلغ {gross} • کمیشن {fee} • خالص {net}",
+    commissionMustBeLess: "کمیشن باید از مبلغ دریافت‌شده کمتر باشد.",
   },
   partner: {
     add: "افزودن صرافی همکار",

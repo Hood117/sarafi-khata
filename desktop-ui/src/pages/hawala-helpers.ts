@@ -49,6 +49,21 @@ export function resolveCommission(
   return formatMoney(v);
 }
 
+export function isWalkInDestinationSend(detail: {
+  direction: string;
+  senderCustomerId?: string | null;
+  receiverCustomerId?: string | null;
+}): boolean {
+  return isSimpleDeskHawala(detail);
+}
+
+/** Desk Quick Action hawala: destination / local receiver is an existing customer. */
+export function isSimpleDeskHawala(detail: {
+  receiverCustomerId?: string | null;
+}): boolean {
+  return Boolean(detail.receiverCustomerId);
+}
+
 export const HAWALA_DRAFT_KEY = "saraf.hawala.draft";
 
 export type HawalaDraft = {

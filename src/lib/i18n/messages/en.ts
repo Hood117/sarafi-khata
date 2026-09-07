@@ -819,6 +819,14 @@ export const en: Dictionary = {
     receiverNameRequired: "Receiver name is required.",
     remoteSenderNameRequired: "Remote sender name is required.",
     notSignedIn: "Not signed in.",
+    destinationCustomer: "Receiver / destination customer",
+    ourCommission: "Our commission",
+    simpleSendHint:
+      "Amount minus our commission is credited to the destination. Walk-in cash goes to the vault; an existing sender is charged on their account. Net is calculated automatically.",
+    simpleReceiveHint:
+      "Incoming amount minus our commission is credited to the local receiver. Net is calculated automatically.",
+    sendSplitPreview: "Amount {gross} • Commission {fee} • Net {net}",
+    commissionMustBeLess: "Commission must be less than the received amount.",
   },
   partner: {
     add: "Add partner sarafi",

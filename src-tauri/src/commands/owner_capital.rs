@@ -356,6 +356,7 @@ fn partner_open_maps(
          FROM HawalaTransfer h
          WHERE h.deletedAt IS NULL
            AND h.status IN ('SENT','RECEIVED','COMPLETED','PENDING')
+           AND h.receiverCustomerId IS NULL
            AND h.valueDate < date(?1, '+1 day')
          GROUP BY 1, 2"#,
     )?;

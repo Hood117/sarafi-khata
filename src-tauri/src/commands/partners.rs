@@ -1270,6 +1270,8 @@ fn compute_partner_commission_summary(
 
   // Principal: SEND → you owe partner (receiver payout amount/currency).
   // RECEIVE → partner owes you (hawala amount/currency).
+  // Desk Quick Action hawalas credit the linked customer wallet directly, so they
+  // must not also accrue partner principal kata (customer identity stays separate).
   let mut prin_stmt = conn.prepare(
     r#"
     SELECT
@@ -1291,6 +1293,7 @@ fn compute_partner_commission_summary(
     WHERE h.partnerSarafiId = ?1
       AND h.deletedAt IS NULL
       AND h.status IN ('SENT', 'RECEIVED', 'COMPLETED', 'PENDING')
+      AND h.receiverCustomerId IS NULL
     GROUP BY cur.id, cur.code, cur.symbol
     ORDER BY cur.code ASC
     "#,
