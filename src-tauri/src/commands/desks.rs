@@ -164,6 +164,7 @@ pub fn list_hawala_page(
   }
   let offset = (page - 1) * page_size;
 
+  let hawala_chrono = crate::ledger::HAWALA_CHRONO_DESC;
   let list_sql = format!(
     "SELECT h.id, h.reference, h.direction, h.status, h.senderName, h.receiverName,
             h.partnerSarafi, CAST(h.amount AS TEXT), c.code, h.valueDate, IFNULL(t.displayRef,'')
@@ -171,7 +172,7 @@ pub fn list_hawala_page(
      INNER JOIN Currency c ON c.id = h.currencyId
      LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      {where_sql}
-     ORDER BY h.valueDate DESC, h.createdAt DESC
+     ORDER BY {hawala_chrono}
      LIMIT ? OFFSET ?"
   );
   let mut list_params = params;

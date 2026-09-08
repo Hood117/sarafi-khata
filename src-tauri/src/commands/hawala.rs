@@ -209,6 +209,23 @@ fn assert_phone_available(
   Ok(())
 }
 
+/// Informational journal text only — does not affect posting.
+fn hawala_party_description(
+  sender_name: &str,
+  amount_major: &str,
+  currency_code: &str,
+  receiver_name: &str,
+  on_behalf_of: Option<&str>,
+) -> String {
+  let amount = crate::util::format_amount_commas(amount_major);
+  match on_behalf_of.map(str::trim).filter(|s| !s.is_empty()) {
+    Some(from) => format!(
+      "{sender_name} sent {amount} {currency_code} to {receiver_name} from {from}."
+    ),
+    None => format!("{sender_name} sent {amount} {currency_code} to {receiver_name}."),
+  }
+}
+
 fn hawala_reference_taken(conn: &Connection, reference: &str) -> Result<bool, AppError> {
   let on_hawala: bool = conn.query_row(
     "SELECT EXISTS(SELECT 1 FROM HawalaTransfer WHERE reference = ?1 AND deletedAt IS NULL)",
@@ -567,7 +584,10 @@ fn post_hawala(
       ));
     }
     partner.1
-  } else if simple_desk {
+  } else if !sender_name.is_empty() && !receiver_name.is_empty() {
+    // Desk walk-in names (and unlinked dest customers) snapshot the counterparty.
+    // Ledger legs are unchanged: dest customer still uses simple_desk; otherwise
+    // the existing partner-corridor / walk-in path runs.
     if direction == "SEND" {
       receiver_name.clone()
     } else {
@@ -825,23 +845,14 @@ fn post_hawala(
     }
   }
 
-  let hawala_description = if direction == "SEND" {
-    format!(
-      "{} sent {} {} Hawala to {}",
-      sender_name,
-      crate::util::format_amount_commas(&amount_major),
-      currency_code,
-      receiver_name
-    )
-  } else {
-    format!(
-      "{} received {} {} Hawala from {}",
-      receiver_name,
-      crate::util::format_amount_commas(&amount_major),
-      currency_code,
-      sender_name
-    )
-  };
+  let on_behalf_of = trim_opt(input.customer_notes.clone());
+  let hawala_description = hawala_party_description(
+    &sender_name,
+    &amount_major,
+    &currency_code,
+    &receiver_name,
+    on_behalf_of.as_deref(),
+  );
 
   conn.execute_batch("BEGIN IMMEDIATE;")?;
   let result = (|| -> Result<HawalaPostResult, AppError> {
@@ -1746,5 +1757,88 @@ mod tests {
       )
       .unwrap();
     assert_eq!(live, 1);
+  }
+
+  #[test]
+  fn hawala_party_description_matches_cashier_wording() {
+    assert_eq!(
+      hawala_party_description("Hannah", "6000", "AFN", "Rahmat", Some("Mahmoud")),
+      "Hannah sent 6,000 AFN to Rahmat from Mahmoud."
+    );
+    assert_eq!(
+      hawala_party_description("Mahmoud", "15000", "OMR", "Rahmat", None),
+      "Mahmoud sent 15,000 OMR to Rahmat."
+    );
+    assert_eq!(
+      hawala_party_description(
+        "Khan Agha",
+        "10000",
+        "USD",
+        "Ahmad Khan",
+        Some("Abdul Rahman"),
+      ),
+      "Khan Agha sent 10,000 USD to Ahmad Khan from Abdul Rahman."
+    );
+    assert_eq!(
+      hawala_party_description("Hannah", "6000", "AFN", "Rahmat", Some("  ")),
+      "Hannah sent 6,000 AFN to Rahmat."
+    );
+  }
+
+  #[test]
+  fn walk_in_receiver_stores_name_without_creating_customer() {
+    let conn = setup_posting();
+    let before: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    let mut input = desk_input(
+      "HW-TEST-WI-DEST",
+      "6000",
+      Some("200"),
+      Some("cust-ahmad"),
+      "Ahmad",
+      "cust-ghazni",
+    );
+    input.receiver_customer_id = None;
+    input.receiver_name = Some("Rahmat".into());
+    input.customer_notes = Some("Mahmoud".into());
+    let posted = post_hawala(&conn, "SEND", input).expect("walk-in dest");
+    let after: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(after, before);
+    let (sender, receiver, dest_id, from): (
+      String,
+      String,
+      Option<String>,
+      Option<String>,
+    ) = conn
+      .query_row(
+        "SELECT senderName, receiverName, receiverCustomerId, customerNotes
+         FROM HawalaTransfer WHERE id = ?1",
+        [&posted.id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+      )
+      .unwrap();
+    assert_eq!(sender, "Ahmad");
+    assert_eq!(receiver, "Rahmat");
+    assert!(dest_id.is_none());
+    assert_eq!(from.as_deref(), Some("Mahmoud"));
+    let desc: String = conn
+      .query_row(
+        r#"SELECT description FROM "Transaction" WHERE id = ?1"#,
+        [&posted.transaction_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(desc, "Ahmad sent 6,000 AFN to Rahmat from Mahmoud.");
   }
 }

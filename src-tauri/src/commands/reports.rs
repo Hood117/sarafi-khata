@@ -897,6 +897,7 @@ pub fn get_hawala_status_report(
   let (_all_count, totals_by_currency) =
     hawala_amount_totals(&conn, &where_sql, &params_s, None)?;
 
+  let hawala_chrono = crate::ledger::HAWALA_CHRONO_ASC;
   let list_sql = format!(
     r#"SELECT h.id, h.transactionId, h.reference, IFNULL(t.displayRef,''), h.direction, h.status, CAST(h.amount AS TEXT), cur.code,
               h.customerId, cust.fullName, h.senderName, h.receiverName,
@@ -908,7 +909,7 @@ pub fn get_hawala_status_report(
        LEFT JOIN PartnerSarafi p ON p.id = h.partnerSarafiId
        LEFT JOIN "Transaction" t ON t.id = h.transactionId
        {where_sql}
-       ORDER BY h.valueDate DESC, h.createdAt DESC
+       ORDER BY {hawala_chrono}
        LIMIT ? OFFSET ?"#
   );
   let mut list_params: Vec<Box<dyn rusqlite::types::ToSql>> = params_s
@@ -1523,6 +1524,7 @@ pub fn get_partner_sarafi_report(
   }
   let offset = (page - 1) * page_size;
 
+  let hawala_chrono = crate::ledger::HAWALA_CHRONO_ASC;
   let list_hawala_sql = format!(
     r#"SELECT h.id, h.partnerSarafiId, COALESCE(p.name, ''), h.reference,
               IFNULL(t.displayRef, ''), h.direction, h.status,
@@ -1533,7 +1535,7 @@ pub fn get_partner_sarafi_report(
        LEFT JOIN PartnerSarafi p ON p.id = h.partnerSarafiId
        LEFT JOIN "Transaction" t ON t.id = h.transactionId
        {hawala_where}
-       ORDER BY h.valueDate DESC, h.createdAt DESC
+       ORDER BY {hawala_chrono}
        LIMIT ? OFFSET ?"#,
   );
   let mut list_params = hawala_params;
@@ -2369,6 +2371,7 @@ pub fn get_exchange_period_report(
     })?
     .collect::<Result<Vec<_>, _>>()?;
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let list_sql = format!(
     r#"SELECT d.id, d.transactionId, t.reference, IFNULL(t.displayRef,''), d.side, CAST(d.fromAmount AS TEXT), cf.code,
               CAST(d.toAmount AS TEXT), ct.code, CAST(d.dealRate AS TEXT),
@@ -2376,7 +2379,7 @@ pub fn get_exchange_period_report(
               d.valueDate, t.customerId, c.fullName
        {join_sql}
        {where_sql}
-       ORDER BY d.valueDate DESC, d.createdAt DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#
   );
   let mut list_params: Vec<Box<dyn rusqlite::types::ToSql>> = params_s
@@ -2612,8 +2615,11 @@ pub fn get_customer_statement_report(
     line_filter.push_str(" AND c.code = ?");
     line_params.push(Box::new(code.clone()));
   }
-  let group_order = " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, c.code, c.symbol, t.createdAt
-      ORDER BY t.valueDate ASC, t.createdAt ASC, c.code ASC";
+  let group_order = format!(
+    " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, c.code, c.symbol, t.createdAt, t.displaySeq
+      ORDER BY {}, c.code ASC",
+    crate::ledger::TX_CHRONO_ASC
+  );
 
   let count_sql = format!(
     "SELECT COUNT(*) FROM ({line_base}{line_filter}{group_order})"
@@ -2648,8 +2654,8 @@ pub fn get_customer_statement_report(
          INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
          WHERE w.customerId = ?1 AND w.type='CUSTOMER' AND w.deletedAt IS NULL
            AND t.valueDate >= ?2 AND t.valueDate < date(?3, '+1 day'){line_filter}
-         GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, c.code, c.symbol, t.createdAt
-         ORDER BY t.valueDate ASC, t.createdAt ASC, c.code ASC
+         GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, c.code, c.symbol, t.createdAt, t.displaySeq
+         ORDER BY t.displaySeq IS NULL, t.displaySeq ASC, t.createdAt ASC, t.rowid ASC, c.code ASC
          LIMIT ?
        ) GROUP BY code, symbol"
     );
@@ -2969,12 +2975,13 @@ pub fn get_transactions_report(
   }
   let offset = (page - 1) * page_size;
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let list_sql = format!(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, t.customerId, c.fullName, t.description, t.valueDate
        FROM "Transaction" t
        LEFT JOIN Customer c ON c.id = t.customerId
        {where_sql}
-       ORDER BY t.valueDate DESC, t.createdAt DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#
   );
   let mut list_params = params_v;
@@ -3215,15 +3222,16 @@ fn list_transactions_for_range(
   limit: i64,
   offset: i64,
 ) -> Result<Vec<TransactionsReportRow>, AppError> {
-  let mut stmt = conn.prepare(
+  let mut stmt = conn.prepare(&format!(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, t.customerId, c.fullName, t.description, t.valueDate
        FROM "Transaction" t
        LEFT JOIN Customer c ON c.id = t.customerId
        WHERE t.deletedAt IS NULL
          AND t.valueDate >= ?1 AND t.valueDate < date(?2, '+1 day')
-       ORDER BY t.valueDate DESC, t.createdAt DESC, t.id DESC
+       ORDER BY {}
        LIMIT ?3 OFFSET ?4"#,
-  )?;
+    crate::ledger::TX_CHRONO_ASC
+  ))?;
   let mut items = stmt
     .query_map(params![from, to, limit, offset], |row| {
       Ok(TransactionsReportRow {

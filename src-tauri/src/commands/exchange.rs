@@ -835,7 +835,7 @@ pub fn get_exchange_pnl_summary(
        INNER JOIN Currency cp ON cp.id = d.profitCurrencyId
        LEFT JOIN Customer c ON c.id = t.customerId
        WHERE d.deletedAt IS NULL AND date(d.valueDate)=date(?1)
-       ORDER BY d.valueDate DESC, d.createdAt DESC
+       ORDER BY t.displaySeq IS NULL, t.displaySeq DESC, t.createdAt DESC, t.rowid DESC
        LIMIT 25"#,
   )?;
   let recent = recent_stmt

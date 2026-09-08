@@ -57,11 +57,12 @@ export function isWalkInDestinationSend(detail: {
   return isSimpleDeskHawala(detail);
 }
 
-/** Desk Quick Action hawala: destination / local receiver is an existing customer. */
+/** Desk Quick Action hawala (no partner corridor form). */
 export function isSimpleDeskHawala(detail: {
   receiverCustomerId?: string | null;
+  partnerSarafiId?: string | null;
 }): boolean {
-  return Boolean(detail.receiverCustomerId);
+  return Boolean(detail.receiverCustomerId) || !detail.partnerSarafiId;
 }
 
 export const HAWALA_DRAFT_KEY = "saraf.hawala.draft";

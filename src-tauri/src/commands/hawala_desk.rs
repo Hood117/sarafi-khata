@@ -264,11 +264,11 @@ pub fn list_hawala_desk(
   }
 
   let order = match input.sort.as_deref().unwrap_or("date_desc") {
-    "date_asc" => "h.valueDate ASC, h.createdAt ASC",
-    "amount_desc" => "CAST(h.amount AS REAL) DESC",
-    "amount_asc" => "CAST(h.amount AS REAL) ASC",
-    "ref_asc" => "h.reference ASC",
-    _ => "h.valueDate DESC, h.createdAt DESC",
+    "date_asc" => crate::ledger::HAWALA_CHRONO_ASC,
+    "amount_desc" => "CAST(h.amount AS REAL) DESC, t.displaySeq IS NULL, t.displaySeq ASC",
+    "amount_asc" => "CAST(h.amount AS REAL) ASC, t.displaySeq IS NULL, t.displaySeq ASC",
+    "ref_asc" => "h.reference ASC, t.displaySeq IS NULL, t.displaySeq ASC",
+    _ => crate::ledger::HAWALA_CHRONO_DESC,
   };
 
   let count_sql = format!(

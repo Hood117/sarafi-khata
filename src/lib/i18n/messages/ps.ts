@@ -818,6 +818,9 @@ export const ps: Dictionary = {
     remoteSenderNameRequired: "د لرې لېږونکي نوم اړین دی.",
     notSignedIn: "نه یاست ننوتي.",
     destinationCustomer: "اخیستونکی / د منزل پیرودونکی",
+    fromOnBehalfOf: "له خوا / په استازیتوب",
+    walkInName: "د حضوري نوم",
+    receiverGets: "اخیستونکی ترلاسه کوي",
     ourCommission: "زموږ کمیشن",
     simpleSendHint:
       "مبلغ منهای زموږ کمیشن منزل ته ځي. د حضوري پیرودونکي نغدي خزانه ته ځي؛ که لېږونکی موجود پیرودونکی وي نو د هغه له حسابه کمېږي. خالص مبلغ په اتومات ډول حسابېږي.",
@@ -926,6 +929,7 @@ export const ps: Dictionary = {
     postExpense: "لګښت ثبتول",
     addExpense: "لګښت زیاتول",
     category: "کټګوري",
+    expenseType: "د لګښت ډول",
     periodFrom: "له",
     periodTo: "تر",
     totalExpenses: "ټول لګښتونه",
@@ -934,6 +938,8 @@ export const ps: Dictionary = {
     cashWallet: "تادیه له (خزانه / صندوق)",
     filterCurrency: "اسعار",
     allCategories: "ټولې کټګورۍ",
+    allExpenseTypes: "ټول",
+    searchPlaceholder: "لګښتونه وپلټئ…",
   },
   employees: {
     hint: "کارکوونکي زیات کړئ او معاش له اصلي صندوقه ورکړئ. د هر چا لېجر ښيي څومره اخیستي.",
@@ -1440,6 +1446,19 @@ export const ps: Dictionary = {
     shortcutRefresh: "اوسنی سکرین تازه کول",
     shortcutNavigateResults: "په پایلو کې تګ",
     shortcutNavigateTabs: "د ټبونو ترمنځ تګ",
+    database: "ډیټابیس",
+    resetBusinessData: "د سوداګرۍ معلومات بیا تنظیمول",
+    resetBusinessDataHint:
+      "پیرودونکي، پاتې، معاملات، حواله، لګښتونه، شریکان، د تبادلې او سوداګرۍ تاریخ او نور سوداګریز ریکارډونه د تل لپاره لرې کېږي. د لایسنس فعالول، د پروګرام نصب، او د ډیټابیس جوړښت ساتل کېږي.",
+    resetBusinessDataWarning:
+      "دا کار بیرته نه کېږي. ټول سوداګریز او ازمایښتي معلومات به ړنګ شي. لومړی بیکاپ جوړېږي. د دوام لپاره RESET ولیکئ.",
+    resetTypeReset: "د تایید لپاره RESET ولیکئ",
+    resetPlaceholder: "RESET",
+    resetConfirmButton: "بیا تنظیم",
+    resetFinalConfirm:
+      "دا کار بیرته نه کېږي. ټول سوداګریز معلومات همدا اوس بیا تنظیم شي؟ تاسو به وتل شئ.",
+    resetInProgress: "سوداګریز معلومات بیا تنظیمېږي…",
+    resetDone: "سوداګریز معلومات بیا تنظیم شول. د مخکې‌نیول شوي مدیر حساب سره ننوځئ.",
   },
   status: {
     pending: "په تمه",

@@ -820,6 +820,9 @@ export const en: Dictionary = {
     remoteSenderNameRequired: "Remote sender name is required.",
     notSignedIn: "Not signed in.",
     destinationCustomer: "Receiver / destination customer",
+    fromOnBehalfOf: "From / On behalf of",
+    walkInName: "Walk-in name",
+    receiverGets: "Receiver gets",
     ourCommission: "Our commission",
     simpleSendHint:
       "Amount minus our commission is credited to the destination. Walk-in cash goes to the vault; an existing sender is charged on their account. Net is calculated automatically.",
@@ -929,6 +932,7 @@ export const en: Dictionary = {
     postExpense: "Post expense",
     addExpense: "Add expense",
     category: "Category",
+    expenseType: "Expense type",
     periodFrom: "From",
     periodTo: "To",
     totalExpenses: "Total expenses",
@@ -937,6 +941,8 @@ export const en: Dictionary = {
     cashWallet: "Paid from (vault / till)",
     filterCurrency: "Currency",
     allCategories: "All categories",
+    allExpenseTypes: "All",
+    searchPlaceholder: "Search expenses…",
   },
   employees: {
     hint: "Add staff and pay salary from Main Vault cash. Open each person’s ledger to see what they took by month.",
@@ -1443,6 +1449,19 @@ Your current data was not changed.`,
     shortcutRefresh: "Refresh current screen",
     shortcutNavigateResults: "Navigate results",
     shortcutNavigateTabs: "Navigate tabs",
+    database: "Database",
+    resetBusinessData: "Reset Business Data",
+    resetBusinessDataHint:
+      "Permanently remove customers, balances, transactions, hawala, expenses, partners, exchange and trading history, and other business records. License activation, the application install, and the database schema are kept.",
+    resetBusinessDataWarning:
+      "This cannot be undone. All business and test data will be deleted. A backup is created first. Type RESET to continue.",
+    resetTypeReset: "Type RESET to confirm",
+    resetPlaceholder: "RESET",
+    resetConfirmButton: "Reset",
+    resetFinalConfirm:
+      "This cannot be undone. Reset all business data now? You will be signed out.",
+    resetInProgress: "Resetting business data…",
+    resetDone: "Business data has been reset. Sign in with the default administrator account.",
   },
   status: {
     pending: "Pending",

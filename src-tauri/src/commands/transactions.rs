@@ -131,12 +131,13 @@ pub fn list_transactions_page(
   }
   let offset = (page - 1) * page_size;
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let list_sql = format!(
     "SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, c.fullName, t.description, t.valueDate, t.createdAt
      FROM \"Transaction\" t
      LEFT JOIN Customer c ON c.id = t.customerId
      {where_sql}
-     ORDER BY t.valueDate DESC, t.createdAt DESC
+     ORDER BY {chrono}
      LIMIT ? OFFSET ?"
   );
   let mut list_params = params;
@@ -451,10 +452,11 @@ pub fn list_customer_ledger(
     all_sql.push_str(" AND c.code = ?");
     all_params.push(Box::new(cf.clone()));
   }
-  all_sql.push_str(
-    " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, t.createdAt, c.code
-      ORDER BY t.valueDate ASC, t.createdAt ASC, t.id ASC, c.code ASC",
-  );
+  all_sql.push_str(&format!(
+    " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, t.createdAt, t.displaySeq, c.code
+      ORDER BY {}, c.code ASC",
+    crate::ledger::TX_CHRONO_ASC
+  ));
   let all_refs: Vec<&dyn rusqlite::types::ToSql> =
     all_params.iter().map(|p| p.as_ref()).collect();
   let mut all_stmt = conn.prepare(&all_sql)?;
@@ -474,7 +476,7 @@ pub fn list_customer_ledger(
     balance_after: f64,
   }
 
-  // Stream chrono ASC; keep only filtered rows for display (newest-first page).
+  // Stream chrono ASC; type/currency filters subset rows without reordering.
   let mut display: Vec<RawLine> = Vec::new();
   for row in all_stmt.query_map(all_refs.as_slice(), |row| {
     Ok((
@@ -528,7 +530,6 @@ pub fn list_customer_ledger(
       balance_after: *entry,
     });
   }
-  display.reverse();
 
   let total = display.len() as i64;
   let total_pages = if total == 0 {

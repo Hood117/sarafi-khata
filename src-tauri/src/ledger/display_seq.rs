@@ -7,6 +7,23 @@ use crate::error::AppError;
 
 pub const DISPLAY_SEQ_TABLE: &str = "TransactionDisplaySequence";
 
+/// Oldest-first creation order for `"Transaction" t`.
+/// `displaySeq` is the global post sequence (not per-type voucher numbers).
+/// `createdAt` + `rowid` only break remaining ties (legacy NULL seq).
+pub const TX_CHRONO_ASC: &str =
+  "t.displaySeq IS NULL, t.displaySeq ASC, t.createdAt ASC, t.rowid ASC";
+
+/// Newest-first, still stable by the same global creation sequence.
+pub const TX_CHRONO_DESC: &str =
+  "t.displaySeq IS NULL, t.displaySeq DESC, t.createdAt DESC, t.rowid DESC";
+
+/// Hawala lists joined as `HawalaTransfer h LEFT JOIN "Transaction" t`.
+pub const HAWALA_CHRONO_ASC: &str =
+  "t.displaySeq IS NULL, t.displaySeq ASC, h.createdAt ASC, h.rowid ASC";
+
+pub const HAWALA_CHRONO_DESC: &str =
+  "t.displaySeq IS NULL, t.displaySeq DESC, h.createdAt DESC, h.rowid DESC";
+
 /// Prefix for the user-facing number. Uses existing type / internal reference
 /// category — does not invent new financial transaction types.
 pub fn display_prefix(tx_type: &str, internal_ref: &str) -> &'static str {
@@ -391,5 +408,58 @@ mod tests {
     conn.execute_batch("COMMIT;").unwrap();
     assert_eq!(a, 1);
     assert_eq!(b, 2);
+  }
+
+  #[test]
+  fn chrono_order_follows_display_seq_not_type_or_value_date() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE "Transaction" (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          valueDate TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          displaySeq INTEGER,
+          deletedAt TEXT
+        );
+        INSERT INTO "Transaction" (id, type, valueDate, createdAt, displaySeq) VALUES
+          ('wd1', 'WITHDRAWAL', '2026-09-08', '2026-09-08 09:00:00', 1),
+          ('dp1', 'DEPOSIT',    '2026-09-08', '2026-09-08 09:00:00', 2),
+          ('hw1', 'HAWALA',     '2026-09-08', '2026-09-08 09:00:00', 3),
+          ('ex1', 'EXPENSE',    '2026-09-08', '2026-09-08 09:00:00', 4),
+          ('fx1', 'EXCHANGE',   '2026-09-08', '2026-09-08 09:00:00', 5),
+          ('dp2', 'DEPOSIT',    '2026-09-08', '2026-09-08 09:00:00', 6),
+          ('wd2', 'WITHDRAWAL', '2026-09-08', '2026-09-08 09:00:00', 7);
+        "#,
+      )
+      .unwrap();
+
+    let sql = format!(
+      r#"SELECT id FROM "Transaction" t WHERE deletedAt IS NULL ORDER BY {TX_CHRONO_ASC}"#
+    );
+    let ids: Vec<String> = conn
+      .prepare(&sql)
+      .unwrap()
+      .query_map([], |row| row.get(0))
+      .unwrap()
+      .map(|r| r.unwrap())
+      .collect();
+    assert_eq!(ids, vec!["wd1", "dp1", "hw1", "ex1", "fx1", "dp2", "wd2"]);
+
+    let filtered_sql = format!(
+      r#"SELECT id FROM "Transaction" t
+         WHERE deletedAt IS NULL AND type = 'DEPOSIT'
+         ORDER BY {TX_CHRONO_ASC}"#
+    );
+    let deposits: Vec<String> = conn
+      .prepare(&filtered_sql)
+      .unwrap()
+      .query_map([], |row| row.get(0))
+      .unwrap()
+      .map(|r| r.unwrap())
+      .collect();
+    assert_eq!(deposits, vec!["dp1", "dp2"]);
   }
 }

@@ -800,6 +800,9 @@ export type Dictionary = {
     remoteSenderNameRequired: string;
     notSignedIn: string;
     destinationCustomer: string;
+    fromOnBehalfOf: string;
+    walkInName: string;
+    receiverGets: string;
     ourCommission: string;
     simpleSendHint: string;
     simpleReceiveHint: string;
@@ -903,6 +906,7 @@ export type Dictionary = {
     postExpense: string;
     addExpense: string;
     category: string;
+    expenseType: string;
     periodFrom: string;
     periodTo: string;
     totalExpenses: string;
@@ -911,6 +915,8 @@ export type Dictionary = {
     cashWallet: string;
     filterCurrency: string;
     allCategories: string;
+    allExpenseTypes: string;
+    searchPlaceholder: string;
   };
   employees: {
     hint: string;
@@ -1392,6 +1398,16 @@ export type Dictionary = {
     shortcutRefresh: string;
     shortcutNavigateResults: string;
     shortcutNavigateTabs: string;
+    database: string;
+    resetBusinessData: string;
+    resetBusinessDataHint: string;
+    resetBusinessDataWarning: string;
+    resetTypeReset: string;
+    resetPlaceholder: string;
+    resetConfirmButton: string;
+    resetFinalConfirm: string;
+    resetInProgress: string;
+    resetDone: string;
   };
   status: {
     pending: string;

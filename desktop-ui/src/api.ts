@@ -1504,6 +1504,17 @@ export function restoreDbBackupFromFile(path: string, sessionToken?: string) {
   });
 }
 
+export type ResetBusinessDataResult = {
+  backupStamp: string | null;
+  message: string;
+};
+
+export function resetBusinessData(confirmation: string) {
+  return invoke<ResetBusinessDataResult>("reset_business_data", {
+    input: { confirmation },
+  });
+}
+
 export type LocaleSetting = {
   locale: string;
 };
@@ -1891,6 +1902,7 @@ export function listExpenses(input?: {
   currencyCode?: string;
   dateFrom?: string;
   dateTo?: string;
+  search?: string;
 }) {
   return invoke<{
     items: ExpenseRow[];

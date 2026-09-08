@@ -224,6 +224,7 @@ pub struct ListExpensesInput {
   pub currency_code: Option<String>,
   pub date_from: Option<String>,
   pub date_to: Option<String>,
+  pub search: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -305,6 +306,21 @@ pub fn list_expenses(
     where_parts.push("t.valueDate < date(?, '+1 day')".into());
     params_dyn.push(Box::new(to.to_string()));
   }
+  if let Some(q) = input
+    .search
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+  {
+    where_parts.push(
+      "(t.reference LIKE ? OR IFNULL(t.displayRef,'') LIKE ? OR IFNULL(t.description,'') LIKE ?)"
+        .into(),
+    );
+    let like = format!("%{q}%");
+    params_dyn.push(Box::new(like.clone()));
+    params_dyn.push(Box::new(like.clone()));
+    params_dyn.push(Box::new(like));
+  }
 
   let where_sql = format!("WHERE {}", where_parts.join(" AND "));
   let count_sql = format!(
@@ -318,6 +334,7 @@ pub fn list_expenses(
   let param_refs: Vec<&dyn rusqlite::types::ToSql> = params_dyn.iter().map(|p| p.as_ref()).collect();
   let total: i64 = conn.query_row(&count_sql, param_refs.as_slice(), |row| row.get(0))?;
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let list_sql = format!(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), w.name, CAST(le.amount AS TEXT), c.code, c.name, c.symbol,
               t.description, t.valueDate, u.fullName,
@@ -334,7 +351,7 @@ pub fn list_expenses(
        INNER JOIN Currency c ON c.id = le.currencyId
        LEFT JOIN User u ON u.id = t.createdById
        {where_sql}
-       ORDER BY t.valueDate DESC, t.createdAt DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#,
   );
   let mut list_params: Vec<Box<dyn rusqlite::types::ToSql>> = params_dyn;

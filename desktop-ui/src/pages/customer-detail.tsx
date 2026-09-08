@@ -41,7 +41,13 @@ import { Pagination } from "@desktop/ui/pagination";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
-type LedgerTypeFilter = "ALL" | "DEPOSIT" | "WITHDRAWAL" | "TRANSFER" | "HAWALA";
+type LedgerTypeFilter =
+  | "ALL"
+  | "DEPOSIT"
+  | "WITHDRAWAL"
+  | "TRANSFER"
+  | "HAWALA"
+  | "EXCHANGE";
 type CustomerDetailView = "money" | "history";
 
 function parseBalanceAmount(display: string): number {
@@ -456,6 +462,7 @@ export function CustomerDetailPage() {
                     <option value="WITHDRAWAL">{t.transactions.withdrawal}</option>
                     <option value="TRANSFER">{t.reports.transfer}</option>
                     <option value="HAWALA">{t.nav.hawala}</option>
+                    <option value="EXCHANGE">{t.nav.exchange}</option>
                   </select>
                 </label>
                 <div style={{ minWidth: "11rem" }}>

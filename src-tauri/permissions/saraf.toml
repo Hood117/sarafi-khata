@@ -97,6 +97,7 @@ commands.allow = [
   "pick_backup_file",
   "validate_backup_file",
   "restore_db_backup_from_file",
+  "reset_business_data",
   "get_app_locale",
   "set_app_locale",
   "get_business_name",

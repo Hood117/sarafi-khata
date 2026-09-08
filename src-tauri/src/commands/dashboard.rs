@@ -144,14 +144,15 @@ fn customer_counts(
 fn recent_transactions(
   conn: &rusqlite::Connection,
 ) -> Result<Vec<TransactionListItem>, AppError> {
-  let mut stmt = conn.prepare(
+  let mut stmt = conn.prepare(&format!(
     "SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, c.fullName, t.description, t.valueDate, t.createdAt
      FROM \"Transaction\" t
      LEFT JOIN Customer c ON c.id = t.customerId
      WHERE t.deletedAt IS NULL
-     ORDER BY t.valueDate DESC, t.createdAt DESC
+     ORDER BY {}
      LIMIT ?",
-  )?;
+    crate::ledger::TX_CHRONO_DESC
+  ))?;
   let mut items = stmt
     .query_map(rusqlite::params![RECENT_TX_LIMIT], |row| {
       Ok(TransactionListItem {
@@ -205,7 +206,7 @@ fn recent_transactions(
 }
 
 fn recent_hawala(conn: &rusqlite::Connection) -> Result<Vec<HawalaListItem>, AppError> {
-  let mut stmt = conn.prepare(
+  let mut stmt = conn.prepare(&format!(
     "SELECT h.id, h.reference, h.direction, h.status,
             h.senderName, h.receiverName, h.partnerSarafi,
             CAST(h.amount AS TEXT), c.code, h.valueDate, IFNULL(t.displayRef,'')
@@ -213,9 +214,10 @@ fn recent_hawala(conn: &rusqlite::Connection) -> Result<Vec<HawalaListItem>, App
      INNER JOIN Currency c ON c.id = h.currencyId
      LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
      WHERE h.deletedAt IS NULL
-     ORDER BY h.valueDate DESC, h.createdAt DESC
+     ORDER BY {}
      LIMIT ?",
-  )?;
+    crate::ledger::HAWALA_CHRONO_DESC
+  ))?;
   let items = stmt
     .query_map(rusqlite::params![RECENT_HAWALA_LIMIT], |row| {
       Ok(HawalaListItem {

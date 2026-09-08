@@ -1230,6 +1230,7 @@ pub fn list_vault_movements(
   let offset = (page - 1) * page_size;
 
   // Skip correlated counterparty subquery (O(page × ledger)); fill null — UI still works.
+  let chrono = crate::ledger::TX_CHRONO_DESC;
   let list_sql = format!(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.valueDate, c.code, CAST(le.amount AS TEXT),
               le.direction, w.name, u.fullName, t.description, t.status
@@ -1239,7 +1240,7 @@ pub fn list_vault_movements(
        INNER JOIN Currency c ON c.id = le.currencyId
        LEFT JOIN User u ON u.id = t.createdById
        {where_sql}
-       ORDER BY t.valueDate DESC, t.createdAt DESC, t.id DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#,
   );
   let mut list_params = params_v;

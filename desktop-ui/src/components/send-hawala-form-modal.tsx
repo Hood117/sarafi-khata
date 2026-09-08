@@ -64,7 +64,7 @@ function formatPreviewMoney(n: number): string {
   return frac ? `${signed}.${frac}` : signed;
 }
 
-type SenderMode = "walkin" | "customer";
+type PartyMode = "walkin" | "customer";
 type HawalaDirection = "SEND" | "RECEIVE";
 
 type Props = {
@@ -82,12 +82,15 @@ function emptyForm(currency = "") {
     valueDate: todayIso(),
     amount: "",
     currencyCode: currency,
-    senderMode: "walkin" as SenderMode,
+    senderMode: "walkin" as PartyMode,
     senderName: "",
     senderCustomerId: "",
     senderLabel: "",
+    receiverMode: "walkin" as PartyMode,
+    receiverName: "",
     receiverCustomerId: "",
     receiverLabel: "",
+    onBehalfOf: "",
     commission: "",
     originCity: "Kabul",
     originCountry: "Afghanistan",
@@ -160,6 +163,7 @@ export function SendHawalaFormModal({
     setHawalaRecordId(detail.id);
     setReplaceId(detail.transactionId || detail.id);
     const senderIsCustomer = Boolean(detail.senderCustomerId);
+    const receiverIsCustomer = Boolean(detail.receiverCustomerId);
     setForm({
       reference: detail.reference,
       valueDate: String(detail.valueDate).slice(0, 10),
@@ -169,8 +173,11 @@ export function SendHawalaFormModal({
       senderName: senderIsCustomer ? "" : detail.senderName || "",
       senderCustomerId: detail.senderCustomerId || "",
       senderLabel: senderIsCustomer ? detail.senderName || "" : "",
+      receiverMode: receiverIsCustomer ? "customer" : "walkin",
+      receiverName: receiverIsCustomer ? "" : detail.receiverName || "",
       receiverCustomerId: detail.receiverCustomerId || "",
-      receiverLabel: detail.receiverName || "",
+      receiverLabel: receiverIsCustomer ? detail.receiverName || "" : "",
+      onBehalfOf: detail.customerNotes || "",
       commission: detail.ownCommissionAmount || "",
       originCity: detail.originCity || "Kabul",
       originCountry: detail.originCountry || "Afghanistan",
@@ -199,8 +206,10 @@ export function SendHawalaFormModal({
   function pickReceiver(c: CustomerListItem) {
     setForm((prev) => ({
       ...prev,
+      receiverMode: "customer",
       receiverCustomerId: c.id,
       receiverLabel: c.fullName,
+      receiverName: "",
     }));
     setShowReceiverSuggest(false);
     setReceiverSuggestions([]);
@@ -308,7 +317,10 @@ export function SendHawalaFormModal({
   }, [open, form.senderMode, form.senderCustomerId, form.senderLabel]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || form.receiverMode !== "customer") {
+      setReceiverSuggestions([]);
+      return;
+    }
     const q = form.receiverLabel.trim();
     if (form.receiverCustomerId || q.length < 1) {
       setReceiverSuggestions([]);
@@ -340,7 +352,7 @@ export function SendHawalaFormModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, form.receiverCustomerId, form.receiverLabel]);
+  }, [open, form.receiverMode, form.receiverCustomerId, form.receiverLabel]);
 
   function onSuggestKeyDown(
     e: ReactKeyboardEvent<HTMLInputElement>,
@@ -466,13 +478,18 @@ export function SendHawalaFormModal({
       senderSearchRef.current?.querySelector("input")?.focus();
       return;
     }
-    if (!form.receiverCustomerId) {
+    if (form.receiverMode === "walkin" && !form.receiverName.trim()) {
+      setError(t.hawala.receiverNameRequired);
+      return;
+    }
+    if (form.receiverMode === "customer" && !form.receiverCustomerId) {
       setError(t.desk.selectCustomerRequired);
       receiverSearchRef.current?.querySelector("input")?.focus();
       return;
     }
     if (
       form.senderMode === "customer" &&
+      form.receiverMode === "customer" &&
       form.senderCustomerId === form.receiverCustomerId
     ) {
       setError(t.hawala.senderNameRequired);
@@ -505,7 +522,11 @@ export function SendHawalaFormModal({
           form.senderMode === "walkin" ? form.senderName.trim() : null,
         senderCustomerId:
           form.senderMode === "customer" ? form.senderCustomerId : null,
-        receiverCustomerId: form.receiverCustomerId,
+        receiverName:
+          form.receiverMode === "walkin" ? form.receiverName.trim() : null,
+        receiverCustomerId:
+          form.receiverMode === "customer" ? form.receiverCustomerId : null,
+        customerNotes: form.onBehalfOf.trim() || null,
         notes:
           appendEmployeeLine(undefined, employeeName, t.employees.employee) ||
           null,
@@ -686,6 +707,24 @@ export function SendHawalaFormModal({
                 <button
                   type="button"
                   className={
+                    form.senderMode === "customer"
+                      ? "hawala-mode active"
+                      : "hawala-mode"
+                  }
+                  aria-pressed={form.senderMode === "customer"}
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      senderMode: "customer",
+                      senderName: "",
+                    }))
+                  }
+                >
+                  {t.hawala.existingCustomer}
+                </button>
+                <button
+                  type="button"
+                  className={
                     form.senderMode === "walkin"
                       ? "hawala-mode active"
                       : "hawala-mode"
@@ -701,24 +740,6 @@ export function SendHawalaFormModal({
                   }
                 >
                   {t.desk.walkIn}
-                </button>
-                <button
-                  type="button"
-                  className={
-                    form.senderMode === "customer"
-                      ? "hawala-mode active"
-                      : "hawala-mode"
-                  }
-                  aria-pressed={form.senderMode === "customer"}
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      senderMode: "customer",
-                      senderName: "",
-                    }))
-                  }
-                >
-                  {t.hawala.existingCustomer}
                 </button>
               </div>
             </div>
@@ -777,41 +798,123 @@ export function SendHawalaFormModal({
               </label>
             )}
 
-            <label ref={receiverSearchRef} className="customer-search-wrap">
-              {t.hawala.destinationCustomer} *
+            <div>
+              <div className="muted" style={{ marginBottom: "0.35rem", fontSize: "var(--text-sm)" }}>
+                {t.hawala.receiver} *
+              </div>
+              <div
+                className="hawala-mode-toggle"
+                role="group"
+                aria-label={t.hawala.receiver}
+                data-desk-choice-group
+              >
+                <button
+                  type="button"
+                  className={
+                    form.receiverMode === "customer"
+                      ? "hawala-mode active"
+                      : "hawala-mode"
+                  }
+                  aria-pressed={form.receiverMode === "customer"}
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      receiverMode: "customer",
+                      receiverName: "",
+                    }))
+                  }
+                >
+                  {t.hawala.existingCustomer}
+                </button>
+                <button
+                  type="button"
+                  className={
+                    form.receiverMode === "walkin"
+                      ? "hawala-mode active"
+                      : "hawala-mode"
+                  }
+                  aria-pressed={form.receiverMode === "walkin"}
+                  onClick={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      receiverMode: "walkin",
+                      receiverCustomerId: "",
+                      receiverLabel: "",
+                    }))
+                  }
+                >
+                  {t.desk.walkIn}
+                </button>
+              </div>
+            </div>
+
+            {form.receiverMode === "walkin" ? (
+              <label>
+                <span>{t.hawala.walkInName} *</span>
+                <input
+                  value={form.receiverName}
+                  placeholder={t.desk.walkingCustomer}
+                  onChange={(e) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      receiverName: e.target.value,
+                    }));
+                    setError(null);
+                  }}
+                />
+              </label>
+            ) : (
+              <label ref={receiverSearchRef} className="customer-search-wrap">
+                {t.hawala.destinationCustomer} *
+                <input
+                  value={form.receiverLabel}
+                  placeholder={t.customers.searchPlaceholder}
+                  autoComplete="off"
+                  aria-autocomplete="list"
+                  aria-expanded={
+                    showReceiverSuggest && receiverSuggestions.length > 0
+                  }
+                  onChange={(e) => {
+                    setForm((prev) => ({
+                      ...prev,
+                      receiverCustomerId: "",
+                      receiverLabel: e.target.value,
+                    }));
+                    setShowReceiverSuggest(true);
+                    setError(null);
+                  }}
+                  onFocus={() => {
+                    if (!form.receiverCustomerId) setShowReceiverSuggest(true);
+                  }}
+                  onKeyDown={(e) => onSuggestKeyDown(e, "receiver")}
+                />
+                {showReceiverSuggest &&
+                form.receiverLabel.trim().length > 0 &&
+                !form.receiverCustomerId
+                  ? customerSuggestList(
+                      "receiver",
+                      receiverSuggestions,
+                      receiverBusy,
+                      receiverHighlight,
+                      pickReceiver,
+                    )
+                  : null}
+              </label>
+            )}
+
+            <label>
+              <span>{t.hawala.fromOnBehalfOf}</span>
               <input
-                value={form.receiverLabel}
-                placeholder={t.customers.searchPlaceholder}
-                autoComplete="off"
-                aria-autocomplete="list"
-                aria-expanded={
-                  showReceiverSuggest && receiverSuggestions.length > 0
-                }
+                value={form.onBehalfOf}
+                placeholder={t.hawala.walkInName}
                 onChange={(e) => {
                   setForm((prev) => ({
                     ...prev,
-                    receiverCustomerId: "",
-                    receiverLabel: e.target.value,
+                    onBehalfOf: e.target.value,
                   }));
-                  setShowReceiverSuggest(true);
                   setError(null);
                 }}
-                onFocus={() => {
-                  if (!form.receiverCustomerId) setShowReceiverSuggest(true);
-                }}
-                onKeyDown={(e) => onSuggestKeyDown(e, "receiver")}
               />
-              {showReceiverSuggest &&
-              form.receiverLabel.trim().length > 0 &&
-              !form.receiverCustomerId
-                ? customerSuggestList(
-                    "receiver",
-                    receiverSuggestions,
-                    receiverBusy,
-                    receiverHighlight,
-                    pickReceiver,
-                  )
-                : null}
             </label>
 
             <label>
@@ -831,6 +934,16 @@ export function SendHawalaFormModal({
               <p className="hawala-send-split-preview" aria-live="polite">
                 {splitPreview}
                 {form.currencyCode ? ` ${form.currencyCode}` : ""}
+              </p>
+            ) : null}
+
+            {amountN > 0 && commissionN < amountN ? (
+              <p className="muted" style={{ margin: 0 }}>
+                {t.hawala.receiverGets}{" "}
+                <strong>
+                  {formatPreviewMoney(netN)}
+                  {form.currencyCode ? ` ${form.currencyCode}` : ""}
+                </strong>
               </p>
             ) : null}
 

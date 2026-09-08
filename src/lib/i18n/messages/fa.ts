@@ -818,6 +818,9 @@ export const fa: Dictionary = {
     remoteSenderNameRequired: "نام فرستندهٔ دور لازم است.",
     notSignedIn: "وارد سیستم نشده‌اید.",
     destinationCustomer: "گیرنده / مشتری مقصد",
+    fromOnBehalfOf: "از طرف / به نمایندگی از",
+    walkInName: "نام حضوری",
+    receiverGets: "گیرنده می‌گیرد",
     ourCommission: "کمیشن ما",
     simpleSendHint:
       "مبلغ منهای کمیشن ما به مقصد می‌رود. نقد حضوری وارد خزانه می‌شود؛ اگر فرستنده مشتری موجود باشد از حسابش کم می‌شود. مبلغ خالص خودکار حساب می‌شود.",
@@ -926,6 +929,7 @@ export const fa: Dictionary = {
     postExpense: "ثبت مصرف",
     addExpense: "افزودن مصرف",
     category: "دسته",
+    expenseType: "نوع مصرف",
     periodFrom: "از",
     periodTo: "تا",
     totalExpenses: "مجموع مصارف",
@@ -934,6 +938,8 @@ export const fa: Dictionary = {
     cashWallet: "پرداخت از (خزانه / صندوق)",
     filterCurrency: "اسعار",
     allCategories: "همه دسته‌ها",
+    allExpenseTypes: "همه",
+    searchPlaceholder: "جستجوی مصرف…",
   },
   employees: {
     hint: "کارمند اضافه کنید و معاش را از صندوق اصلی بپردازید. دفتر هر نفر نشان می‌دهد چقدر گرفته است.",
@@ -1440,6 +1446,19 @@ export const fa: Dictionary = {
     shortcutRefresh: "تازه‌سازی صفحه جاری",
     shortcutNavigateResults: "حرکت در نتایج",
     shortcutNavigateTabs: "حرکت بین تب‌ها",
+    database: "دیتابیس",
+    resetBusinessData: "بازنشانی اطلاعات کسب‌وکار",
+    resetBusinessDataHint:
+      "مشتریان، موجودی‌ها، معاملات، حواله، مصارف، همکاران، تاریخچه تبدیل و تجارت و سایر سوابق کسب‌وکار برای همیشه حذف می‌شوند. فعال‌سازی لایسنس، نصب برنامه و ساختار دیتابیس حفظ می‌شود.",
+    resetBusinessDataWarning:
+      "این کار برگشت‌ناپذیر است. تمام اطلاعات کسب‌وکار و آزمایشی حذف می‌شود. ابتدا یک پشتیبان گرفته می‌شود. برای ادامه RESET را تایپ کنید.",
+    resetTypeReset: "برای تأیید RESET را تایپ کنید",
+    resetPlaceholder: "RESET",
+    resetConfirmButton: "بازنشانی",
+    resetFinalConfirm:
+      "این کار برگشت‌ناپذیر است. همه اطلاعات کسب‌وکار همین حالا بازنشانی شود؟ از حساب خارج می‌شوید.",
+    resetInProgress: "در حال بازنشانی اطلاعات کسب‌وکار…",
+    resetDone: "اطلاعات کسب‌وکار بازنشانی شد. با حساب پیش‌فرض مدیر وارد شوید.",
   },
   status: {
     pending: "در انتظار",

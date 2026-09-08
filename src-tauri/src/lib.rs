@@ -480,6 +480,7 @@ pub fn run() {
       commands::pick_backup_file,
       commands::validate_backup_file,
       commands::restore_db_backup_from_file,
+      commands::reset_business_data,
       commands::get_app_locale,
       commands::set_app_locale,
       commands::get_business_name,

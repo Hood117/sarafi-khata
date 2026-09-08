@@ -282,7 +282,7 @@ pub fn load_customer_opening_kata(
            le.memo LIKE 'Opening Kata — money in%'
            OR le.memo LIKE 'Opening Kata — money out%'
          )
-       ORDER BY t.valueDate ASC, t.createdAt ASC"#,
+       ORDER BY t.displaySeq IS NULL, t.displaySeq ASC, t.createdAt ASC, t.rowid ASC"#,
   )?;
   let rows = stmt
     .query_map([customer_id], |row| {

@@ -18,6 +18,7 @@ import {
   restoreDbBackupFromFile,
   setAdminAuthPin,
   setBusinessName,
+  resetBusinessData,
   updateCurrency,
   updateUser,
   validateBackupFile,
@@ -57,12 +58,18 @@ import { CurrencyCodeWithFlag, CurrencyFlag } from "@desktop/ui/currency-flag";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
-type SettingsTab = "general" | "currencies" | "users" | "backup";
+type SettingsTab = "general" | "currencies" | "users" | "backup" | "database";
 
 type CurrencyPanel = "system" | "world";
 
 function parseSettingsTab(raw: string | null): SettingsTab {
-  if (raw === "currencies" || raw === "users" || raw === "backup" || raw === "general") {
+  if (
+    raw === "currencies" ||
+    raw === "users" ||
+    raw === "backup" ||
+    raw === "database" ||
+    raw === "general"
+  ) {
     return raw;
   }
   return "general";
@@ -137,7 +144,7 @@ export function SettingsPage() {
     fa: t.settings.languageDari,
     ps: t.settings.languagePashto,
   };
-  const { session } = useAuth();
+  const { session, logout } = useAuth();
   const { locale, setLocale } = useLocale();
   const {
     fontSize,
@@ -181,6 +188,10 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [currencyError, setCurrencyError] = useState<string | null>(null);
   const [userError, setUserError] = useState<string | null>(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetTyped, setResetTyped] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   const [worldSearch, setWorldSearch] = useState("");
   const [worldPage, setWorldPage] = useState(1);
@@ -199,11 +210,13 @@ export function SettingsPage() {
 
   const canManageUsers = isAdminRole(session) && canAccessScreen(session, "settings");
   const canManageBackup = canManageUsers;
+  const canResetDatabase = canManageUsers;
 
   useEffect(() => {
     if (tab === "users" && !canManageUsers) selectTab("general");
     if (tab === "backup" && !canManageBackup) selectTab("general");
-  }, [tab, canManageUsers, canManageBackup, selectTab]);
+    if (tab === "database" && !canResetDatabase) selectTab("general");
+  }, [tab, canManageUsers, canManageBackup, canResetDatabase, selectTab]);
 
   const refreshBackups = useCallback(() => {
     void listDbBackups()
@@ -369,6 +382,23 @@ export function SettingsPage() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleResetBusinessData() {
+    if (resetTyped !== "RESET") return;
+    if (!window.confirm(t.settings.resetFinalConfirm)) return;
+    setResetBusy(true);
+    setResetError(null);
+    try {
+      await resetBusinessData("RESET");
+      setShowResetModal(false);
+      setResetTyped("");
+      await logout();
+    } catch (err: unknown) {
+      setResetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResetBusy(false);
     }
   }
 
@@ -1060,6 +1090,29 @@ export function SettingsPage() {
         </div>
       ) : null}
 
+      {tab === "database" && canResetDatabase ? (
+        <div className="card stack">
+          <h2 style={{ margin: 0, fontSize: "1.05rem" }}>{t.settings.database}</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {t.settings.resetBusinessDataHint}
+          </p>
+          <div>
+            <button
+              type="button"
+              className="secondary danger"
+              disabled={resetBusy}
+              onClick={() => {
+                setResetTyped("");
+                setResetError(null);
+                setShowResetModal(true);
+              }}
+            >
+              {t.settings.resetBusinessData}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {showUserForm ? (
         <UserFormModal
           screens={screens}
@@ -1095,6 +1148,58 @@ export function SettingsPage() {
             setPasswordUser(null);
           }}
         />
+      ) : null}
+
+      {showResetModal ? (
+        <Modal
+          title={t.settings.resetBusinessData}
+          onClose={() => {
+            if (resetBusy) return;
+            setShowResetModal(false);
+            setResetTyped("");
+            setResetError(null);
+          }}
+        >
+          <div className="stack">
+            <p className="error" style={{ margin: 0, fontWeight: 600 }}>
+              {t.settings.resetBusinessDataWarning}
+            </p>
+            <label className="stack" style={{ gap: "0.25rem" }}>
+              <span>{t.settings.resetTypeReset}</span>
+              <input
+                value={resetTyped}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={resetBusy}
+                placeholder={t.settings.resetPlaceholder}
+                onChange={(e) => setResetTyped(e.target.value)}
+              />
+            </label>
+            <ModalErrorBanner message={resetError} />
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                disabled={resetBusy}
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetTyped("");
+                  setResetError(null);
+                }}
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                type="button"
+                className="secondary danger"
+                disabled={resetBusy || resetTyped !== "RESET"}
+                onClick={() => void handleResetBusinessData()}
+              >
+                {resetBusy ? t.settings.resetInProgress : t.settings.resetConfirmButton}
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
 
       {fileRestoreAlert ? (

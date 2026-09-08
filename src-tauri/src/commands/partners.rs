@@ -388,7 +388,7 @@ fn load_partner_opening_kata(
            le.memo LIKE 'Opening Kata — money in%'
            OR le.memo LIKE 'Opening Kata — money out%'
          )
-       ORDER BY t.valueDate ASC, t.createdAt ASC"#,
+       ORDER BY t.displaySeq IS NULL, t.displaySeq ASC, t.createdAt ASC, t.rowid ASC"#,
   )?;
   let rows = stmt
     .query_map([partner_id], |row| {

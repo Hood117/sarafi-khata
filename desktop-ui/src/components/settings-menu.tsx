@@ -158,6 +158,12 @@ export function SettingsMenu() {
         icon: <IconBackup />,
         onSelect: () => go("/settings?tab=backup"),
       });
+      next.push({
+        id: "database",
+        label: t.settings.database,
+        icon: <IconBackup />,
+        onSelect: () => go("/settings?tab=database"),
+      });
     }
     next.push({
       id: "signout",

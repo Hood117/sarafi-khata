@@ -60,6 +60,8 @@ export function ExpensesPage() {
 
   const [filterCategory, setFilterCategory] = useState("");
   const [filterCurrency, setFilterCurrency] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
@@ -90,6 +92,7 @@ export function ExpensesPage() {
           currencyCode: filterCurrency || undefined,
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
+          search: search.trim() || undefined,
         }),
       ]);
       setCategories(cats);
@@ -109,11 +112,19 @@ export function ExpensesPage() {
     } finally {
       setBusy(false);
     }
-  }, [dateFrom, dateTo, filterCategory, filterCurrency, page, reloadKey, t.errors.loadGeneric]);
+  }, [dateFrom, dateTo, filterCategory, filterCurrency, page, reloadKey, search, t.errors.loadGeneric]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(1);
+    }, 280);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
   useEffect(() => {
     setPage(1);
@@ -184,6 +195,26 @@ export function ExpensesPage() {
             <span className="muted">{t.expenses.periodTo}</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </label>
+          <label className="stack" style={{ gap: "0.25rem", minWidth: "10rem" }}>
+            <span className="muted">{t.expenses.expenseType}</span>
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <option value="">{t.expenses.allExpenseTypes}</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack" style={{ gap: "0.25rem", minWidth: "12rem", flex: "1 1 12rem" }}>
+            <span className="muted">{t.common.search}</span>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t.expenses.searchPlaceholder}
+            />
+          </label>
           <div style={{ minWidth: "12rem" }}>
             <CurrencyFilter
               currencies={currencies}
@@ -193,17 +224,6 @@ export function ExpensesPage() {
               label={t.expenses.filterCurrency}
             />
           </div>
-          <label className="stack" style={{ gap: "0.25rem", minWidth: "10rem" }}>
-            <span className="muted">{t.expenses.category}</span>
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-              <option value="">{t.expenses.allCategories}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         {busy && !summary ? <p className="muted">{t.common.loading}</p> : null}

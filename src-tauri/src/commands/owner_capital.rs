@@ -1081,14 +1081,16 @@ pub fn list_owner_capital_events(
   }
   let offset = (page - 1) * page_size;
 
+  let chrono = crate::ledger::TX_CHRONO_DESC;
   let list_sql = format!(
     r#"SELECT e.id, e.kind, c.code, CAST(e.amount AS TEXT), e.notes, e.reason,
               u.fullName, e.valueDate, e.transactionId
        FROM OwnerCapitalEvent e
        INNER JOIN Currency c ON c.id = e.currencyId
        LEFT JOIN User u ON u.id = e.createdById
+       LEFT JOIN "Transaction" t ON t.id = e.transactionId
        {where_sql}
-       ORDER BY e.valueDate DESC, e.createdAt DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#
   );
   let mut list_params = params_v;

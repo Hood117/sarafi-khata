@@ -1032,6 +1032,7 @@ fn build_timeline(
     "WHEN t.type IN ('TRADE_BUY','TRADE_SELL') THEN '/trading'"
   };
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let sql = format!(
     r#"SELECT t.id, t.valueDate, t.reference, IFNULL(t.displayRef,''), t.type, t.status, c.fullName, u.fullName,
               (SELECT cur.code FROM LedgerEntry le
@@ -1068,7 +1069,7 @@ fn build_timeline(
        LEFT JOIN Customer c ON c.id = t.customerId
        LEFT JOIN User u ON u.id = t.createdById
        {where_sql}
-       ORDER BY t.valueDate ASC, t.createdAt ASC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#
   );
   params_v.push(Box::new(page_size));
@@ -1927,11 +1928,12 @@ pub fn list_daybook_journal(
   }
   offset = (page - 1) * page_size;
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let tx_sql = format!(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.valueDate, t.createdAt,
               COALESCE(t.description, ''), COALESCE(t.customerId, '')
        {tx_where}
-       ORDER BY t.createdAt ASC, t.id ASC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#,
   );
   tx_params.push(Box::new(page_size));

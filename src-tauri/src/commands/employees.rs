@@ -658,6 +658,7 @@ pub fn list_employee_salary_payments(
     mapped.collect::<Result<Vec<_>, _>>()?
   };
 
+  let chrono = crate::ledger::TX_CHRONO_ASC;
   let list_sql = format!(
     r#"SELECT p.id, p.employeeId, e.fullName, c.code, c.symbol,
               CAST(p.amount AS TEXT), p.notes, p.valueDate, t.reference, IFNULL(t.displayRef,''),
@@ -668,7 +669,7 @@ pub fn list_employee_salary_payments(
        INNER JOIN "Transaction" t ON t.id = p.transactionId
        INNER JOIN Wallet w ON w.id = p.cashWalletId
        {where_sql}
-       ORDER BY p.valueDate DESC, p.createdAt DESC
+       ORDER BY {chrono}
        LIMIT ? OFFSET ?"#,
   );
   params_dyn.push(Box::new(page_size));

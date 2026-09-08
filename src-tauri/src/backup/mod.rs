@@ -662,6 +662,26 @@ pub struct RestoreOutcome {
   pub message: String,
 }
 
+/// Remove staged restore / leftover journal files so they cannot resurrect wiped data.
+/// Does not delete `license.json` or the live `saraf.db`.
+/// Call only after WAL checkpoint (or with no live writers) before deleting `-wal`/`-shm`.
+pub fn clear_stale_restore_sidecars(db_path: &Path) -> Result<(), AppError> {
+  let data_dir = db_path.parent().unwrap_or_else(|| Path::new("."));
+  for name in [
+    PENDING_RESTORE_FILE,
+    PENDING_RESTORE_META,
+    "saraf.db.restoring",
+    "saraf.restore-session.json",
+  ] {
+    let path = data_dir.join(name);
+    if path.is_file() {
+      fs::remove_file(&path)
+        .map_err(|e| AppError::Io(format!("remove {}: {e}", path.display())))?;
+    }
+  }
+  Ok(())
+}
+
 /// Apply staged pending restore before opening the live connection.
 pub fn apply_pending_restore_if_any(db_path: &Path) -> Result<Option<String>, AppError> {
   let data_dir = db_path.parent().unwrap_or_else(|| Path::new("."));
@@ -791,6 +811,24 @@ mod tests {
     write_saraf_schema(&file);
     let err = validate_backup_file(&file, Some(&file)).unwrap_err().to_string();
     assert!(err.contains(ERR_BACKUP_FILE_LIVE_DB), "{err}");
+    let _ = fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn clear_stale_restore_sidecars_keeps_license_and_db() {
+    let dir = temp_dir();
+    let db = dir.join("saraf.db");
+    fs::write(&db, b"sqlite").unwrap();
+    fs::write(dir.join("license.json"), b"{\"ok\":true}").unwrap();
+    fs::write(dir.join(PENDING_RESTORE_FILE), b"old").unwrap();
+    fs::write(dir.join(PENDING_RESTORE_META), b"{}").unwrap();
+    fs::write(dir.join("saraf.restore-session.json"), b"{}").unwrap();
+    clear_stale_restore_sidecars(&db).unwrap();
+    assert!(db.is_file());
+    assert!(dir.join("license.json").is_file());
+    assert!(!dir.join(PENDING_RESTORE_FILE).is_file());
+    assert!(!dir.join(PENDING_RESTORE_META).is_file());
+    assert!(!dir.join("saraf.restore-session.json").is_file());
     let _ = fs::remove_dir_all(&dir);
   }
 }
