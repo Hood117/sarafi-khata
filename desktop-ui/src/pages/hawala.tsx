@@ -333,6 +333,13 @@ export function HawalaPage() {
               <button
                 type="button"
                 className="secondary"
+                onClick={() => navigate("/hawala/commission")}
+              >
+                {t.nav.commissionTracking}
+              </button>
+              <button
+                type="button"
+                className="secondary"
                 disabled={!pageData?.items.length}
                 onClick={() => pageData && exportCsv(pageData.items, t)}
               >

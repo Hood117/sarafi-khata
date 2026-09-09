@@ -4940,6 +4940,27 @@ button.report-period-preset.active:hover:not(:disabled) {
   background: var(--brand, #0f6b4c);
 }
 
+.commission-tracking-page .commission-stat-value {
+  white-space: pre-line;
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.commission-currency-breakdown {
+  overflow-x: auto;
+}
+
+.commission-currency-breakdown table {
+  width: 100%;
+}
+
+.commission-tracking-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
 .report-period > label > span,
 .report-filters > label > span {
   font-size: var(--text-xs);

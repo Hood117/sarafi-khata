@@ -91,6 +91,7 @@ function emptyForm(currency = "") {
     receiverCustomerId: "",
     receiverLabel: "",
     onBehalfOf: "",
+    receivingAccount: "",
     commission: "",
     originCity: "Kabul",
     originCountry: "Afghanistan",
@@ -100,6 +101,15 @@ function emptyForm(currency = "") {
 }
 
 type SuggestKind = "sender" | "receiver";
+
+function receivingAccountFromDetail(detail: HawalaDetail): string {
+  const partner = (detail.partnerSarafi || "").trim();
+  const receiver = (detail.receiverName || "").trim();
+  if (partner && partner.toLowerCase() !== receiver.toLowerCase()) {
+    return partner;
+  }
+  return (detail.customerNotes || "").trim();
+}
 
 export function SendHawalaFormModal({
   open,
@@ -169,15 +179,34 @@ export function SendHawalaFormModal({
       valueDate: String(detail.valueDate).slice(0, 10),
       amount: detail.amount,
       currencyCode: detail.currencyCode || defaultCurrency,
-      senderMode: senderIsCustomer ? "customer" : "walkin",
-      senderName: senderIsCustomer ? "" : detail.senderName || "",
+      senderMode: isSend
+        ? senderIsCustomer
+          ? "customer"
+          : "walkin"
+        : "walkin",
+      senderName:
+        isSend && senderIsCustomer ? "" : detail.senderName || "",
       senderCustomerId: detail.senderCustomerId || "",
-      senderLabel: senderIsCustomer ? detail.senderName || "" : "",
+      senderLabel: isSend
+        ? senderIsCustomer
+          ? detail.senderName || ""
+          : ""
+        : detail.senderCustomerId
+          ? receivingAccountFromDetail(detail) ||
+            detail.partnerSarafi ||
+            ""
+          : "",
       receiverMode: receiverIsCustomer ? "customer" : "walkin",
-      receiverName: receiverIsCustomer ? "" : detail.receiverName || "",
+      receiverName: detail.receiverName || "",
       receiverCustomerId: detail.receiverCustomerId || "",
-      receiverLabel: receiverIsCustomer ? detail.receiverName || "" : "",
+      receiverLabel: isSend
+        ? receivingAccountFromDetail(detail) ||
+          (detail.receiverCustomerId ? detail.partnerSarafi || "" : "")
+        : receiverIsCustomer
+          ? detail.receiverName || ""
+          : "",
       onBehalfOf: detail.customerNotes || "",
+      receivingAccount: receivingAccountFromDetail(detail),
       commission: detail.ownCommissionAmount || "",
       originCity: detail.originCity || "Kabul",
       originCountry: detail.originCountry || "Afghanistan",
@@ -193,10 +222,10 @@ export function SendHawalaFormModal({
   function pickSender(c: CustomerListItem) {
     setForm((prev) => ({
       ...prev,
-      senderMode: "customer",
+      senderMode: isSend ? "customer" : prev.senderMode,
       senderCustomerId: c.id,
       senderLabel: c.fullName,
-      senderName: "",
+      senderName: isSend ? "" : prev.senderName,
     }));
     setShowSenderSuggest(false);
     setSenderSuggestions([]);
@@ -206,10 +235,11 @@ export function SendHawalaFormModal({
   function pickReceiver(c: CustomerListItem) {
     setForm((prev) => ({
       ...prev,
-      receiverMode: "customer",
+      receiverMode: isSend ? prev.receiverMode : "customer",
       receiverCustomerId: c.id,
       receiverLabel: c.fullName,
-      receiverName: "",
+      receiverName: isSend ? prev.receiverName : "",
+      receivingAccount: isSend ? c.fullName : prev.receivingAccount,
     }));
     setShowReceiverSuggest(false);
     setReceiverSuggestions([]);
@@ -279,7 +309,7 @@ export function SendHawalaFormModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || form.senderMode !== "customer") {
+    if (!open || (isSend && form.senderMode !== "customer")) {
       setSenderSuggestions([]);
       return;
     }
@@ -314,10 +344,10 @@ export function SendHawalaFormModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, form.senderMode, form.senderCustomerId, form.senderLabel]);
+  }, [open, isSend, form.senderMode, form.senderCustomerId, form.senderLabel]);
 
   useEffect(() => {
-    if (!open || form.receiverMode !== "customer") {
+    if (!open || (!isSend && form.receiverMode !== "customer")) {
       setReceiverSuggestions([]);
       return;
     }
@@ -352,7 +382,7 @@ export function SendHawalaFormModal({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, form.receiverMode, form.receiverCustomerId, form.receiverLabel]);
+  }, [open, isSend, form.receiverMode, form.receiverCustomerId, form.receiverLabel]);
 
   function onSuggestKeyDown(
     e: ReactKeyboardEvent<HTMLInputElement>,
@@ -469,31 +499,58 @@ export function SendHawalaFormModal({
       setError(t.hawala.currencyRequired);
       return;
     }
-    if (form.senderMode === "walkin" && !form.senderName.trim()) {
-      setError(t.hawala.senderNameRequired);
-      return;
-    }
-    if (form.senderMode === "customer" && !form.senderCustomerId) {
-      setError(t.desk.selectCustomerRequired);
-      senderSearchRef.current?.querySelector("input")?.focus();
-      return;
-    }
-    if (form.receiverMode === "walkin" && !form.receiverName.trim()) {
-      setError(t.hawala.receiverNameRequired);
-      return;
-    }
-    if (form.receiverMode === "customer" && !form.receiverCustomerId) {
-      setError(t.desk.selectCustomerRequired);
-      receiverSearchRef.current?.querySelector("input")?.focus();
-      return;
-    }
-    if (
-      form.senderMode === "customer" &&
-      form.receiverMode === "customer" &&
-      form.senderCustomerId === form.receiverCustomerId
-    ) {
-      setError(t.hawala.senderNameRequired);
-      return;
+    if (isSend) {
+      if (form.senderMode === "walkin" && !form.senderName.trim()) {
+        setError(t.hawala.senderNameRequired);
+        return;
+      }
+      if (form.senderMode === "customer" && !form.senderCustomerId) {
+        setError(t.desk.selectCustomerRequired);
+        senderSearchRef.current?.querySelector("input")?.focus();
+        return;
+      }
+      if (!form.receiverName.trim()) {
+        setError(t.hawala.receiverNameRequired);
+        return;
+      }
+      if (!form.receiverCustomerId) {
+        setError(t.hawala.receivingAccountRequired);
+        receiverSearchRef.current?.querySelector("input")?.focus();
+        return;
+      }
+      if (
+        form.senderMode === "customer" &&
+        form.senderCustomerId === form.receiverCustomerId
+      ) {
+        setError(t.desk.selectCustomerRequired);
+        return;
+      }
+    } else {
+      if (!form.senderName.trim()) {
+        setError(t.hawala.senderNameRequired);
+        return;
+      }
+      if (!form.senderCustomerId) {
+        setError(t.hawala.sourceCustomerAccountRequired);
+        senderSearchRef.current?.querySelector("input")?.focus();
+        return;
+      }
+      if (form.receiverMode === "walkin" && !form.receiverName.trim()) {
+        setError(t.hawala.receiverNameRequired);
+        return;
+      }
+      if (form.receiverMode === "customer" && !form.receiverCustomerId) {
+        setError(t.desk.selectCustomerRequired);
+        receiverSearchRef.current?.querySelector("input")?.focus();
+        return;
+      }
+      if (
+        form.receiverMode === "customer" &&
+        form.senderCustomerId === form.receiverCustomerId
+      ) {
+        setError(t.desk.selectCustomerRequired);
+        return;
+      }
     }
     if (commissionN > 0 && commissionN >= amountN) {
       setError(t.hawala.commissionMustBeLess);
@@ -518,15 +575,28 @@ export function SendHawalaFormModal({
         originCountry: form.originCountry || "Afghanistan",
         destinationCity: form.destinationCity || "—",
         destinationCountry: form.destinationCountry || "Afghanistan",
-        senderName:
-          form.senderMode === "walkin" ? form.senderName.trim() : null,
-        senderCustomerId:
-          form.senderMode === "customer" ? form.senderCustomerId : null,
-        receiverName:
-          form.receiverMode === "walkin" ? form.receiverName.trim() : null,
-        receiverCustomerId:
-          form.receiverMode === "customer" ? form.receiverCustomerId : null,
-        customerNotes: form.onBehalfOf.trim() || null,
+        senderName: isSend
+          ? form.senderMode === "walkin"
+            ? form.senderName.trim()
+            : null
+          : form.senderName.trim(),
+        senderCustomerId: isSend
+          ? form.senderMode === "customer"
+            ? form.senderCustomerId
+            : null
+          : form.senderCustomerId || null,
+        receiverName: isSend
+          ? form.receiverName.trim()
+          : form.receiverMode === "walkin"
+            ? form.receiverName.trim()
+            : null,
+        receiverCustomerId: isSend
+          ? form.receiverCustomerId || null
+          : form.receiverMode === "customer"
+            ? form.receiverCustomerId
+            : null,
+        customerNotes: null,
+        receivingAccount: isSend ? form.receiverLabel.trim() || null : null,
         notes:
           appendEmployeeLine(undefined, employeeName, t.employees.employee) ||
           null,
@@ -694,6 +764,8 @@ export function SendHawalaFormModal({
               />
             </div>
 
+            {isSend ? (
+              <>
             <div>
               <div className="muted" style={{ marginBottom: "0.35rem", fontSize: "var(--text-sm)" }}>
                 {t.hawala.sender} *
@@ -798,6 +870,75 @@ export function SendHawalaFormModal({
               </label>
             )}
 
+                <label>
+                  <span>{t.hawala.receiver} *</span>
+                  <input
+                    value={form.receiverName}
+                    required
+                    onChange={(e) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        receiverName: e.target.value,
+                      }));
+                      setError(null);
+                    }}
+                  />
+                </label>
+                <label ref={receiverSearchRef} className="customer-search-wrap">
+                  {t.hawala.receivingAccount} *
+                  <input
+                    value={form.receiverLabel}
+                    required
+                    placeholder={t.customers.searchPlaceholder}
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={
+                      showReceiverSuggest && receiverSuggestions.length > 0
+                    }
+                    onChange={(e) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        receiverCustomerId: "",
+                        receiverLabel: e.target.value,
+                        receivingAccount: e.target.value,
+                      }));
+                      setShowReceiverSuggest(true);
+                      setError(null);
+                    }}
+                    onFocus={() => {
+                      if (!form.receiverCustomerId) setShowReceiverSuggest(true);
+                    }}
+                    onKeyDown={(e) => onSuggestKeyDown(e, "receiver")}
+                  />
+                  {showReceiverSuggest &&
+                  form.receiverLabel.trim().length > 0 &&
+                  !form.receiverCustomerId
+                    ? customerSuggestList(
+                        "receiver",
+                        receiverSuggestions,
+                        receiverBusy,
+                        receiverHighlight,
+                        pickReceiver,
+                      )
+                    : null}
+                </label>
+              </>
+            ) : (
+              <>
+                <label>
+                  <span>{t.hawala.sender} *</span>
+                  <input
+                    value={form.senderName}
+                    required
+                    onChange={(e) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        senderName: e.target.value,
+                      }));
+                      setError(null);
+                    }}
+                  />
+                </label>
             <div>
               <div className="muted" style={{ marginBottom: "0.35rem", fontSize: "var(--text-sm)" }}>
                 {t.hawala.receiver} *
@@ -865,7 +1006,7 @@ export function SendHawalaFormModal({
               </label>
             ) : (
               <label ref={receiverSearchRef} className="customer-search-wrap">
-                {t.hawala.destinationCustomer} *
+                {t.hawala.receiver} *
                 <input
                   value={form.receiverLabel}
                   placeholder={t.customers.searchPlaceholder}
@@ -902,20 +1043,45 @@ export function SendHawalaFormModal({
               </label>
             )}
 
-            <label>
-              <span>{t.hawala.fromOnBehalfOf}</span>
-              <input
-                value={form.onBehalfOf}
-                placeholder={t.hawala.walkInName}
-                onChange={(e) => {
-                  setForm((prev) => ({
-                    ...prev,
-                    onBehalfOf: e.target.value,
-                  }));
-                  setError(null);
-                }}
-              />
-            </label>
+                <label ref={senderSearchRef} className="customer-search-wrap">
+                  {t.hawala.sourceCustomerAccount} *
+                  <input
+                    value={form.senderLabel}
+                    required
+                    placeholder={t.customers.searchPlaceholder}
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={
+                      showSenderSuggest && senderSuggestions.length > 0
+                    }
+                    onChange={(e) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        senderCustomerId: "",
+                        senderLabel: e.target.value,
+                      }));
+                      setShowSenderSuggest(true);
+                      setError(null);
+                    }}
+                    onFocus={() => {
+                      if (!form.senderCustomerId) setShowSenderSuggest(true);
+                    }}
+                    onKeyDown={(e) => onSuggestKeyDown(e, "sender")}
+                  />
+                  {showSenderSuggest &&
+                  form.senderLabel.trim().length > 0 &&
+                  !form.senderCustomerId
+                    ? customerSuggestList(
+                        "sender",
+                        senderSuggestions,
+                        senderBusy,
+                        senderHighlight,
+                        pickSender,
+                      )
+                    : null}
+                </label>
+              </>
+            )}
 
             <label>
               <span>{t.hawala.ourCommission}</span>

@@ -30,6 +30,11 @@ const DaybookPage = lazy(() =>
 const HawalaPage = lazy(() =>
   import("@desktop/pages/hawala").then((m) => ({ default: m.HawalaPage })),
 );
+const CommissionTrackingPage = lazy(() =>
+  import("@desktop/pages/commission-tracking").then((m) => ({
+    default: m.CommissionTrackingPage,
+  })),
+);
 const HawalaDetailPage = lazy(() =>
   import("@desktop/pages/hawala-detail").then((m) => ({
     default: m.HawalaDetailPage,
@@ -267,6 +272,14 @@ export function App() {
           element={
             <Lazy>
               <HawalaPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="hawala/commission"
+          element={
+            <Lazy>
+              <CommissionTrackingPage />
             </Lazy>
           }
         />

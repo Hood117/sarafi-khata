@@ -900,6 +900,50 @@ export function listHawalaDesk(input?: Record<string, unknown>) {
   return invoke<HawalaListPage>("list_hawala_desk", { input: input ?? {} });
 }
 
+export type HawalaCommissionCurrencyTotal = {
+  currencyCode: string;
+  total: string;
+  send: string;
+  receive: string;
+  count: number;
+};
+
+export type HawalaCommissionTrackingRow = {
+  id: string;
+  reference: string;
+  displayRef: string;
+  valueDate: string;
+  direction: string;
+  senderName: string | null;
+  receiverName: string | null;
+  currencyCode: string;
+  amount: string;
+  commission: string;
+  status: string;
+};
+
+export type HawalaCommissionTrackingPage = {
+  items: HawalaCommissionTrackingRow[];
+  totals: HawalaCommissionCurrencyTotal[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export function getHawalaCommissionTracking(input?: {
+  dateFrom?: string;
+  dateTo?: string;
+  direction?: string;
+  currencyCode?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  return invoke<HawalaCommissionTrackingPage>("get_hawala_commission_tracking", {
+    input: input ?? {},
+  });
+}
+
 export type HawalaEventItem = {
   id: string;
   eventType: string;
@@ -1428,6 +1472,8 @@ export type HawalaPostInput = {
   settlementNotes?: string | null;
   internalNotes?: string | null;
   customerNotes?: string | null;
+  /** Send Hawala receiving account / sarafi name (journal text only). */
+  receivingAccount?: string | null;
   privateNotes?: string | null;
   valueDate?: string;
   createdById: string;

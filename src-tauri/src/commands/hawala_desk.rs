@@ -6,7 +6,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::state::AppState;
-use crate::util::{now_sqlite};
+use crate::util::{format_f64, now_sqlite};
 use crate::commands::authorize::{require_screen};
 
 fn trim_opt(value: Option<String>) -> Option<String> {
@@ -1084,4 +1084,223 @@ pub fn next_hawala_reference(state: State<'_, AppState>) -> Result<String, AppEr
   let conn = state.db.lock();
   let _actor = require_screen(&state, &conn, "hawala")?;
   super::hawala::next_daily_hawala_reference(&conn)
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HawalaCommissionTrackingInput {
+  pub date_from: Option<String>,
+  pub date_to: Option<String>,
+  pub direction: Option<String>,
+  pub currency_code: Option<String>,
+  pub search: Option<String>,
+  pub page: Option<i64>,
+  pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HawalaCommissionCurrencyTotal {
+  pub currency_code: String,
+  pub total: String,
+  pub send: String,
+  pub receive: String,
+  pub count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HawalaCommissionTrackingRow {
+  pub id: String,
+  pub reference: String,
+  pub display_ref: String,
+  pub value_date: String,
+  pub direction: String,
+  pub sender_name: Option<String>,
+  pub receiver_name: Option<String>,
+  pub currency_code: String,
+  pub amount: String,
+  pub commission: String,
+  pub status: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HawalaCommissionTrackingPage {
+  pub items: Vec<HawalaCommissionTrackingRow>,
+  pub totals: Vec<HawalaCommissionCurrencyTotal>,
+  pub total: i64,
+  pub page: i64,
+  pub page_size: i64,
+}
+
+fn hawala_commission_where(
+  input: &HawalaCommissionTrackingInput,
+) -> (String, Vec<Box<dyn rusqlite::types::ToSql>>) {
+  let mut where_sql = String::from(
+    "WHERE h.deletedAt IS NULL
+     AND t.deletedAt IS NULL
+     AND CAST(COALESCE(h.ownCommissionAmount, 0) AS REAL) > 0",
+  );
+  let mut params_v: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+  if let Some(ref d) = input.direction {
+    let d = d.trim().to_ascii_uppercase();
+    if d == "SEND" || d == "RECEIVE" {
+      where_sql.push_str(" AND h.direction = ?");
+      params_v.push(Box::new(d));
+    }
+  }
+  if let Some(ref code) = input.currency_code {
+    let code = code.trim().to_ascii_uppercase();
+    if !code.is_empty() && code != "ALL" {
+      where_sql.push_str(" AND c.code = ?");
+      params_v.push(Box::new(code));
+    }
+  }
+  if let Some(ref from) = input.date_from {
+    let from = from.trim();
+    if !from.is_empty() {
+      where_sql.push_str(" AND date(h.valueDate) >= date(?)");
+      params_v.push(Box::new(from.to_string()));
+    }
+  }
+  if let Some(ref to) = input.date_to {
+    let to = to.trim();
+    if !to.is_empty() {
+      where_sql.push_str(" AND date(h.valueDate) <= date(?)");
+      params_v.push(Box::new(to.to_string()));
+    }
+  }
+  if let Some(ref q) = input.search {
+    let q = q.trim();
+    if !q.is_empty() {
+      where_sql.push_str(
+        " AND (
+          h.reference LIKE ?
+          OR IFNULL(t.displayRef,'') LIKE ?
+          OR IFNULL(t.reference,'') LIKE ?
+          OR IFNULL(h.senderName,'') LIKE ?
+          OR IFNULL(h.receiverName,'') LIKE ?
+        )",
+      );
+      let like = {
+        let patterned = q.replace('*', "%");
+        if patterned.contains('%') || patterned.contains('_') {
+          patterned
+        } else {
+          format!("%{patterned}%")
+        }
+      };
+      for _ in 0..5 {
+        params_v.push(Box::new(like.clone()));
+      }
+    }
+  }
+
+  (where_sql, params_v)
+}
+
+/// Posted Hawala own-commission report. Does not invent amounts or post ledger rows.
+pub(crate) fn query_hawala_commission_tracking(
+  conn: &Connection,
+  input: HawalaCommissionTrackingInput,
+) -> Result<HawalaCommissionTrackingPage, AppError> {
+  let page_size = input.page_size.unwrap_or(25).clamp(1, 100);
+  let mut page = input.page.unwrap_or(1).max(1);
+  let (where_sql, params_v) = hawala_commission_where(&input);
+  let from_sql = r#"FROM HawalaTransfer h
+     INNER JOIN Currency c ON c.id = h.currencyId
+     INNER JOIN "Transaction" t ON t.id = h.transactionId"#;
+
+  let count_sql = format!("SELECT COUNT(*) {from_sql} {where_sql}");
+  let refs: Vec<&dyn rusqlite::types::ToSql> = params_v.iter().map(|p| p.as_ref()).collect();
+  let total: i64 = conn.query_row(&count_sql, refs.as_slice(), |row| row.get(0))?;
+  let total_pages = if total == 0 {
+    1
+  } else {
+    (total + page_size - 1) / page_size
+  };
+  if page > total_pages {
+    page = total_pages;
+  }
+  let offset = (page - 1) * page_size;
+
+  let totals_sql = format!(
+    "SELECT c.code,
+            SUM(CAST(h.ownCommissionAmount AS REAL)),
+            SUM(CASE WHEN UPPER(h.direction) = 'SEND'
+                THEN CAST(h.ownCommissionAmount AS REAL) ELSE 0 END),
+            SUM(CASE WHEN UPPER(h.direction) = 'RECEIVE'
+                THEN CAST(h.ownCommissionAmount AS REAL) ELSE 0 END),
+            COUNT(*)
+     {from_sql}
+     {where_sql}
+     GROUP BY c.code
+     ORDER BY c.code"
+  );
+  let mut totals_stmt = conn.prepare(&totals_sql)?;
+  let totals = totals_stmt
+    .query_map(refs.as_slice(), |row| {
+      Ok(HawalaCommissionCurrencyTotal {
+        currency_code: row.get(0)?,
+        total: format_f64(row.get::<_, f64>(1)?),
+        send: format_f64(row.get::<_, f64>(2)?),
+        receive: format_f64(row.get::<_, f64>(3)?),
+        count: row.get(4)?,
+      })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  let list_sql = format!(
+    "SELECT h.id, h.reference, IFNULL(t.displayRef,''), h.valueDate, h.direction,
+            h.senderName, h.receiverName, c.code,
+            CAST(h.amount AS TEXT), CAST(h.ownCommissionAmount AS TEXT), h.status
+     {from_sql}
+     {where_sql}
+     ORDER BY {order}
+     LIMIT ? OFFSET ?",
+    order = crate::ledger::HAWALA_CHRONO_DESC,
+  );
+  let mut list_params = params_v;
+  list_params.push(Box::new(page_size));
+  list_params.push(Box::new(offset));
+  let list_refs: Vec<&dyn rusqlite::types::ToSql> =
+    list_params.iter().map(|p| p.as_ref()).collect();
+  let mut list_stmt = conn.prepare(&list_sql)?;
+  let items = list_stmt
+    .query_map(list_refs.as_slice(), |row| {
+      Ok(HawalaCommissionTrackingRow {
+        id: row.get(0)?,
+        reference: row.get(1)?,
+        display_ref: row.get(2)?,
+        value_date: row.get(3)?,
+        direction: row.get(4)?,
+        sender_name: row.get(5)?,
+        receiver_name: row.get(6)?,
+        currency_code: row.get(7)?,
+        amount: row.get(8)?,
+        commission: row.get(9)?,
+        status: row.get(10)?,
+      })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
+
+  Ok(HawalaCommissionTrackingPage {
+    items,
+    totals,
+    total,
+    page,
+    page_size,
+  })
+}
+
+#[tauri::command]
+pub fn get_hawala_commission_tracking(
+  state: State<'_, AppState>,
+  input: HawalaCommissionTrackingInput,
+) -> Result<HawalaCommissionTrackingPage, AppError> {
+  let conn = state.db.lock();
+  let _actor = require_screen(&state, &conn, "hawala")?;
+  query_hawala_commission_tracking(&conn, input)
 }

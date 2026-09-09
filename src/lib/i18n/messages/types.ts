@@ -23,6 +23,7 @@ export type Dictionary = {
     transfers: string;
     exchange: string;
     hawala: string;
+    commissionTracking: string;
     trading: string;
     partnerSarafi: string;
     ownerCapital: string;
@@ -46,6 +47,7 @@ export type Dictionary = {
     exchange: string;
     hawala: string;
     hawalaDetails: string;
+    commissionTracking: string;
     partnerSarafi: string;
     ownerCapital: string;
     expenses: string;
@@ -801,6 +803,10 @@ export type Dictionary = {
     notSignedIn: string;
     destinationCustomer: string;
     fromOnBehalfOf: string;
+    receivingAccount: string;
+    receivingAccountRequired: string;
+    sourceCustomerAccount: string;
+    sourceCustomerAccountRequired: string;
     walkInName: string;
     receiverGets: string;
     ourCommission: string;
@@ -1863,5 +1869,24 @@ export type Dictionary = {
     editCustomerHelper: string;
     newPartnerHelper: string;
     editPartnerHelper: string;
+  };
+  commissionTracking: {
+    title: string;
+    subtitle: string;
+    totalEarned: string;
+    sendCommission: string;
+    receiveCommission: string;
+    transactionCount: string;
+    transactionsHeading: string;
+    searchPlaceholder: string;
+    clearFilters: string;
+    empty: string;
+    hint: string;
+    byCurrency: string;
+    grossAmount: string;
+    typeSent: string;
+    typeReceived: string;
+    backToHawala: string;
+    hawalaType: string;
   };
 };

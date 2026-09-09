@@ -449,6 +449,7 @@ pub fn run() {
       commands::save_market_rates_cache,
       commands::list_hawala_page,
       commands::list_hawala_desk,
+      commands::get_hawala_commission_tracking,
       commands::get_hawala,
       commands::set_hawala_status,
       commands::archive_hawala,

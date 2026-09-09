@@ -12,6 +12,49 @@ export function addCalendarDays(isoDate: string, delta: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
+/** First calendar day of the month containing `isoDay` (YYYY-MM-DD). */
+export function monthStart(isoDay: string): string {
+  return `${isoDay.slice(0, 7)}-01`;
+}
+
+/** Monday of the ISO calendar week containing `isoDay` (local). */
+export function weekStartMonday(isoDay: string): string {
+  const [y, m, d] = isoDay.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dow = dt.getDay(); // 0=Sun … 6=Sat
+  const delta = dow === 0 ? -6 : 1 - dow;
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+export type DatePeriodPreset =
+  | "today"
+  | "yesterday"
+  | "week"
+  | "month"
+  | "custom";
+
+/** Inclusive from/to range using the same local calendar semantics as Reports / Daybook. */
+export function datePeriodRange(
+  preset: Exclude<DatePeriodPreset, "custom">,
+  today: string,
+): { from: string; to: string } {
+  switch (preset) {
+    case "today":
+      return { from: today, to: today };
+    case "yesterday": {
+      const y = addCalendarDays(today, -1);
+      return { from: y, to: y };
+    }
+    case "week": {
+      const from = weekStartMonday(today);
+      return { from, to: addCalendarDays(from, 6) };
+    }
+    case "month":
+      return { from: monthStart(today), to: today };
+  }
+}
+
 /** Human-readable calendar label for desk date pickers (e.g. 12 August 2026). */
 export function formatDisplayDate(isoDate: string, intlLocale: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);

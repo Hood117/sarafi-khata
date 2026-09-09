@@ -8,6 +8,7 @@ import {
   IconChevronDown,
   IconEmployees,
   IconExchange,
+  IconHawala,
   IconLogout,
   IconRates,
   IconReports,
@@ -111,6 +112,14 @@ export function SettingsMenu() {
         label: t.settings.general,
         icon: <IconSettings />,
         onSelect: () => go("/settings"),
+      });
+    }
+    if (canAccessPath(session, "/hawala")) {
+      next.push({
+        id: "commissionTracking",
+        label: t.nav.commissionTracking,
+        icon: <IconHawala />,
+        onSelect: () => go("/hawala/commission"),
       });
     }
     if (canAccessPath(session, "/reports")) {

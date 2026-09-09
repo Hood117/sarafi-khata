@@ -215,14 +215,22 @@ fn hawala_party_description(
   amount_major: &str,
   currency_code: &str,
   receiver_name: &str,
+  via_account: Option<&str>,
   on_behalf_of: Option<&str>,
 ) -> String {
   let amount = crate::util::format_amount_commas(amount_major);
-  match on_behalf_of.map(str::trim).filter(|s| !s.is_empty()) {
-    Some(from) => format!(
-      "{sender_name} sent {amount} {currency_code} to {receiver_name} from {from}."
-    ),
-    None => format!("{sender_name} sent {amount} {currency_code} to {receiver_name}."),
+  let via = via_account.map(str::trim).filter(|s| !s.is_empty());
+  let from = on_behalf_of.map(str::trim).filter(|s| !s.is_empty());
+  match (via, from) {
+    (Some(account), _) => {
+      format!("{sender_name} sent {amount} {currency_code} to {receiver_name} via {account}.")
+    }
+    (None, Some(from)) => {
+      format!("{sender_name} sent {amount} {currency_code} to {receiver_name} from {from}.")
+    }
+    (None, None) => {
+      format!("{sender_name} sent {amount} {currency_code} to {receiver_name}.")
+    }
   }
 }
 
@@ -429,6 +437,9 @@ pub struct HawalaPostInput {
   pub settlement_notes: Option<String>,
   pub internal_notes: Option<String>,
   pub customer_notes: Option<String>,
+  /// Optional name snapshot. Send Hawala posting uses `receiver_customer_id`.
+  #[serde(default)]
+  pub receiving_account: Option<String>,
   pub private_notes: Option<String>,
   pub value_date: Option<String>,
   pub created_by_id: String,
@@ -510,18 +521,48 @@ fn post_hawala(
 
   let sender_customer_id = trim_opt(input.sender_customer_id);
   let receiver_customer_id = trim_opt(input.receiver_customer_id);
-  let (sender_name, sender_phone) = resolve_customer_name_phone(
+  let typed_sender_name = trim_opt(input.sender_name.clone());
+  let typed_receiver_name = trim_opt(input.receiver_name.clone());
+  let (resolved_sender_name, sender_phone) = resolve_customer_name_phone(
     conn,
     sender_customer_id.as_deref(),
-    input.sender_name.as_deref().unwrap_or(""),
+    typed_sender_name.as_deref().unwrap_or(""),
     input.sender_phone.as_deref(),
   )?;
-  let (receiver_name, receiver_phone) = resolve_customer_name_phone(
+  let (resolved_receiver_name, receiver_phone) = resolve_customer_name_phone(
     conn,
     receiver_customer_id.as_deref(),
-    input.receiver_name.as_deref().unwrap_or(""),
+    typed_receiver_name.as_deref().unwrap_or(""),
     input.receiver_phone.as_deref(),
   )?;
+  // Destination customer is the receiving account. A typed receiver name is the
+  // human recipient only — it must not replace the dest customer or create one.
+  let dest_account_name = if receiver_customer_id.is_some() {
+    Some(resolved_receiver_name.clone())
+  } else {
+    None
+  };
+  let source_account_name = if sender_customer_id.is_some() {
+    Some(resolved_sender_name.clone())
+  } else {
+    None
+  };
+  // Send: typed receiver is the person; dest customer is the receiving account.
+  // Receive: typed sender is the person; sender_customer_id is the source account.
+  let sender_name = if direction == "RECEIVE" {
+    typed_sender_name
+      .clone()
+      .unwrap_or_else(|| resolved_sender_name.clone())
+  } else {
+    resolved_sender_name
+  };
+  let receiver_name = if direction == "SEND" {
+    typed_receiver_name
+      .clone()
+      .unwrap_or_else(|| resolved_receiver_name.clone())
+  } else {
+    resolved_receiver_name
+  };
 
   // Walk-in phones must not collide with another customer's unique phone.
   if sender_customer_id.is_none() {
@@ -565,6 +606,13 @@ fn post_hawala(
     }
   }
 
+  let receiving_account = if direction == "SEND" {
+    dest_account_name
+      .clone()
+      .or_else(|| trim_opt(input.receiving_account.clone()))
+  } else {
+    trim_opt(input.receiving_account.clone())
+  };
   let partner_name = if let Some(ref pid) = partner_id {
     let partner: (String, String, i64, Option<String>) = conn
       .query_row(
@@ -589,9 +637,14 @@ fn post_hawala(
     // Ledger legs are unchanged: dest customer still uses simple_desk; otherwise
     // the existing partner-corridor / walk-in path runs.
     if direction == "SEND" {
-      receiver_name.clone()
+      dest_account_name
+        .clone()
+        .or_else(|| receiving_account.clone())
+        .unwrap_or_else(|| receiver_name.clone())
     } else {
-      sender_name.clone()
+      source_account_name
+        .clone()
+        .unwrap_or_else(|| sender_name.clone())
     }
   } else {
     return Err(AppError::Validation("Partner is required.".into()));
@@ -758,6 +811,63 @@ fn post_hawala(
         });
       }
     }
+  } else if direction == "RECEIVE" && sender_customer_id.is_some() && receiver_customer_id.is_none()
+  {
+    // Source customer is charged the gross; named walk-in is paid net cash from
+    // Main Vault. Do not create a receiver customer. Do not use Hawala Clearing.
+    let sid = sender_customer_id.as_ref().expect("validated above");
+    let src_wallet = resolve_sole_customer_wallet(conn, sid)?;
+    let (own_minor, net_minor) = own_commission_split(
+      principal_minor,
+      &own_amount,
+      &currency_code,
+      &commission_currency_code,
+      commission_places,
+    )?;
+    receive_amount = Some(money_to_major_unit_string(net_minor, places)?);
+    walk_in_name_for_tx = Some(receiver_name.clone());
+    walk_in_phone_for_tx = receiver_phone.clone();
+
+    entries.push(PostingLineDto {
+      wallet_id: src_wallet,
+      currency: currency_code.clone(),
+      direction: "CREDIT".into(),
+      amount_minor: principal_minor.to_string(),
+      exchange_rate_id: None,
+      memo: Some("Hawala — source account".into()),
+    });
+    entries.push(PostingLineDto {
+      wallet_id: cash_wallet_id.clone(),
+      currency: currency_code.clone(),
+      direction: "CREDIT".into(),
+      amount_minor: net_minor.to_string(),
+      exchange_rate_id: None,
+      memo: Some("Hawala — cash paid to receiver".into()),
+    });
+    if own_minor > 0 {
+      let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
+      entries.push(PostingLineDto {
+        wallet_id: income_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: own_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Hawala commission income".into()),
+      });
+    }
+    let equity_id = ensure_opening_equity(conn)?;
+    let equity_minor = principal_minor
+      .checked_add(net_minor)
+      .and_then(|v| v.checked_add(own_minor))
+      .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+    entries.push(PostingLineDto {
+      wallet_id: equity_id,
+      currency: currency_code.clone(),
+      direction: "DEBIT".into(),
+      amount_minor: equity_minor.to_string(),
+      exchange_rate_id: None,
+      memo: Some("Balancing equity leg".into()),
+    });
   } else if direction == "SEND" {
     if let Some(ref sid) = sender_customer_id {
       // Customer account send without a destination customer (legacy partner corridor).
@@ -823,7 +933,9 @@ fn post_hawala(
   }
 
   if let Some(ref own_major) = own_amount {
-    if !simple_desk {
+    let source_receive_payout =
+      direction == "RECEIVE" && sender_customer_id.is_some() && receiver_customer_id.is_none();
+    if !simple_desk && !source_receive_payout {
       let own_minor = money_from_major_units(own_major, commission_places)?;
       let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
       entries.push(PostingLineDto {
@@ -851,6 +963,7 @@ fn post_hawala(
     &amount_major,
     &currency_code,
     &receiver_name,
+    receiving_account.as_deref(),
     on_behalf_of.as_deref(),
   );
 
@@ -1046,6 +1159,9 @@ pub fn receive_hawala(
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::commands::hawala_desk::{
+    query_hawala_commission_tracking, HawalaCommissionTrackingInput,
+  };
   use crate::commands::trading::util::soft_delete_desk_transaction;
   use crate::ledger::{
     ensure_wallet_balance_cache, post_transaction, wallet_currency_balance_minor,
@@ -1331,6 +1447,7 @@ mod tests {
       settlement_notes: None,
       internal_notes: None,
       customer_notes: None,
+      receiving_account: None,
       private_notes: None,
       value_date: None,
       created_by_id: "u1".into(),
@@ -1512,6 +1629,192 @@ mod tests {
   }
 
   #[test]
+  fn send_named_person_via_customer_account_posts_net_to_that_account() {
+    let conn = setup_posting();
+    let before_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 0);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
+
+    let mut input = dest_send_input("60000", Some("500"), "cust-ghazni", "Khan");
+    input.receiver_name = Some("Jan".into());
+    input.receiving_account = Some("Ghazni Sarafi".into());
+    let posted = post_hawala(&conn, "SEND", input).expect("send via dest customer");
+
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 60000);
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 59500);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
+
+    let after_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(after_customers, before_customers);
+    let jan: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE fullName = 'Jan' AND deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(jan, 0);
+    let typed_sarafi: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE fullName = 'Ghazni Sarafi' AND deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(typed_sarafi, 0);
+
+    let (sender, receiver, dest_id, walk_in): (
+      String,
+      String,
+      Option<String>,
+      Option<String>,
+    ) = conn
+      .query_row(
+        r#"SELECT h.senderName, h.receiverName, h.receiverCustomerId, t.walkInName
+           FROM HawalaTransfer h
+           INNER JOIN "Transaction" t ON t.id = h.transactionId
+           WHERE h.id = ?1"#,
+        [&posted.id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+      )
+      .unwrap();
+    assert_eq!(sender, "Khan");
+    assert_eq!(receiver, "Jan");
+    assert_eq!(dest_id.as_deref(), Some("cust-ghazni"));
+    assert_eq!(walk_in.as_deref(), Some("Khan"));
+
+    let mut stmt = conn
+      .prepare(
+        "SELECT w.name, le.direction, le.amount
+         FROM LedgerEntry le
+         INNER JOIN Wallet w ON w.id = le.walletId
+         WHERE le.transactionId = ?1
+         ORDER BY w.name, le.direction",
+      )
+      .unwrap();
+    let lines: Vec<(String, String, String)> = stmt
+      .query_map([&posted.transaction_id], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+      })
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Main Vault" && d == "DEBIT" && a == "60000"),
+      "{lines:?}"
+    );
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Ghazni Saraf" && d == "DEBIT" && a == "59500"),
+      "{lines:?}"
+    );
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Hawala Commission Income" && d == "CREDIT" && a == "500"),
+      "{lines:?}"
+    );
+    assert!(
+      !lines.iter().any(|(n, _, _)| n == "Hawala Clearing"),
+      "dest customer send must not use Hawala Clearing: {lines:?}"
+    );
+
+    let mut debit: i128 = 0;
+    let mut credit: i128 = 0;
+    for (_, dir, amt) in &lines {
+      let n: i128 = amt.parse().unwrap();
+      if dir == "DEBIT" {
+        debit += n;
+      } else {
+        credit += n;
+      }
+    }
+    assert_eq!(debit, credit);
+
+    let net: Option<String> = conn
+      .query_row(
+        "SELECT receiveAmount FROM HawalaTransfer WHERE id = ?1",
+        [&posted.id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(net.as_deref(), Some("59500"));
+
+    let desc: String = conn
+      .query_row(
+        r#"SELECT description FROM "Transaction" WHERE id = ?1"#,
+        [&posted.transaction_id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(desc, "Khan sent 60,000 AFN to Jan via Ghazni Saraf.");
+  }
+
+  #[test]
+  fn typed_receiving_account_without_customer_does_not_move_dest_ledger() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "10000");
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 10000);
+    let before_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+
+    let mut input = desk_input(
+      "HW-TEST-TYPED-ONLY",
+      "60000",
+      Some("500"),
+      None,
+      "Khan",
+      "cust-ghazni",
+    );
+    input.receiver_customer_id = None;
+    input.receiver_name = Some("Jan".into());
+    input.receiving_account = Some("Ghazni Sarafi".into());
+    let posted = post_hawala(&conn, "SEND", input).expect("typed name only");
+
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 10000);
+    let jan: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE fullName = 'Jan' AND deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(jan, 0);
+    let after_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(after_customers, before_customers);
+    let dest: Option<String> = conn
+      .query_row(
+        "SELECT receiverCustomerId FROM HawalaTransfer WHERE id = ?1",
+        [&posted.id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert!(dest.is_none());
+  }
+
+  #[test]
   fn walk_in_destination_send_rejects_commission_not_less_than_amount() {
     let conn = setup_posting();
     let err = post_hawala(
@@ -1619,6 +1922,255 @@ mod tests {
     let (_, tx_type, live) = live_hawala_tx(&conn, &posted.id);
     assert_eq!(tx_type, "HAWALA");
     assert_eq!(live, 1);
+  }
+
+  #[test]
+  fn receive_from_source_customer_pays_net_cash_to_named_receiver() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "10000");
+    let before_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 10000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+
+    let mut input = desk_input(
+      "HW-TEST-R-SRC",
+      "6000",
+      Some("500"),
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    input.receiver_customer_id = None;
+    input.receiver_name = Some("Jan".into());
+    let posted = post_hawala(&conn, "RECEIVE", input).expect("receive from source customer");
+
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
+
+    let after_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(after_customers, before_customers);
+    let jan: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE fullName = 'Jan' AND deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(jan, 0);
+    let khan: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE fullName = 'Khan' AND deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(khan, 0);
+
+    let (sender, receiver, sender_id, dest_id, walk_in): (
+      String,
+      String,
+      Option<String>,
+      Option<String>,
+      Option<String>,
+    ) = conn
+      .query_row(
+        r#"SELECT h.senderName, h.receiverName, h.senderCustomerId, h.receiverCustomerId, t.walkInName
+           FROM HawalaTransfer h
+           INNER JOIN "Transaction" t ON t.id = h.transactionId
+           WHERE h.id = ?1"#,
+        [&posted.id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+      )
+      .unwrap();
+    assert_eq!(sender, "Khan");
+    assert_eq!(receiver, "Jan");
+    assert_eq!(sender_id.as_deref(), Some("cust-ghazni"));
+    assert!(dest_id.is_none());
+    assert_eq!(walk_in.as_deref(), Some("Jan"));
+
+    let mut stmt = conn
+      .prepare(
+        "SELECT w.name, le.direction, le.amount
+         FROM LedgerEntry le
+         INNER JOIN Wallet w ON w.id = le.walletId
+         WHERE le.transactionId = ?1
+         ORDER BY w.name, le.direction",
+      )
+      .unwrap();
+    let lines: Vec<(String, String, String)> = stmt
+      .query_map([&posted.transaction_id], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+      })
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Ghazni Saraf" && d == "CREDIT" && a == "6000"),
+      "{lines:?}"
+    );
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Main Vault" && d == "CREDIT" && a == "5500"),
+      "{lines:?}"
+    );
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Hawala Commission Income" && d == "CREDIT" && a == "500"),
+      "{lines:?}"
+    );
+    assert!(
+      lines.iter().any(|(n, d, a)| n == "Opening Equity" && d == "DEBIT" && a == "12000"),
+      "{lines:?}"
+    );
+    assert!(
+      !lines.iter().any(|(n, _, _)| n == "Hawala Clearing"),
+      "source receive must not use Hawala Clearing: {lines:?}"
+    );
+    assert!(
+      !lines.iter().any(|(n, d, a)| n == "Main Vault" && d == "CREDIT" && a == "6000"),
+      "gross must not leave Main Vault: {lines:?}"
+    );
+
+    let mut debit: i128 = 0;
+    let mut credit: i128 = 0;
+    for (_, dir, amt) in &lines {
+      let n: i128 = amt.parse().unwrap();
+      if dir == "DEBIT" {
+        debit += n;
+      } else {
+        credit += n;
+      }
+    }
+    assert_eq!(debit, credit);
+    assert_eq!(debit, 12000);
+
+    let net: Option<String> = conn
+      .query_row(
+        "SELECT receiveAmount FROM HawalaTransfer WHERE id = ?1",
+        [&posted.id],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(net.as_deref(), Some("5500"));
+  }
+
+  #[test]
+  fn receive_source_customer_to_customer_receiver_keeps_vault_and_sender_name() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "10000");
+    let before_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+
+    let mut input = desk_input(
+      "HW-TEST-R-SRC-CUST",
+      "6000",
+      Some("500"),
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    input.receiver_name = Some("Jan".into());
+    let posted = post_hawala(&conn, "RECEIVE", input).expect("receive to customer");
+
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 5500);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+
+    let after_customers: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM Customer WHERE deletedAt IS NULL",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(after_customers, before_customers);
+
+    let (sender, receiver, sender_id, dest_id): (String, String, Option<String>, Option<String>) =
+      conn
+        .query_row(
+          "SELECT senderName, receiverName, senderCustomerId, receiverCustomerId
+           FROM HawalaTransfer WHERE id = ?1",
+          [&posted.id],
+          |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .unwrap();
+    assert_eq!(sender, "Khan");
+    assert_eq!(receiver, "Ahmad");
+    assert_eq!(sender_id.as_deref(), Some("cust-ghazni"));
+    assert_eq!(dest_id.as_deref(), Some("cust-ahmad"));
+
+    let mut stmt = conn
+      .prepare(
+        "SELECT w.name FROM LedgerEntry le INNER JOIN Wallet w ON w.id = le.walletId
+         WHERE le.transactionId = ?1",
+      )
+      .unwrap();
+    let names: Vec<String> = stmt
+      .query_map([&posted.transaction_id], |row| row.get(0))
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+    assert!(!names.iter().any(|n| n == "Hawala Clearing"), "{names:?}");
+  }
+
+  #[test]
+  fn receive_source_payout_edit_and_delete_reverse_balances() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "10000");
+    let mut first_in = desk_input(
+      "HW-TEST-R-EDIT",
+      "6000",
+      Some("500"),
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    first_in.receiver_customer_id = None;
+    first_in.receiver_name = Some("Jan".into());
+    let first = post_hawala(&conn, "RECEIVE", first_in).unwrap();
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
+
+    let mut next = desk_input(
+      "HW-TEST-R-EDIT",
+      "4000",
+      Some("400"),
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    next.receiver_customer_id = None;
+    next.receiver_name = Some("Jan".into());
+    next.reference = first.reference.clone();
+    next.replace_transaction_id = Some(first.transaction_id.clone());
+    let second = post_hawala(&conn, "RECEIVE", next).expect("replace receive");
+    assert_ne!(second.transaction_id, first.transaction_id);
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 6000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -3600);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -400);
+
+    soft_delete_desk_transaction(&conn, &second.transaction_id).unwrap();
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 10000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), 0);
   }
 
   #[test]
@@ -1762,11 +2314,18 @@ mod tests {
   #[test]
   fn hawala_party_description_matches_cashier_wording() {
     assert_eq!(
-      hawala_party_description("Hannah", "6000", "AFN", "Rahmat", Some("Mahmoud")),
+      hawala_party_description(
+        "Hannah",
+        "6000",
+        "AFN",
+        "Rahmat",
+        None,
+        Some("Mahmoud"),
+      ),
       "Hannah sent 6,000 AFN to Rahmat from Mahmoud."
     );
     assert_eq!(
-      hawala_party_description("Mahmoud", "15000", "OMR", "Rahmat", None),
+      hawala_party_description("Mahmoud", "15000", "OMR", "Rahmat", None, None),
       "Mahmoud sent 15,000 OMR to Rahmat."
     );
     assert_eq!(
@@ -1775,13 +2334,25 @@ mod tests {
         "10000",
         "USD",
         "Ahmad Khan",
+        None,
         Some("Abdul Rahman"),
       ),
       "Khan Agha sent 10,000 USD to Ahmad Khan from Abdul Rahman."
     );
     assert_eq!(
-      hawala_party_description("Hannah", "6000", "AFN", "Rahmat", Some("  ")),
+      hawala_party_description("Hannah", "6000", "AFN", "Rahmat", None, Some("  ")),
       "Hannah sent 6,000 AFN to Rahmat."
+    );
+    assert_eq!(
+      hawala_party_description(
+        "Khan",
+        "60000",
+        "AFN",
+        "Jan",
+        Some("Ghazni Sarafi"),
+        None,
+      ),
+      "Khan sent 60,000 AFN to Jan via Ghazni Sarafi."
     );
   }
 
@@ -1805,7 +2376,7 @@ mod tests {
     );
     input.receiver_customer_id = None;
     input.receiver_name = Some("Rahmat".into());
-    input.customer_notes = Some("Mahmoud".into());
+    input.receiving_account = Some("Ghazni Sarafi".into());
     let posted = post_hawala(&conn, "SEND", input).expect("walk-in dest");
     let after: i64 = conn
       .query_row(
@@ -1815,23 +2386,25 @@ mod tests {
       )
       .unwrap();
     assert_eq!(after, before);
-    let (sender, receiver, dest_id, from): (
+    let (sender, receiver, dest_id, partner, notes): (
       String,
       String,
       Option<String>,
+      String,
       Option<String>,
     ) = conn
       .query_row(
-        "SELECT senderName, receiverName, receiverCustomerId, customerNotes
+        "SELECT senderName, receiverName, receiverCustomerId, partnerSarafi, customerNotes
          FROM HawalaTransfer WHERE id = ?1",
         [&posted.id],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
       )
       .unwrap();
     assert_eq!(sender, "Ahmad");
     assert_eq!(receiver, "Rahmat");
     assert!(dest_id.is_none());
-    assert_eq!(from.as_deref(), Some("Mahmoud"));
+    assert_eq!(partner, "Ghazni Sarafi");
+    assert!(notes.is_none());
     let desc: String = conn
       .query_row(
         r#"SELECT description FROM "Transaction" WHERE id = ?1"#,
@@ -1839,6 +2412,229 @@ mod tests {
         |row| row.get(0),
       )
       .unwrap();
-    assert_eq!(desc, "Ahmad sent 6,000 AFN to Rahmat from Mahmoud.");
+    assert_eq!(desc, "Ahmad sent 6,000 AFN to Rahmat via Ghazni Sarafi.");
+  }
+
+  fn tracking(
+    conn: &Connection,
+    input: HawalaCommissionTrackingInput,
+  ) -> crate::commands::hawala_desk::HawalaCommissionTrackingPage {
+    query_hawala_commission_tracking(conn, input).expect("commission tracking query")
+  }
+
+  fn afn_total<'a>(
+    page: &'a crate::commands::hawala_desk::HawalaCommissionTrackingPage,
+  ) -> &'a crate::commands::hawala_desk::HawalaCommissionCurrencyTotal {
+    page
+      .totals
+      .iter()
+      .find(|row| row.currency_code == "AFN")
+      .expect("AFN totals")
+  }
+
+  #[test]
+  fn commission_tracking_reads_posted_own_commission() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "20000");
+
+    let mut send = dest_send_input("60000", Some("500"), "cust-ghazni", "Khan");
+    send.reference = "HW-COMM-SEND".into();
+    send.receiver_name = Some("Jan".into());
+    send.value_date = Some("2026-09-08".into());
+    post_hawala(&conn, "SEND", send).expect("send with commission");
+
+    let mut recv = desk_input(
+      "HW-COMM-RECV",
+      "6000",
+      Some("500"),
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    recv.receiver_customer_id = None;
+    recv.receiver_name = Some("Jan".into());
+    recv.value_date = Some("2026-09-08".into());
+    post_hawala(&conn, "RECEIVE", recv).expect("receive with commission");
+
+    let mut extra = dest_send_input("10000", Some("300"), "cust-ghazni", "Ahmad");
+    extra.reference = "HW-COMM-SEND-2".into();
+    extra.value_date = Some("2026-09-08".into());
+    post_hawala(&conn, "SEND", extra).expect("second send");
+
+    let mut zero = dest_send_input("1000", None, "cust-ghazni", "NoFee");
+    zero.reference = "HW-COMM-ZERO".into();
+    zero.value_date = Some("2026-09-08".into());
+    post_hawala(&conn, "SEND", zero).expect("zero commission send");
+
+    let mut old = dest_send_input("2000", Some("80"), "cust-ghazni", "Old");
+    old.reference = "HW-COMM-OLD".into();
+    old.value_date = Some("2026-08-01".into());
+    post_hawala(&conn, "SEND", old).expect("older send");
+
+    let all = tracking(&conn, HawalaCommissionTrackingInput::default());
+    assert_eq!(all.total, 4, "zero-commission hawala must not appear");
+    let afn = afn_total(&all);
+    assert_eq!(afn.total, "1380");
+    assert_eq!(afn.send, "880");
+    assert_eq!(afn.receive, "500");
+    assert_eq!(afn.count, 4);
+    assert!(all.items.iter().all(|row| row.commission.parse::<f64>().unwrap() > 0.0));
+    assert!(!all.items.iter().any(|row| row.reference == "HW-COMM-ZERO"));
+
+    let sent = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        direction: Some("SEND".into()),
+        date_from: Some("2026-09-08".into()),
+        date_to: Some("2026-09-08".into()),
+        ..Default::default()
+      },
+    );
+    let sent_afn = afn_total(&sent);
+    assert_eq!(sent.total, 2);
+    assert_eq!(sent_afn.total, "800");
+    assert_eq!(sent_afn.send, "800");
+    assert_eq!(sent_afn.receive, "0");
+    assert!(sent.items.iter().all(|row| row.direction == "SEND"));
+
+    let received = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        direction: Some("RECEIVE".into()),
+        date_from: Some("2026-09-08".into()),
+        date_to: Some("2026-09-08".into()),
+        ..Default::default()
+      },
+    );
+    let recv_afn = afn_total(&received);
+    assert_eq!(received.total, 1);
+    assert_eq!(recv_afn.total, "500");
+    assert_eq!(recv_afn.send, "0");
+    assert_eq!(recv_afn.receive, "500");
+    assert_eq!(received.items[0].reference, "HW-COMM-RECV");
+
+    let day = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        date_from: Some("2026-09-08".into()),
+        date_to: Some("2026-09-08".into()),
+        ..Default::default()
+      },
+    );
+    assert_eq!(day.total, 3);
+    assert_eq!(afn_total(&day).total, "1300");
+
+    let search = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        search: Some("HW-COMM-RECV".into()),
+        ..Default::default()
+      },
+    );
+    assert_eq!(search.total, 1);
+    assert_eq!(search.items[0].sender_name.as_deref(), Some("Khan"));
+    assert_eq!(search.items[0].receiver_name.as_deref(), Some("Jan"));
+
+    let name_search = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        search: Some("Jan".into()),
+        date_from: Some("2026-09-08".into()),
+        date_to: Some("2026-09-08".into()),
+        ..Default::default()
+      },
+    );
+    assert_eq!(name_search.total, 2);
+
+    let combined = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        direction: Some("SEND".into()),
+        currency_code: Some("AFN".into()),
+        search: Some("Khan".into()),
+        date_from: Some("2026-09-08".into()),
+        date_to: Some("2026-09-08".into()),
+        ..Default::default()
+      },
+    );
+    assert_eq!(combined.total, 1);
+    assert_eq!(afn_total(&combined).total, "500");
+
+    let usd_only = tracking(
+      &conn,
+      HawalaCommissionTrackingInput {
+        currency_code: Some("USD".into()),
+        ..Default::default()
+      },
+    );
+    assert_eq!(usd_only.total, 0);
+    assert!(usd_only.totals.is_empty());
+
+    let cleared = tracking(&conn, HawalaCommissionTrackingInput::default());
+    assert_eq!(cleared.total, 4);
+    assert_eq!(afn_total(&cleared).total, "1380");
+
+    let posted: String = conn
+      .query_row(
+        "SELECT ownCommissionAmount FROM HawalaTransfer WHERE reference = 'HW-COMM-SEND'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap();
+    assert_eq!(posted, "500");
+  }
+
+  #[test]
+  fn commission_tracking_keeps_currencies_separate() {
+    let conn = setup_posting();
+    conn
+      .execute(
+        "INSERT INTO Currency (id, code, name, decimalPlaces, isActive)
+         VALUES ('c2','USD','Dollar',2,1)",
+        [],
+      )
+      .unwrap();
+    seed_customer_balance(&conn, "w-ghazni", "20000");
+
+    let mut afn = dest_send_input("60000", Some("500"), "cust-ghazni", "Khan");
+    afn.reference = "HW-COMM-AFN".into();
+    post_hawala(&conn, "SEND", afn).expect("afn send");
+
+    let mut usd = dest_send_input("1000", Some("420"), "cust-ghazni", "Khan");
+    usd.reference = "HW-COMM-USD".into();
+    usd.currency_code = "USD".into();
+    usd.commission_currency_code = Some("USD".into());
+    post_hawala(&conn, "SEND", usd).expect("usd send");
+
+    let mut pkr_ccy_ok = dest_send_input("18000", Some("180"), "cust-ghazni", "Khan");
+    pkr_ccy_ok.reference = "HW-COMM-PKR".into();
+    conn
+      .execute(
+        "INSERT INTO Currency (id, code, name, decimalPlaces, isActive)
+         VALUES ('c3','PKR','Rupee',0,1)",
+        [],
+      )
+      .unwrap();
+    pkr_ccy_ok.currency_code = "PKR".into();
+    pkr_ccy_ok.commission_currency_code = Some("PKR".into());
+    post_hawala(&conn, "SEND", pkr_ccy_ok).expect("pkr send");
+
+    let page = tracking(&conn, HawalaCommissionTrackingInput::default());
+    assert_eq!(page.total, 3);
+    assert_eq!(page.totals.len(), 3);
+    let codes: Vec<_> = page.totals.iter().map(|row| row.currency_code.as_str()).collect();
+    assert_eq!(codes, vec!["AFN", "PKR", "USD"]);
+    assert_eq!(page.totals[0].total, "500");
+    assert_eq!(page.totals[1].total, "180");
+    assert_eq!(page.totals[2].total, "420");
+    let mixed_sum: f64 = page
+      .totals
+      .iter()
+      .map(|row| row.total.parse::<f64>().unwrap())
+      .sum();
+    assert_ne!(
+      mixed_sum, 500.0,
+      "UI must not present a single mixed-currency grand total"
+    );
   }
 }

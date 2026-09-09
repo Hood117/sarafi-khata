@@ -67,6 +67,7 @@ commands.allow = [
   "save_market_rates_cache",
   "list_hawala_page",
   "list_hawala_desk",
+  "get_hawala_commission_tracking",
   "get_hawala",
   "set_hawala_status",
   "archive_hawala",
