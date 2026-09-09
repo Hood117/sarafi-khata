@@ -655,7 +655,7 @@ export const en: Dictionary = {
     cancel: "Cancel",
     cancelConfirm: "Cancel confirm",
     archiveConfirm: "Archive this customer?",
-    searchPlaceholder: "Search customers…",
+    searchPlaceholder: "Hawala number, sender, or receiver…",
     filters: "Filters",
     direction: "Direction",
     sendDir: "Send dir",
@@ -848,6 +848,9 @@ export const en: Dictionary = {
       "Select the source customer account. The gross Hawala amount is charged to that account. The receiver receives the net cash from Main Vault, and the commission is recorded as income.",
     sendSplitPreview: "Amount {gross} • Commission {fee} • Net {net}",
     commissionMustBeLess: "Commission must be less than the received amount.",
+    totalHawalas: "Total Hawalas",
+    totalCommission: "Total Commission",
+    clearFilters: "Clear Filters",
   },
   partner: {
     add: "Add partner sarafi",

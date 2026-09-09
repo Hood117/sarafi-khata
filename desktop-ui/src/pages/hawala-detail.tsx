@@ -916,7 +916,9 @@ export function HawalaDetailPage() {
               <hr className="tx-print-rule" />
               <div className="tx-print-row">
                 <span>{t.common.reference}</span>
-                <strong>{txDisplayRef(detail)}</strong>
+                <strong className="ltr-text tx-print-ref">
+                  {txDisplayRef(detail)}
+                </strong>
               </div>
               <div className="tx-print-row">
                 <span>{t.hawala.direction}</span>

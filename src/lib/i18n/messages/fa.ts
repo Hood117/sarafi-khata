@@ -655,7 +655,7 @@ export const fa: Dictionary = {
     cancel: "انصراف",
     cancelConfirm: "این حواله لغو شود؟",
     archiveConfirm: "این حواله بایگانی شود؟",
-    searchPlaceholder: "جستجوی حواله‌ها…",
+    searchPlaceholder: "شماره حواله، فرستنده یا گیرنده…",
     filters: "فلترها",
     direction: "جهت",
     sendDir: "ارسال",
@@ -846,6 +846,9 @@ export const fa: Dictionary = {
       "حساب مشتری مبدأ را انتخاب کنید. مبلغ ناخالص حواله از همان حساب کم می‌شود. گیرنده نقد خالص را از خزانه اصلی دریافت می‌کند و کمیشن به‌عنوان درآمد ثبت می‌شود.",
     sendSplitPreview: "مبلغ {gross} • کمیشن {fee} • خالص {net}",
     commissionMustBeLess: "کمیشن باید از مبلغ دریافت‌شده کمتر باشد.",
+    totalHawalas: "مجموع حواله‌ها",
+    totalCommission: "مجموع کمیشن",
+    clearFilters: "پاک کردن فلترها",
   },
   partner: {
     add: "افزودن صرافی همکار",

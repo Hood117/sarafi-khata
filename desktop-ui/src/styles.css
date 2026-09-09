@@ -2548,6 +2548,36 @@ button.daybook-quick-link {
   }
 }
 
+.hawala-desk-table tbody td {
+  padding-block: 0.32rem;
+  vertical-align: middle;
+}
+
+.hawala-desk-table .col-party {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hawala-desk-table .col-amount {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hawala-desk-table .col-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.hawala-desk-table .hawala-complete-btn {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .hawala-form-steps {
   gap: var(--space-md);
 }
@@ -4944,7 +4974,8 @@ button.report-period-preset.active:hover:not(:disabled) {
   background: var(--brand, #0f6b4c);
 }
 
-.commission-tracking-page .commission-stat-value {
+.commission-tracking-page .commission-stat-value,
+.hawala-desk-page .commission-stat-value {
   white-space: pre-line;
   font-size: 1.1rem;
   line-height: 1.35;
@@ -5979,6 +6010,11 @@ html[data-bold-text="true"] .ledger-amount .amount-emphasis {
   text-align: right;
   font-weight: 600;
   word-break: break-word;
+}
+
+.tx-print-ref {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .tx-print-amount {

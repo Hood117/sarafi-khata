@@ -119,11 +119,21 @@ pub struct HawalaListItemRich {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct HawalaListCommissionTotal {
+  pub currency_code: String,
+  pub total: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HawalaListPageRich {
   pub items: Vec<HawalaListItemRich>,
   pub total: i64,
   pub page: i64,
   pub page_size: i64,
+  pub pending: i64,
+  pub completed: i64,
+  pub commission_totals: Vec<HawalaListCommissionTotal>,
 }
 
 #[tauri::command]
@@ -173,7 +183,7 @@ pub fn list_hawala_desk(
   }
   if let Some(ref code) = input.currency_code {
     let code = code.trim().to_ascii_uppercase();
-    if !code.is_empty() {
+    if !code.is_empty() && code != "ALL" {
       where_sql.push_str(" AND c.code = ?");
       params_v.push(Box::new(code));
     }
@@ -271,14 +281,44 @@ pub fn list_hawala_desk(
     _ => crate::ledger::HAWALA_CHRONO_DESC,
   };
 
-  let count_sql = format!(
-    "SELECT COUNT(*) FROM HawalaTransfer h
+  let from_sql = r#"FROM HawalaTransfer h
      INNER JOIN Currency c ON c.id = h.currencyId
-     LEFT JOIN \"Transaction\" t ON t.id = h.transactionId
+     LEFT JOIN "Transaction" t ON t.id = h.transactionId"#;
+  let refs: Vec<&dyn rusqlite::types::ToSql> = params_v.iter().map(|p| p.as_ref()).collect();
+
+  let count_sql = format!(
+    "SELECT COUNT(*),
+            COALESCE(SUM(CASE WHEN UPPER(h.status) = 'PENDING' THEN 1.0 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN UPPER(h.status) = 'COMPLETED' THEN 1.0 ELSE 0 END), 0)
+     {from_sql}
      {where_sql}"
   );
-  let refs: Vec<&dyn rusqlite::types::ToSql> = params_v.iter().map(|p| p.as_ref()).collect();
-  let total: i64 = conn.query_row(&count_sql, refs.as_slice(), |row| row.get(0))?;
+  let (total, pending, completed): (i64, i64, i64) =
+    conn.query_row(&count_sql, refs.as_slice(), |row| {
+      Ok((
+        row.get::<_, i64>(0)?,
+        row.get::<_, f64>(1)? as i64,
+        row.get::<_, f64>(2)? as i64,
+      ))
+    })?;
+
+  let commission_sql = format!(
+    "SELECT c.code,
+            COALESCE(SUM(CAST(COALESCE(h.ownCommissionAmount, 0) AS REAL)), 0)
+     {from_sql}
+     {where_sql}
+     GROUP BY c.code
+     ORDER BY c.code"
+  );
+  let mut commission_stmt = conn.prepare(&commission_sql)?;
+  let commission_totals = commission_stmt
+    .query_map(refs.as_slice(), |row| {
+      Ok(HawalaListCommissionTotal {
+        currency_code: row.get(0)?,
+        total: format_f64(row.get::<_, f64>(1)?),
+      })
+    })?
+    .collect::<Result<Vec<_>, _>>()?;
   let total_pages = if total == 0 {
     1
   } else {
@@ -341,6 +381,9 @@ pub fn list_hawala_desk(
     total,
     page,
     page_size,
+    pending,
+    completed,
+    commission_totals,
   })
 }
 

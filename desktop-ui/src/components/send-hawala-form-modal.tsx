@@ -11,7 +11,7 @@ import {
   listCurrenciesPage,
   listCustomersPage,
   listHawalaPage,
-  nextHawalaReference,
+  previewDisplayRef,
   receiveHawala,
   sendHawala,
   type CurrencyListItem,
@@ -33,7 +33,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
-import { sanitizeVoucher, txDisplayRef } from "@desktop/lib/tx-ref";
+import { loadDeskVoucher, txDisplayRef } from "@desktop/lib/tx-ref";
 import {
   formatMoney,
   isSimpleDeskHawala,
@@ -43,14 +43,6 @@ import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
-
-function fallbackHawalaNumber(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `HW-${y}${m}${d}-0001`;
-}
 
 function formatPreviewMoney(n: number): string {
   const s = formatMoney(n);
@@ -127,6 +119,7 @@ export function SendHawalaFormModal({
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [form, setForm] = useState(() => emptyForm());
+  const [voucherNo, setVoucherNo] = useState("");
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [hawalaRecordId, setHawalaRecordId] = useState<string | null>(null);
   const [senderSuggestions, setSenderSuggestions] = useState<CustomerListItem[]>(
@@ -172,6 +165,7 @@ export function SendHawalaFormModal({
   function applyDetail(detail: HawalaDetail, defaultCurrency: string) {
     setHawalaRecordId(detail.id);
     setReplaceId(detail.transactionId || detail.id);
+    setVoucherNo(txDisplayRef(detail));
     const senderIsCustomer = Boolean(detail.senderCustomerId);
     const receiverIsCustomer = Boolean(detail.receiverCustomerId);
     setForm({
@@ -251,11 +245,9 @@ export function SendHawalaFormModal({
     let cancelled = false;
     void Promise.all([
       listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
-      nextHawalaReference()
-        .then((n) => sanitizeVoucher(n) || fallbackHawalaNumber())
-        .catch(() => fallbackHawalaNumber()),
+      loadDeskVoucher(() => previewDisplayRef("HAWALA")),
     ])
-      .then(async ([page, reference]) => {
+      .then(async ([page, voucher]) => {
         if (cancelled) return;
         setCurrencies(page.items);
         const currency = pickDefaultCurrency(page.items);
@@ -273,7 +265,8 @@ export function SendHawalaFormModal({
 
         setReplaceId(null);
         setHawalaRecordId(null);
-        setForm({ ...emptyForm(currency), reference });
+        setVoucherNo(voucher);
+        setForm(emptyForm(currency));
         setEmployeeId("");
         setEmployeeName("");
         setError(null);
@@ -429,12 +422,9 @@ export function SendHawalaFormModal({
 
   function resetForm(keepOpen: boolean) {
     const currency = pickDefaultCurrency(currencies) || form.currencyCode;
-    void nextHawalaReference()
-      .then((n) => sanitizeVoucher(n) || fallbackHawalaNumber())
-      .catch(() => fallbackHawalaNumber())
-      .then((reference) => {
-        setForm({ ...emptyForm(currency), reference });
-      });
+    setForm(emptyForm(currency));
+    setVoucherNo("");
+    void loadDeskVoucher(() => previewDisplayRef("HAWALA")).then(setVoucherNo);
     setError(null);
     setReplaceId(null);
     setHawalaRecordId(null);
@@ -486,10 +476,6 @@ export function SendHawalaFormModal({
   async function submit(action: "save" | "new") {
     if (!session) return;
 
-    if (!form.reference.trim()) {
-      setError(t.hawala.hawalaNumberRequired);
-      return;
-    }
     if (!form.amount.trim() || amountN <= 0) {
       setError(t.hawala.amountRequired);
       amountRef.current?.focus();
@@ -566,7 +552,8 @@ export function SendHawalaFormModal({
           ? String(form.commission).replace(/,/g, "").trim()
           : null;
       const payload = {
-        reference: form.reference.trim(),
+        reference:
+          hawalaRecordId || replaceId ? form.reference.trim() : "",
         currencyCode: form.currencyCode,
         amount: form.amount.replace(/,/g, "").trim(),
         valueDate: form.valueDate || todayIso(),
@@ -711,15 +698,12 @@ export function SendHawalaFormModal({
 
             <div className="fx-simple-top">
               <label className="desk-ref-field">
-                <span>{t.desk.hawalaNumber} *</span>
+                <span>{t.desk.hawalaNumber}</span>
                 <input
                   className="desk-ref-input"
-                  required
-                  value={form.reference}
-                  onChange={(e) => {
-                    setForm((prev) => ({ ...prev, reference: e.target.value }));
-                    setError(null);
-                  }}
+                  value={voucherNo}
+                  readOnly
+                  tabIndex={-1}
                 />
               </label>
               <label>

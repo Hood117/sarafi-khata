@@ -21,15 +21,10 @@ import {
 } from "@desktop/lib/datetime";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
-import { formatMoney, parseMoney, statusBadgeClass } from "@desktop/pages/hawala-helpers";
-
-function formatAmountDisplay(raw: string): string {
-  const n = parseMoney(raw);
-  const formatted = formatMoney(n);
-  const [intPart, frac] = formatted.split(".");
-  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return frac ? `${grouped}.${frac}` : grouped;
-}
+import {
+  formatAmountDisplay,
+  statusBadgeClass,
+} from "@desktop/pages/hawala-helpers";
 
 function linesByCurrency(
   totals: HawalaCommissionCurrencyTotal[],

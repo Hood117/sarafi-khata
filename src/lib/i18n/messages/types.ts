@@ -823,6 +823,9 @@ export type Dictionary = {
     simpleReceiveHint: string;
     sendSplitPreview: string;
     commissionMustBeLess: string;
+    totalHawalas: string;
+    totalCommission: string;
+    clearFilters: string;
   };
   partner: {
     add: string;

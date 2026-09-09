@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -6,57 +6,44 @@ import {
   getHawala,
   listCurrenciesPage,
   listHawalaDesk,
-  listPartners,
   type CurrencyListItem,
   type HawalaDetail,
+  type HawalaListCommissionTotal,
   type HawalaListItem,
   type HawalaListPage,
-  type PartnerListItem,
 } from "@desktop/api";
 import type { Dictionary } from "@/lib/i18n/messages/types";
 import { useAuth } from "@desktop/auth";
-import { CompleteReceiveHawalaModal, isPendingReceiveHawala } from "@desktop/components/complete-receive-hawala-modal";
+import {
+  CompleteReceiveHawalaModal,
+  isPendingReceiveHawala,
+} from "@desktop/components/complete-receive-hawala-modal";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
-import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
+import { clickableTxRowProps } from "@desktop/components/transaction-detail-modal";
 import { useT } from "@desktop/i18n";
-import { errorMessage } from "@desktop/lib/datetime";
+import {
+  datePeriodRange,
+  errorMessage,
+  todayIso,
+  type DatePeriodPreset,
+} from "@desktop/lib/datetime";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
+import { Pagination } from "@desktop/ui/pagination";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
-import { SearchableSelect } from "@desktop/ui/searchable-select";
 import {
+  formatAmountDisplay,
   isSimpleDeskHawala,
+  parseMoney,
   statusBadgeClass,
-  todayIso,
 } from "@desktop/pages/hawala-helpers";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
-
-function Field({
-  label,
-  required,
-  error,
-  children,
-  className,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={className}>
-      <span className={required ? "req" : undefined}>{label}</span>
-      {children}
-      {error ? <span className="field-error">{error}</span> : null}
-    </label>
-  );
-}
 
 function escapeCsv(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -65,41 +52,29 @@ function escapeCsv(value: string): string {
 
 function exportCsv(rows: HawalaListItem[], t: Dictionary) {
   const headers = [
-    t.desk.hawalaNumber,
     t.common.date,
-    t.hawala.direction,
+    t.desk.hawalaNumber,
+    t.common.type,
     t.hawala.sender,
     t.hawala.receiver,
-    t.common.partner,
-    t.desk.destination,
     t.common.currency,
     t.common.amount,
     t.common.commission,
     t.common.status,
-    t.desk.createdBy,
   ];
   const lines = [headers.join(",")];
   for (const row of rows) {
-    const dest = [row.destinationCity, row.destinationCountry]
-      .filter(Boolean)
-      .join(", ");
-    const commission = [row.ownCommission, row.partnerCommission]
-      .filter(Boolean)
-      .join(" / ");
     lines.push(
       [
-        txDisplayRef(row),
         String(row.valueDate).slice(0, 10),
+        txDisplayRef(row),
         row.direction,
         row.senderName ?? "",
         row.receiverName ?? "",
-        row.partnerSarafi ?? "",
-        dest,
         row.currencyCode,
         row.amount,
-        commission,
+        row.ownCommission ?? "",
         row.status,
-        row.createdByName ?? "",
       ]
         .map((c) => escapeCsv(String(c)))
         .join(","),
@@ -114,30 +89,30 @@ function exportCsv(rows: HawalaListItem[], t: Dictionary) {
   URL.revokeObjectURL(url);
 }
 
+function commissionLines(totals: HawalaListCommissionTotal[]): string {
+  if (!totals.length) return "0";
+  return totals
+    .map((row) => `${formatAmountDisplay(row.total)} ${row.currencyCode}`)
+    .join("\n");
+}
+
 export function HawalaPage() {
   const { session } = useAuth();
   const t = useT();
   const navigate = useNavigate();
+  const defaultRange = useMemo(() => datePeriodRange("today", todayIso()), []);
 
   const [pageData, setPageData] = useState<HawalaListPage | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState("ALL");
-  const [partnerFilter, setPartnerFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [currencyFilter, setCurrencyFilter] = useState("");
-  const [countryFilter, setCountryFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">(
-    "active",
-  );
-  const [sort, setSort] = useState("date_desc");
+  const [periodPreset, setPeriodPreset] = useState<DatePeriodPreset>("today");
+  const [dateFrom, setDateFrom] = useState(defaultRange.from);
+  const [dateTo, setDateTo] = useState(defaultRange.to);
   const [page, setPage] = useState(1);
   const [reloadKey, setReloadKey] = useState(0);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
-
-  const [partners, setPartners] = useState<PartnerListItem[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
 
   const [busy, setBusy] = useState(false);
@@ -156,6 +131,27 @@ export function HawalaPage() {
   const [completeTarget, setCompleteTarget] = useState<HawalaDetail | null>(null);
   const [completeBusy, setCompleteBusy] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
+
+  const applyPreset = useCallback((preset: Exclude<DatePeriodPreset, "custom">) => {
+    const range = datePeriodRange(preset, todayIso());
+    setPeriodPreset(preset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+    setPage(1);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    const range = datePeriodRange("today", todayIso());
+    setPeriodPreset("today");
+    setDateFrom(range.from);
+    setDateTo(range.to);
+    setDirection("ALL");
+    setStatusFilter("ALL");
+    setCurrencyFilter("");
+    setSearchInput("");
+    setSearch("");
+    setPage(1);
+  }, []);
 
   function openEditModal(row: HawalaListItem) {
     void (async () => {
@@ -185,17 +181,31 @@ export function HawalaPage() {
   }
 
   useEffect(() => {
-    void Promise.all([
-      listPartners(),
-      listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
-    ])
-      .then(([p, ccy]) => {
-        setPartners(p);
-        setCurrencies(ccy.items);
-      })
+    void listCurrenciesPage({ activeOnly: true, pageSize: 100 })
+      .then((ccy) => setCurrencies(ccy.items))
       .catch((err: unknown) => {
         setError(errorMessage(err, t.errors.loadGeneric));
       });
+  }, [t.errors.loadGeneric]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = searchInput.trim();
+      if (next === search) return;
+      setSearch(next);
+      setPage(1);
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [dateFrom, dateTo, direction, statusFilter, currencyFilter]);
+
+  useEffect(() => {
+    const onSaved = () => setReloadKey((k) => k + 1);
+    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
   }, []);
 
   useEffect(() => {
@@ -206,14 +216,12 @@ export function HawalaPage() {
       pageSize: 25,
       search: search.trim() || undefined,
       direction: direction === "ALL" ? undefined : direction,
-      partnerSarafiId: partnerFilter || undefined,
+      status: statusFilter === "ALL" ? undefined : statusFilter,
       currencyCode: currencyFilter || undefined,
-      country: countryFilter.trim() || undefined,
-      city: cityFilter.trim() || undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-      archiveFilter,
-      sort,
+      archiveFilter: "active",
+      sort: "date_desc",
     })
       .then((result) => {
         if (!cancelled) {
@@ -236,26 +244,13 @@ export function HawalaPage() {
     page,
     search,
     direction,
-    partnerFilter,
+    statusFilter,
     currencyFilter,
-    countryFilter,
-    cityFilter,
     dateFrom,
     dateTo,
-    archiveFilter,
-    sort,
     reloadKey,
+    t.errors.loadGeneric,
   ]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const next = searchInput.trim();
-      if (next === search) return;
-      setPage(1);
-      setSearch(next);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [searchInput, search]);
 
   async function handleArchive(id: string) {
     if (!session) return;
@@ -304,12 +299,10 @@ export function HawalaPage() {
     }
   }
 
-  const totalPages = pageData
-    ? Math.max(1, Math.ceil(pageData.total / pageData.pageSize))
-    : 1;
+  const totals = pageData?.commissionTotals ?? [];
 
   return (
-    <div className="stack">
+    <div className="stack hawala-desk-page">
       {error ? (
         <PageLoadError
           message={error}
@@ -317,256 +310,234 @@ export function HawalaPage() {
         />
       ) : null}
 
-      <div className="hawala-filters no-print">
-          <div className="hawala-filters-primary">
-            <Field label={t.common.search} className="hawala-filter-grow">
-              <input
-                type="search"
-                className="desk-search"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t.hawala.searchPlaceholder}
-              />
-            </Field>
-            <SearchableSelect
-              className="hawala-filter-partner"
-              hideLabel
-              label={t.hawala.partner}
-              value={partnerFilter}
-              placeholder={`${t.common.all} ${t.common.partner}`}
-              options={[
-                { value: "", label: `${t.common.all} ${t.common.partner}` },
-                ...partners.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  keywords: [p.phone, p.city, p.country].filter(Boolean).join(" "),
-                })),
-              ]}
-              onChange={(value) => {
-                setPage(1);
-                setPartnerFilter(value);
+      <div
+        className="row no-print"
+        style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}
+      >
+        <h1 style={{ margin: 0 }}>{t.nav.hawala}</h1>
+        <div className="row hawala-filters-actions">
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => navigate("/hawala/commission")}
+          >
+            {t.nav.commissionTracking}
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={!pageData?.items.length}
+            onClick={() => pageData && exportCsv(pageData.items, t)}
+          >
+            {t.desk.exportCsv}
+          </button>
+          <button type="button" className="secondary" onClick={() => window.print()}>
+            {t.common.print}
+          </button>
+        </div>
+      </div>
+
+      <div className="section-card stack hawala-filters no-print">
+        <div className="report-period-presets" role="group" aria-label={t.common.filter}>
+          {(
+            [
+              ["today", t.common.today],
+              ["yesterday", t.common.yesterday],
+              ["week", t.common.thisWeek],
+              ["month", t.common.thisMonth],
+              ["custom", t.common.custom],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={
+                periodPreset === id
+                  ? "report-period-preset active"
+                  : "report-period-preset"
+              }
+              onClick={() => {
+                if (id === "custom") {
+                  setPeriodPreset("custom");
+                  return;
+                }
+                applyPreset(id);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="commission-tracking-filter-row">
+          <label className="stack" style={{ gap: "0.25rem" }}>
+            <span className="muted">{t.common.from}</span>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setPeriodPreset("custom");
+                setDateFrom(e.target.value);
               }}
             />
-            <div className="hawala-filters-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => navigate("/hawala/commission")}
-              >
-                {t.nav.commissionTracking}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={!pageData?.items.length}
-                onClick={() => pageData && exportCsv(pageData.items, t)}
-              >
-                {t.desk.exportCsv}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => window.print()}
-              >
-                {t.common.print}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                aria-expanded={showMoreFilters}
-                onClick={() => setShowMoreFilters((v) => !v)}
-              >
-                {showMoreFilters ? t.hawala.fewerFilters : t.desk.moreFilters}
-              </button>
-            </div>
+          </label>
+          <label className="stack" style={{ gap: "0.25rem" }}>
+            <span className="muted">{t.common.to}</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setPeriodPreset("custom");
+                setDateTo(e.target.value);
+              }}
+            />
+          </label>
+          <label className="stack" style={{ gap: "0.25rem", minWidth: "9rem" }}>
+            <span className="muted">{t.commissionTracking.hawalaType}</span>
+            <select
+              value={direction}
+              onChange={(e) => setDirection(e.target.value)}
+            >
+              <option value="ALL">{t.common.all}</option>
+              <option value="SEND">{t.commissionTracking.typeSent}</option>
+              <option value="RECEIVE">{t.commissionTracking.typeReceived}</option>
+            </select>
+          </label>
+          <label className="stack" style={{ gap: "0.25rem", minWidth: "9rem" }}>
+            <span className="muted">{t.common.status}</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="ALL">{t.common.all}</option>
+              <option value="PENDING">{t.status.pending}</option>
+              <option value="COMPLETED">{t.status.completed}</option>
+            </select>
+          </label>
+          <div style={{ minWidth: "12rem" }}>
+            <CurrencyFilter
+              currencies={currencies}
+              value={currencyFilter}
+              onChange={setCurrencyFilter}
+              allLabel={t.desk.allCurrenciesFilter}
+              label={t.common.currency}
+            />
           </div>
-
-          {showMoreFilters ? (
-            <div className="hawala-filters-more">
-              <Field label={t.desk.direction}>
-                <select
-                  value={direction}
-                  onChange={(e) => {
-                    setPage(1);
-                    setDirection(e.target.value);
-                  }}
-                >
-                  <option value="ALL">{t.common.all}</option>
-                  <option value="SEND">{t.hawala.send}</option>
-                  <option value="RECEIVE">{t.hawala.receive}</option>
-                </select>
-              </Field>
-              <CurrencyFilter
-                currencies={currencies}
-                value={currencyFilter}
-                onChange={(code) => {
-                  setPage(1);
-                  setCurrencyFilter(code);
-                }}
-                label={t.common.currency}
-              />
-              <Field label={t.common.country}>
-                <input
-                  value={countryFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setCountryFilter(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t.common.city}>
-                <input
-                  value={cityFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setCityFilter(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t.common.from}>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => {
-                    setPage(1);
-                    setDateFrom(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t.common.to}>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => {
-                    setPage(1);
-                    setDateTo(e.target.value);
-                  }}
-                />
-              </Field>
-              <Field label={t.common.archive}>
-                <select
-                  value={archiveFilter}
-                  onChange={(e) => {
-                    setPage(1);
-                    setArchiveFilter(
-                      e.target.value as "active" | "archived" | "all",
-                    );
-                  }}
-                >
-                  <option value="active">{t.common.active}</option>
-                  <option value="archived">{t.common.archived}</option>
-                  <option value="all">{t.common.all}</option>
-                </select>
-              </Field>
-              <Field label={t.common.filter}>
-                <select
-                  value={sort}
-                  onChange={(e) => {
-                    setPage(1);
-                    setSort(e.target.value);
-                  }}
-                >
-                  <option value="date_desc">{t.common.newestFirst}</option>
-                  <option value="date_asc">{t.common.oldestFirst}</option>
-                  <option value="amount_desc">{t.common.amount} ({t.common.newestFirst})</option>
-                  <option value="amount_asc">{t.common.amount} ({t.common.oldestFirst})</option>
-                  <option value="ref_asc">{t.desk.hawalaNumber}</option>
-                </select>
-              </Field>
-            </div>
-          ) : null}
+          <label className="stack" style={{ gap: "0.25rem", flex: "1 1 14rem" }}>
+            <span className="muted">{t.common.search}</span>
+            <input
+              type="search"
+              className="desk-search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t.hawala.searchPlaceholder}
+            />
+          </label>
+          <button type="button" className="secondary" onClick={clearFilters}>
+            {t.hawala.clearFilters}
+          </button>
         </div>
+      </div>
 
-        <div className="section-card stack">
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-label">{t.hawala.totalHawalas}</div>
+          <div className="stat-value">{pageData?.total ?? 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t.status.pending}</div>
+          <div className="stat-value">{pageData?.pending ?? 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t.status.completed}</div>
+          <div className="stat-value">{pageData?.completed ?? 0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t.hawala.totalCommission}</div>
+          <div className="stat-value commission-stat-value">
+            {commissionLines(totals)}
+          </div>
+        </div>
+      </div>
+
+      <div className="section-card stack">
         {busy && !pageData ? <p className="muted">{t.common.loading}</p> : null}
         {pageData ? (
           <>
-            <div style={{ overflowX: "auto" }}>
-              <table>
+            <div className="daybook-journal-scroll table-scroll">
+              <table className="report-ledger daybook-journal-table hawala-desk-table">
                 <thead>
                   <tr>
-                    <th>{t.desk.hawalaNumber}</th>
-                    <th>{t.common.date}</th>
+                    <th className="col-when">{t.common.date}</th>
+                    <th className="col-ref">{t.desk.hawalaNumber}</th>
+                    <th>{t.common.type}</th>
                     <th>{t.hawala.sender}</th>
                     <th>{t.hawala.receiver}</th>
-                    <th>{t.common.partner}</th>
-                    <th>{t.desk.destination}</th>
-                    <th>{t.common.currency}</th>
-                    <th>{t.common.amount}</th>
-                    <th>{t.common.commission}</th>
+                    <th className="col-amount">{t.common.amount}</th>
+                    <th className="col-amount">{t.common.commission}</th>
                     <th>{t.common.status}</th>
-                    <th>{t.desk.createdBy}</th>
+                    <th className="col-actions">{t.common.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageData.items.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={
-                        isPendingReceiveHawala(row)
-                          ? "customer-row-clickable hawala-row-pending"
-                          : "customer-row-clickable"
-                      }
-                      tabIndex={0}
-                      role="link"
-                      aria-label={`${t.common.view} ${txDisplayRef(row)}`}
-                      onClick={() => navigate(`/hawala/${row.id}`)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setRowMenu({ x: e.clientX, y: e.clientY, row });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                  {pageData.items.map((row) => {
+                    const sent = row.direction.toUpperCase() === "SEND";
+                    const canComplete =
+                      isPendingReceiveHawala(row) && !row.isArchived;
+                    const commission = (row.ownCommission ?? "").trim();
+                    const rowProps = clickableTxRowProps(() =>
+                      navigate(`/hawala/${row.id}`),
+                    );
+                    return (
+                      <tr
+                        key={row.id}
+                        {...rowProps}
+                        className={`${rowProps.className} is-clickable${
+                          canComplete ? " hawala-row-pending" : ""
+                        }`}
+                        aria-label={`${t.common.view} ${txDisplayRef(row)}`}
+                        onContextMenu={(e) => {
                           e.preventDefault();
-                          navigate(`/hawala/${row.id}`);
-                        }
-                      }}
-                    >
-                      <td>
-                        <strong>{txDisplayRef(row)}</strong>
-                        <div
-                          className="muted daybook-type-cell"
-                          style={{ fontSize: "0.75rem" }}
+                          setRowMenu({ x: e.clientX, y: e.clientY, row });
+                        }}
+                      >
+                        <td className="col-when">
+                          {String(row.valueDate).slice(0, 10)}
+                        </td>
+                        <td className="col-ref">
+                          <strong>{txDisplayRef(row)}</strong>
+                        </td>
+                        <td>
+                          {sent
+                            ? t.commissionTracking.typeSent
+                            : t.commissionTracking.typeReceived}
+                        </td>
+                        <td className="col-party" title={row.senderName ?? ""}>
+                          {row.senderName ?? "—"}
+                        </td>
+                        <td className="col-party" title={row.receiverName ?? ""}>
+                          {row.receiverName ?? "—"}
+                        </td>
+                        <td
+                          className={`col-amount ${sent ? "money-out" : "money-in"}`}
                         >
-                          <TransactionTypeIcon
-                            type={
-                              row.direction === "SEND" ? "HAWALA" : "HAWALA_RECEIVE"
-                            }
-                          />
-                          <span>{row.direction}</span>
-                        </div>
-                      </td>
-                      <td>{String(row.valueDate).slice(0, 10)}</td>
-                      <td>{row.senderName ?? "—"}</td>
-                      <td>{row.receiverName ?? "—"}</td>
-                      <td>{row.partnerSarafi ?? "—"}</td>
-                      <td>
-                        {[row.destinationCity, row.destinationCountry]
-                          .filter(Boolean)
-                          .join(", ") || "—"}
-                      </td>
-                      <td>
-                        <CurrencyCodeWithFlag code={row.currencyCode} />
-                      </td>
-                      <td className={row.direction === "SEND" ? "money-out" : "money-in"}>
-                        {row.amount}
-                      </td>
-                      <td>
-                        {row.ownCommission ?? "—"}
-                        {row.partnerCommission
-                          ? ` / ${row.partnerCommission}`
-                          : ""}
-                      </td>
-                      <td>
-                        <span className={statusBadgeClass(row.status)}>
-                          {statusLabel(t, row.status)}
-                        </span>
-                        {isPendingReceiveHawala(row) && !row.isArchived ? (
-                          <div>
+                          {formatAmountDisplay(row.amount)}{" "}
+                          <CurrencyCodeWithFlag code={row.currencyCode} />
+                        </td>
+                        <td className="col-amount">
+                          {commission && parseMoney(commission) !== 0
+                            ? formatAmountDisplay(commission)
+                            : "—"}
+                        </td>
+                        <td>
+                          <span className={statusBadgeClass(row.status)}>
+                            {statusLabel(t, row.status)}
+                          </span>
+                        </td>
+                        <td className="col-actions">
+                          {canComplete ? (
                             <button
                               type="button"
-                              className="btn primary"
-                              style={{ marginTop: "0.35rem" }}
+                              className="btn primary hawala-complete-btn"
                               disabled={busy || completeBusy}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -575,20 +546,14 @@ export function HawalaPage() {
                             >
                               {t.hawala.completeHawala}
                             </button>
-                          </div>
-                        ) : row.direction.toUpperCase() === "RECEIVE"
-                          && row.status.toUpperCase() === "COMPLETED" ? (
-                          <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.2rem" }}>
-                            {t.hawala.alreadyCompleted}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>{row.createdByName ?? "—"}</td>
-                    </tr>
-                  ))}
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {pageData.items.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="muted">
+                      <td colSpan={9} className="muted">
                         {t.hawala.noTransfersMatch}
                       </td>
                     </tr>
@@ -596,29 +561,13 @@ export function HawalaPage() {
                 </tbody>
               </table>
             </div>
-            <div className="row">
-              <button
-                type="button"
-                className="secondary"
-                disabled={page <= 1 || busy}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                {t.common.previous}
-              </button>
-              <span className="muted">
-                {t.hawala.pageOf
-                  .replace("{page}", String(page))
-                  .replace("{total}", String(totalPages))}
-              </span>
-              <button
-                type="button"
-                className="secondary"
-                disabled={page >= totalPages || busy}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t.common.next}
-              </button>
-            </div>
+            <Pagination
+              page={pageData.page}
+              pageSize={pageData.pageSize}
+              total={pageData.total}
+              busy={busy}
+              onPageChange={setPage}
+            />
           </>
         ) : null}
       </div>

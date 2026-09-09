@@ -879,11 +879,19 @@ export type HawalaListItem = {
   isArchived?: boolean;
 };
 
+export type HawalaListCommissionTotal = {
+  currencyCode: string;
+  total: string;
+};
+
 export type HawalaListPage = {
   items: HawalaListItem[];
   total: number;
   page: number;
   pageSize: number;
+  pending?: number;
+  completed?: number;
+  commissionTotals?: HawalaListCommissionTotal[];
 };
 
 export function listHawalaPage(input?: {

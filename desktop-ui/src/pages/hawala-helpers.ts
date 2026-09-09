@@ -33,6 +33,15 @@ export function formatMoney(n: number): string {
   return fixed.replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
 }
 
+/** Group thousands for compact desk amounts (matches commission tracking). */
+export function formatAmountDisplay(raw: string): string {
+  const n = parseMoney(raw);
+  const formatted = formatMoney(n);
+  const [intPart, frac] = formatted.split(".");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return frac ? `${grouped}.${frac}` : grouped;
+}
+
 /** Resolve FIXED amount or % of principal into a money string. */
 export function resolveCommission(
   principal: string,

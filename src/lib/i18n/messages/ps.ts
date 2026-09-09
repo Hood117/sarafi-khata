@@ -655,7 +655,7 @@ export const ps: Dictionary = {
     cancel: "لغوه کول",
     cancelConfirm: "دا حواله لغوه شي؟",
     archiveConfirm: "دا حواله آرشیف شي؟",
-    searchPlaceholder: "حوالې ولټوئ…",
+    searchPlaceholder: "د حوالې شمېره، لیږونکی یا اخیستونکی…",
     filters: "فلټرونه",
     direction: "لور",
     sendDir: "لیږل",
@@ -846,6 +846,9 @@ export const ps: Dictionary = {
       "د مبدأ د پیرودونکي حساب وټاکئ. د حوالې ناخالص مبلغ له هماغه حسابه کمېږي. اخیستونکی خالص نغدي له اصلي خزانې ترلاسه کوي او کمیشن د عاید په توګه ثبتېږي.",
     sendSplitPreview: "مبلغ {gross} • کمیشن {fee} • خالص {net}",
     commissionMustBeLess: "کمیشن باید د ترلاسه شوي مبلغ څخه کم وي.",
+    totalHawalas: "ټولې حوالې",
+    totalCommission: "ټول کمیشن",
+    clearFilters: "فلټرونه پاک کړئ",
   },
   partner: {
     add: "شریکه صرافي زیاتول",
