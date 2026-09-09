@@ -1723,6 +1723,10 @@ mod daybook_edit_replace_tests {
           memo TEXT,
           createdAt TEXT NOT NULL
         );
+        CREATE TABLE User (
+          id TEXT PRIMARY KEY,
+          isActive INTEGER NOT NULL DEFAULT 1
+        );
         "#,
       )
       .unwrap();
@@ -1733,6 +1737,9 @@ mod daybook_edit_replace_tests {
         "INSERT INTO Currency (id, code, name, decimalPlaces, isActive) VALUES ('c1','AFN','Afghani',0,1)",
         [],
       )
+      .unwrap();
+    conn
+      .execute("INSERT INTO User (id, isActive) VALUES ('admin', 1)", [])
       .unwrap();
     for (id, name, wtype) in [
       ("cash", "Main Vault", "VAULT"),

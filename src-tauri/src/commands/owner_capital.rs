@@ -524,11 +524,18 @@ fn trading_profit_range(conn: &Connection, from: &str, to: &str) -> Result<f64, 
   )?)
 }
 
-fn hawala_own_commission_range(conn: &Connection, from: &str, to: &str) -> Result<f64, AppError> {
+/// Posted own commission in the inclusive day range.
+/// Includes PENDING receives: commission is posted at receive time, not at Complete.
+pub(crate) fn hawala_own_commission_range(
+  conn: &Connection,
+  from: &str,
+  to: &str,
+) -> Result<f64, AppError> {
   Ok(conn.query_row(
     r#"SELECT COALESCE(SUM(CAST(ownCommissionAmount AS REAL)),0)
        FROM HawalaTransfer
-       WHERE deletedAt IS NULL AND status IN ('SENT','RECEIVED','COMPLETED')
+       WHERE deletedAt IS NULL
+         AND UPPER(status) IN ('PENDING','SENT','RECEIVED','COMPLETED')
          AND valueDate >= ?1 AND valueDate < date(?2, '+1 day')"#,
     params![from, to],
     |row| row.get(0),

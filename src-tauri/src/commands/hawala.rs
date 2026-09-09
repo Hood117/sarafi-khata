@@ -3087,6 +3087,16 @@ mod tests {
     );
     assert_eq!(day.total, 3);
     assert_eq!(afn_total(&day).total, "1300");
+    let owner_day = super::super::owner_capital::hawala_own_commission_range(
+      &conn,
+      "2026-09-08",
+      "2026-09-08",
+    )
+    .expect("owner-capital day commission");
+    assert_eq!(
+      owner_day, 1300.0,
+      "pending Receive commission is already posted and must count in the period total"
+    );
 
     let search = tracking(
       &conn,

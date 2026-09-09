@@ -233,14 +233,14 @@ pub fn list_hawala_desk(
   if let Some(ref from) = input.date_from {
     let from = from.trim();
     if !from.is_empty() {
-      where_sql.push_str(" AND date(h.valueDate) >= date(?)");
+      where_sql.push_str(" AND h.valueDate >= date(?)");
       params_v.push(Box::new(from.to_string()));
     }
   }
   if let Some(ref to) = input.date_to {
     let to = to.trim();
     if !to.is_empty() {
-      where_sql.push_str(" AND date(h.valueDate) <= date(?)");
+      where_sql.push_str(" AND h.valueDate < date(?, '+1 day')");
       params_v.push(Box::new(to.to_string()));
     }
   }
@@ -1224,14 +1224,14 @@ fn hawala_commission_where(
   if let Some(ref from) = input.date_from {
     let from = from.trim();
     if !from.is_empty() {
-      where_sql.push_str(" AND date(h.valueDate) >= date(?)");
+      where_sql.push_str(" AND h.valueDate >= date(?)");
       params_v.push(Box::new(from.to_string()));
     }
   }
   if let Some(ref to) = input.date_to {
     let to = to.trim();
     if !to.is_empty() {
-      where_sql.push_str(" AND date(h.valueDate) <= date(?)");
+      where_sql.push_str(" AND h.valueDate < date(?, '+1 day')");
       params_v.push(Box::new(to.to_string()));
     }
   }
