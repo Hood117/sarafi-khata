@@ -186,8 +186,8 @@ pub(crate) fn query_cash_balances(
   let mut out = Vec::with_capacity(rows.len());
   for (code, name, symbol, places, net_major) in rows {
     let signed = parse_net_major_to_minor(&net_major, places);
-    // Cash page / overview: only physical cash currently held (> 0).
-    if signed <= 0 {
+    // Hide empty currencies; keep deficits visible (do not clamp negatives to zero).
+    if signed == 0 {
       continue;
     }
     out.push(CashBalanceRow {
@@ -215,3 +215,17 @@ pub fn get_cash_balances(
   let _actor = require_any_screen(&state, &conn, &["cash", "vaults"])?;
   query_cash_balances(&conn)
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn format_balance_display_keeps_negative_sign() {
+    assert_eq!(format_balance_display(-3000, 0), "-3,000");
+    assert_eq!(format_balance_display(7000, 0), "7,000");
+    assert_eq!(format_balance_display(0, 0), "0");
+    assert_eq!(format_balance_display(-1250_00, 2), "-1,250");
+  }
+}
+

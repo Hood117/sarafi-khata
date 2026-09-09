@@ -747,6 +747,14 @@ export const ps: Dictionary = {
     completeConfirmCreditAccount:
       "دا {amount} {currency} د {receiver} حساب ته اضافه کوي. د سرچینې حساب بیا نه کمیږي.",
     completeConfirmStatus: "اوسنی حالت",
+    completeShortageWarning:
+      "د دې حوالې په بشپړولو سره به د اصلي خزانې موجودي منفي شي.",
+    insufficientMainVaultCash: "د اصلي خزانې نغدي بسنه نه کوي",
+    completeAnyway: "بیا هم بشپړ یې کړئ",
+    requiredPayout: "اړینه ورکړه",
+    availableCash: "شته نغدي",
+    shortage: "کسر",
+    resultingMainVault: "وروسته له بشپړېدو",
     alreadyCompleted: "بشپړ شوی",
     completedAt: "د بشپړېدو وخت",
     payoutRecord: "د ورکړې ثبت",

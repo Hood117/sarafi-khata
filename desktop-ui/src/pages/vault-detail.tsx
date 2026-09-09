@@ -9,6 +9,7 @@ import {
 import { VaultUnlockGate } from "@desktop/components/vault-unlock-gate";
 import { IconCash, IconDashboard } from "@desktop/icons";
 import { useT } from "@desktop/i18n";
+import { moneyToneClass } from "@desktop/lib/currency-labels";
 
 type Tab = "overview" | "balances";
 
@@ -136,7 +137,9 @@ function BalanceTable({ balances }: { balances: VaultCurrencyBalance[] }) {
                 <strong>{b.currencyCode}</strong>
                 {b.currencySymbol ? ` ${b.currencySymbol}` : ""}
               </td>
-              <td style={{ fontWeight: 650 }}>{b.currentBalance}</td>
+              <td className={moneyToneClass(b.currentBalance)} style={{ fontWeight: 650 }}>
+                {b.currentBalance}
+              </td>
               <td>{b.openingBalance}</td>
               <td>{b.cashInToday}</td>
               <td>{b.cashOutToday}</td>

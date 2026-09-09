@@ -2578,6 +2578,26 @@ button.daybook-quick-link {
   white-space: nowrap;
 }
 
+.hawala-cash-shortage {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #b45309 45%, var(--line));
+  background: color-mix(in srgb, #f3e8c8 55%, transparent);
+}
+
+.hawala-cash-shortage-lines {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.hawala-cash-shortage-lines p {
+  margin: 0;
+}
+
+.hawala-cash-shortage-note {
+  margin: 0.7rem 0 0;
+}
+
 .hawala-form-steps {
   gap: var(--space-md);
 }

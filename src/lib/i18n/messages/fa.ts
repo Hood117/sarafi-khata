@@ -747,6 +747,14 @@ export const fa: Dictionary = {
     completeConfirmCreditAccount:
       "مبلغ {amount} {currency} به حساب {receiver} اضافه می‌شود. حساب منبع دوباره کم نمی‌شود.",
     completeConfirmStatus: "وضعیت فعلی",
+    completeShortageWarning:
+      "با تکمیل این حواله، موجودی خزانه اصلی منفی می‌شود.",
+    insufficientMainVaultCash: "موجودی خزانه اصلی کافی نیست",
+    completeAnyway: "باز هم تکمیل شود",
+    requiredPayout: "مبلغ پرداخت لازم",
+    availableCash: "نقد موجود",
+    shortage: "کسری",
+    resultingMainVault: "بعد از تکمیل",
     alreadyCompleted: "تکمیل‌شده",
     completedAt: "زمان تکمیل",
     payoutRecord: "ثبت پرداخت",

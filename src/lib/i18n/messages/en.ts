@@ -747,6 +747,14 @@ export const en: Dictionary = {
     completeConfirmCreditAccount:
       "This will credit {amount} {currency} to {receiver}'s account. The source customer account will not be charged again.",
     completeConfirmStatus: "Current status",
+    completeShortageWarning:
+      "Completing this Hawala will create a negative Main Vault balance.",
+    insufficientMainVaultCash: "Insufficient Main Vault Cash",
+    completeAnyway: "Complete Anyway",
+    requiredPayout: "Required payout",
+    availableCash: "Available cash",
+    shortage: "Shortage",
+    resultingMainVault: "After completion",
     alreadyCompleted: "Completed",
     completedAt: "Completed at",
     payoutRecord: "Payout record",

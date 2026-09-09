@@ -730,6 +730,13 @@ export type Dictionary = {
     completeConfirmPayVault: string;
     completeConfirmCreditAccount: string;
     completeConfirmStatus: string;
+    completeShortageWarning: string;
+    insufficientMainVaultCash: string;
+    completeAnyway: string;
+    requiredPayout: string;
+    availableCash: string;
+    shortage: string;
+    resultingMainVault: string;
     alreadyCompleted: string;
     completedAt: string;
     payoutRecord: string;

@@ -1841,6 +1841,47 @@ mod tests {
     wallet_currency_balance_minor(conn, &id, "c1", 0).unwrap()
   }
 
+  fn cash_afn_display(conn: &Connection) -> Option<String> {
+    crate::commands::cash::query_cash_balances(conn)
+      .unwrap()
+      .into_iter()
+      .find(|row| row.currency_code == "AFN")
+      .map(|row| row.balance_display)
+  }
+
+  fn cached_main_vault_afn(conn: &Connection) -> f64 {
+    conn
+      .query_row(
+        r#"SELECT COALESCE(b.balance, 0)
+           FROM Wallet w
+           INNER JOIN Currency c ON c.code = 'AFN'
+           LEFT JOIN WalletCurrencyBalance b
+             ON b.walletId = w.id AND b.currencyId = c.id
+           WHERE w.name = 'Main Vault' AND w.deletedAt IS NULL
+           LIMIT 1"#,
+        [],
+        |row| row.get(0),
+      )
+      .unwrap_or(0.0)
+  }
+
+  fn post_walk_in_pending_receive(conn: &Connection, reference: &str, amount: &str) -> String {
+    seed_customer_balance(conn, "w-ghazni", amount);
+    let mut input = desk_input(
+      reference,
+      amount,
+      None,
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    input.receiver_customer_id = None;
+    input.receiver_name = Some("Jan".into());
+    post_hawala(conn, "RECEIVE", input)
+      .expect("pending walk-in receive")
+      .id
+  }
+
   fn ledger_lines(conn: &Connection) -> Vec<(String, String, String)> {
     let mut stmt = conn
       .prepare(
@@ -2406,6 +2447,8 @@ mod tests {
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    assert_eq!(cached_main_vault_afn(&conn), -5500.0);
+    assert_eq!(cash_afn_display(&conn).as_deref(), Some("-5,500"));
     let payout = live_payout_tx(&conn, &posted.id).expect("payout");
     assert_eq!(payout.1, 1);
     assert_ne!(payout.0, posted.transaction_id);
@@ -2487,6 +2530,7 @@ mod tests {
     assert_eq!(wallet_named_balance(&conn, "Ahmad"), 5500);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+    assert_eq!(cash_afn_display(&conn), None);
 
     let after_customers: i64 = conn
       .query_row(
@@ -2523,6 +2567,74 @@ mod tests {
       .collect::<Result<Vec<_>, _>>()
       .unwrap();
     assert!(!names.iter().any(|n| n == "Hawala Clearing"), "{names:?}");
+  }
+
+  #[test]
+  fn complete_receive_overdraw_persists_and_cash_query_shows_negative() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "cash", "7000");
+    let id = post_walk_in_pending_receive(&conn, "HW-VAULT-OVERDRAW", "10000");
+    assert_eq!(hawala_status(&conn, &id), "PENDING");
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 7000);
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 0);
+
+    complete_receive(&conn, &id);
+    assert_eq!(hawala_status(&conn, &id), "COMPLETED");
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -3000);
+    assert_eq!(cached_main_vault_afn(&conn), -3000.0);
+    assert_eq!(cash_afn_display(&conn).as_deref(), Some("-3,000"));
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 0);
+
+    let payout = live_payout_tx(&conn, &id).expect("payout");
+    let mut pay_stmt = conn
+      .prepare(
+        "SELECT w.name, le.direction, le.amount
+         FROM LedgerEntry le
+         INNER JOIN Wallet w ON w.id = le.walletId
+         WHERE le.transactionId = ?1",
+      )
+      .unwrap();
+    let pay_lines: Vec<(String, String, String)> = pay_stmt
+      .query_map([&payout.0], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+    assert!(
+      pay_lines
+        .iter()
+        .any(|(n, d, a)| n == "Main Vault" && d == "CREDIT" && a == "10000"),
+      "{pay_lines:?}"
+    );
+    assert!(
+      !pay_lines.iter().any(|(n, _, _)| n == "Ghazni Saraf"),
+      "complete must not charge source again: {pay_lines:?}"
+    );
+    assert!(
+      !pay_lines.iter().any(|(n, _, _)| n == "Hawala Commission Income"),
+      "complete must not duplicate commission: {pay_lines:?}"
+    );
+  }
+
+  #[test]
+  fn complete_receive_exact_vault_balance_results_in_zero() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "cash", "10000");
+    let id = post_walk_in_pending_receive(&conn, "HW-VAULT-EXACT", "10000");
+    complete_receive(&conn, &id);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+    assert_eq!(cached_main_vault_afn(&conn), 0.0);
+    assert_eq!(cash_afn_display(&conn), None);
+  }
+
+  #[test]
+  fn complete_receive_sufficient_vault_keeps_positive_cash() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "cash", "15000");
+    let id = post_walk_in_pending_receive(&conn, "HW-VAULT-OK", "10000");
+    complete_receive(&conn, &id);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 5000);
+    assert_eq!(cached_main_vault_afn(&conn), 5000.0);
+    assert_eq!(cash_afn_display(&conn).as_deref(), Some("5,000"));
   }
 
   #[test]
