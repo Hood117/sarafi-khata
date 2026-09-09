@@ -725,6 +725,15 @@ export type Dictionary = {
     markSent: string;
     markReceived: string;
     markCompleted: string;
+    completeHawala: string;
+    completeConfirmTitle: string;
+    completeConfirmPayVault: string;
+    completeConfirmCreditAccount: string;
+    completeConfirmStatus: string;
+    alreadyCompleted: string;
+    completedAt: string;
+    payoutRecord: string;
+    netPayout: string;
     return: string;
     duplicate: string;
     receiverReference: string;

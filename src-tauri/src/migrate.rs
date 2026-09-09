@@ -375,8 +375,9 @@ pub fn ensure_schema_compat(conn: &Connection) -> Result<(), AppError> {
   Ok(())
 }
 
-/// Older send/receive hawalas sat in SENT/RECEIVED until manually Completed.
-/// Desk now posts them as COMPLETED; bring open rows in line once.
+/// Older partner-corridor hawalas sat in SENT/RECEIVED until manually Completed.
+/// Desk Send still posts COMPLETED. Desk Receive with a source account stays
+/// PENDING until Complete Hawala pays Main Vault / the receiver account.
 fn ensure_hawala_auto_completed(conn: &Connection) -> Result<(), AppError> {
   if !table_exists(conn, "HawalaTransfer")? {
     return Ok(());
@@ -387,7 +388,7 @@ fn ensure_hawala_auto_completed(conn: &Connection) -> Result<(), AppError> {
            completedAt = COALESCE(completedAt, updatedAt, createdAt, datetime('now')),
            updatedAt = datetime('now')
        WHERE deletedAt IS NULL
-         AND UPPER(status) IN ('PENDING', 'SENT', 'RECEIVED')"#,
+         AND UPPER(status) IN ('SENT', 'RECEIVED')"#,
     [],
   )?;
   Ok(())
@@ -631,6 +632,7 @@ fn ensure_hawala_desk_schema(conn: &Connection) -> Result<(), AppError> {
     ("sentAt", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "sentAt" DATETIME;"#),
     ("receivedAt", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "receivedAt" DATETIME;"#),
     ("returnedAt", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "returnedAt" DATETIME;"#),
+    ("payoutTransactionId", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "payoutTransactionId" TEXT;"#),
   ];
   for (col, ddl) in desk_cols {
     ensure_column(conn, "HawalaTransfer", col, ddl)?;

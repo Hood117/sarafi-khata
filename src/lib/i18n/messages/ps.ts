@@ -740,6 +740,17 @@ export const ps: Dictionary = {
     markSent: "لېږل شوې وټاکئ",
     markReceived: "ترلاسه شوې وټاکئ",
     markCompleted: "بشپړه وټاکئ",
+    completeHawala: "حواله بشپړه کړئ",
+    completeConfirmTitle: "دا حواله بشپړه شي؟",
+    completeConfirmPayVault:
+      "دا {amount} {currency} له اصلي خزانې څخه {receiver} ته ورکوي. د سرچینې حساب بیا نه کمیږي.",
+    completeConfirmCreditAccount:
+      "دا {amount} {currency} د {receiver} حساب ته اضافه کوي. د سرچینې حساب بیا نه کمیږي.",
+    completeConfirmStatus: "اوسنی حالت",
+    alreadyCompleted: "بشپړ شوی",
+    completedAt: "د بشپړېدو وخت",
+    payoutRecord: "د ورکړې ثبت",
+    netPayout: "د ورکړې مبلغ",
     return: "بېرته ستنول",
     duplicate: "کاپي",
     receiverReference: "د اخیستونکي مرجع",

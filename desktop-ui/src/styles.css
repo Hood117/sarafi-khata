@@ -2998,6 +2998,10 @@ button.daybook-quick-link {
   background: #f3e8c8;
   color: #7a5a00;
 }
+
+tr.hawala-row-pending td {
+  background: color-mix(in srgb, #f3e8c8 42%, transparent);
+}
 .badge-sent {
   background: #d7e8ff;
   color: #1a4a8a;

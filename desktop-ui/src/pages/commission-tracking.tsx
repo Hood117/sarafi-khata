@@ -44,7 +44,7 @@ function linesByCurrency(
 export function CommissionTrackingPage() {
   const t = useT();
   const navigate = useNavigate();
-  const defaultRange = useMemo(() => datePeriodRange("month", todayIso()), []);
+  const defaultRange = useMemo(() => datePeriodRange("today", todayIso()), []);
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [pageData, setPageData] = useState<HawalaCommissionTrackingPage | null>(
@@ -54,7 +54,7 @@ export function CommissionTrackingPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [periodPreset, setPeriodPreset] = useState<DatePeriodPreset>("month");
+  const [periodPreset, setPeriodPreset] = useState<DatePeriodPreset>("today");
   const [dateFrom, setDateFrom] = useState(defaultRange.from);
   const [dateTo, setDateTo] = useState(defaultRange.to);
   const [direction, setDirection] = useState("ALL");
@@ -73,8 +73,8 @@ export function CommissionTrackingPage() {
   }, []);
 
   const clearFilters = useCallback(() => {
-    const range = datePeriodRange("month", todayIso());
-    setPeriodPreset("month");
+    const range = datePeriodRange("today", todayIso());
+    setPeriodPreset("today");
     setDateFrom(range.from);
     setDateTo(range.to);
     setDirection("ALL");

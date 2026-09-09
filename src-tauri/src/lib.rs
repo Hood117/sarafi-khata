@@ -475,6 +475,7 @@ pub fn run() {
       commands::archive_partner,
       commands::send_hawala,
       commands::receive_hawala,
+      commands::complete_receive_hawala,
       commands::create_db_backup,
       commands::list_db_backups,
       commands::restore_db_backup,

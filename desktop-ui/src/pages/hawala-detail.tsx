@@ -10,6 +10,7 @@ import {
   updateHawalaMeta,
   type HawalaDetail,
 } from "@desktop/api";
+import { CompleteReceiveHawalaModal, isPendingReceiveHawala, payoutAmount } from "@desktop/components/complete-receive-hawala-modal";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
@@ -105,6 +106,9 @@ export function HawalaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const { showSuccess, successModal } = useSuccessModal();
   const [whatsappBusy, setWhatsappBusy] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeBusy, setCompleteBusy] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("ASMS");
 
   useEffect(() => {
@@ -378,6 +382,19 @@ export function HawalaDetailPage() {
           </div>
 
           <div className="row no-print hawala-detail-actions">
+            {detail && isPendingReceiveHawala(detail) && !archived ? (
+              <button
+                type="button"
+                className="btn primary hawala-action-btn"
+                disabled={busy || completeBusy}
+                onClick={() => {
+                  setCompleteError(null);
+                  setCompleteOpen(true);
+                }}
+              >
+                {t.hawala.completeHawala}
+              </button>
+            ) : null}
             {!archived ? (
               <button
                 type="button"
@@ -451,6 +468,27 @@ export function HawalaDetailPage() {
                     <div>{purposeLabel(t, detail.purpose)}</div>
                   </div>
                 </div>
+                {detail.direction === "RECEIVE" ? (
+                  <p style={{ margin: 0 }}>
+                    <span className="muted">{t.hawala.sourceCustomerAccount}:</span>{" "}
+                    {detail.partnerSarafi || "—"}
+                  </p>
+                ) : null}
+                {detail.direction === "RECEIVE" && (detail.receiveAmount || detail.ownCommissionAmount) ? (
+                  <p style={{ margin: 0 }}>
+                    <span className="muted">{t.hawala.netPayout}:</span>{" "}
+                    {payoutAmount(detail)} {detail.currencyCode}
+                    {detail.ownCommissionAmount
+                      ? ` · ${t.desk.ownCommission} ${detail.ownCommissionAmount}`
+                      : ""}
+                  </p>
+                ) : null}
+                {detail.direction === "RECEIVE" ? (
+                  <p style={{ margin: 0 }}>
+                    <span className="muted">{t.hawala.sourceCustomerAccount}:</span>{" "}
+                    {detail.partnerSarafi || "—"}
+                  </p>
+                ) : null}
                 {(detail.receiveAmount || detail.exchangeRate) && (
                   <p className="muted" style={{ margin: 0 }}>
                     {t.hawala.receive}: {detail.receiveAmount ?? "—"}{" "}
@@ -788,6 +826,29 @@ export function HawalaDetailPage() {
                   </div>
                 </form>
               ) : null}
+
+              {detail.direction === "RECEIVE" ? (
+                <section className="section-card stack">
+                  <h2>{t.common.status}</h2>
+                  <p style={{ margin: 0 }}>
+                    <span className={statusBadgeClass(detail.status)}>
+                      {statusLabel(t, detail.status)}
+                    </span>
+                  </p>
+                  {detail.completedAt ? (
+                    <p style={{ margin: 0 }}>
+                      <span className="muted">{t.hawala.completedAt}:</span>{" "}
+                      {stamp(detail.completedAt)}
+                    </p>
+                  ) : null}
+                  {detail.payoutDisplayRef || detail.payoutTransactionId ? (
+                    <p style={{ margin: 0 }}>
+                      <span className="muted">{t.hawala.payoutRecord}:</span>{" "}
+                      {detail.payoutDisplayRef || detail.payoutTransactionId}
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
             </div>
 
             <aside className="summary-sticky section-card stack">
@@ -950,6 +1011,27 @@ export function HawalaDetailPage() {
             document.body,
           )}
         </>
+      ) : null}
+      {completeOpen && detail ? (
+        <CompleteReceiveHawalaModal
+          detail={detail}
+          busy={completeBusy}
+          error={completeError}
+          onClose={() => {
+            if (completeBusy) return;
+            setCompleteOpen(false);
+            setCompleteError(null);
+          }}
+          onCompleted={(updated) => {
+            setDetail(updated);
+            setMeta(metaFromDetail(updated));
+            setCompleteOpen(false);
+            setCompleteError(null);
+            showSuccess(t.common.success);
+          }}
+          onError={setCompleteError}
+          onBusy={setCompleteBusy}
+        />
       ) : null}
       {successModal}
     </div>

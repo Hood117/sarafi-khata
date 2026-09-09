@@ -11,7 +11,7 @@ use crate::ledger::{
   resolve_shop_cash_wallet_id, PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
-use crate::util::{now_sqlite};
+use crate::util::{format_amount_commas, now_sqlite};
 use crate::commands::authorize::{require_screen, require_screen_write};
 
 const HAWALA_WALK_IN_OUTBOUND: &str = "Hawala Walk-in Outbound";
@@ -700,8 +700,14 @@ fn post_hawala(
   let notes = trim_opt(input.notes);
   let now = now_sqlite();
   let hawala_id = uuid::Uuid::new_v4().to_string();
-  // Desk posts send/receive as finished immediately — no manual Complete step.
-  let initial_status = "COMPLETED";
+  // Send is finished immediately. Receive with a source customer waits for
+  // Complete Hawala before Main Vault / destination-account payout.
+  let pending_source_receive = direction == "RECEIVE" && sender_customer_id.is_some();
+  let initial_status = if pending_source_receive {
+    "PENDING"
+  } else {
+    "COMPLETED"
+  };
 
   // Build ledger entries before opening the write transaction.
   let mut entries: Vec<PostingLineDto> = Vec::new();
@@ -778,28 +784,21 @@ fn post_hawala(
         exchange_rate_id: None,
         memo: Some("Hawala — sender account".into()),
       });
-      entries.push(PostingLineDto {
-        wallet_id: dest_wallet,
-        currency: currency_code.clone(),
-        direction: "DEBIT".into(),
-        amount_minor: net_minor.to_string(),
-        exchange_rate_id: None,
-        memo: Some("Hawala — destination account".into()),
-      });
-      if own_minor > 0 {
-        let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
-        entries.push(PostingLineDto {
-          wallet_id: income_id,
-          currency: currency_code.clone(),
-          direction: "CREDIT".into(),
-          amount_minor: own_minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Hawala commission income".into()),
-        });
+      if direction == "RECEIVE" {
+        if own_minor > 0 {
+          let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
+          entries.push(PostingLineDto {
+            wallet_id: income_id,
+            currency: currency_code.clone(),
+            direction: "CREDIT".into(),
+            amount_minor: own_minor.to_string(),
+            exchange_rate_id: None,
+            memo: Some("Hawala commission income".into()),
+          });
+        }
         let equity_id = ensure_opening_equity(conn)?;
         let equity_minor = principal_minor
           .checked_add(own_minor)
-          .and_then(|v| v.checked_sub(net_minor))
           .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
         entries.push(PostingLineDto {
           wallet_id: equity_id,
@@ -809,12 +808,46 @@ fn post_hawala(
           exchange_rate_id: None,
           memo: Some("Balancing equity leg".into()),
         });
+        // Destination customer is credited when Complete Hawala runs.
+      } else {
+        entries.push(PostingLineDto {
+          wallet_id: dest_wallet,
+          currency: currency_code.clone(),
+          direction: "DEBIT".into(),
+          amount_minor: net_minor.to_string(),
+          exchange_rate_id: None,
+          memo: Some("Hawala — destination account".into()),
+        });
+        if own_minor > 0 {
+          let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
+          entries.push(PostingLineDto {
+            wallet_id: income_id,
+            currency: currency_code.clone(),
+            direction: "CREDIT".into(),
+            amount_minor: own_minor.to_string(),
+            exchange_rate_id: None,
+            memo: Some("Hawala commission income".into()),
+          });
+          let equity_id = ensure_opening_equity(conn)?;
+          let equity_minor = principal_minor
+            .checked_add(own_minor)
+            .and_then(|v| v.checked_sub(net_minor))
+            .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+          entries.push(PostingLineDto {
+            wallet_id: equity_id,
+            currency: currency_code.clone(),
+            direction: "DEBIT".into(),
+            amount_minor: equity_minor.to_string(),
+            exchange_rate_id: None,
+            memo: Some("Balancing equity leg".into()),
+          });
+        }
       }
     }
   } else if direction == "RECEIVE" && sender_customer_id.is_some() && receiver_customer_id.is_none()
   {
-    // Source customer is charged the gross; named walk-in is paid net cash from
-    // Main Vault. Do not create a receiver customer. Do not use Hawala Clearing.
+    // Source customer is charged the gross immediately. Named walk-in is paid
+    // net cash from Main Vault only when Complete Hawala runs.
     let sid = sender_customer_id.as_ref().expect("validated above");
     let src_wallet = resolve_sole_customer_wallet(conn, sid)?;
     let (own_minor, net_minor) = own_commission_split(
@@ -836,14 +869,6 @@ fn post_hawala(
       exchange_rate_id: None,
       memo: Some("Hawala — source account".into()),
     });
-    entries.push(PostingLineDto {
-      wallet_id: cash_wallet_id.clone(),
-      currency: currency_code.clone(),
-      direction: "CREDIT".into(),
-      amount_minor: net_minor.to_string(),
-      exchange_rate_id: None,
-      memo: Some("Hawala — cash paid to receiver".into()),
-    });
     if own_minor > 0 {
       let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
       entries.push(PostingLineDto {
@@ -857,8 +882,7 @@ fn post_hawala(
     }
     let equity_id = ensure_opening_equity(conn)?;
     let equity_minor = principal_minor
-      .checked_add(net_minor)
-      .and_then(|v| v.checked_add(own_minor))
+      .checked_add(own_minor)
       .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
     entries.push(PostingLineDto {
       wallet_id: equity_id,
@@ -1156,6 +1180,277 @@ pub fn receive_hawala(
   post_hawala(&conn, "RECEIVE", input)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteReceiveHawalaInput {
+  pub id: String,
+  pub actor_user_id: Option<String>,
+}
+
+/// Pay a pending Receive Hawala from Main Vault (walk-in) or credit the
+/// receiver customer account. Does not touch the source account or commission.
+pub(crate) fn complete_receive_hawala_conn(
+  conn: &Connection,
+  hawala_id: &str,
+  actor_user_id: &str,
+) -> Result<(), AppError> {
+  let id = hawala_id.trim();
+  if id.is_empty() {
+    return Err(AppError::Validation("Hawala id is required.".into()));
+  }
+
+  conn.execute_batch("BEGIN IMMEDIATE;")?;
+  let result = (|| -> Result<(), AppError> {
+    let row: (
+      String,
+      String,
+      Option<String>,
+      Option<String>,
+      Option<String>,
+      String,
+      String,
+      Option<String>,
+      Option<String>,
+      Option<String>,
+      String,
+      String,
+      String,
+      Option<String>,
+    ) = conn
+      .query_row(
+        r#"SELECT h.direction, h.status, h.deletedAt, h.payoutTransactionId, h.transactionId,
+                  h.reference, h.receiverName, h.receiverPhone, h.receiverCustomerId,
+                  h.senderCustomerId, h.cashWalletId, c.code,
+                  CAST(h.amount AS TEXT), CAST(h.receiveAmount AS TEXT)
+           FROM HawalaTransfer h
+           INNER JOIN Currency c ON c.id = h.currencyId
+           WHERE h.id = ?1
+           LIMIT 1"#,
+        [id],
+        |row| {
+          Ok((
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+            row.get(8)?,
+            row.get(9)?,
+            row.get(10)?,
+            row.get(11)?,
+            row.get(12)?,
+            row.get(13)?,
+          ))
+        },
+      )
+      .map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => AppError::NotFound("Hawala was not found.".into()),
+        other => other.into(),
+      })?;
+
+    let (
+      direction,
+      status,
+      deleted_at,
+      payout_tx_id,
+      original_tx_id,
+      reference,
+      receiver_name,
+      receiver_phone,
+      receiver_customer_id,
+      sender_customer_id,
+      cash_wallet_id,
+      currency_code,
+      amount_major,
+      receive_amount,
+    ) = row;
+
+    if deleted_at.is_some() {
+      return Err(AppError::Validation(
+        "Archived hawala cannot be completed. Restore it first.".into(),
+      ));
+    }
+    if !direction.eq_ignore_ascii_case("RECEIVE") {
+      return Err(AppError::Validation(
+        "Only a Receive Hawala can be completed this way.".into(),
+      ));
+    }
+    if sender_customer_id.is_none() {
+      return Err(AppError::Validation(
+        "This Receive Hawala does not use a source customer account.".into(),
+      ));
+    }
+    if !status.eq_ignore_ascii_case("PENDING")
+      || payout_tx_id
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|s| !s.is_empty())
+    {
+      return Err(AppError::Validation(
+        "This hawala is already completed.".into(),
+      ));
+    }
+
+    let (_currency_id, currency_code, places) = find_currency_by_code(conn, &currency_code)?;
+    let principal_minor = money_from_major_units(&amount_major, places)?;
+    let net_major = receive_amount
+      .as_deref()
+      .map(str::trim)
+      .filter(|s| !s.is_empty())
+      .unwrap_or(amount_major.as_str());
+    let net_minor = money_from_major_units(net_major, places)?;
+    if net_minor <= 0 {
+      return Err(AppError::Validation("Payout amount must be greater than zero.".into()));
+    }
+    if net_minor > principal_minor {
+      return Err(AppError::Validation(
+        "Payout amount cannot exceed the hawala amount.".into(),
+      ));
+    }
+    let net_display = money_to_major_unit_string(net_minor, places)?;
+    let cash_wallet_id = resolve_shop_cash_wallet_id(conn, Some(cash_wallet_id.as_str()))?;
+    let equity_id = ensure_opening_equity(conn)?;
+
+    let mut entries: Vec<PostingLineDto> = Vec::new();
+    let mut walk_in_name: Option<String> = None;
+    let mut walk_in_phone: Option<String> = None;
+    let dest_customer = receiver_customer_id
+      .as_deref()
+      .map(str::trim)
+      .filter(|s| !s.is_empty())
+      .map(|s| s.to_string());
+    let description = if let Some(ref dest_id) = dest_customer {
+      let dest_wallet = resolve_sole_customer_wallet(conn, dest_id)?;
+      entries.push(PostingLineDto {
+        wallet_id: dest_wallet,
+        currency: currency_code.clone(),
+        direction: "DEBIT".into(),
+        amount_minor: net_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Hawala — destination account".into()),
+      });
+      entries.push(PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: net_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      });
+      format!(
+        "Credited {} {} to {} ({}).",
+        format_amount_commas(&net_display),
+        currency_code,
+        receiver_name,
+        reference
+      )
+    } else {
+      walk_in_name = Some(receiver_name.clone());
+      walk_in_phone = receiver_phone.clone();
+      entries.push(PostingLineDto {
+        wallet_id: cash_wallet_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: net_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Hawala — cash paid to receiver".into()),
+      });
+      entries.push(PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code.clone(),
+        direction: "DEBIT".into(),
+        amount_minor: net_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      });
+      format!(
+        "Paid {} {} from Main Vault to {} ({}).",
+        format_amount_commas(&net_display),
+        currency_code,
+        receiver_name,
+        reference
+      )
+    };
+
+    let payout_reference = format!("{reference}-PAY");
+    let now = now_sqlite();
+    let posted = post_transaction_in_tx(
+      conn,
+      PostTransactionInput {
+        reference: payout_reference,
+        r#type: "HAWALA".into(),
+        value_date: now.clone(),
+        customer_id: dest_customer.clone().or(sender_customer_id.clone()),
+        walk_in_name,
+        walk_in_phone,
+        description: Some(description),
+        created_by_id: Some(actor_user_id.to_string()),
+        entries,
+      },
+    )?;
+
+    let updated = conn.execute(
+      "UPDATE HawalaTransfer
+       SET status = 'COMPLETED',
+           completedAt = ?1,
+           payoutTransactionId = ?2,
+           updatedAt = ?1
+       WHERE id = ?3
+         AND deletedAt IS NULL
+         AND UPPER(status) = 'PENDING'
+         AND IFNULL(payoutTransactionId, '') = ''",
+      params![now, posted.id, id],
+    )?;
+    if updated != 1 {
+      return Err(AppError::Validation(
+        "This hawala is already completed.".into(),
+      ));
+    }
+
+    let _ = record_hawala_event(
+      conn,
+      id,
+      "STATUS_CHANGE",
+      Some("PENDING"),
+      Some("COMPLETED"),
+      &format!("Status PENDING → COMPLETED"),
+      original_tx_id.as_deref(),
+      Some(posted.id.as_str()),
+      None,
+      Some(actor_user_id),
+    );
+    Ok(())
+  })();
+  match result {
+    Ok(()) => {
+      conn.execute_batch("COMMIT;")?;
+      Ok(())
+    }
+    Err(e) => {
+      let _ = conn.execute_batch("ROLLBACK;");
+      Err(e)
+    }
+  }
+}
+
+#[tauri::command]
+pub fn complete_receive_hawala(
+  state: State<'_, AppState>,
+  input: CompleteReceiveHawalaInput,
+) -> Result<crate::commands::hawala_desk::HawalaDetail, AppError> {
+  let id = input.id.trim().to_string();
+  if id.is_empty() {
+    return Err(AppError::Validation("Hawala id is required.".into()));
+  }
+  let conn = state.db.lock();
+  let actor = require_screen_write(&state, &conn, "hawala")?;
+  complete_receive_hawala_conn(&conn, &id, &actor.id)?;
+  crate::commands::hawala_desk::map_detail(&conn, &id)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -1167,7 +1462,7 @@ mod tests {
     ensure_wallet_balance_cache, post_transaction, wallet_currency_balance_minor,
     PostTransactionInput, PostingLineDto,
   };
-  use rusqlite::Connection;
+  use rusqlite::{Connection, OptionalExtension};
 
   fn setup() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -1299,7 +1594,8 @@ mod tests {
           customerNotes TEXT,
           privateNotes TEXT,
           sentAt TEXT,
-          receivedAt TEXT
+          receivedAt TEXT,
+          payoutTransactionId TEXT
         );
         CREATE TABLE "Transaction" (
           id TEXT PRIMARY KEY,
@@ -1503,6 +1799,34 @@ mod tests {
         [hawala_id],
         |row| Ok((row.get(0)?, row.get(1)?, row.get::<_, i64>(2)?)),
       )
+      .unwrap()
+  }
+
+  fn hawala_status(conn: &Connection, hawala_id: &str) -> String {
+    conn
+      .query_row(
+        "SELECT status FROM HawalaTransfer WHERE id = ?1",
+        [hawala_id],
+        |row| row.get(0),
+      )
+      .unwrap()
+  }
+
+  fn complete_receive(conn: &Connection, hawala_id: &str) {
+    complete_receive_hawala_conn(conn, hawala_id, "u1").expect("complete receive hawala");
+  }
+
+  fn live_payout_tx(conn: &Connection, hawala_id: &str) -> Option<(String, i64)> {
+    conn
+      .query_row(
+        r#"SELECT t.id, t.deletedAt IS NULL
+           FROM HawalaTransfer h
+           INNER JOIN "Transaction" t ON t.id = h.payoutTransactionId
+           WHERE h.id = ?1"#,
+        [hawala_id],
+        |row| Ok((row.get(0)?, row.get::<_, i64>(1)?)),
+      )
+      .optional()
       .unwrap()
   }
 
@@ -1915,6 +2239,14 @@ mod tests {
     )
     .expect("post customer receive");
 
+    assert_eq!(hawala_status(&conn, &posted.id), "PENDING");
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -200);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+
+    complete_receive(&conn, &posted.id);
+    assert_eq!(hawala_status(&conn, &posted.id), "COMPLETED");
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
     assert_eq!(wallet_named_balance(&conn, "Ahmad"), 5800);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -200);
@@ -1922,6 +2254,9 @@ mod tests {
     let (_, tx_type, live) = live_hawala_tx(&conn, &posted.id);
     assert_eq!(tx_type, "HAWALA");
     assert_eq!(live, 1);
+    let payout = live_payout_tx(&conn, &posted.id).expect("payout tx");
+    assert_eq!(payout.1, 1);
+    assert_ne!(payout.0, posted.transaction_id);
   }
 
   #[test]
@@ -1950,8 +2285,9 @@ mod tests {
     input.receiver_name = Some("Jan".into());
     let posted = post_hawala(&conn, "RECEIVE", input).expect("receive from source customer");
 
+    assert_eq!(hawala_status(&conn, &posted.id), "PENDING");
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
-    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
     assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
 
@@ -2023,15 +2359,15 @@ mod tests {
       "{lines:?}"
     );
     assert!(
-      lines.iter().any(|(n, d, a)| n == "Main Vault" && d == "CREDIT" && a == "5500"),
-      "{lines:?}"
+      !lines.iter().any(|(n, _, _)| n == "Main Vault"),
+      "pending receive must not touch Main Vault: {lines:?}"
     );
     assert!(
       lines.iter().any(|(n, d, a)| n == "Hawala Commission Income" && d == "CREDIT" && a == "500"),
       "{lines:?}"
     );
     assert!(
-      lines.iter().any(|(n, d, a)| n == "Opening Equity" && d == "DEBIT" && a == "12000"),
+      lines.iter().any(|(n, d, a)| n == "Opening Equity" && d == "DEBIT" && a == "6500"),
       "{lines:?}"
     );
     assert!(
@@ -2054,7 +2390,7 @@ mod tests {
       }
     }
     assert_eq!(debit, credit);
-    assert_eq!(debit, 12000);
+    assert_eq!(debit, 6500);
 
     let net: Option<String> = conn
       .query_row(
@@ -2064,6 +2400,56 @@ mod tests {
       )
       .unwrap();
     assert_eq!(net.as_deref(), Some("5500"));
+
+    complete_receive(&conn, &posted.id);
+    assert_eq!(hawala_status(&conn, &posted.id), "COMPLETED");
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    let payout = live_payout_tx(&conn, &posted.id).expect("payout");
+    assert_eq!(payout.1, 1);
+    assert_ne!(payout.0, posted.transaction_id);
+
+    let mut pay_stmt = conn
+      .prepare(
+        "SELECT w.name, le.direction, le.amount
+         FROM LedgerEntry le
+         INNER JOIN Wallet w ON w.id = le.walletId
+         WHERE le.transactionId = ?1",
+      )
+      .unwrap();
+    let pay_lines: Vec<(String, String, String)> = pay_stmt
+      .query_map([&payout.0], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+      .unwrap()
+      .collect::<Result<Vec<_>, _>>()
+      .unwrap();
+    assert!(
+      pay_lines.iter().any(|(n, d, a)| n == "Main Vault" && d == "CREDIT" && a == "5500"),
+      "{pay_lines:?}"
+    );
+    assert!(
+      !pay_lines.iter().any(|(n, _, _)| n == "Ghazni Saraf"),
+      "complete must not charge source again: {pay_lines:?}"
+    );
+    assert!(
+      !pay_lines.iter().any(|(n, _, _)| n == "Hawala Commission Income"),
+      "complete must not duplicate commission: {pay_lines:?}"
+    );
+    let mut pay_debit: i128 = 0;
+    let mut pay_credit: i128 = 0;
+    for (_, dir, amt) in &pay_lines {
+      let n: i128 = amt.parse().unwrap();
+      if dir == "DEBIT" {
+        pay_debit += n;
+      } else {
+        pay_credit += n;
+      }
+    }
+    assert_eq!(pay_debit, pay_credit);
+
+    let twice = complete_receive_hawala_conn(&conn, &posted.id, "u1");
+    assert!(twice.is_err(), "completed hawala cannot be completed twice");
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
   }
 
   #[test]
@@ -2089,6 +2475,14 @@ mod tests {
     input.receiver_name = Some("Jan".into());
     let posted = post_hawala(&conn, "RECEIVE", input).expect("receive to customer");
 
+    assert_eq!(hawala_status(&conn, &posted.id), "PENDING");
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
+    assert_eq!(wallet_named_balance(&conn, "Ahmad"), 0);
+    assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
+
+    complete_receive(&conn, &posted.id);
+    assert_eq!(hawala_status(&conn, &posted.id), "COMPLETED");
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
     assert_eq!(wallet_named_balance(&conn, "Ahmad"), 5500);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -500);
@@ -2146,8 +2540,9 @@ mod tests {
     first_in.receiver_customer_id = None;
     first_in.receiver_name = Some("Jan".into());
     let first = post_hawala(&conn, "RECEIVE", first_in).unwrap();
+    assert_eq!(hawala_status(&conn, &first.id), "PENDING");
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 4000);
-    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
 
     let mut next = desk_input(
       "HW-TEST-R-EDIT",
@@ -2163,14 +2558,71 @@ mod tests {
     next.replace_transaction_id = Some(first.transaction_id.clone());
     let second = post_hawala(&conn, "RECEIVE", next).expect("replace receive");
     assert_ne!(second.transaction_id, first.transaction_id);
+    assert_eq!(hawala_status(&conn, &second.id), "PENDING");
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 6000);
-    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -3600);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), -400);
+
+    complete_receive(&conn, &second.id);
+    assert_eq!(wallet_named_balance(&conn, "Main Vault"), -3600);
+    assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 6000);
 
     soft_delete_desk_transaction(&conn, &second.transaction_id).unwrap();
     assert_eq!(wallet_named_balance(&conn, "Ghazni Saraf"), 10000);
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), 0);
     assert_eq!(wallet_named_balance(&conn, "Hawala Commission Income"), 0);
+  }
+
+  #[test]
+  fn receive_complete_preserves_display_seq_order() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "w-ghazni", "20000");
+    let send = post_hawala(
+      &conn,
+      "SEND",
+      dest_send_input("5000", Some("100"), "cust-ghazni", "Walk-in"),
+    )
+    .unwrap();
+    let mut recv = desk_input(
+      "HW-TEST-R-SEQ",
+      "7000",
+      None,
+      Some("cust-ghazni"),
+      "Khan",
+      "cust-ahmad",
+    );
+    recv.receiver_customer_id = None;
+    recv.receiver_name = Some("Jan".into());
+    let pending = post_hawala(&conn, "RECEIVE", recv).unwrap();
+    assert_eq!(hawala_status(&conn, &pending.id), "PENDING");
+    let vault_after_receive = wallet_named_balance(&conn, "Main Vault");
+    let source_after_receive = wallet_named_balance(&conn, "Ghazni Saraf");
+    complete_receive(&conn, &pending.id);
+    assert_eq!(
+      wallet_named_balance(&conn, "Ghazni Saraf"),
+      source_after_receive,
+      "complete must not charge source again"
+    );
+    assert_eq!(
+      wallet_named_balance(&conn, "Main Vault"),
+      vault_after_receive - 7000
+    );
+
+    let seq = |tx_id: &str| -> i64 {
+      conn
+        .query_row(
+          r#"SELECT displaySeq FROM "Transaction" WHERE id = ?1"#,
+          [tx_id],
+          |row| row.get(0),
+        )
+        .unwrap()
+    };
+    let send_seq = seq(&send.transaction_id);
+    let recv_seq = seq(&pending.transaction_id);
+    let pay_id = live_payout_tx(&conn, &pending.id).unwrap().0;
+    let pay_seq = seq(&pay_id);
+    assert!(send_seq < recv_seq, "{send_seq} < {recv_seq}");
+    assert!(recv_seq < pay_seq, "{recv_seq} < {pay_seq}");
   }
 
   #[test]

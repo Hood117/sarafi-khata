@@ -740,6 +740,17 @@ export const en: Dictionary = {
     markSent: "Mark sent",
     markReceived: "Mark received",
     markCompleted: "Mark completed",
+    completeHawala: "Complete Hawala",
+    completeConfirmTitle: "Complete this hawala?",
+    completeConfirmPayVault:
+      "This will pay {amount} {currency} from Main Vault to {receiver}. The source customer account will not be charged again.",
+    completeConfirmCreditAccount:
+      "This will credit {amount} {currency} to {receiver}'s account. The source customer account will not be charged again.",
+    completeConfirmStatus: "Current status",
+    alreadyCompleted: "Completed",
+    completedAt: "Completed at",
+    payoutRecord: "Payout record",
+    netPayout: "Amount to pay",
     return: "Return",
     duplicate: "Duplicate",
     receiverReference: "Receiver reference",

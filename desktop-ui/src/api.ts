@@ -1007,6 +1007,8 @@ export type HawalaDetail = {
   createdById: string;
   createdByName: string | null;
   transactionId: string | null;
+  payoutTransactionId?: string | null;
+  payoutDisplayRef?: string | null;
   createdAt: string;
   updatedAt: string;
   sentAt: string | null;
@@ -1020,6 +1022,13 @@ export type HawalaDetail = {
 
 export function getHawala(id: string) {
   return invoke<HawalaDetail>("get_hawala", { input: { id } });
+}
+
+export function completeReceiveHawala(input: {
+  id: string;
+  actorUserId?: string | null;
+}) {
+  return invoke<HawalaDetail>("complete_receive_hawala", { input });
 }
 
 export function setHawalaStatus(input: {

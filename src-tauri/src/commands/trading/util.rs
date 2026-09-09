@@ -335,22 +335,57 @@ pub fn soft_delete_desk_transaction(
     |row| row.get(0),
   )?;
   if has_hawala {
-    // Free HawalaTransfer.reference unique slot for replace-edits.
-    let mut stmt = conn.prepare(
-      "SELECT id, reference FROM HawalaTransfer
-       WHERE transactionId = ?1 AND deletedAt IS NULL",
-    )?;
-    let rows: Vec<(String, String)> = stmt
-      .query_map([transaction_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+    let has_payout_col: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('HawalaTransfer') WHERE name = 'payoutTransactionId'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap_or(0);
+    let find_sql = if has_payout_col > 0 {
+      "SELECT id, reference, transactionId, payoutTransactionId FROM HawalaTransfer
+       WHERE deletedAt IS NULL AND (transactionId = ?1 OR payoutTransactionId = ?1)"
+    } else {
+      "SELECT id, reference, transactionId, NULL FROM HawalaTransfer
+       WHERE deletedAt IS NULL AND transactionId = ?1"
+    };
+    let mut stmt = conn.prepare(find_sql)?;
+    let rows: Vec<(String, String, Option<String>, Option<String>)> = stmt
+      .query_map([transaction_id], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+      })?
       .collect::<Result<Vec<_>, _>>()?;
     drop(stmt);
-    for (hid, href) in rows {
-      let freed = tombstone_unique_ref(&href);
-      conn.execute(
-        "UPDATE HawalaTransfer SET deletedAt = ?1, updatedAt = ?1, reference = ?2
-         WHERE id = ?3 AND deletedAt IS NULL",
-        params![now, freed, hid],
-      )?;
+    for (hid, href, orig_tid, pay_tid) in rows {
+      let pay_tid = pay_tid.filter(|s| !s.trim().is_empty());
+      let orig_tid = orig_tid.filter(|s| !s.trim().is_empty());
+      let deleting_payout = pay_tid.as_deref() == Some(transaction_id);
+      let deleting_original = orig_tid.as_deref() == Some(transaction_id);
+      if deleting_payout && !deleting_original {
+        conn.execute(
+          "UPDATE HawalaTransfer
+           SET status = 'PENDING',
+               completedAt = NULL,
+               payoutTransactionId = NULL,
+               updatedAt = ?1
+           WHERE id = ?2 AND deletedAt IS NULL",
+          params![now, hid],
+        )?;
+        continue;
+      }
+      if deleting_original {
+        if let Some(ref pid) = pay_tid {
+          if pid != transaction_id {
+            soft_delete_transaction(conn, pid)?;
+          }
+        }
+        let freed = tombstone_unique_ref(&href);
+        conn.execute(
+          "UPDATE HawalaTransfer SET deletedAt = ?1, updatedAt = ?1, reference = ?2
+           WHERE id = ?3 AND deletedAt IS NULL",
+          params![now, freed, hid],
+        )?;
+      }
     }
   }
 

@@ -398,6 +398,8 @@ pub struct HawalaDetail {
   pub created_by_id: String,
   pub created_by_name: Option<String>,
   pub transaction_id: Option<String>,
+  pub payout_transaction_id: Option<String>,
+  pub payout_display_ref: Option<String>,
   pub created_at: String,
   pub updated_at: String,
   pub sent_at: Option<String>,
@@ -456,7 +458,7 @@ fn load_events(conn: &Connection, hawala_id: &str) -> Result<Vec<HawalaEventItem
   Ok(items)
 }
 
-fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
+pub(crate) fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
   // Prefer extended columns; fall back carefully via COALESCE / IFNULL for missing cols is hard —
   // migration must have run. Query assumes new columns exist.
   let row = conn.query_row(
@@ -476,7 +478,7 @@ fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
          h.settlementType, h.settlementDate, h.settlementNotes,
          h.notes, h.internalNotes, h.customerNotes, h.privateNotes,
          h.cashWalletId, h.valueDate, h.expectedDeliveryDate, h.expectedDeliveryTime,
-         h.createdById, u.fullName, h.transactionId, h.createdAt, h.updatedAt,
+         h.createdById, u.fullName, h.transactionId, h.payoutTransactionId, h.createdAt, h.updatedAt,
          h.sentAt, h.receivedAt, h.completedAt, h.cancelledAt, h.returnedAt, h.deletedAt
        FROM HawalaTransfer h
        INNER JOIN Currency c ON c.id = h.currencyId
@@ -538,14 +540,16 @@ fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
         created_by_id: row.get(47)?,
         created_by_name: row.get(48)?,
         transaction_id: row.get(49)?,
-        created_at: row.get(50)?,
-        updated_at: row.get(51)?,
-        sent_at: row.get(52)?,
-        received_at: row.get(53)?,
-        completed_at: row.get(54)?,
-        cancelled_at: row.get(55)?,
-        returned_at: row.get(56)?,
-        deleted_at: row.get(57)?,
+        payout_transaction_id: row.get(50)?,
+        payout_display_ref: None,
+        created_at: row.get(51)?,
+        updated_at: row.get(52)?,
+        sent_at: row.get(53)?,
+        received_at: row.get(54)?,
+        completed_at: row.get(55)?,
+        cancelled_at: row.get(56)?,
+        returned_at: row.get(57)?,
+        deleted_at: row.get(58)?,
         events: vec![],
       })
     },
@@ -571,6 +575,22 @@ fn map_detail(conn: &Connection, id: &str) -> Result<HawalaDetail, AppError> {
       }
     }
   }
+  if let Some(tid) = detail
+    .payout_transaction_id
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+  {
+    if let Ok(shown) = conn.query_row(
+      r#"SELECT IFNULL(displayRef, '') FROM "Transaction" WHERE id = ?1"#,
+      [tid],
+      |row| row.get::<_, String>(0),
+    ) {
+      if !shown.trim().is_empty() {
+        detail.payout_display_ref = Some(shown);
+      }
+    }
+  }
   Ok(detail)
 }
 
@@ -586,14 +606,14 @@ pub fn get_hawala(
   let hawala_id: String = conn
     .query_row(
       "SELECT id FROM HawalaTransfer
-       WHERE (id = ?1 OR transactionId = ?1) AND deletedAt IS NULL
+       WHERE (id = ?1 OR transactionId = ?1 OR payoutTransactionId = ?1) AND deletedAt IS NULL
        LIMIT 1",
       [&id],
       |row| row.get(0),
     )
     .or_else(|_| {
       conn.query_row(
-        "SELECT id FROM HawalaTransfer WHERE id = ?1 OR transactionId = ?1 LIMIT 1",
+        "SELECT id FROM HawalaTransfer WHERE id = ?1 OR transactionId = ?1 OR payoutTransactionId = ?1 LIMIT 1",
         [&id],
         |row| row.get(0),
       )

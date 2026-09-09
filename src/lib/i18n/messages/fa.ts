@@ -740,6 +740,17 @@ export const fa: Dictionary = {
     markSent: "ارسال‌شده علامت بزنید",
     markReceived: "دریافت‌شده علامت بزنید",
     markCompleted: "تکمیل‌شده علامت بزنید",
+    completeHawala: "تکمیل حواله",
+    completeConfirmTitle: "این حواله تکمیل شود؟",
+    completeConfirmPayVault:
+      "مبلغ {amount} {currency} از خزانه اصلی به {receiver} پرداخت می‌شود. حساب منبع دوباره کم نمی‌شود.",
+    completeConfirmCreditAccount:
+      "مبلغ {amount} {currency} به حساب {receiver} اضافه می‌شود. حساب منبع دوباره کم نمی‌شود.",
+    completeConfirmStatus: "وضعیت فعلی",
+    alreadyCompleted: "تکمیل‌شده",
+    completedAt: "زمان تکمیل",
+    payoutRecord: "ثبت پرداخت",
+    netPayout: "مبلغ پرداخت",
     return: "برگشت",
     duplicate: "کپی",
     receiverReference: "شماره گیرنده",

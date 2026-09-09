@@ -8,12 +8,14 @@ import {
   listHawalaDesk,
   listPartners,
   type CurrencyListItem,
+  type HawalaDetail,
   type HawalaListItem,
   type HawalaListPage,
   type PartnerListItem,
 } from "@desktop/api";
 import type { Dictionary } from "@/lib/i18n/messages/types";
 import { useAuth } from "@desktop/auth";
+import { CompleteReceiveHawalaModal, isPendingReceiveHawala } from "@desktop/components/complete-receive-hawala-modal";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
 import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
@@ -151,6 +153,9 @@ export function HawalaPage() {
   const [editHawalaId, setEditHawalaId] = useState<string | null>(null);
   const [editDirection, setEditDirection] = useState<"SEND" | "RECEIVE">("SEND");
   const [whatsappBusy, setWhatsappBusy] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState<HawalaDetail | null>(null);
+  const [completeBusy, setCompleteBusy] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
 
   function openEditModal(row: HawalaListItem) {
     void (async () => {
@@ -264,6 +269,19 @@ export function HawalaPage() {
       showSuccess(t.hawala.archivedOk);
     } catch (err: unknown) {
       setError(errorMessage(err, t.errors.hawalaSave));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openCompleteModal(id: string) {
+    setCompleteError(null);
+    setBusy(true);
+    try {
+      const detail = await getHawala(id);
+      setCompleteTarget(detail);
+    } catch (err: unknown) {
+      setError(errorMessage(err, t.errors.loadGeneric));
     } finally {
       setBusy(false);
     }
@@ -484,7 +502,11 @@ export function HawalaPage() {
                   {pageData.items.map((row) => (
                     <tr
                       key={row.id}
-                      className="customer-row-clickable"
+                      className={
+                        isPendingReceiveHawala(row)
+                          ? "customer-row-clickable hawala-row-pending"
+                          : "customer-row-clickable"
+                      }
                       tabIndex={0}
                       role="link"
                       aria-label={`${t.common.view} ${txDisplayRef(row)}`}
@@ -539,6 +561,27 @@ export function HawalaPage() {
                         <span className={statusBadgeClass(row.status)}>
                           {statusLabel(t, row.status)}
                         </span>
+                        {isPendingReceiveHawala(row) && !row.isArchived ? (
+                          <div>
+                            <button
+                              type="button"
+                              className="btn primary"
+                              style={{ marginTop: "0.35rem" }}
+                              disabled={busy || completeBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void openCompleteModal(row.id);
+                              }}
+                            >
+                              {t.hawala.completeHawala}
+                            </button>
+                          </div>
+                        ) : row.direction.toUpperCase() === "RECEIVE"
+                          && row.status.toUpperCase() === "COMPLETED" ? (
+                          <div className="muted" style={{ fontSize: "0.75rem", marginTop: "0.2rem" }}>
+                            {t.hawala.alreadyCompleted}
+                          </div>
+                        ) : null}
                       </td>
                       <td>{row.createdByName ?? "—"}</td>
                     </tr>
@@ -584,6 +627,16 @@ export function HawalaPage() {
           x={rowMenu.x}
           y={rowMenu.y}
           items={[
+            ...(isPendingReceiveHawala(rowMenu.row) && !rowMenu.row.isArchived
+              ? [
+                  {
+                    id: "complete",
+                    label: t.hawala.completeHawala,
+                    disabled: busy || completeBusy,
+                    onSelect: () => void openCompleteModal(rowMenu.row.id),
+                  },
+                ]
+              : []),
             {
               id: "edit",
               label: t.common.editAction,
@@ -605,6 +658,26 @@ export function HawalaPage() {
             },
           ]}
           onClose={() => setRowMenu(null)}
+        />
+      ) : null}
+      {completeTarget ? (
+        <CompleteReceiveHawalaModal
+          detail={completeTarget}
+          busy={completeBusy}
+          error={completeError}
+          onClose={() => {
+            if (completeBusy) return;
+            setCompleteTarget(null);
+            setCompleteError(null);
+          }}
+          onCompleted={() => {
+            setCompleteTarget(null);
+            setCompleteError(null);
+            setReloadKey((k) => k + 1);
+            showSuccess(t.common.success);
+          }}
+          onError={setCompleteError}
+          onBusy={setCompleteBusy}
         />
       ) : null}
       <HawalaFormModal

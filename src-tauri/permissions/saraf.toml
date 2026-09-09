@@ -92,6 +92,7 @@ commands.allow = [
   "archive_partner",
   "send_hawala",
   "receive_hawala",
+  "complete_receive_hawala",
   "create_db_backup",
   "list_db_backups",
   "restore_db_backup",
