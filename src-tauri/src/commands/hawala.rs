@@ -281,41 +281,23 @@ pub fn next_daily_hawala_reference(conn: &Connection) -> Result<String, AppError
   Ok(format!("{prefix}{:04}", max_seq + 1))
 }
 
-fn looks_like_daily_hawala_number(value: &str) -> bool {
-  let mut parts = value.split('-');
-  matches!(parts.next(), Some("HW"))
-    && parts.next().is_some_and(|day| day.len() == 8 && day.chars().all(|c| c.is_ascii_digit()))
-    && parts.next().is_some_and(|seq| !seq.is_empty() && seq.chars().all(|c| c.is_ascii_digit()))
-    && parts.next().is_none()
-}
-
 fn allocate_hawala_reference(conn: &Connection, preferred: &str) -> Result<String, AppError> {
   let trimmed = preferred.trim();
+  if trimmed.is_empty() {
+    return Err(AppError::Validation("Hawala number is required.".into()));
+  }
   if trimmed.chars().count() > 64 {
     return Err(AppError::Validation(
       "Hawala number must be at most 64 characters.".into(),
     ));
   }
-  let candidate = if trimmed.is_empty() {
-    next_daily_hawala_reference(conn)?
-  } else {
-    trimmed.to_string()
-  };
-  if !hawala_reference_taken(conn, &candidate)? {
-    return Ok(candidate);
+  let candidate = trimmed.to_string();
+  if hawala_reference_taken(conn, &candidate)? {
+    return Err(AppError::Validation(format!(
+      "Hawala number \"{candidate}\" already exists. Enter a unique number."
+    )));
   }
-  if trimmed.is_empty() || looks_like_daily_hawala_number(&candidate) {
-    let next = next_daily_hawala_reference(conn)?;
-    if hawala_reference_taken(conn, &next)? {
-      return Err(AppError::Validation(
-        format!("Hawala number \"{next}\" already exists. Enter a unique number."),
-      ));
-    }
-    return Ok(next);
-  }
-  Err(AppError::Validation(format!(
-    "Hawala number \"{candidate}\" already exists. Enter a unique number."
-  )))
+  Ok(candidate)
 }
 
 fn resolve_customer_name_phone(
@@ -1185,6 +1167,10 @@ pub fn receive_hawala(
 pub struct CompleteReceiveHawalaInput {
   pub id: String,
   pub actor_user_id: Option<String>,
+  /// Optional collector phone recorded when the receiver collects the payout.
+  pub receiver_phone: Option<String>,
+  /// Optional collector national ID recorded when the receiver collects the payout.
+  pub receiver_national_id: Option<String>,
 }
 
 /// Pay a pending Receive Hawala from Main Vault (walk-in) or credit the
@@ -1193,6 +1179,8 @@ pub(crate) fn complete_receive_hawala_conn(
   conn: &Connection,
   hawala_id: &str,
   actor_user_id: &str,
+  receiver_phone: Option<String>,
+  receiver_national_id: Option<String>,
 ) -> Result<(), AppError> {
   let id = hawala_id.trim();
   if id.is_empty() {
@@ -1212,6 +1200,7 @@ pub(crate) fn complete_receive_hawala_conn(
       Option<String>,
       Option<String>,
       Option<String>,
+      Option<String>,
       String,
       String,
       String,
@@ -1219,8 +1208,8 @@ pub(crate) fn complete_receive_hawala_conn(
     ) = conn
       .query_row(
         r#"SELECT h.direction, h.status, h.deletedAt, h.payoutTransactionId, h.transactionId,
-                  h.reference, h.receiverName, h.receiverPhone, h.receiverCustomerId,
-                  h.senderCustomerId, h.cashWalletId, c.code,
+                  h.reference, h.receiverName, h.receiverPhone, h.receiverNationalId,
+                  h.receiverCustomerId, h.senderCustomerId, h.cashWalletId, c.code,
                   CAST(h.amount AS TEXT), CAST(h.receiveAmount AS TEXT)
            FROM HawalaTransfer h
            INNER JOIN Currency c ON c.id = h.currencyId
@@ -1243,6 +1232,7 @@ pub(crate) fn complete_receive_hawala_conn(
             row.get(11)?,
             row.get(12)?,
             row.get(13)?,
+            row.get(14)?,
           ))
         },
       )
@@ -1259,7 +1249,8 @@ pub(crate) fn complete_receive_hawala_conn(
       original_tx_id,
       reference,
       receiver_name,
-      receiver_phone,
+      existing_phone,
+      existing_national_id,
       receiver_customer_id,
       sender_customer_id,
       cash_wallet_id,
@@ -1293,6 +1284,22 @@ pub(crate) fn complete_receive_hawala_conn(
         "This hawala is already completed.".into(),
       ));
     }
+
+    // Collector contact entered at payout time (optional). Prefer new values; keep existing if blank.
+    let phone_to_save = trim_opt(receiver_phone).or_else(|| {
+      existing_phone
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+    });
+    let national_id_to_save = trim_opt(receiver_national_id).or_else(|| {
+      existing_national_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+    });
 
     let (_currency_id, currency_code, places) = find_currency_by_code(conn, &currency_code)?;
     let principal_minor = money_from_major_units(&amount_major, places)?;
@@ -1349,7 +1356,7 @@ pub(crate) fn complete_receive_hawala_conn(
       )
     } else {
       walk_in_name = Some(receiver_name.clone());
-      walk_in_phone = receiver_phone.clone();
+      walk_in_phone = phone_to_save.clone();
       entries.push(PostingLineDto {
         wallet_id: cash_wallet_id,
         currency: currency_code.clone(),
@@ -1397,12 +1404,20 @@ pub(crate) fn complete_receive_hawala_conn(
        SET status = 'COMPLETED',
            completedAt = ?1,
            payoutTransactionId = ?2,
+           receiverPhone = ?3,
+           receiverNationalId = ?4,
            updatedAt = ?1
-       WHERE id = ?3
+       WHERE id = ?5
          AND deletedAt IS NULL
          AND UPPER(status) = 'PENDING'
          AND IFNULL(payoutTransactionId, '') = ''",
-      params![now, posted.id, id],
+      params![
+        now,
+        posted.id,
+        phone_to_save,
+        national_id_to_save,
+        id
+      ],
     )?;
     if updated != 1 {
       return Err(AppError::Validation(
@@ -1447,7 +1462,13 @@ pub fn complete_receive_hawala(
   }
   let conn = state.db.lock();
   let actor = require_screen_write(&state, &conn, "hawala")?;
-  complete_receive_hawala_conn(&conn, &id, &actor.id)?;
+  complete_receive_hawala_conn(
+    &conn,
+    &id,
+    &actor.id,
+    input.receiver_phone,
+    input.receiver_national_id,
+  )?;
   crate::commands::hawala_desk::map_detail(&conn, &id)
 }
 
@@ -1813,7 +1834,8 @@ mod tests {
   }
 
   fn complete_receive(conn: &Connection, hawala_id: &str) {
-    complete_receive_hawala_conn(conn, hawala_id, "u1").expect("complete receive hawala");
+    complete_receive_hawala_conn(conn, hawala_id, "u1", None, None)
+      .expect("complete receive hawala");
   }
 
   fn live_payout_tx(conn: &Connection, hawala_id: &str) -> Option<(String, i64)> {
@@ -1921,18 +1943,30 @@ mod tests {
   }
 
   #[test]
-  fn allocate_bumps_taken_daily_number() {
+  fn allocate_requires_manual_hawala_number() {
     let conn = setup();
-    let day = chrono::Local::now().format("%Y%m%d").to_string();
-    let live = format!("HW-{day}-0001");
+    let err = allocate_hawala_reference(&conn, "  ").unwrap_err();
+    assert!(
+      err.to_string().to_ascii_lowercase().contains("required"),
+      "{err}"
+    );
+  }
+
+  #[test]
+  fn allocate_rejects_taken_hawala_number() {
+    let conn = setup();
     conn
       .execute(
-        "INSERT INTO HawalaTransfer (id, reference) VALUES ('l1', ?1)",
-        [&live],
+        "INSERT INTO HawalaTransfer (id, reference) VALUES ('l1', 'A-00981')",
+        [],
       )
       .unwrap();
-    let got = allocate_hawala_reference(&conn, &live).unwrap();
-    assert_eq!(got, format!("HW-{day}-0002"));
+    let err = allocate_hawala_reference(&conn, "A-00981").unwrap_err();
+    assert!(
+      err.to_string().to_ascii_lowercase().contains("already exists"),
+      "{err}"
+    );
+    assert_eq!(allocate_hawala_reference(&conn, "1258").unwrap(), "1258");
   }
 
   #[test]
@@ -2490,7 +2524,7 @@ mod tests {
     }
     assert_eq!(pay_debit, pay_credit);
 
-    let twice = complete_receive_hawala_conn(&conn, &posted.id, "u1");
+    let twice = complete_receive_hawala_conn(&conn, &posted.id, "u1", None, None);
     assert!(twice.is_err(), "completed hawala cannot be completed twice");
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
   }
@@ -2635,6 +2669,31 @@ mod tests {
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), 5000);
     assert_eq!(cached_main_vault_afn(&conn), 5000.0);
     assert_eq!(cash_afn_display(&conn).as_deref(), Some("5,000"));
+  }
+
+  #[test]
+  fn complete_receive_saves_collector_phone_and_national_id() {
+    let conn = setup_posting();
+    seed_customer_balance(&conn, "cash", "15000");
+    let id = post_walk_in_pending_receive(&conn, "HW-COLLECTOR-ID", "10000");
+    complete_receive_hawala_conn(
+      &conn,
+      &id,
+      "u1",
+      Some("0700123456".into()),
+      Some("Tazkira-9988".into()),
+    )
+    .expect("complete with collector info");
+    let (phone, national_id, status): (Option<String>, Option<String>, String) = conn
+      .query_row(
+        "SELECT receiverPhone, receiverNationalId, status FROM HawalaTransfer WHERE id = ?1",
+        [&id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+      )
+      .unwrap();
+    assert_eq!(status, "COMPLETED");
+    assert_eq!(phone.as_deref(), Some("0700123456"));
+    assert_eq!(national_id.as_deref(), Some("Tazkira-9988"));
   }
 
   #[test]

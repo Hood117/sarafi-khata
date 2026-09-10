@@ -27,7 +27,7 @@ import {
 } from "@desktop/lib/datetime";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 import { statusLabel } from "@desktop/lib/i18n-labels";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { hawalaNumberRef, txDisplayRef } from "@desktop/lib/tx-ref";
 import { PartnerForm } from "@desktop/pages/partner-forms";
 import { statusBadgeClass } from "@desktop/pages/hawala-helpers";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
@@ -858,14 +858,14 @@ export function PartnerDetailPage() {
                     }}
                     tabIndex={0}
                     role="link"
-                    aria-label={`${t.common.view} ${txDisplayRef(row)}`}
+                    aria-label={`${t.common.view} ${hawalaNumberRef(row)}`}
                   >
                     <td>
                       <Link
                         to={`/hawala/${row.id}`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {txDisplayRef(row)}
+                        {hawalaNumberRef(row)}
                       </Link>
                     </td>
                     <td>{String(row.valueDate).slice(0, 10)}</td>

@@ -14,7 +14,7 @@ import {
   type AmountPart,
 } from "@desktop/lib/format-transaction-line";
 import { statusLabel, transactionTypeLabel } from "@desktop/lib/i18n-labels";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { journalTxRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 
 function formatWhen(value: string | null | undefined): string {
@@ -167,7 +167,7 @@ export function TransactionDetailModal({
     <Modal
       title={
         detail
-          ? t.customers.ledgerTitle.replace("{reference}", txDisplayRef(detail))
+          ? t.customers.ledgerTitle.replace("{reference}", journalTxRef(detail))
           : t.nav.transactions
       }
       size="lg"
@@ -251,7 +251,7 @@ export function TransactionDetailModal({
                 </div>
                 <div>
                   <span className="muted">{t.common.reference}</span>
-                  <div className="col-ref">{txDisplayRef(detail)}</div>
+                  <div className="col-ref">{journalTxRef(detail)}</div>
                 </div>
                 <div>
                   <span className="muted">{t.common.date}</span>
@@ -314,7 +314,7 @@ export function TransactionDetailModal({
               <div className="tx-print-row">
                 <span>{t.common.reference}</span>
                 <strong className="ltr-text tx-print-ref">
-                  {txDisplayRef(detail)}
+                  {journalTxRef(detail)}
                 </strong>
               </div>
               <div className="tx-print-row">

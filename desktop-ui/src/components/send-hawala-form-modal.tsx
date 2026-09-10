@@ -11,7 +11,6 @@ import {
   listCurrenciesPage,
   listCustomersPage,
   listHawalaPage,
-  previewDisplayRef,
   receiveHawala,
   sendHawala,
   type CurrencyListItem,
@@ -33,7 +32,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
-import { loadDeskVoucher, txDisplayRef } from "@desktop/lib/tx-ref";
+import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import {
   formatMoney,
   isSimpleDeskHawala,
@@ -165,7 +164,7 @@ export function SendHawalaFormModal({
   function applyDetail(detail: HawalaDetail, defaultCurrency: string) {
     setHawalaRecordId(detail.id);
     setReplaceId(detail.transactionId || detail.id);
-    setVoucherNo(txDisplayRef(detail));
+    setVoucherNo(hawalaNumberRef(detail));
     const senderIsCustomer = Boolean(detail.senderCustomerId);
     const receiverIsCustomer = Boolean(detail.receiverCustomerId);
     setForm({
@@ -243,11 +242,8 @@ export function SendHawalaFormModal({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void Promise.all([
-      listCurrenciesPage({ activeOnly: true, pageSize: 100 }),
-      loadDeskVoucher(() => previewDisplayRef("HAWALA")),
-    ])
-      .then(async ([page, voucher]) => {
+    void listCurrenciesPage({ activeOnly: true, pageSize: 100 })
+      .then(async (page) => {
         if (cancelled) return;
         setCurrencies(page.items);
         const currency = pickDefaultCurrency(page.items);
@@ -265,7 +261,7 @@ export function SendHawalaFormModal({
 
         setReplaceId(null);
         setHawalaRecordId(null);
-        setVoucherNo(voucher);
+        setVoucherNo("");
         setForm(emptyForm(currency));
         setEmployeeId("");
         setEmployeeName("");
@@ -424,7 +420,6 @@ export function SendHawalaFormModal({
     const currency = pickDefaultCurrency(currencies) || form.currencyCode;
     setForm(emptyForm(currency));
     setVoucherNo("");
-    void loadDeskVoucher(() => previewDisplayRef("HAWALA")).then(setVoucherNo);
     setError(null);
     setReplaceId(null);
     setHawalaRecordId(null);
@@ -475,6 +470,12 @@ export function SendHawalaFormModal({
 
   async function submit(action: "save" | "new") {
     if (!session) return;
+
+    const hawalaNumber = voucherNo.trim() || form.reference.trim();
+    if (!hawalaNumber) {
+      setError(t.hawala.hawalaNumberRequired);
+      return;
+    }
 
     if (!form.amount.trim() || amountN <= 0) {
       setError(t.hawala.amountRequired);
@@ -552,8 +553,7 @@ export function SendHawalaFormModal({
           ? String(form.commission).replace(/,/g, "").trim()
           : null;
       const payload = {
-        reference:
-          hawalaRecordId || replaceId ? form.reference.trim() : "",
+        reference: hawalaNumber,
         currencyCode: form.currencyCode,
         amount: form.amount.replace(/,/g, "").trim(),
         valueDate: form.valueDate || todayIso(),
@@ -602,7 +602,7 @@ export function SendHawalaFormModal({
         setSuccessMessage(
           t.hawala.postedSuccess
             .replace("{direction}", isSend ? t.hawala.send : t.hawala.receive)
-            .replace("{reference}", txDisplayRef(result)),
+            .replace("{reference}", hawalaNumberRef(result)),
         );
         resetForm(false);
       } else {
@@ -698,12 +698,18 @@ export function SendHawalaFormModal({
 
             <div className="fx-simple-top">
               <label className="desk-ref-field">
-                <span>{t.desk.hawalaNumber}</span>
+                <span>{t.desk.hawalaNumber} *</span>
                 <input
                   className="desk-ref-input"
                   value={voucherNo}
-                  readOnly
-                  tabIndex={-1}
+                  required
+                  autoComplete="off"
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setVoucherNo(next);
+                    setForm((prev) => ({ ...prev, reference: next }));
+                    setError(null);
+                  }}
                 />
               </label>
               <label>

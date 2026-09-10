@@ -34,7 +34,7 @@ import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Pagination } from "@desktop/ui/pagination";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { statusLabel } from "@desktop/lib/i18n-labels";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import {
@@ -67,7 +67,7 @@ function exportCsv(rows: HawalaListItem[], t: Dictionary) {
     lines.push(
       [
         String(row.valueDate).slice(0, 10),
-        txDisplayRef(row),
+        hawalaNumberRef(row),
         row.direction,
         row.senderName ?? "",
         row.receiverName ?? "",
@@ -494,7 +494,7 @@ export function HawalaPage() {
                         className={`${rowProps.className} is-clickable${
                           canComplete ? " hawala-row-pending" : ""
                         }`}
-                        aria-label={`${t.common.view} ${txDisplayRef(row)}`}
+                        aria-label={`${t.common.view} ${hawalaNumberRef(row)}`}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setRowMenu({ x: e.clientX, y: e.clientY, row });
@@ -504,7 +504,7 @@ export function HawalaPage() {
                           {String(row.valueDate).slice(0, 10)}
                         </td>
                         <td className="col-ref">
-                          <strong>{txDisplayRef(row)}</strong>
+                          <strong>{hawalaNumberRef(row)}</strong>
                         </td>
                         <td>
                           {sent

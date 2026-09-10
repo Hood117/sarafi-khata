@@ -19,9 +19,7 @@ import {
   IconDebtorsCreditors,
   IconExpenses,
   IconHawala,
-  IconPartners,
   IconRefresh,
-  IconTrading,
   IconVault,
 } from "@desktop/icons";
 import { useT } from "@desktop/i18n";
@@ -107,16 +105,10 @@ export function AppLayout() {
       icon: <IconHawala />,
     },
     {
-      to: "/partners",
-      screen: "partners",
-      label: t.nav.partnerSarafi,
-      icon: <IconPartners />,
-    },
-    {
-      to: "/trading",
-      screen: "trading",
-      label: t.nav.trading,
-      icon: <IconTrading />,
+      to: "/hawala/commission",
+      screen: "hawala",
+      label: t.nav.commissionTracking,
+      icon: <IconHawala />,
     },
     {
       to: "/expenses",
@@ -143,9 +135,18 @@ export function AppLayout() {
                 to={link.to}
                 end={link.end}
                 data-nav={link.screen}
-                className={({ isActive }) =>
-                  isActive ? "nav-link app-tabbar-link active" : "nav-link app-tabbar-link"
-                }
+                className={({ isActive }) => {
+                  const onCommission = location.pathname.startsWith(
+                    "/hawala/commission",
+                  );
+                  const active =
+                    link.to === "/hawala"
+                      ? isActive && !onCommission
+                      : isActive;
+                  return active
+                    ? "nav-link app-tabbar-link active"
+                    : "nav-link app-tabbar-link";
+                }}
                 title={link.label}
               >
                 <span className="nav-link-icon">{link.icon}</span>

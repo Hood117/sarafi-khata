@@ -42,7 +42,13 @@ import {
 } from "@desktop/lib/colorize-amounts";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { errorMessage, endSubmit, todayIso, tryBeginSubmit } from "@desktop/lib/datetime";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { journalTxRef } from "@desktop/lib/tx-ref";
+import {
+  EMPTY_JOURNAL_FILTER_TOTALS,
+  journalFilterTotals,
+  type JournalCurrencyTotal,
+  type JournalFilterTotals,
+} from "@desktop/lib/daybook-journal-totals";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import {
   exportTable,
@@ -51,7 +57,9 @@ import {
 } from "@desktop/lib/export-table";
 import { statusLabel, transactionTypeLabel } from "@desktop/lib/i18n-labels";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
-import { isSimpleDeskHawala } from "@desktop/pages/hawala-helpers";
+import {
+  isSimpleDeskHawala,
+} from "@desktop/pages/hawala-helpers";
 import {
   printTransactionReceipt,
   type TransactionReceiptLabels,
@@ -110,6 +118,37 @@ function journalCreditClass(line: DaybookJournalLine): string {
   return "col-amount col-credit money-out";
 }
 
+function JournalTotalsStack({
+  rows,
+  tone,
+}: {
+  rows: JournalCurrencyTotal[];
+  /** Force money-in / money-out; default follows amount sign. */
+  tone?: "in" | "out";
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="daybook-journal-total-stack">
+      {rows.map((row) => (
+        <div
+          key={row.code}
+          className={
+            tone === "out"
+              ? "money-out"
+              : tone === "in"
+                ? "money-in"
+                : moneyToneClass(row.amount)
+          }
+        >
+          <span className="amount-emphasis">
+            {row.amount} {row.code}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function DaybookPage() {
   const t = useT();
   const { locale, dir } = useLocale();
@@ -118,6 +157,9 @@ export function DaybookPage() {
   const [date, setDate] = useState(todayIso);
   const [journal, setJournal] = useState<DaybookJournalLine[]>([]);
   const [journalTotal, setJournalTotal] = useState(0);
+  const [dayTotals, setDayTotals] = useState<JournalFilterTotals>(
+    EMPTY_JOURNAL_FILTER_TOTALS,
+  );
   const [journalPage, setJournalPage] = useState(1);
   const [journalLimitDraft, setJournalLimitDraft] = useState("");
   const [journalPageSize, setJournalPageSize] = useState(50);
@@ -229,6 +271,46 @@ export function DaybookPage() {
     void load();
   }, [load]);
 
+  const fetchAllJournalLines = useCallback(async (): Promise<DaybookJournalLine[]> => {
+    const pageSize = 100;
+    let page = 1;
+    let totalPages = 1;
+    const all: DaybookJournalLine[] = [];
+    while (page <= totalPages) {
+      const j = await listDaybookJournal({
+        businessDate: date,
+        currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
+        search: search || undefined,
+        page,
+        pageSize,
+      });
+      all.push(...j.items);
+      totalPages = Math.max(1, Math.ceil(j.total / j.pageSize) || 1);
+      if (j.items.length === 0) break;
+      page += 1;
+    }
+    return all;
+  }, [date, currencyFilter, search]);
+
+  /** Day Total always covers the full filtered day — never only the visible page. */
+  const loadDayTotals = useCallback(async () => {
+    try {
+      const lines = await fetchAllJournalLines();
+      setDayTotals(journalFilterTotals(lines));
+    } catch {
+      setDayTotals(EMPTY_JOURNAL_FILTER_TOTALS);
+    }
+  }, [fetchAllJournalLines]);
+
+  useEffect(() => {
+    void loadDayTotals();
+  }, [loadDayTotals]);
+
+  const refreshJournal = useCallback(() => {
+    void load();
+    void loadDayTotals();
+  }, [load, loadDayTotals]);
+
   useEffect(() => {
     preferLatestPageRef.current = true;
     stickJournalBottomRef.current = true;
@@ -260,11 +342,11 @@ export function DaybookPage() {
     const onSaved = () => {
       preferLatestPageRef.current = true;
       stickJournalBottomRef.current = true;
-      void load();
+      refreshJournal();
     };
     window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [load]);
+  }, [refreshJournal]);
 
   function openTxOrDeal(id: string, type: string) {
     if (type.toUpperCase() === "EXCHANGE") void dealModal.open(id);
@@ -350,7 +432,7 @@ export function DaybookPage() {
         id,
         createdById: session.userId,
       });
-      void load();
+      void refreshJournal();
     } catch (err: unknown) {
       setError(errorMessage(err));
     } finally {
@@ -436,7 +518,7 @@ export function DaybookPage() {
         label: t.common.delete,
         danger: true,
         disabled: !editable,
-        onSelect: () => void handleDeleteMovement(line.transactionId, txDisplayRef(line)),
+        onSelect: () => void handleDeleteMovement(line.transactionId, journalTxRef(line)),
       },
       {
         id: "print",
@@ -513,7 +595,7 @@ export function DaybookPage() {
           ? `${r.balanceAfter} ${r.currencyCode}`.trim()
           : "",
         currencyCode: r.currencyCode || "",
-        reference: txDisplayRef(r) || "",
+        reference: journalTxRef(r) || "",
         _debitTone: debitTone,
         _creditTone: creditTone,
         _balanceTone: balTone.includes("money-in")
@@ -523,27 +605,6 @@ export function DaybookPage() {
             : "",
       };
     });
-  }
-
-  async function fetchAllJournalLines(): Promise<DaybookJournalLine[]> {
-    const pageSize = 100;
-    let page = 1;
-    let totalPages = 1;
-    const all: DaybookJournalLine[] = [];
-    while (page <= totalPages) {
-      const j = await listDaybookJournal({
-        businessDate: date,
-        currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
-        search: search || undefined,
-        page,
-        pageSize,
-      });
-      all.push(...j.items);
-      totalPages = Math.max(1, Math.ceil(j.total / j.pageSize) || 1);
-      if (j.items.length === 0) break;
-      page += 1;
-    }
-    return all;
   }
 
   async function handleExportCsv() {
@@ -610,6 +671,8 @@ export function DaybookPage() {
     }
   }
 
+  const journalTotals = dayTotals;
+
   return (
     <div className="stack daybook-page">
       <div
@@ -668,7 +731,7 @@ export function DaybookPage() {
         </div>
       </div>
 
-      {error ? <PageLoadError message={error} onRetry={() => void load()} /> : null}
+      {error ? <PageLoadError message={error} onRetry={refreshJournal} /> : null}
       {busy && !hasLoaded ? <p className="muted">{t.common.loading}</p> : null}
 
       {hasLoaded ? (
@@ -804,7 +867,7 @@ export function DaybookPage() {
                           </td>
                           <td className="col-ref">
                             <span className="daybook-ref-cell">
-                              {txDisplayRef(line)}
+                              {journalTxRef(line)}
                               {line.transactionType.toUpperCase() === "HAWALA" ? (
                                 <button
                                   type="button"
@@ -830,6 +893,34 @@ export function DaybookPage() {
                       );
                     })}
                   </tbody>
+                  {journal.length > 0 ? (
+                    <tfoot>
+                      <tr className="daybook-journal-totals">
+                        <td colSpan={6} className="daybook-journal-totals-label">
+                          {t.dailyBook.dayTotals}
+                        </td>
+                        <td className="col-amount col-debit">
+                          <div className="muted daybook-journal-total-caption">
+                            {t.dailyBook.totalDebit}
+                          </div>
+                          <JournalTotalsStack rows={journalTotals.debit} />
+                        </td>
+                        <td className="col-amount col-credit">
+                          <div className="muted daybook-journal-total-caption">
+                            {t.dailyBook.totalCredit}
+                          </div>
+                          <JournalTotalsStack rows={journalTotals.credit} tone="out" />
+                        </td>
+                        <td className="col-amount col-balance">
+                          <div className="muted daybook-journal-total-caption">
+                            {t.dailyBook.closingBalance}
+                          </div>
+                          <JournalTotalsStack rows={journalTotals.closing} />
+                        </td>
+                        <td colSpan={2} />
+                      </tr>
+                    </tfoot>
+                  ) : null}
                 </table>
               </div>
             )}
@@ -912,7 +1003,7 @@ export function DaybookPage() {
           setEditDepositId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <WithdrawFormModal
@@ -923,7 +1014,7 @@ export function DaybookPage() {
           setEditWithdrawId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <TransferFormModal
@@ -934,7 +1025,7 @@ export function DaybookPage() {
           setEditTransferId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <ExchangeFormModal
@@ -945,7 +1036,7 @@ export function DaybookPage() {
           setEditExchangeId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <HawalaFormModal
@@ -957,7 +1048,7 @@ export function DaybookPage() {
           setEditHawalaId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <SendHawalaFormModal
@@ -969,7 +1060,7 @@ export function DaybookPage() {
           setEditHawalaId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <VaultCashFormModal
@@ -981,7 +1072,7 @@ export function DaybookPage() {
           setEditCashId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
       <OpeningBalanceFormModal
@@ -992,7 +1083,7 @@ export function DaybookPage() {
           setEditOpeningId(null);
         }}
         onSaved={() => {
-          void load();
+          refreshJournal();
         }}
       />
     </div>

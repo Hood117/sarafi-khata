@@ -1035,6 +1035,8 @@ export function getHawala(id: string) {
 export function completeReceiveHawala(input: {
   id: string;
   actorUserId?: string | null;
+  receiverPhone?: string | null;
+  receiverNationalId?: string | null;
 }) {
   return invoke<HawalaDetail>("complete_receive_hawala", { input });
 }
@@ -2866,7 +2868,7 @@ export type DaybookJournalLine = {
   description: string;
   debit: string;
   credit: string;
-  /** Running balance of this row's account after the entry. */
+  /** Running Main Vault / shop cash for this row's currency after the transaction. */
   balanceAfter: string;
   currencyCode: string;
   transactionId: string;

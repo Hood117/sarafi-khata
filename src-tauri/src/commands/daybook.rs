@@ -1518,7 +1518,7 @@ pub struct DaybookJournalLine {
   pub description: String,
   pub debit: String,
   pub credit: String,
-  /// Running balance of this row's account (wallet × currency) after the entry.
+  /// Running Main Vault / shop cash for this row's currency after the transaction.
   pub balance_after: String,
   pub currency_code: String,
   pub transaction_id: String,
@@ -1613,106 +1613,93 @@ fn format_journal_balance(v: f64) -> String {
   }
 }
 
-/// Load opening nets (wallet × currency) before `business_day` for the given wallets.
-fn journal_opening_balances(
+/// Same shop-cash wallets as `current_cash_balances` / Cash page (Main Vault + legacy TILL).
+const JOURNAL_SHOP_CASH_WALLETS: &str =
+  "((w.type = 'VAULT' AND w.name = 'Main Vault') OR w.type = 'TILL')";
+
+/// Opening Main Vault / shop cash by currency code at the start of `business_day`.
+fn journal_shop_cash_opening(
   conn: &Connection,
-  wallet_ids: &[String],
   business_day: &str,
-  currency_code: Option<&str>,
-) -> Result<std::collections::HashMap<(String, String), f64>, AppError> {
+) -> Result<std::collections::HashMap<String, f64>, AppError> {
   let mut map = std::collections::HashMap::new();
-  if wallet_ids.is_empty() {
-    return Ok(map);
+  for (_id, code, _sym, bal) in cash_balances_as_of(conn, business_day)? {
+    map.insert(code, bal);
   }
-  let placeholders = wallet_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-  let mut sql = format!(
-    r#"SELECT le.walletId, c.code,
+  Ok(map)
+}
+
+/// Intraday shop-cash nets before the first transaction on this page (same business day).
+fn journal_shop_cash_prefix(
+  conn: &Connection,
+  business_day: &str,
+  first_created_at: &str,
+  first_tx_id: &str,
+) -> Result<std::collections::HashMap<String, f64>, AppError> {
+  let mut map = std::collections::HashMap::new();
+  let sql = format!(
+    r#"SELECT c.code,
               COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
                                 ELSE -CAST(le.amount AS REAL) END), 0)
-       FROM LedgerEntry le
+       FROM Wallet w
+       INNER JOIN LedgerEntry le ON le.walletId = w.id
        INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
        INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
-       WHERE le.walletId IN ({placeholders})
-         AND substr(t.valueDate, 1, 10) < ?"#,
+       WHERE w.deletedAt IS NULL AND w.isActive = 1
+         AND {JOURNAL_SHOP_CASH_WALLETS}
+         AND t.valueDate >= ?1 AND t.valueDate < date(?1, '+1 day')
+         AND (t.createdAt < ?2 OR (t.createdAt = ?2 AND t.id < ?3))
+       GROUP BY c.code"#
   );
-  let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = wallet_ids
-    .iter()
-    .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
-    .collect();
-  params.push(Box::new(business_day.to_string()));
-  if let Some(code) = currency_code {
-    sql.push_str(" AND c.code = ?");
-    params.push(Box::new(code.to_string()));
-  }
-  sql.push_str(" GROUP BY le.walletId, c.code");
-  let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
   let mut stmt = conn.prepare(&sql)?;
-  for row in stmt.query_map(refs.as_slice(), |row| {
-    Ok((
-      row.get::<_, String>(0)?,
-      row.get::<_, String>(1)?,
-      row.get::<_, f64>(2)?,
-    ))
-  })? {
-    let (wid, code, bal) = row?;
-    if bal.abs() >= 1e-12 {
-      map.insert((wid, code), bal);
+  for row in stmt.query_map(
+    rusqlite::params![business_day, first_created_at, first_tx_id],
+    |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)),
+  )? {
+    let (code, net) = row?;
+    if net.abs() >= 1e-12 {
+      map.insert(code, net);
     }
   }
   Ok(map)
 }
 
-/// Intraday nets for wallets before the first transaction on this page (same business day).
-fn journal_prefix_balances(
+/// Shop-cash net by transaction and currency for the current page.
+fn journal_shop_cash_tx_nets(
   conn: &Connection,
-  wallet_ids: &[String],
-  business_day: &str,
-  first_created_at: &str,
-  first_tx_id: &str,
-  currency_code: Option<&str>,
-) -> Result<std::collections::HashMap<(String, String), f64>, AppError> {
-  let mut map = std::collections::HashMap::new();
-  if wallet_ids.is_empty() {
+  tx_ids: &[String],
+) -> Result<std::collections::HashMap<String, std::collections::HashMap<String, f64>>, AppError> {
+  let mut map: std::collections::HashMap<String, std::collections::HashMap<String, f64>> =
+    std::collections::HashMap::new();
+  if tx_ids.is_empty() {
     return Ok(map);
   }
-  let placeholders = wallet_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-  let mut sql = format!(
-    r#"SELECT le.walletId, c.code,
+  let placeholders = tx_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+  let sql = format!(
+    r#"SELECT le.transactionId, c.code,
               COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL)
                                 ELSE -CAST(le.amount AS REAL) END), 0)
-       FROM LedgerEntry le
-       INNER JOIN "Transaction" t ON t.id = le.transactionId AND t.deletedAt IS NULL
+       FROM Wallet w
+       INNER JOIN LedgerEntry le ON le.walletId = w.id
        INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
-       WHERE le.walletId IN ({placeholders})
-         AND t.valueDate >= ? AND t.valueDate < date(?, '+1 day')
-         AND (t.createdAt < ? OR (t.createdAt = ? AND t.id < ?))"#,
+       WHERE w.deletedAt IS NULL AND w.isActive = 1
+         AND {JOURNAL_SHOP_CASH_WALLETS}
+         AND le.transactionId IN ({placeholders})
+       GROUP BY le.transactionId, c.code"#
   );
-  let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = wallet_ids
-    .iter()
-    .map(|id| Box::new(id.clone()) as Box<dyn rusqlite::types::ToSql>)
-    .collect();
-  params.push(Box::new(business_day.to_string()));
-  params.push(Box::new(business_day.to_string()));
-  params.push(Box::new(first_created_at.to_string()));
-  params.push(Box::new(first_created_at.to_string()));
-  params.push(Box::new(first_tx_id.to_string()));
-  if let Some(code) = currency_code {
-    sql.push_str(" AND c.code = ?");
-    params.push(Box::new(code.to_string()));
-  }
-  sql.push_str(" GROUP BY le.walletId, c.code");
-  let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+  let params: Vec<&dyn rusqlite::types::ToSql> =
+    tx_ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
   let mut stmt = conn.prepare(&sql)?;
-  for row in stmt.query_map(refs.as_slice(), |row| {
+  for row in stmt.query_map(params.as_slice(), |row| {
     Ok((
       row.get::<_, String>(0)?,
       row.get::<_, String>(1)?,
       row.get::<_, f64>(2)?,
     ))
   })? {
-    let (wid, code, bal) = row?;
-    if bal.abs() >= 1e-12 {
-      map.insert((wid, code), bal);
+    let (tx_id, code, net) = row?;
+    if net.abs() >= 1e-12 {
+      map.entry(tx_id).or_default().insert(code, net);
     }
   }
   Ok(map)
@@ -2200,52 +2187,25 @@ pub fn list_daybook_journal(
       .then_with(|| a.2.cmp(&b.2))
   });
 
-  // Per-account running balance (wallet × currency), including activity before this day/page.
-  let wallet_ids: Vec<String> = pending
-    .iter()
-    .map(|p| p.3.clone())
-    .collect::<std::collections::BTreeSet<_>>()
-    .into_iter()
-    .collect();
-  let mut running = journal_opening_balances(
-    &conn,
-    &wallet_ids,
-    &day,
-    currency_code.as_deref(),
-  )?;
+  // Running Main Vault / shop cash per currency (not the customer/account wallet).
+  let mut running = journal_shop_cash_opening(&conn, &day)?;
   if offset > 0 {
     if let Some(first) = txs.first() {
-      let prefix = journal_prefix_balances(
-        &conn,
-        &wallet_ids,
-        &day,
-        &first.created_at,
-        &first.id,
-        currency_code.as_deref(),
-      )?;
-      for (key, net) in prefix {
-        *running.entry(key).or_insert(0.0) += net;
+      let prefix = journal_shop_cash_prefix(&conn, &day, &first.created_at, &first.id)?;
+      for (code, net) in prefix {
+        *running.entry(code).or_insert(0.0) += net;
       }
     }
   }
-
-  // Apply each page tx's ledger legs for tracked wallets, then stamp balance on primary rows.
+  let tx_cash_nets = journal_shop_cash_tx_nets(&conn, &tx_ids)?;
   for meta in &txs {
-    let Some(group) = lines_by_tx.get(&meta.id) else {
-      continue;
-    };
-    let mut nets: std::collections::HashMap<(String, String), f64> =
-      std::collections::HashMap::new();
-    for line in group {
-      let key = (line.wallet_id.clone(), line.currency_code.clone());
-      *nets.entry(key).or_insert(0.0) += line.debit - line.credit;
-    }
-    for (key, net) in nets {
-      *running.entry(key).or_insert(0.0) += net;
+    if let Some(nets) = tx_cash_nets.get(&meta.id) {
+      for (code, net) in nets {
+        *running.entry(code.clone()).or_insert(0.0) += *net;
+      }
     }
     for item in pending.iter_mut().filter(|p| p.1 == meta.id) {
-      let key = (item.3.clone(), item.2.clone());
-      let bal = running.get(&key).copied().unwrap_or(0.0);
+      let bal = running.get(&item.2).copied().unwrap_or(0.0);
       item.4.balance_after = format_journal_balance(bal);
     }
   }

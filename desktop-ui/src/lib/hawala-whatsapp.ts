@@ -1,4 +1,5 @@
 import { getHawala, getPartner, type HawalaDetail } from "@desktop/api";
+import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { openWhatsApp } from "@desktop/lib/whatsapp";
 
 export function buildHawalaWhatsAppMessage(
@@ -13,8 +14,7 @@ export function buildHawalaWhatsAppMessage(
   const address = [detail.destinationCity, detail.destinationCountry]
     .filter(Boolean)
     .join(", ");
-  const reference =
-    detail.displayRef?.trim() || detail.reference?.trim() || "—";
+  const reference = hawalaNumberRef(detail) || "—";
 
   return template
     .replace("{reference}", reference)

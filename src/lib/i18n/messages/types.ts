@@ -1076,6 +1076,9 @@ export type Dictionary = {
     oppositeAccount: string;
     debit: string;
     credit: string;
+    totalDebit: string;
+    totalCredit: string;
+    closingBalance: string;
     currencyType: string;
     activityRecords: string;
     activityRecordsHint: string;

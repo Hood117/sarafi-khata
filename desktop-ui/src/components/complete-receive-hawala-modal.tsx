@@ -9,7 +9,7 @@ import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { statusLabel } from "@desktop/lib/i18n-labels";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { endSubmit, errorMessage, tryBeginSubmit } from "@desktop/lib/datetime";
 import {
   formatAmountDisplay,
@@ -80,6 +80,12 @@ export function CompleteReceiveHawalaModal({
   const [cashStatus, setCashStatus] = useState<"idle" | "loading" | "ready" | "error">(
     toCustomer ? "idle" : "loading",
   );
+  const [collectorPhone, setCollectorPhone] = useState(
+    () => detail.receiverPhone ?? "",
+  );
+  const [collectorNationalId, setCollectorNationalId] = useState(
+    () => detail.receiverNationalId ?? "",
+  );
   const message = (
     toCustomer
       ? t.hawala.completeConfirmCreditAccount
@@ -135,6 +141,8 @@ export function CompleteReceiveHawalaModal({
       const updated = await completeReceiveHawala({
         id: detail.id,
         actorUserId: session.userId,
+        receiverPhone: collectorPhone.trim() || null,
+        receiverNationalId: collectorNationalId.trim() || null,
       });
       onCompleted(updated);
     } catch (err: unknown) {
@@ -191,7 +199,7 @@ export function CompleteReceiveHawalaModal({
             <tr>
               <th>{t.desk.hawalaNumber}</th>
               <td>
-                <strong>{txDisplayRef(detail)}</strong>
+                <strong>{hawalaNumberRef(detail)}</strong>
               </td>
             </tr>
             <tr>
@@ -216,6 +224,31 @@ export function CompleteReceiveHawalaModal({
                 <span className={statusBadgeClass(detail.status)}>
                   {statusLabel(t, detail.status)}
                 </span>
+              </td>
+            </tr>
+            <tr>
+              <th>{t.common.nationalId}</th>
+              <td>
+                <input
+                  value={collectorNationalId}
+                  onChange={(e) => setCollectorNationalId(e.target.value)}
+                  disabled={busy}
+                  autoComplete="off"
+                  placeholder={t.common.nationalId}
+                />
+              </td>
+            </tr>
+            <tr>
+              <th>{t.common.phone}</th>
+              <td>
+                <input
+                  value={collectorPhone}
+                  onChange={(e) => setCollectorPhone(e.target.value)}
+                  disabled={busy}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  placeholder={t.common.phone}
+                />
               </td>
             </tr>
           </tbody>

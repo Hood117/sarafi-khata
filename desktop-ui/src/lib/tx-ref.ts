@@ -22,6 +22,28 @@ export function txDisplayRef(row: TxRefFields): string {
   return sanitizeVoucher(row.reference);
 }
 
+/** Operator-facing Hawala number — prefers the manual `reference` over auto displayRef. */
+export function hawalaNumberRef(row: TxRefFields): string {
+  const manual = sanitizeVoucher(row.reference);
+  if (manual) {
+    // Complete-receive payouts store "{number}-PAY" on the Transaction row.
+    return manual.replace(/-PAY$/i, "");
+  }
+  return sanitizeVoucher(row.displayRef);
+}
+
+/** Daybook / ledger reference: Hawala uses the operator number; others use displayRef. */
+export function journalTxRef(
+  row: TxRefFields & {
+    transactionType?: string | null;
+    type?: string | null;
+  },
+): string {
+  const type = (row.transactionType ?? row.type ?? "").toUpperCase();
+  if (type === "HAWALA") return hawalaNumberRef(row);
+  return txDisplayRef(row);
+}
+
 /** Internal unique key for a new post — not shown in the Number field. */
 export function newInternalRef(prefix: string): string {
   return `${prefix}-${Date.now()}`;

@@ -20,7 +20,7 @@ import {
   type DatePeriodPreset,
 } from "@desktop/lib/datetime";
 import { statusLabel } from "@desktop/lib/i18n-labels";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import {
   formatAmountDisplay,
   statusBadgeClass,
@@ -340,7 +340,7 @@ export function CommissionTrackingPage() {
                         className="customer-row-clickable"
                         tabIndex={0}
                         role="link"
-                        aria-label={`${t.common.view} ${txDisplayRef(row)}`}
+                        aria-label={`${t.common.view} ${hawalaNumberRef(row)}`}
                         onClick={() => navigate(`/hawala/${row.id}`)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -351,7 +351,7 @@ export function CommissionTrackingPage() {
                       >
                         <td>{String(row.valueDate).slice(0, 10)}</td>
                         <td>
-                          <strong>{txDisplayRef(row)}</strong>
+                          <strong>{hawalaNumberRef(row)}</strong>
                         </td>
                         <td>
                           {sent
