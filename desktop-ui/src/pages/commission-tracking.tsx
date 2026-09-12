@@ -147,12 +147,7 @@ export function CommissionTrackingPage() {
       ) : null}
 
       <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div className="stack" style={{ gap: "0.25rem" }}>
-          <h1 style={{ margin: 0 }}>{t.commissionTracking.title}</h1>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.commissionTracking.subtitle}
-          </p>
-        </div>
+        <h1 style={{ margin: 0 }}>{t.commissionTracking.title}</h1>
         <Link className="button-link secondary" to="/hawala">
           {t.commissionTracking.backToHawala}
         </Link>
@@ -212,9 +207,6 @@ export function CommissionTrackingPage() {
             </table>
           </div>
         ) : null}
-        <p className="muted" style={{ margin: 0 }}>
-          {t.commissionTracking.hint}
-        </p>
       </div>
 
       <div className="section-card stack commission-tracking-filters no-print">

@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { Navigate } from "react-router-dom";
 
 import { getAppInfo, type AppInfo } from "@desktop/api";
@@ -82,8 +89,27 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+  const usernameRef = useRef<HTMLInputElement | null>(null);
 
   const scatter = useMemo(() => buildScatterGlyphs(52), []);
+
+  function focusPassword() {
+    const el = passwordRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }
+
+  function onUsernameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" && event.code !== "Enter" && event.code !== "NumpadEnter") {
+      return;
+    }
+    // Stop the form from submitting before the password is filled.
+    event.preventDefault();
+    event.stopPropagation();
+    focusPassword();
+  }
 
   useEffect(() => {
     void getAppInfo()
@@ -122,10 +148,23 @@ export function LoginPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    const user = username.trim();
+    const pass = password;
+    if (!user) {
+      setError(null);
+      usernameRef.current?.focus();
+      return;
+    }
+    if (!pass) {
+      // Enter from username (or empty password) → move to password, don't sign in yet.
+      setError(null);
+      focusPassword();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await login(username, password);
+      await login(user, pass);
     } catch (err: unknown) {
       setError(errorMessage(err, t.login.unableToSignIn));
     } finally {
@@ -186,21 +225,27 @@ export function LoginPage() {
           <label>
             {t.login.username}
             <input
+              ref={usernameRef}
               className="ltr-text"
               dir="ltr"
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              onKeyDown={onUsernameKeyDown}
               placeholder={t.login.usernamePlaceholder}
             />
           </label>
           <label>
             {t.login.password}
             <input
+              ref={passwordRef}
               type="password"
               autoComplete="current-password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (error) setError(null);
+              }}
               placeholder={t.login.passwordPlaceholder}
             />
           </label>

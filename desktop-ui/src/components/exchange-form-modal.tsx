@@ -437,7 +437,7 @@ export function ExchangeFormModal({
     }
   }
 
-  function setPartyMode(mode: PartyMode) {
+  function setPartyMode(mode: "walkin" | "customer") {
     setForm((prev) => ({
       ...prev,
       partyMode: mode,
@@ -885,16 +885,6 @@ export function ExchangeFormModal({
                     onClick={() => setPartyMode("customer")}
                   >
                     {t.common.customer}
-                  </button>
-                  <button
-                    type="button"
-                    className={
-                      form.partyMode === "partner" ? "hawala-mode active" : "hawala-mode"
-                    }
-                    aria-pressed={form.partyMode === "partner"}
-                    onClick={() => setPartyMode("partner")}
-                  >
-                    {t.desk.partnerSarafi}
                   </button>
                 </div>
               </div>

@@ -38,7 +38,7 @@ function BalanceChips({ rows }: { rows: CustomerBalanceRow[] | undefined }) {
       {rows.map((b, i) => (
         <span key={b.currencyCode}>
           {i > 0 ? <span className="muted"> · </span> : null}
-          <span className={moneyToneClass(b.balanceDisplay)}>
+          <span className={`money ${moneyToneClass(b.balanceDisplay)}`}>
             {b.currencyCode} {b.balanceDisplay}
           </span>
         </span>
