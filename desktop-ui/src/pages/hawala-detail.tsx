@@ -308,7 +308,9 @@ export function HawalaDetailPage() {
                 ) : null}
                 {detail.receiverPhone ? (
                   <DetailRow label={t.common.phone} highlight>
-                    {detail.receiverPhone}
+                    <span className="ltr-text phone-ltr" dir="ltr">
+                      {detail.receiverPhone}
+                    </span>
                   </DetailRow>
                 ) : null}
                 {isReceive ? (

@@ -4022,19 +4022,22 @@ html[dir="rtl"] .fx-simple-amount {
 }
 
 html[dir="rtl"] .ltr-text,
+html[dir="rtl"] .phone-ltr,
 html[dir="rtl"] .pin-input,
 html[dir="rtl"] .username,
 html[dir="rtl"] .col-ref,
 html[dir="rtl"] .col-account-code,
 html[dir="rtl"] .desk-ref-input,
 html[dir="rtl"] input[autocomplete="username"],
+html[dir="rtl"] input[autocomplete="tel"],
 html[dir="rtl"] .currency-picker-input {
   direction: ltr;
   unicode-bidi: isolate;
   text-align: start;
 }
 
-html[dir="rtl"] .ltr-text {
+html[dir="rtl"] .ltr-text,
+html[dir="rtl"] .phone-ltr {
   display: inline-block;
 }
 

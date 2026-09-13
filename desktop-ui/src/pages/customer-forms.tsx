@@ -108,6 +108,10 @@ function CustomerFormFields({
       <label>
         {t.common.phone}
         <input
+          className="ltr-text phone-ltr"
+          dir="ltr"
+          inputMode="tel"
+          autoComplete="tel"
           value={phone}
           disabled={disabled}
           onChange={(e) => onChange("phone", e.target.value)}

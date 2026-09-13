@@ -296,7 +296,13 @@ export function CustomersPage() {
                           <strong className="customer-list-code">{c.code}</strong>
                         ) : null}
                         {c.code && c.phone ? " · " : null}
-                        {c.phone || (!c.code ? "—" : null)}
+                        {c.phone ? (
+                          <span className="ltr-text phone-ltr" dir="ltr">
+                            {c.phone}
+                          </span>
+                        ) : !c.code ? (
+                          "—"
+                        ) : null}
                       </span>
                     </button>
                   </li>
@@ -411,7 +417,15 @@ export function CustomersPage() {
                       <td>
                         <span className="customer-list-name">{customer.fullName}</span>
                       </td>
-                      <td>{customer.phone ?? "—"}</td>
+                      <td>
+                        {customer.phone ? (
+                          <span className="ltr-text phone-ltr" dir="ltr">
+                            {customer.phone}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td style={{ fontSize: "0.9rem" }}>
                         <BalanceChips rows={balancesById[customer.id]} />
                       </td>

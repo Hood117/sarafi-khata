@@ -313,7 +313,9 @@ export function CustomerDetailPage() {
               {phoneLabel ? (
                 <>
                   <span aria-hidden> · </span>
-                  <span>{phoneLabel}</span>
+                  <span className="ltr-text phone-ltr" dir="ltr">
+                    {phoneLabel}
+                  </span>
                 </>
               ) : null}
               {statusLabel ? (
