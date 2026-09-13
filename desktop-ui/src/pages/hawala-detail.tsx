@@ -41,10 +41,14 @@ function DetailRow({
 }) {
   if (children == null || children === "" || children === "—") return null;
   return (
-    <tr className={highlight ? "hawala-detail-highlight" : undefined}>
+    <tr>
       <th>{label}</th>
       <td>
-        {highlight ? <strong className="hawala-detail-highlight-value">{children}</strong> : children}
+        {highlight ? (
+          <span className="badge badge-completed hawala-detail-id-badge">{children}</span>
+        ) : (
+          children
+        )}
       </td>
     </tr>
   );
@@ -308,9 +312,7 @@ export function HawalaDetailPage() {
                 ) : null}
                 {detail.receiverPhone ? (
                   <DetailRow label={t.common.phone} highlight>
-                    <span className="ltr-text phone-ltr" dir="ltr">
-                      {detail.receiverPhone}
-                    </span>
+                    {detail.receiverPhone}
                   </DetailRow>
                 ) : null}
                 {isReceive ? (
