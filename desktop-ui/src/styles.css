@@ -4058,6 +4058,26 @@ html[dir="rtl"] .ltr-text {
   white-space: nowrap;
 }
 
+.hawala-detail-facts tr.hawala-detail-highlight th,
+.hawala-detail-facts tr.hawala-detail-highlight td {
+  background: color-mix(in srgb, var(--accent, #b8892d) 14%, #fff);
+  border-block: 1px solid color-mix(in srgb, var(--accent, #b8892d) 28%, transparent);
+}
+
+.hawala-detail-facts tr.hawala-detail-highlight th {
+  color: color-mix(in srgb, var(--accent, #b8892d) 55%, var(--ink));
+  font-weight: 800;
+}
+
+.hawala-detail-highlight-value {
+  display: inline-block;
+  font-size: 1.05em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--brand-deep, #0a4d38);
+}
+
 a.hawala-action-btn,
 button.hawala-action-btn,
 .hawala-action-btn {

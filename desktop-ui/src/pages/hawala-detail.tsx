@@ -33,15 +33,19 @@ function stamp(value: string | null | undefined): string {
 function DetailRow({
   label,
   children,
+  highlight = false,
 }: {
   label: string;
   children: ReactNode;
+  highlight?: boolean;
 }) {
   if (children == null || children === "" || children === "—") return null;
   return (
-    <tr>
+    <tr className={highlight ? "hawala-detail-highlight" : undefined}>
       <th>{label}</th>
-      <td>{children}</td>
+      <td>
+        {highlight ? <strong className="hawala-detail-highlight-value">{children}</strong> : children}
+      </td>
     </tr>
   );
 }
@@ -297,6 +301,16 @@ export function HawalaDetailPage() {
                 <DetailRow label={t.hawala.receiver}>
                   {detail.receiverName}
                 </DetailRow>
+                {detail.receiverNationalId ? (
+                  <DetailRow label={t.common.nationalId} highlight>
+                    {detail.receiverNationalId}
+                  </DetailRow>
+                ) : null}
+                {detail.receiverPhone ? (
+                  <DetailRow label={t.common.phone} highlight>
+                    {detail.receiverPhone}
+                  </DetailRow>
+                ) : null}
                 {isReceive ? (
                   <DetailRow label={t.hawala.sourceCustomerAccount}>
                     {detail.partnerSarafi ||
@@ -329,16 +343,6 @@ export function HawalaDetailPage() {
                     }
                   >
                     {formatAmountDisplay(net)} {detail.currencyCode}
-                  </DetailRow>
-                ) : null}
-                {detail.receiverNationalId ? (
-                  <DetailRow label={t.common.nationalId}>
-                    {detail.receiverNationalId}
-                  </DetailRow>
-                ) : null}
-                {detail.receiverPhone ? (
-                  <DetailRow label={t.common.phone}>
-                    {detail.receiverPhone}
                   </DetailRow>
                 ) : null}
                 {detail.completedAt ? (
