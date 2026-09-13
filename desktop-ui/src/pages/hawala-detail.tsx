@@ -45,7 +45,7 @@ function DetailRow({
       <th>{label}</th>
       <td>
         {highlight ? (
-          <span className="badge badge-completed hawala-detail-id-badge">{children}</span>
+          <span className="badge hawala-detail-id-badge">{children}</span>
         ) : (
           children
         )}

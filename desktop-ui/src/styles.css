@@ -4067,12 +4067,15 @@ html[dir="rtl"] .phone-ltr {
   max-width: 100%;
   padding: 0.18rem 0.55rem;
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   line-height: 1.25;
   direction: ltr;
   unicode-bidi: isolate;
+  background: color-mix(in srgb, var(--accent, #b8892d) 14%, #fff);
+  color: var(--brand-deep, #0a4d38);
+  border: 1px solid color-mix(in srgb, var(--accent, #b8892d) 28%, transparent);
 }
 
 a.hawala-action-btn,
