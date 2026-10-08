@@ -13,6 +13,7 @@ pub const ZKFP_ERR_NO_DEVICE: i32 = -3;
 pub const ZKFP_ERR_OPEN: i32 = -6;
 pub const ZKFP_ERR_CAPTURE: i32 = -8;
 pub const ZKFP_ERR_BUSY: i32 = -12;
+pub const ZKFP_ERR_MERGE: i32 = -22;
 
 pub const MAX_TEMPLATE_SIZE: usize = 2048;
 
@@ -34,6 +35,23 @@ type ZkfpmAcquireFingerprint = unsafe extern "system" fn(
   fp_template: *mut u8,
   cb_template: *mut u32,
 ) -> i32;
+type ZkfpmDbInit = unsafe extern "system" fn() -> DeviceHandle;
+type ZkfpmDbFree = unsafe extern "system" fn(h_db: DeviceHandle) -> i32;
+type ZkfpmDbMatch = unsafe extern "system" fn(
+  h_db: DeviceHandle,
+  template1: *const u8,
+  cb_template1: u32,
+  template2: *const u8,
+  cb_template2: u32,
+) -> i32;
+type ZkfpmDbMerge = unsafe extern "system" fn(
+  h_db: DeviceHandle,
+  temp1: *const u8,
+  temp2: *const u8,
+  temp3: *const u8,
+  reg_temp: *mut u8,
+  cb_reg_temp: *mut u32,
+) -> i32;
 
 pub struct ZkFpSdk {
   _library: Library,
@@ -45,6 +63,10 @@ pub struct ZkFpSdk {
   close_device: ZkfpmCloseDevice,
   get_parameters: ZkfpmGetParameters,
   acquire_fingerprint: ZkfpmAcquireFingerprint,
+  db_init: ZkfpmDbInit,
+  db_free: ZkfpmDbFree,
+  db_match: ZkfpmDbMatch,
+  db_merge: ZkfpmDbMerge,
 }
 
 impl ZkFpSdk {
@@ -73,6 +95,18 @@ impl ZkFpSdk {
       let acquire_fingerprint: Symbol<ZkfpmAcquireFingerprint> = library
         .get(b"ZKFPM_AcquireFingerprint")
         .map_err(|e| format!("libzkfp.dll missing ZKFPM_AcquireFingerprint: {e}"))?;
+      let db_init: Symbol<ZkfpmDbInit> = library
+        .get(b"ZKFPM_DBInit")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBInit: {e}"))?;
+      let db_free: Symbol<ZkfpmDbFree> = library
+        .get(b"ZKFPM_DBFree")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBFree: {e}"))?;
+      let db_match: Symbol<ZkfpmDbMatch> = library
+        .get(b"ZKFPM_DBMatch")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBMatch: {e}"))?;
+      let db_merge: Symbol<ZkfpmDbMerge> = library
+        .get(b"ZKFPM_DBMerge")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBMerge: {e}"))?;
 
       Ok(Self {
         init: *init,
@@ -82,6 +116,10 @@ impl ZkFpSdk {
         close_device: *close_device,
         get_parameters: *get_parameters,
         acquire_fingerprint: *acquire_fingerprint,
+        db_init: *db_init,
+        db_free: *db_free,
+        db_match: *db_match,
+        db_merge: *db_merge,
         loaded_from,
         _library: library,
       })
@@ -144,6 +182,48 @@ impl ZkFpSdk {
     };
     (code, cb_template)
   }
+
+  pub fn db_init(&self) -> DeviceHandle {
+    unsafe { (self.db_init)() }
+  }
+
+  pub fn db_free(&self, h_db: DeviceHandle) -> i32 {
+    unsafe { (self.db_free)(h_db) }
+  }
+
+  pub fn db_match(&self, h_db: DeviceHandle, a: &[u8], b: &[u8]) -> i32 {
+    unsafe {
+      (self.db_match)(
+        h_db,
+        a.as_ptr(),
+        a.len() as u32,
+        b.as_ptr(),
+        b.len() as u32,
+      )
+    }
+  }
+
+  pub fn db_merge(
+    &self,
+    h_db: DeviceHandle,
+    t1: &[u8],
+    t2: &[u8],
+    t3: &[u8],
+    reg_temp: &mut [u8],
+  ) -> (i32, u32) {
+    let mut cb = reg_temp.len() as u32;
+    let code = unsafe {
+      (self.db_merge)(
+        h_db,
+        t1.as_ptr(),
+        t2.as_ptr(),
+        t3.as_ptr(),
+        reg_temp.as_mut_ptr(),
+        &mut cb,
+      )
+    };
+    (code, cb)
+  }
 }
 
 fn load_library() -> Result<(Library, PathBuf), String> {
@@ -200,9 +280,12 @@ pub fn describe_sdk_code(code: i32) -> &'static str {
     ZKFP_ERR_CAPTURE => "capture failed",
     -9 => "extract fingerprint failed",
     ZKFP_ERR_BUSY => "device busy capturing",
+    -20 => "fingerprint verify failed",
+    ZKFP_ERR_MERGE => "merge registration templates failed",
     -23 => "device not opened",
     -24 => "not initialized",
     -25 => "device already opened",
+    -28 => "timeout",
     _ => "sdk error",
   }
 }

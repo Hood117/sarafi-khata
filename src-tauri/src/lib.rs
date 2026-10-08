@@ -389,6 +389,7 @@ pub fn run() {
       commands::ping,
       commands::get_fingerprint_device_status,
       commands::capture_fingerprint,
+      commands::enroll_fingerprint,
       commands::get_app_info,
       commands::save_text_export,
       commands::open_external_url,

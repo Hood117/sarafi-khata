@@ -7,7 +7,11 @@ mod win;
 mod stub;
 
 #[cfg(windows)]
-pub use win::{FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintService};
+pub use win::{
+  FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintEnrollResult, FingerprintService,
+};
 
 #[cfg(not(windows))]
-pub use stub::{FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintService};
+pub use stub::{
+  FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintEnrollResult, FingerprintService,
+};

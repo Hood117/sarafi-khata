@@ -2,7 +2,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::fingerprint::{
-  FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintService,
+  FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintEnrollResult, FingerprintService,
 };
 
 /// Probe the ZKTeco reader: init → device count → open index 0 → close → terminate.
@@ -21,4 +21,13 @@ pub fn capture_fingerprint(
   fingerprint: State<'_, FingerprintService>,
 ) -> Result<FingerprintCaptureResult, AppError> {
   fingerprint.capture_one()
+}
+
+/// Three-press enrollment: capture → lift → capture → lift → capture → match → merge.
+/// Returns the registration template as base64. Does not persist anything.
+#[tauri::command]
+pub fn enroll_fingerprint(
+  fingerprint: State<'_, FingerprintService>,
+) -> Result<FingerprintEnrollResult, AppError> {
+  fingerprint.enroll_three()
 }

@@ -25,6 +25,17 @@ pub struct FingerprintCaptureResult {
   pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FingerprintEnrollResult {
+  pub ok: bool,
+  pub template_base64: Option<String>,
+  pub template_len: Option<u32>,
+  pub scans_completed: u32,
+  pub sdk_error_code: Option<i32>,
+  pub message: String,
+}
+
 pub struct FingerprintService;
 
 impl FingerprintService {
@@ -39,6 +50,12 @@ impl FingerprintService {
   }
 
   pub fn capture_one(&self) -> Result<FingerprintCaptureResult, AppError> {
+    Err(AppError::Internal(
+      "Fingerprint reader support is only available on Windows.".into(),
+    ))
+  }
+
+  pub fn enroll_three(&self) -> Result<FingerprintEnrollResult, AppError> {
     Err(AppError::Internal(
       "Fingerprint reader support is only available on Windows.".into(),
     ))
