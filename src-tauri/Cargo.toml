@@ -36,6 +36,9 @@ rfd = "0.15"
 # (STILL_ACTIVE) on Windows, same class of issue as compiling sqlite3.c.
 ureq = { version = "2.12", default-features = false, features = ["native-tls", "json", "proxy-from-env"] }
 
+[target.'cfg(windows)'.dependencies]
+libloading = "0.8"
+
 # Production builds must enable custom-protocol so cfg(dev) is false and the
 # app loads embedded SPA assets instead of http://127.0.0.1:1421.
 # `tauri dev` disables this feature; `tauri build` / plain cargo release keep it.

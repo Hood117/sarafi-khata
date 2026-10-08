@@ -7,6 +7,7 @@ mod backup;
 mod commands;
 mod db;
 mod error;
+mod fingerprint;
 mod ledger;
 mod license_config;
 mod migrate;
@@ -25,6 +26,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, RunEvent, Url};
 
 use crate::error::AppError;
+use crate::fingerprint::FingerprintService;
 use crate::state::AppState;
 
 struct SidecarState(Mutex<Option<Child>>);
@@ -385,6 +387,8 @@ pub fn run() {
     .manage(sidecar)
     .invoke_handler(tauri::generate_handler![
       commands::ping,
+      commands::get_fingerprint_device_status,
+      commands::capture_fingerprint,
       commands::get_app_info,
       commands::save_text_export,
       commands::open_external_url,
@@ -554,6 +558,7 @@ pub fn run() {
         format!("native SQLite bootstrap failed: {e}")
       })?;
       app.manage(state);
+      app.manage(FingerprintService::new());
 
       // Opt-in legacy path only: Node Next sidecar (~250MB installer).
       if use_legacy_sidecar {
