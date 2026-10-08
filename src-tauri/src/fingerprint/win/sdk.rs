@@ -52,6 +52,20 @@ type ZkfpmDbMerge = unsafe extern "system" fn(
   reg_temp: *mut u8,
   cb_reg_temp: *mut u32,
 ) -> i32;
+type ZkfpmDbAdd = unsafe extern "system" fn(
+  h_db: DeviceHandle,
+  fid: u32,
+  fp_template: *const u8,
+  cb_template: u32,
+) -> i32;
+type ZkfpmDbClear = unsafe extern "system" fn(h_db: DeviceHandle) -> i32;
+type ZkfpmDbIdentify = unsafe extern "system" fn(
+  h_db: DeviceHandle,
+  fp_template: *const u8,
+  cb_template: u32,
+  fid: *mut u32,
+  score: *mut u32,
+) -> i32;
 
 pub struct ZkFpSdk {
   _library: Library,
@@ -67,6 +81,9 @@ pub struct ZkFpSdk {
   db_free: ZkfpmDbFree,
   db_match: ZkfpmDbMatch,
   db_merge: ZkfpmDbMerge,
+  db_add: ZkfpmDbAdd,
+  db_clear: ZkfpmDbClear,
+  db_identify: ZkfpmDbIdentify,
 }
 
 impl ZkFpSdk {
@@ -107,6 +124,15 @@ impl ZkFpSdk {
       let db_merge: Symbol<ZkfpmDbMerge> = library
         .get(b"ZKFPM_DBMerge")
         .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBMerge: {e}"))?;
+      let db_add: Symbol<ZkfpmDbAdd> = library
+        .get(b"ZKFPM_DBAdd")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBAdd: {e}"))?;
+      let db_clear: Symbol<ZkfpmDbClear> = library
+        .get(b"ZKFPM_DBClear")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBClear: {e}"))?;
+      let db_identify: Symbol<ZkfpmDbIdentify> = library
+        .get(b"ZKFPM_DBIdentify")
+        .map_err(|e| format!("libzkfp.dll missing ZKFPM_DBIdentify: {e}"))?;
 
       Ok(Self {
         init: *init,
@@ -120,6 +146,9 @@ impl ZkFpSdk {
         db_free: *db_free,
         db_match: *db_match,
         db_merge: *db_merge,
+        db_add: *db_add,
+        db_clear: *db_clear,
+        db_identify: *db_identify,
         loaded_from,
         _library: library,
       })
@@ -223,6 +252,29 @@ impl ZkFpSdk {
       )
     };
     (code, cb)
+  }
+
+  pub fn db_add(&self, h_db: DeviceHandle, fid: u32, template: &[u8]) -> i32 {
+    unsafe { (self.db_add)(h_db, fid, template.as_ptr(), template.len() as u32) }
+  }
+
+  pub fn db_clear(&self, h_db: DeviceHandle) -> i32 {
+    unsafe { (self.db_clear)(h_db) }
+  }
+
+  pub fn db_identify(&self, h_db: DeviceHandle, template: &[u8]) -> (i32, u32, u32) {
+    let mut fid = 0u32;
+    let mut score = 0u32;
+    let code = unsafe {
+      (self.db_identify)(
+        h_db,
+        template.as_ptr(),
+        template.len() as u32,
+        &mut fid,
+        &mut score,
+      )
+    };
+    (code, fid, score)
   }
 }
 

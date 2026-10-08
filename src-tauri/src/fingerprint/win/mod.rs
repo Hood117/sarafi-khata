@@ -2,5 +2,7 @@ mod runtime;
 mod sdk;
 
 pub use runtime::{
-  FingerprintCaptureResult, FingerprintDeviceStatus, FingerprintEnrollResult, FingerprintService,
+  EnrolledFingerprint, FingerprintCaptureResult, FingerprintDeviceStatus,
+  FingerprintEnrollProgress, FingerprintEnrollResult, FingerprintIdentifyResult,
+  FingerprintService, FingerprintVerifyResult,
 };

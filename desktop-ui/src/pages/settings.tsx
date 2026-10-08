@@ -31,6 +31,7 @@ import {
   AdminPasswordConfirmModal,
   AuthPinSetupModal,
 } from "@desktop/components/authorization-pin-modal";
+import { SettingsPrinterPanel } from "@desktop/components/settings-printer-panel";
 import { clearVaultUnlockSession } from "@desktop/components/vault-unlock-gate";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
@@ -675,6 +676,8 @@ export function SettingsPage() {
               </form>
             </div>
           </div>
+
+          <SettingsPrinterPanel />
 
           <div className="card settings-general-card">
             <div className="settings-general-head">

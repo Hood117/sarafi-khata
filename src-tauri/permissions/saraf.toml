@@ -3,6 +3,13 @@ identifier = "allow-saraf"
 description = "Allow Saraf native SQLite commands (ADR-042)"
 commands.allow = [
   "ping",
+  "get_fingerprint_device_status",
+  "capture_fingerprint",
+  "enroll_fingerprint",
+  "identify_fingerprint",
+  "verify_hawala_collector_fingerprint",
+  "list_printers",
+  "print_plain_text",
   "get_app_info",
   "save_text_export",
   "open_external_url",

@@ -298,6 +298,58 @@ export function getAppInfo() {
   return invoke<AppInfo>("get_app_info");
 }
 
+/** Installed Windows printer (read-only discovery). */
+export type PrinterInfo = {
+  name: string;
+  status: string;
+  statusCode: number;
+  isDefault: boolean;
+  isLocal: boolean;
+  isNetwork: boolean;
+  isShared: boolean;
+  portName: string | null;
+  driverName: string | null;
+  location: string | null;
+  comment: string | null;
+  shareName: string | null;
+  serverName: string | null;
+  /** Heuristic: usb | network | file | local | other */
+  connection: string;
+  /** Heuristic: thermal | a4 | mixed | unknown */
+  formFactor: string;
+  paperNames: string[];
+};
+
+export type PrinterListResult = {
+  printers: PrinterInfo[];
+  defaultPrinter: string | null;
+};
+
+/** Enumerate currently installed/available Windows printers. Read-only. */
+export function listPrinters() {
+  return invoke<PrinterListResult>("list_printers");
+}
+
+export type PrintTextResult = {
+  ok: boolean;
+  message: string;
+};
+
+/** Print plain text to a named Windows printer (GDI). Explicit user action only. */
+export function printPlainText(input: {
+  printerName: string;
+  text: string;
+  formFactor?: string | null;
+}) {
+  return invoke<PrintTextResult>("print_plain_text", {
+    input: {
+      printerName: input.printerName,
+      text: input.text,
+      formFactor: input.formFactor ?? null,
+    },
+  });
+}
+
 export function saveTextExport(input: { filename: string; contents: string }) {
   return invoke<{ path: string }>("save_text_export", { input });
 }
@@ -383,6 +435,62 @@ export function createCustomer(input: {
   actorUserId: string;
 }) {
   return invoke<CustomerDetail>("create_customer", { input });
+}
+
+export type FingerprintEnrollProgress = {
+  phase: "scan" | "captured" | "remove" | string;
+  scan: number;
+};
+
+export type FingerprintEnrollResult = {
+  ok: boolean;
+  templateBase64: string | null;
+  templateLen: number | null;
+  scansCompleted: number;
+  sdkErrorCode: number | null;
+  message: string;
+};
+
+/** Three-press enroll for an existing customer; saves template only on success. */
+export function enrollFingerprint(customerId: string) {
+  return invoke<FingerprintEnrollResult>("enroll_fingerprint", {
+    customerId,
+  });
+}
+
+export type FingerprintIdentifyResult = {
+  ok: boolean;
+  customerId: string | null;
+  matchScore: number | null;
+  sdkErrorCode: number | null;
+  message: string;
+};
+
+/** Capture one press and 1:N-identify against enrolled customer templates. */
+export function identifyFingerprint() {
+  return invoke<FingerprintIdentifyResult>("identify_fingerprint");
+}
+
+export type FingerprintVerifyResult = {
+  ok: boolean;
+  matchScore: number | null;
+  sdkErrorCode: number | null;
+  message: string;
+};
+
+/** 1:1 verify collector finger; form national ID / phone override empty hawala fields. */
+export function verifyHawalaCollectorFingerprint(
+  hawalaId: string,
+  opts?: {
+    receiverNationalId?: string | null;
+    receiverPhone?: string | null;
+  },
+) {
+  return invoke<FingerprintVerifyResult>("verify_hawala_collector_fingerprint", {
+    hawalaId,
+    receiverNationalId: opts?.receiverNationalId ?? null,
+    receiverPhone: opts?.receiverPhone ?? null,
+  });
 }
 
 export function updateCustomer(input: {

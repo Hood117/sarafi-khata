@@ -46,7 +46,7 @@ export function OpeningKataFields({
   onChange: (index: number, patch: Partial<OpeningLine>) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
-  helper: ReactNode;
+  helper?: ReactNode;
   giveLabel?: string;
   takeLabel?: string;
   onCurrenciesChange?: (items: CurrencyListItem[]) => void;
@@ -54,16 +54,16 @@ export function OpeningKataFields({
   allowAdd?: boolean;
 }) {
   const t = useT();
+  const helperText =
+    typeof helper === "string" ? helper.trim() : helper != null ? helper : null;
   return (
-    <div className="stack" style={{ gap: "0.75rem" }}>
-      <div>
+    <div className="opening-kata-fields">
+      <div className="opening-kata-fields-head">
         <strong>{t.openingKata.title}</strong>
-        <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-          {helper}
-        </p>
+        {helperText ? <p className="muted opening-kata-fields-helper">{helperText}</p> : null}
       </div>
       {lines.map((line, index) => (
-        <div key={index} className="customer-opening-block stack">
+        <div key={index} className="customer-opening-block">
           <div className="customer-form-grid">
             <div className="money-ccy-row customer-form-span">
               <label className="money-ccy-amount">

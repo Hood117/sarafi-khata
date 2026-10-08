@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
+
+import { listen } from "@tauri-apps/api/event";
 
 import {
   createCustomer,
+  enrollFingerprint,
   getPreviousCustomer,
   listCurrenciesPage,
   updateCustomer,
   type CurrencyListItem,
   type CustomerDetail,
+  type FingerprintEnrollProgress,
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { useAuth } from "@desktop/auth";
@@ -17,6 +22,11 @@ import {
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import {
+  pauseFingerprintIdentify,
+  resumeFingerprintIdentify,
+} from "@desktop/lib/fingerprint-identify-gate";
+import { playFingerprintSound } from "@desktop/lib/fingerprint-sounds";
 import {
   focusFirstIncompleteDeskField,
   handleDeskFormKeyDown,
@@ -145,11 +155,6 @@ function CustomerFormFields({
           onChange={(e) => onChange("notes", e.target.value)}
         />
       </label>
-      {customerType === "TEMPORARY" ? (
-        <p className="muted customer-form-span" style={{ margin: 0 }}>
-          {t.customers.temporaryHint}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -226,6 +231,9 @@ export function CustomerCreateForm({
   const formRootRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [nameFocusKey, setNameFocusKey] = useState(0);
+  /** After a successful create, optional fingerprint enroll before closing/resetting. */
+  const [awaitingEnroll, setAwaitingEnroll] = useState<CustomerDetail | null>(null);
+  const [saveAndNewAfterEnroll, setSaveAndNewAfterEnroll] = useState(false);
   const {
     currencies,
     setCurrencies,
@@ -244,6 +252,8 @@ export function CustomerCreateForm({
     setCustomerType("PERMANENT");
     setOpeningLines([emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription)]);
     setError(null);
+    setAwaitingEnroll(null);
+    setSaveAndNewAfterEnroll(false);
     setNameFocusKey((k) => k + 1);
     onEditingChange?.(false);
   }
@@ -346,16 +356,43 @@ export function CustomerCreateForm({
   }
 
   async function handleSave() {
+    if (awaitingEnroll) return;
+    const wasCreating = !editing;
     const saved = await persist();
-    if (saved) {
-      onSaved?.(saved);
-      onCancel();
+    if (!saved) return;
+    if (wasCreating) {
+      setEditing(saved);
+      setAwaitingEnroll(saved);
+      setSaveAndNewAfterEnroll(false);
+      onEditingChange?.(true, saved.fullName);
+      return;
     }
+    onSaved?.(saved);
+    onCancel();
   }
 
   async function handleSaveAndNew() {
+    if (awaitingEnroll) return;
+    const wasCreating = !editing;
     const saved = await persist();
-    if (saved) resetBlank();
+    if (!saved) return;
+    if (wasCreating) {
+      setEditing(saved);
+      setAwaitingEnroll(saved);
+      setSaveAndNewAfterEnroll(true);
+      onEditingChange?.(true, saved.fullName);
+      return;
+    }
+    resetBlank();
+  }
+
+  function finishAfterEnroll() {
+    if (saveAndNewAfterEnroll) {
+      resetBlank();
+      return;
+    }
+    if (awaitingEnroll) onSaved?.(awaitingEnroll);
+    onCancel();
   }
 
   async function handlePrevious() {
@@ -375,21 +412,27 @@ export function CustomerCreateForm({
     }
   }
 
+  const formLocked = Boolean(awaitingEnroll) || busy;
+
   return (
     <div
       ref={formRootRef}
-      className="stack"
+      className="stack customer-desk-form"
       data-desk-form
       onKeyDown={(e) =>
         handleDeskFormKeyDown(e, {
-          busy,
-          onSubmit: () => void handleSave(),
+          busy: formLocked,
+          onSubmit: () => {
+            if (awaitingEnroll) finishAfterEnroll();
+            else void handleSave();
+          },
         })
       }
     >
       {editing ? (
         <p className="muted" style={{ margin: 0 }}>
-          {t.customers.edit}: {editing.fullName}
+          {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
+          {editing.fullName}
           {editing.code ? ` · ${editing.code}` : ""}
         </p>
       ) : null}
@@ -399,7 +442,8 @@ export function CustomerCreateForm({
         nationalId={nationalId}
         notes={notes}
         customerType={customerType}
-        nameAutoFocus={!editing}
+        disabled={formLocked}
+        nameAutoFocus={!editing && !awaitingEnroll}
         nameFocusKey={nameFocusKey}
         onChange={onChange}
       />
@@ -415,23 +459,290 @@ export function CustomerCreateForm({
           ])
         }
         onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
-        helper={
-          editing ? t.openingKata.editCustomerHelper : t.openingKata.newCustomerHelper
+      />
+      <CustomerFingerprintEnrollBlock
+        customerId={awaitingEnroll?.id ?? ""}
+        hint={
+          awaitingEnroll
+            ? t.customers.enrollAfterCreateHint
+            : t.customers.enrollSaveFirstHint
         }
+        ensureCustomerId={async () => {
+          if (awaitingEnroll?.id) return awaitingEnroll.id;
+          const wasCreating = !editing;
+          const saved = await persist();
+          if (!saved) return null;
+          if (wasCreating) {
+            setEditing(saved);
+            setAwaitingEnroll(saved);
+            setSaveAndNewAfterEnroll(false);
+            onEditingChange?.(true, saved.fullName);
+          }
+          return saved.id;
+        }}
+        onBusyChange={setBusy}
       />
-      <ModalFormActions
-        busy={busy}
-        error={error}
-        previousLabel={t.common.previous}
-        saveLabel={busy ? t.common.saving : t.common.save}
-        saveAndNewLabel={t.hawala.saveAndNew}
-        cancelLabel={t.common.cancel}
-        onPrevious={() => void handlePrevious()}
-        onSave={() => void handleSave()}
-        onSaveAndNew={() => void handleSaveAndNew()}
-        onCancel={onCancel}
-      />
+      {awaitingEnroll ? (
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="btn primary"
+            data-desk-action="save"
+            disabled={busy}
+            onClick={() => finishAfterEnroll()}
+          >
+            {t.customers.enrollDone}
+          </button>
+        </div>
+      ) : (
+        <ModalFormActions
+          busy={busy}
+          error={error}
+          previousLabel={t.common.previous}
+          saveLabel={busy ? t.common.saving : t.common.save}
+          saveAndNewLabel={t.hawala.saveAndNew}
+          cancelLabel={t.common.cancel}
+          onPrevious={() => void handlePrevious()}
+          onSave={() => void handleSave()}
+          onSaveAndNew={() => void handleSaveAndNew()}
+          onCancel={onCancel}
+        />
+      )}
     </div>
+  );
+}
+
+type EnrollUiPhase =
+  | "ready"
+  | "scan1"
+  | "captured1"
+  | "remove1"
+  | "scan2"
+  | "captured2"
+  | "remove2"
+  | "scan3"
+  | "captured3"
+  | "success"
+  | "failure";
+
+function enrollPhaseFromProgress(ev: FingerprintEnrollProgress): EnrollUiPhase | null {
+  const scan = Number(ev.scan);
+  if (ev.phase === "scan") {
+    if (scan === 1) return "scan1";
+    if (scan === 2) return "scan2";
+    if (scan === 3) return "scan3";
+  }
+  if (ev.phase === "captured") {
+    if (scan === 1) return "captured1";
+    if (scan === 2) return "captured2";
+    if (scan === 3) return "captured3";
+  }
+  if (ev.phase === "remove") {
+    if (scan === 1) return "remove1";
+    if (scan === 2) return "remove2";
+  }
+  return null;
+}
+
+function enrollDoneCount(phase: EnrollUiPhase): number {
+  switch (phase) {
+    case "captured1":
+    case "remove1":
+    case "scan2":
+      return 1;
+    case "captured2":
+    case "remove2":
+    case "scan3":
+      return 2;
+    case "captured3":
+    case "success":
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+function enrollScanState(
+  phase: EnrollUiPhase,
+  scan: 1 | 2 | 3,
+): "idle" | "active" | "lift" | "done" {
+  if (phase === "failure" || phase === "ready") return "idle";
+
+  const doneCount = enrollDoneCount(phase);
+  if (scan <= doneCount) return "done";
+  if (phase === "scan1" && scan === 1) return "active";
+  if (phase === "scan2" && scan === 2) return "active";
+  if (phase === "scan3" && scan === 3) return "active";
+  // After a successful press: ask to lift, next circle waits.
+  if (phase === "remove1" && scan === 2) return "lift";
+  if (phase === "remove2" && scan === 3) return "lift";
+  return "idle";
+}
+
+/** Shared enroll UI for create and edit flows. */
+function CustomerFingerprintEnrollBlock({
+  customerId,
+  disabled,
+  hint,
+  ensureCustomerId,
+  onBusyChange,
+}: {
+  customerId: string;
+  disabled?: boolean;
+  hint?: string;
+  /** Create flow: save the customer first, then return its id for enroll. */
+  ensureCustomerId?: () => Promise<string | null>;
+  onBusyChange?: (busy: boolean) => void;
+}) {
+  const t = useT();
+  const [enrollPhase, setEnrollPhase] = useState<EnrollUiPhase>("ready");
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
+  const canEnroll = !disabled && (Boolean(customerId.trim()) || Boolean(ensureCustomerId));
+
+  async function handleEnrollFingerprint() {
+    if (!canEnroll || enrollBusy) return;
+    setEnrollBusy(true);
+    onBusyChange?.(true);
+    pauseFingerprintIdentify();
+    setEnrollMessage(null);
+    setEnrollPhase("ready");
+
+    let unlisten: (() => void) | undefined;
+    try {
+      // Listen before any device work so each capture paints before the next press.
+      unlisten = await listen<FingerprintEnrollProgress>(
+        "fingerprint-enroll-progress",
+        (event) => {
+          const next = enrollPhaseFromProgress(event.payload);
+          if (!next) return;
+          if (next === "captured1" || next === "captured2") {
+            playFingerprintSound("success");
+          }
+          if (next === "captured3") {
+            playFingerprintSound("register");
+          }
+          // Force paint so step 1/2/3 flip to ✓ as each finger is accepted.
+          flushSync(() => setEnrollPhase(next));
+        },
+      );
+
+      let id = customerId.trim();
+      if (!id && ensureCustomerId) {
+        const ensured = await ensureCustomerId();
+        if (!ensured) {
+          setEnrollPhase("ready");
+          return;
+        }
+        id = ensured;
+      }
+      if (!id) {
+        setEnrollPhase("failure");
+        setEnrollMessage(t.customers.enrollFailure);
+        return;
+      }
+
+      flushSync(() => setEnrollPhase("scan1"));
+      const result = await enrollFingerprint(id);
+      if (result.ok) {
+        // Register tone already played on captured3; keep final success state.
+        flushSync(() => {
+          setEnrollPhase("success");
+          setEnrollMessage(result.message || t.customers.enrollSuccess);
+        });
+      } else {
+        playFingerprintSound("wrong");
+        setEnrollPhase("failure");
+        setEnrollMessage(result.message || t.customers.enrollFailure);
+      }
+    } catch (err: unknown) {
+      playFingerprintSound("wrong");
+      setEnrollPhase("failure");
+      setEnrollMessage(errorMessage(err, t.customers.enrollFailure));
+    } finally {
+      unlisten?.();
+      resumeFingerprintIdentify();
+      setEnrollBusy(false);
+      onBusyChange?.(false);
+    }
+  }
+
+  const statusLine =
+    enrollPhase === "success" || enrollPhase === "captured3"
+      ? enrollMessage ?? t.customers.enrollSuccess
+      : enrollPhase === "failure"
+        ? enrollMessage ?? t.customers.enrollFailure
+        : enrollPhase === "scan1" ||
+            enrollPhase === "scan2" ||
+            enrollPhase === "scan3"
+          ? t.customers.enrollScanShort
+          : enrollPhase === "captured1" ||
+              enrollPhase === "captured2" ||
+              enrollPhase === "remove1" ||
+              enrollPhase === "remove2"
+            ? t.customers.enrollLiftShort
+            : hint ?? t.customers.enrollFingerprintHint;
+
+  return (
+    <section
+      className={[
+        "fp-enroll-panel",
+        enrollPhase === "success" ? "fp-enroll-panel--ok" : "",
+        enrollPhase === "failure" ? "fp-enroll-panel--fail" : "",
+        enrollBusy ? "fp-enroll-panel--busy" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-label={t.customers.enrollTitle}
+    >
+      <div className="fp-enroll-head">
+        <div>
+          <h3 className="fp-enroll-title">{t.customers.enrollTitle}</h3>
+          <p className="fp-enroll-hint muted">{statusLine}</p>
+        </div>
+        <button
+          type="button"
+          className="btn primary fp-enroll-cta"
+          disabled={!canEnroll || enrollBusy}
+          onClick={() => void handleEnrollFingerprint()}
+        >
+          {enrollBusy ? t.customers.enrollBusy : t.customers.enrollFingerprint}
+        </button>
+      </div>
+
+      <div className="fp-enroll-steps" aria-live="polite">
+        {([1, 2, 3] as const).map((scan) => {
+          const state = enrollScanState(enrollPhase, scan);
+          return (
+            <div
+              key={scan}
+              className={`fp-enroll-step fp-enroll-step--${state}`}
+              data-scan={scan}
+            >
+              <div className="fp-enroll-finger">
+                <span className="fp-enroll-finger-ring" />
+                <span className="fp-enroll-finger-core">
+                  {state === "done" ? "✓" : scan}
+                </span>
+              </div>
+              <span className="fp-enroll-step-label">
+                {state === "lift"
+                  ? t.customers.enrollLiftShort
+                  : state === "active"
+                    ? t.customers.enrollScanShort
+                    : state === "done"
+                      ? t.customers.enrollDone
+                      : `${t.customers.enrollReady} ${scan}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {enrollPhase === "failure" ? (
+        <ModalErrorBanner message={enrollMessage ?? t.customers.enrollFailure} />
+      ) : null}
+    </section>
   );
 }
 
@@ -465,6 +776,7 @@ export function CustomerEditForm({
   const [busy, setBusy] = useState(false);
   const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const [enrollBusy, setEnrollBusy] = useState(false);
   const {
     currencies,
     setCurrencies,
@@ -547,7 +859,7 @@ export function CustomerEditForm({
   }
 
   return (
-    <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
+    <form className="stack customer-desk-form" onSubmit={(e) => void handleSubmit(e)}>
       {customer.isArchived ? (
         <p className="muted" style={{ margin: 0 }}>
           {t.customers.archivedEditHint}
@@ -559,7 +871,7 @@ export function CustomerEditForm({
         nationalId={nationalId}
         notes={notes}
         customerType={customerType}
-        disabled={customer.isArchived}
+        disabled={customer.isArchived || enrollBusy || busy}
         onChange={onChange}
       />
       {!customer.isArchived ? (
@@ -575,12 +887,24 @@ export function CustomerEditForm({
             ])
           }
           onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
-          helper={t.openingKata.editCustomerHelper}
+        />
+      ) : null}
+      {!customer.isArchived ? (
+        <CustomerFingerprintEnrollBlock
+          customerId={customer.id}
+          disabled={busy}
+          hint={t.customers.enrollFingerprintHint}
+          onBusyChange={setEnrollBusy}
         />
       ) : null}
       <ModalErrorBanner message={error} />
       <div className="modal-actions">
-        <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
+        <button
+          type="button"
+          className="secondary"
+          onClick={onCancel}
+          disabled={busy || enrollBusy}
+        >
           {t.common.cancel}
         </button>
         {!customer.isArchived ? (
@@ -588,7 +912,7 @@ export function CustomerEditForm({
             type="submit"
             className="btn primary"
             data-desk-action="save"
-            disabled={busy}
+            disabled={busy || enrollBusy}
           >
             {busy ? t.common.saving : t.common.saveChanges}
           </button>

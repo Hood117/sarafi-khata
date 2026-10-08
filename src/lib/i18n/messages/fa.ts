@@ -434,6 +434,33 @@ export const fa: Dictionary = {
       "قبل از ایجاد پروفایل همکار، شماره تلفن مشتری را وارد کنید.",
     linkedPartner: "همکار صرافی",
     viewPartnerProfile: "مشاهده پروفایل همکار",
+    enrollFingerprint: "ثبت اثر انگشت",
+    enrollFingerprintHint:
+      "همان انگشت را سه بار بگذارید. بین هر اسکن انگشت را بردارید.",
+    enrollReady: "آماده",
+    enrollScan1: "اسکن ۱ — انگشت را روی دستگاه بگذارید",
+    enrollRemove1: "انگشت را بردارید",
+    enrollScan2: "اسکن ۲ — دوباره انگشت را بگذارید",
+    enrollRemove2: "انگشت را بردارید",
+    enrollScan3: "اسکن ۳ — دوباره انگشت را بگذارید",
+    enrollSuccess: "اثر انگشت ثبت شد.",
+    enrollFailure: "ثبت اثر انگشت ناموفق بود.",
+    enrollBusy: "در حال ثبت…",
+    enrollAfterCreateHint:
+      "مشتری ذخیره شد. اثر انگشت اختیاری است — اکنون ثبت کنید یا تمام کنید.",
+    enrollSaveFirstHint:
+      "روی ثبت اثر انگشت بزنید تا مشتری ذخیره شود و سه اسکن گرفته شود.",
+    enrollTitle: "افزودن اثر انگشت",
+    enrollScanShort: "انگشت را بگذارید",
+    enrollLiftShort: "انگشت را بردارید",
+    enrollDone: "تمام",
+    identifyMatchTitle: "مشتری شناسایی شد",
+    identifyScore: "امتیاز تطبیق",
+    identifyOpenCustomer: "باز کردن مشتری",
+    identifyDismiss: "باشه",
+    identifyVerified: "تأیید شد",
+    identifyRecentTransactions: "تراکنش‌های اخیر",
+    identifyNoTransactions: "تراکنش اخیری نیست",
   },
   cash: {
     title: "ASMS",
@@ -742,6 +769,23 @@ export const fa: Dictionary = {
     markCompleted: "تکمیل‌شده علامت بزنید",
     completeHawala: "تکمیل حواله",
     completeConfirmTitle: "این حواله تکمیل شود؟",
+    verifyFingerprint: "تأیید اثر انگشت",
+    verifyFingerprintReady:
+      "تذکره و تلفن را وارد کنید، سپس اسکن کنید — برای مراجع حضوری یا مشتری ثبت‌شده",
+    verifyFingerprintScanning: "در حال اسکن…",
+    verifyFingerprintVerified: "اثر انگشت تأیید شد",
+    verifyFingerprintFailed: "تأیید اثر انگشت ناموفق بود",
+    verifyFingerprintNeedId:
+      "ابتدا نمبر تذکره یا تلفن را وارد کنید، سپس اثر انگشت را تأیید کنید.",
+    verifyFingerprintFirst: "ابتدا اثر انگشت را تأیید کنید",
+    collectionReceiptTitle: "رسید تحویل",
+    collectionReceiptHint:
+      "پرداخت انجام شد. رسید را ببینید؛ در صورت نیاز روی چاپ رسید بزنید.",
+    receiptNoPrinter:
+      "چاپگر ترجیحی تنظیم نشده. از تنظیمات → عمومی چاپگر را انتخاب کنید. رسید روی صفحه می‌ماند.",
+    receiptPrinterUnavailable:
+      "چاپگر «{name}» در دسترس نیست. در تنظیمات → عمومی چاپگر دیگری انتخاب کنید. رسید روی صفحه می‌ماند.",
+    receiptPrintFailed: "چاپ رسید ممکن نشد. رسید روی صفحه می‌ماند.",
     completeConfirmPayVault:
       "مبلغ {amount} {currency} از خزانه اصلی به {receiver} پرداخت می‌شود. حساب منبع دوباره کم نمی‌شود.",
     completeConfirmCreditAccount:
@@ -1491,6 +1535,25 @@ export const fa: Dictionary = {
       "این کار برگشت‌ناپذیر است. همه اطلاعات کسب‌وکار همین حالا بازنشانی شود؟ از حساب خارج می‌شوید.",
     resetInProgress: "در حال بازنشانی اطلاعات کسب‌وکار…",
     resetDone: "اطلاعات کسب‌وکار بازنشانی شد. با حساب پیش‌فرض مدیر وارد شوید.",
+    printer: "چاپگر",
+    printerHint:
+      "چاپگری را که سراف هنگام فشردن چاپ استفاده می‌کند انتخاب کنید. چیزی به‌صورت خودکار چاپ نمی‌شود.",
+    printerRefresh: "تازه‌سازی",
+    printerNone:
+      "چاپگری یافت نشد. در ویندوز چاپگر نصب یا وصل کنید، سپس تازه‌سازی کنید.",
+    printerUnavailable:
+      "چاپگر ترجیحی «{name}» در دسترس نیست. چاپگر دیگری را از فهرست انتخاب کنید.",
+    printerLoadError: "فهرست چاپگرها گرفته نشد.",
+    printerWindowsDefault: "پیش‌فرض ویندوز",
+    printerConnectionUsb: "USB",
+    printerConnectionNetwork: "شبکه",
+    printerConnectionFile: "فایل",
+    printerConnectionLocal: "محلی",
+    printerConnectionOther: "سایر",
+    printerFormThermal: "حرارتی",
+    printerFormA4: "A4",
+    printerFormMixed: "اندازه‌های مختلف",
+    printerFormUnknown: "اندازه نامشخص",
   },
   status: {
     pending: "در انتظار",
@@ -1972,10 +2035,8 @@ export const fa: Dictionary = {
     addCurrency: "افزودن اسعار",
     defaultDescription: "موجودی اول مشتری",
     partnerDefaultDescription: "موجودی اول صرافی همکار",
-    newCustomerHelper:
-      "پولی را ثبت می‌کند که مشتری قبلاً داده یا گرفته — به خزانه اصلی نقد اضافه نمی‌کند. اول نقد فزیکی را از خزانه → ورود نقد وارد کنید. اگر مشتری الان نقد می‌دهد، از جمع استفاده کنید.",
-    editCustomerHelper:
-      "پولی را که مشتری در اول حساب داده یا گرفته ویرایش کنید (نقد خزانه اصلی تغییر نمی‌کند). مبلغ خالی = حذف آن سطر. برای نقد جدید که الان می‌آید، از جمع استفاده کنید.",
+    newCustomerHelper: "",
+    editCustomerHelper: "",
     newPartnerHelper:
       "پولی را ثبت می‌کند که صرافی همکار قبلاً داده یا گرفته — به خزانه اصلی نقد اضافه نمی‌کند. نقد فزیکی را از خزانه → ورود نقد، یا تسویه زنده را با پرداخت/دریافت ثبت کنید.",
     editPartnerHelper:

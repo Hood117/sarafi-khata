@@ -9,6 +9,7 @@ mod db;
 mod error;
 mod fingerprint;
 mod ledger;
+mod printer;
 mod license_config;
 mod migrate;
 mod state;
@@ -390,6 +391,10 @@ pub fn run() {
       commands::get_fingerprint_device_status,
       commands::capture_fingerprint,
       commands::enroll_fingerprint,
+      commands::identify_fingerprint,
+      commands::verify_hawala_collector_fingerprint,
+      commands::list_printers,
+      commands::print_plain_text,
       commands::get_app_info,
       commands::save_text_export,
       commands::open_external_url,

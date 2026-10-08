@@ -434,6 +434,33 @@ export const ps: Dictionary = {
       "مخکې له همکار پروفایل څخه د پیرودونکي تلیفون شمېره ولیکئ.",
     linkedPartner: "همکار صرافي",
     viewPartnerProfile: "د همکار پروفایل وګورئ",
+    enrollFingerprint: "د ګوتې نښه ثبتول",
+    enrollFingerprintHint:
+      "همغه ګوته درې ځله کېږدئ. د هر سکین تر منځ ګوته پورته کړئ.",
+    enrollReady: "چمتو",
+    enrollScan1: "سکین ۱ — ګوته پر لوستونکي کېږدئ",
+    enrollRemove1: "ګوته پورته کړئ",
+    enrollScan2: "سکین ۲ — بیا ګوته کېږدئ",
+    enrollRemove2: "ګوته پورته کړئ",
+    enrollScan3: "سکین ۳ — بیا ګوته کېږدئ",
+    enrollSuccess: "د ګوتې نښه ثبت شوه.",
+    enrollFailure: "د ګوتې نښې ثبت ناکام شو.",
+    enrollBusy: "په ثبت کې…",
+    enrollAfterCreateHint:
+      "پیرودونکی خوندي شو. د ګوتې نښه اختیاري ده — اوس یې ثبت کړئ یا بشپړ یې کړئ.",
+    enrollSaveFirstHint:
+      "د ثبت کلیک وکړئ ترڅو پیرودونکی خوندي شي او درې سکینونه واخیستل شي.",
+    enrollTitle: "د ګوتې نښه اضافه کول",
+    enrollScanShort: "ګوته کېږدئ",
+    enrollLiftShort: "ګوته پورته کړئ",
+    enrollDone: "بشپړ",
+    identifyMatchTitle: "پیرودونکی وپیژندل شو",
+    identifyScore: "د مطابقت نمره",
+    identifyOpenCustomer: "پیرودونکی پرانیستل",
+    identifyDismiss: "سمه ده",
+    identifyVerified: "تایید شو",
+    identifyRecentTransactions: "وروستي معاملات",
+    identifyNoTransactions: "وروستي معاملات نشته",
   },
   cash: {
     title: "ASMS",
@@ -742,6 +769,23 @@ export const ps: Dictionary = {
     markCompleted: "بشپړه وټاکئ",
     completeHawala: "حواله بشپړه کړئ",
     completeConfirmTitle: "دا حواله بشپړه شي؟",
+    verifyFingerprint: "د ګوتې نښه تایید",
+    verifyFingerprintReady:
+      "تذکره او تلیفون ولیکئ، بیا سکین کړئ — د لیدونکي یا ثبت شوي پیرودونکي لپاره",
+    verifyFingerprintScanning: "په سکین کې…",
+    verifyFingerprintVerified: "د ګوتې نښه تایید شوه",
+    verifyFingerprintFailed: "د ګوتې نښې تایید ناکام شو",
+    verifyFingerprintNeedId:
+      "لومړی د تذکرې شمېره یا تلیفون ولیکئ، بیا د ګوتې نښه تایید کړئ.",
+    verifyFingerprintFirst: "لومړی د ګوتې نښه تایید کړئ",
+    collectionReceiptTitle: "د اخیستلو رسید",
+    collectionReceiptHint:
+      "تادیه بشپړه شوه. رسید وګورئ؛ که اړتیا وي د رسید چاپ تڼۍ کېږدئ.",
+    receiptNoPrinter:
+      "غوره پرنټر نه دی ټاکل شوی. په تنظیمات → عمومي کې پرنټر وټاکئ. رسید په صفحه پاتې کیږي.",
+    receiptPrinterUnavailable:
+      "پرنټر «{name}» شتون نلري. په تنظیمات → عمومي کې بل وټاکئ. رسید په صفحه پاتې کیږي.",
+    receiptPrintFailed: "رسید چاپ نشو. رسید په صفحه پاتې کیږي.",
     completeConfirmPayVault:
       "دا {amount} {currency} له اصلي خزانې څخه {receiver} ته ورکوي. د سرچینې حساب بیا نه کمیږي.",
     completeConfirmCreditAccount:
@@ -1491,6 +1535,25 @@ export const ps: Dictionary = {
       "دا کار بیرته نه کېږي. ټول سوداګریز معلومات همدا اوس بیا تنظیم شي؟ تاسو به وتل شئ.",
     resetInProgress: "سوداګریز معلومات بیا تنظیمېږي…",
     resetDone: "سوداګریز معلومات بیا تنظیم شول. د مخکې‌نیول شوي مدیر حساب سره ننوځئ.",
+    printer: "پرنټر",
+    printerHint:
+      "هغه پرنټر وټاکئ چې سراف به یې د چاپ تڼۍ کې وکاروي. هیڅ شی په خپلسر نه پرنټ کیږي.",
+    printerRefresh: "تازه کول",
+    printerNone:
+      "هیڅ پرنټر ونه موندل شو. په وینډوز کې پرنټر نصب یا وصل کړئ، بیا تازه کړئ.",
+    printerUnavailable:
+      "غوره شوی پرنټر «{name}» شتون نلري. له لاندې لیست څخه بل وټاکئ.",
+    printerLoadError: "د پرنټرونو لیست ونه شو.",
+    printerWindowsDefault: "د وینډوز اصلي",
+    printerConnectionUsb: "USB",
+    printerConnectionNetwork: "شبکه",
+    printerConnectionFile: "فایل",
+    printerConnectionLocal: "محلي",
+    printerConnectionOther: "نور",
+    printerFormThermal: "حرارتي",
+    printerFormA4: "A4",
+    printerFormMixed: "ګډ اندازې",
+    printerFormUnknown: "نامعلومه اندازه",
   },
   status: {
     pending: "په تمه",
@@ -1972,10 +2035,8 @@ export const ps: Dictionary = {
     addCurrency: "اسعار زیات کړئ",
     defaultDescription: "د پیرودونکي لومړۍ موجودي",
     partnerDefaultDescription: "د شریکه صرافي لومړۍ موجودي",
-    newCustomerHelper:
-      "هغه پیسې ثبتوي چې پیرودونکي مخکې ورکړې یا اخیستې — اصلي خزانې ته نغدي نه زیاتوي. لومړی فزیکي نغدي له خزانې → نغدي داخل ثبت کړئ. که پیرودونکی اوس نغدي ورکوي، له جمع کار واخلئ.",
-    editCustomerHelper:
-      "هغه پیسې سمې کړئ چې پیرودونکي په لومړي حساب کې ورکړې یا اخیستې (اصلي خزانه نه بدلیږي). تش مبلغ = هغه قطار لرې کیږي. د نوي نغدي لپاره چې اوس راځي، له جمع کار واخلئ.",
+    newCustomerHelper: "",
+    editCustomerHelper: "",
     newPartnerHelper:
       "هغه پیسې ثبتوي چې شریکه صرافي مخکې ورکړې یا اخیستې — اصلي خزانې ته نغدي نه زیاتوي. فزیکي نغدي له خزانې → نغدي داخل، یا ژوندی حساب له ورکړې/اخیستنې سره ثبت کړئ.",
     editPartnerHelper:

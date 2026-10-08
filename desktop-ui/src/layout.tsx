@@ -2,6 +2,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "@desktop/auth";
+import { GlobalFingerprintListener } from "@desktop/components/global-fingerprint-listener";
 import { GlobalSearchOverlay } from "@desktop/components/global-search-overlay";
 import { SettingsMenu } from "@desktop/components/settings-menu";
 import { QuickActionsBar } from "@desktop/components/quick-actions-bar";
@@ -189,6 +190,7 @@ export function AppLayout() {
         error={txModal.error}
         onClose={txModal.close}
       />
+      <GlobalFingerprintListener />
     </div>
   );
 }

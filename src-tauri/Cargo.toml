@@ -38,6 +38,14 @@ ureq = { version = "2.12", default-features = false, features = ["native-tls", "
 
 [target.'cfg(windows)'.dependencies]
 libloading = "0.8"
+# Win32 printer enumeration (EnumPrinters / DeviceCapabilities) — no vendor SDKs.
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Printing",
+  "Win32_Graphics_Gdi",
+  "Win32_Security",
+  "Win32_Storage_Xps",
+] }
 
 # Production builds must enable custom-protocol so cfg(dev) is false and the
 # app loads embedded SPA assets instead of http://127.0.0.1:1421.

@@ -260,6 +260,12 @@ pub fn ensure_schema_compat(conn: &Connection) -> Result<(), AppError> {
   )?;
   ensure_column(
     conn,
+    "Customer",
+    "fingerprintTemplate",
+    r#"ALTER TABLE "Customer" ADD COLUMN "fingerprintTemplate" TEXT;"#,
+  )?;
+  ensure_column(
+    conn,
     "Transaction",
     "walkInName",
     r#"ALTER TABLE "Transaction" ADD COLUMN "walkInName" TEXT;"#,

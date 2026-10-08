@@ -434,6 +434,33 @@ export const en: Dictionary = {
       "Add a phone number to this customer before creating a partner profile.",
     linkedPartner: "Partner sarafi",
     viewPartnerProfile: "View partner profile",
+    enrollFingerprint: "Enroll fingerprint",
+    enrollFingerprintHint:
+      "Use the same finger three times. Lift your finger between each scan.",
+    enrollReady: "Ready",
+    enrollScan1: "Scan 1 — place finger on the reader",
+    enrollRemove1: "Lift finger",
+    enrollScan2: "Scan 2 — place finger again",
+    enrollRemove2: "Lift finger",
+    enrollScan3: "Scan 3 — place finger again",
+    enrollSuccess: "Fingerprint enrolled.",
+    enrollFailure: "Enrollment failed.",
+    enrollBusy: "Enrolling…",
+    enrollAfterCreateHint:
+      "Customer saved. Fingerprint is optional — enroll now or finish.",
+    enrollSaveFirstHint:
+      "Tap Enroll to save this customer and capture three fingerprint scans.",
+    enrollTitle: "Add fingerprint",
+    enrollScanShort: "Place finger",
+    enrollLiftShort: "Lift finger",
+    enrollDone: "Done",
+    identifyMatchTitle: "Customer identified",
+    identifyScore: "Match score",
+    identifyOpenCustomer: "Open customer",
+    identifyDismiss: "OK",
+    identifyVerified: "Verified",
+    identifyRecentTransactions: "Recent transactions",
+    identifyNoTransactions: "No recent transactions",
   },
   cash: {
     title: "ASMS",
@@ -742,6 +769,23 @@ export const en: Dictionary = {
     markCompleted: "Mark completed",
     completeHawala: "Complete Hawala",
     completeConfirmTitle: "Complete this hawala?",
+    verifyFingerprint: "Verify fingerprint",
+    verifyFingerprintReady:
+      "Enter ID & phone, then scan — works for walk-in or enrolled collectors",
+    verifyFingerprintScanning: "Scanning…",
+    verifyFingerprintVerified: "Fingerprint verified",
+    verifyFingerprintFailed: "Fingerprint verification failed",
+    verifyFingerprintNeedId:
+      "Enter national ID or phone first, then verify fingerprint.",
+    verifyFingerprintFirst: "Verify fingerprint first",
+    collectionReceiptTitle: "Collection receipt",
+    collectionReceiptHint:
+      "Payment completed. Review the receipt, then press Print Receipt if you need a copy.",
+    receiptNoPrinter:
+      "No preferred printer set. Choose a printer in Settings → General, then try again. The receipt stays on screen.",
+    receiptPrinterUnavailable:
+      "Printer “{name}” is unavailable. Choose another in Settings → General. The receipt stays on screen.",
+    receiptPrintFailed: "Could not print the receipt. The receipt stays on screen.",
     completeConfirmPayVault:
       "This will pay {amount} {currency} from Main Vault to {receiver}. The source customer account will not be charged again.",
     completeConfirmCreditAccount:
@@ -1494,6 +1538,24 @@ Your current data was not changed.`,
       "This cannot be undone. Reset all business data now? You will be signed out.",
     resetInProgress: "Resetting business data…",
     resetDone: "Business data has been reset. Sign in with the default administrator account.",
+    printer: "Printer",
+    printerHint:
+      "Choose which Windows printer Saraf will use when you press Print. Nothing prints automatically.",
+    printerRefresh: "Refresh",
+    printerNone: "No printer detected. Install or connect a printer in Windows, then refresh.",
+    printerUnavailable:
+      "Preferred printer “{name}” is unavailable. Choose another printer below.",
+    printerLoadError: "Could not list printers.",
+    printerWindowsDefault: "Windows default",
+    printerConnectionUsb: "USB",
+    printerConnectionNetwork: "Network",
+    printerConnectionFile: "File",
+    printerConnectionLocal: "Local",
+    printerConnectionOther: "Other",
+    printerFormThermal: "Thermal",
+    printerFormA4: "A4",
+    printerFormMixed: "Mixed sizes",
+    printerFormUnknown: "Unknown size",
   },
   status: {
     pending: "Pending",
@@ -1975,10 +2037,8 @@ Your current data was not changed.`,
     addCurrency: "Add currency",
     defaultDescription: "Opening customer balance",
     partnerDefaultDescription: "Opening partner balance",
-    newCustomerHelper:
-      "Records money the customer already gave or took before. Does not add cash to Main Vault — enter physical cash first via Vaults → Cash In. Use Deposit if the customer is handing cash now.",
-    editCustomerHelper:
-      "Edit money the customer already gave or took at opening (does not change Main Vault cash). Leave amount empty to clear that line. For new cash handed in now, use Deposit instead.",
+    newCustomerHelper: "",
+    editCustomerHelper: "",
     newPartnerHelper:
       "Records money the partner sarafi already gave or took before. Does not add cash to Main Vault — enter physical cash via Vaults → Cash In, or settle live balances with Pay / Collect.",
     editPartnerHelper:

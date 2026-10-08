@@ -173,6 +173,8 @@ model Customer {
   address    String?
   nationalId String?
   notes      String?
+  /// Optional ZKTeco enrollment template (Base64). Null = no fingerprint enrolled.
+  fingerprintTemplate String?
   /// PERMANENT (default) stays until manually archived; TEMPORARY auto-archives when balances settle to zero.
   customerType String   @default("PERMANENT")
   isActive   Boolean   @default(true)
