@@ -130,30 +130,32 @@ export function AppLayout() {
       <div className="app-shell stack" data-screen={screenId}>
         <div className="app-topbar">
           <nav className="app-tabbar" aria-label={t.brand.name}>
-            {links.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.end}
-                data-nav={link.screen}
-                className={({ isActive }) => {
-                  const onCommission = location.pathname.startsWith(
-                    "/hawala/commission",
-                  );
-                  const active =
-                    link.to === "/hawala"
-                      ? isActive && !onCommission
-                      : isActive;
-                  return active
-                    ? "nav-link app-tabbar-link active"
-                    : "nav-link app-tabbar-link";
-                }}
-                title={link.label}
-              >
-                <span className="nav-link-icon">{link.icon}</span>
-                <span className="nav-link-label">{link.label}</span>
-              </NavLink>
-            ))}
+            <div className="app-tabbar-track">
+              {links.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.end}
+                  data-nav={link.screen}
+                  className={({ isActive }) => {
+                    const onCommission = location.pathname.startsWith(
+                      "/hawala/commission",
+                    );
+                    const active =
+                      link.to === "/hawala"
+                        ? isActive && !onCommission
+                        : isActive;
+                    return active
+                      ? "nav-link app-tabbar-link active"
+                      : "nav-link app-tabbar-link";
+                  }}
+                  title={link.label}
+                >
+                  <span className="nav-link-icon">{link.icon}</span>
+                  <span className="nav-link-label">{link.label}</span>
+                </NavLink>
+              ))}
+            </div>
           </nav>
           <div className="app-chrome-actions">
             <QuickActionsBar />

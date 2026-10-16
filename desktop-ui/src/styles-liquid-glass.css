@@ -58,6 +58,8 @@ html[data-ui="liquid-glass"] .app-tabbar {
   box-shadow: var(--lg-inset), var(--lg-shadow);
   backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
   -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat));
+  /* Keep the frosted fill inside the rounded corners. */
+  overflow: hidden;
 }
 
 html[data-ui="liquid-glass"] .app-menu-btn {

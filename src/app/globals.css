@@ -236,6 +236,11 @@
       Georgia, serif;
   }
 
+  html[lang^="ps"] {
+    --font-sans: var(--font-pashto-face), ui-sans-serif, system-ui, sans-serif;
+    --font-heading: var(--font-pashto-face), ui-sans-serif, system-ui, sans-serif;
+  }
+
   html[dir="rtl"] body {
     direction: rtl;
   }

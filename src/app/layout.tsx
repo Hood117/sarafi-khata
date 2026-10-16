@@ -4,6 +4,7 @@ import {
   Source_Serif_4,
   JetBrains_Mono,
   Noto_Naskh_Arabic,
+  Noto_Sans_Arabic,
 } from "next/font/google";
 
 import { ThemeProvider } from "@/design-system/theme-provider";
@@ -35,6 +36,12 @@ const notoNaskhArabic = Noto_Naskh_Arabic({
   weight: ["400", "500", "600", "700"],
 });
 
+const notoSansArabic = Noto_Sans_Arabic({
+  variable: "--font-pashto-face",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "ASMS",
   description: "Afghan Sarafi Management System ASMS",
@@ -59,7 +66,7 @@ export default async function RootLayout({
       lang={lang}
       dir={dir}
       suppressHydrationWarning
-      className={`${instrumentSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${notoNaskhArabic.variable} h-full antialiased`}
+      className={`${instrumentSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${notoNaskhArabic.variable} ${notoSansArabic.variable} h-full antialiased`}
     >
       <body className="flex h-full min-h-0 flex-col font-sans">
         <ThemeProvider>

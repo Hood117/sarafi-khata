@@ -287,11 +287,6 @@ a {
 }
 
 .app-tabbar {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 0.25rem;
   width: 100%;
   min-width: 0;
   padding: 0.28rem 0.3rem;
@@ -304,6 +299,19 @@ a {
       color-mix(in srgb, var(--brand-soft) 35%, #eef5f0) 100%
     );
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent);
+  /* Not a scroll container: overflow on this element squared off the
+     frosted background. Scrolling lives on the inner track. */
+  overflow: hidden;
+}
+
+.app-tabbar-track {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.25rem;
+  width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin;
@@ -3506,10 +3514,27 @@ html[lang^="fa"] .stat-value {
   font-weight: 700;
 }
 
-/* Pashto — Sans Arabic covers Pashto letters cleanly on desk UI */
+html[dir="rtl"] body {
+  font-family: inherit;
+}
+
+html[dir="rtl"] .brand,
+html[dir="rtl"] h1,
+html[dir="rtl"] .section-title,
+html[dir="rtl"] .stat-value {
+  font-family: inherit;
+}
+
+/* Pashto — Noto Sans Arabic for UI text (after the RTL inherit rules so it wins) */
+html[data-locale="ps"],
+html[lang^="ps"] {
+  --font-ui: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --font-display: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+}
+
 html[data-locale="ps"] body,
 html[lang^="ps"] body {
-  font-family: "Noto Sans Arabic", "Noto Naskh Arabic", "Segoe UI", Tahoma, sans-serif;
+  font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
   letter-spacing: 0;
 }
 
@@ -3521,19 +3546,8 @@ html[lang^="ps"] .brand,
 html[lang^="ps"] h1,
 html[lang^="ps"] .section-title,
 html[lang^="ps"] .stat-value {
-  font-family: "Noto Sans Arabic", "Noto Naskh Arabic", sans-serif;
+  font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
   font-weight: 700;
-}
-
-html[dir="rtl"] body {
-  font-family: inherit;
-}
-
-html[dir="rtl"] .brand,
-html[dir="rtl"] h1,
-html[dir="rtl"] .section-title,
-html[dir="rtl"] .stat-value {
-  font-family: inherit;
 }
 
 .modal-backdrop {
