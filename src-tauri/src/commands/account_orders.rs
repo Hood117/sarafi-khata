@@ -1,8 +1,8 @@
 //! Account Orders — bulk remittance distribution documents with ledger integration.
 //!
-//! Purchase (order create): customer wallet is credited the full original amount;
-//! the amount is held in "Account Order Clearing". A purchase deduction is booked
-//! as fee income (balanced against Opening Equity).
+//! Purchase (order create): seller customer wallet is credited the **net** purchase
+//! amount (original − purchase deduction); clearing is debited the full original;
+//! the purchase deduction is booked once as fee income. Debits equal credits.
 //!
 //! Recipient payout (complete): clearing is released, Main Vault pays the net cash,
 //! and the distribution fee is booked as fee income (balanced against Opening Equity).
@@ -283,27 +283,31 @@ fn posting_line(
 
 /// Build the balanced purchase entries (pure — used by posting and tests).
 ///
+/// Seller liability decreases by the **net** purchase amount `N = O − D`, while
+/// clearing is funded with the full original `O` (distribution limit). The
+/// purchase deduction `D` is booked once as fee income.
+///
 /// ```text
-/// CREDIT customer_wallet O
+/// CREDIT customer_wallet N         (N = O − D; omitted legs when D == 0 → N = O)
 /// DEBIT  Account Order Clearing O
-/// DEBIT  Opening Equity D          (omitted when D == 0)
-/// CREDIT Account Order Fee Income D
+/// CREDIT Account Order Fee Income D  (omitted when D == 0)
 /// ```
+/// Debits `O`; credits `N + D = O`.
 fn purchase_entries(
   customer_wallet_id: &str,
   clearing_id: &str,
-  equity_id: &str,
   fee_income_id: &str,
   currency: &str,
   original_minor: i128,
   deduction_minor: i128,
 ) -> Vec<PostingLineDto> {
+  let net_minor = original_minor - deduction_minor;
   let mut entries = vec![
     posting_line(
       customer_wallet_id,
       currency,
       "CREDIT",
-      original_minor,
+      net_minor,
       "Account order purchase",
     ),
     posting_line(
@@ -315,13 +319,6 @@ fn purchase_entries(
     ),
   ];
   if deduction_minor > 0 {
-    entries.push(posting_line(
-      equity_id,
-      currency,
-      "DEBIT",
-      deduction_minor,
-      "Purchase deduction offset",
-    ));
     entries.push(posting_line(
       fee_income_id,
       currency,
@@ -455,12 +452,10 @@ fn post_purchase_for_order(
   let customer_wallet_id = resolve_sole_customer_wallet(conn, &customer_id)?;
   let clearing_id = ensure_system_wallet(conn, CLEARING_WALLET_NAME)?;
   let fee_income_id = ensure_system_wallet(conn, FEE_INCOME_WALLET_NAME)?;
-  let equity_id = ensure_system_wallet(conn, OPENING_EQUITY_WALLET_NAME)?;
 
   let entries = purchase_entries(
     &customer_wallet_id,
     &clearing_id,
-    &equity_id,
     &fee_income_id,
     &code,
     original_minor,
@@ -2232,11 +2227,56 @@ mod tests {
     assert_eq!(ty, "ACCOUNT_ORDER");
 
     let (debit, credit, lines) = tx_balance(&conn, &tx_id);
-    assert_eq!((debit, credit, lines), (1030, 1030, 4));
-    assert_eq!(net(&conn, "Customer One"), -1000);
+    // O=1000, D=30, N=970 → debit clearing 1000; credit customer 970 + fee 30.
+    assert_eq!((debit, credit, lines), (1000, 1000, 3));
+    assert_eq!(net(&conn, "Customer One"), -970);
     assert_eq!(net(&conn, CLEARING_WALLET_NAME), 1000);
-    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 30);
+    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 0);
     assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), -30);
+    assert_all_balanced(&conn);
+  }
+
+  #[test]
+  fn purchase_seller_decreases_by_net_not_original() {
+    // Order example: original 4500, 3% deduction = 135 → seller ↓ 4365.
+    let conn = setup();
+    let order = create_account_order_inner(&conn, "u1", create_input("4500", "3")).unwrap();
+    let tx_id = order.transaction_id.expect("posted");
+    let (debit, credit, lines) = tx_balance(&conn, &tx_id);
+    assert_eq!((debit, credit, lines), (4500, 4500, 3));
+    assert_eq!(net(&conn, "Customer One"), -4365);
+    assert_eq!(net(&conn, CLEARING_WALLET_NAME), 4500);
+    assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), -135);
+    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 0);
+    assert_eq!(order.totals.purchase_deduction, "135");
+    assert_eq!(order.totals.net_purchase_amount, "4365");
+    assert_all_balanced(&conn);
+  }
+
+  #[test]
+  fn purchase_usd_two_decimal_places_net_seller() {
+    let conn = setup();
+    conn
+      .execute(
+        "INSERT INTO Currency (id, code, name, decimalPlaces, isActive)
+         VALUES ('c-usd','USD','US Dollar',2,1)",
+        [],
+      )
+      .unwrap();
+    let mut input = create_input("4500.00", "3");
+    input.currency_code = "USD".into();
+    let order = create_account_order_inner(&conn, "u1", input).unwrap();
+    let tx_id = order.transaction_id.expect("posted");
+    // Ledger stores major units; CAST AS INTEGER truncates ".00" → 4500 / 4365 / 135.
+    let (debit, credit, lines) = tx_balance(&conn, &tx_id);
+    assert_eq!((debit, credit, lines), (4500, 4500, 3));
+    assert_eq!(net(&conn, "Customer One"), -4365);
+    assert_eq!(net(&conn, CLEARING_WALLET_NAME), 4500);
+    assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), -135);
+    assert_eq!(order.totals.purchase_deduction, "135.00");
+    assert_eq!(order.totals.net_purchase_amount, "4365.00");
+    assert_eq!(order.currency_code, "USD");
+    assert_eq!(order.currency_decimal_places, 2);
     assert_all_balanced(&conn);
   }
 
@@ -2247,6 +2287,7 @@ mod tests {
     let tx_id = order.transaction_id.unwrap();
     let (debit, credit, lines) = tx_balance(&conn, &tx_id);
     assert_eq!((debit, credit, lines), (500, 500, 2));
+    assert_eq!(net(&conn, "Customer One"), -500);
     assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), 0);
     assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 0);
   }
@@ -2306,7 +2347,9 @@ mod tests {
     assert_eq!(net(&conn, "Main Vault"), -380);
     assert_eq!(net(&conn, CLEARING_WALLET_NAME), 600);
     assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), -50);
-    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 830);
+    // Purchase no longer touches equity; payout DEBIT equity = A+N+F = 800.
+    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 800);
+    assert_eq!(net(&conn, "Customer One"), -970);
     assert_all_balanced(&conn);
   }
 
@@ -2499,9 +2542,10 @@ mod tests {
     assert_ne!(new_tx, old_tx);
     assert_eq!(d.recipients[0].status, "PENDING");
     assert!(d.recipients[0].payout_transaction_id.is_none());
-    assert_eq!(net(&conn, "Customer One"), -2000);
+    // Reposted: O=2000, D=60, N=1940 → seller ↓ net only.
+    assert_eq!(net(&conn, "Customer One"), -1940);
     assert_eq!(net(&conn, CLEARING_WALLET_NAME), 2000);
-    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 60);
+    assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 0);
     assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), -60);
     assert_eq!(net(&conn, "Main Vault"), 0);
     assert_all_balanced(&conn);
@@ -2597,14 +2641,23 @@ mod tests {
 
   #[test]
   fn pure_entry_builders_balance() {
-    for (o, d) in [(1000_i128, 30_i128), (1000, 0), (7, 1)] {
-      let lines = purchase_entries("w", "c", "e", "f", "AFN", o, d);
+    for (o, d) in [(1000_i128, 30_i128), (1000, 0), (7, 1), (4500, 135)] {
+      let lines = purchase_entries("w", "c", "f", "AFN", o, d);
       let (mut dr, mut cr) = (0_i128, 0_i128);
+      let mut customer_credit = 0_i128;
       for l in &lines {
         let a: i128 = l.amount_minor.parse().unwrap();
-        if l.direction == "DEBIT" { dr += a } else { cr += a }
+        if l.direction == "DEBIT" {
+          dr += a;
+        } else {
+          cr += a;
+        }
+        if l.wallet_id == "w" && l.direction == "CREDIT" {
+          customer_credit = a;
+        }
       }
       assert_eq!(dr, cr);
+      assert_eq!(customer_credit, o - d, "seller CREDIT must be net O-D");
     }
     for (a, f) in [(400_i128, 20_i128), (400, 0), (400, 400), (1, 1)] {
       let lines = payout_entries("c", "v", "f", "e", "AFN", a, f);
