@@ -492,6 +492,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.originalAmount}</span>
                 <input
+                  className="amount-emphasis"
                   value={originalAmount}
                   onChange={(e) => setOriginalAmount(e.target.value)}
                   inputMode="decimal"
@@ -504,6 +505,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.purchaseDeductionPercent}</span>
                 <input
+                  className="amount-emphasis"
                   value={purchaseDeductionPercent}
                   onChange={(e) => setPurchaseDeductionPercent(e.target.value)}
                   inputMode="decimal"
@@ -515,6 +517,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.purchaseDeduction}</span>
                 <input
+                  className="amount-emphasis"
                   value={formatAmountDisplay(totals.purchaseDeduction)}
                   readOnly
                   dir="ltr"
@@ -523,6 +526,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.netPurchaseAmount}</span>
                 <input
+                  className="amount-emphasis"
                   value={formatAmountDisplay(totals.netPurchaseAmount)}
                   readOnly
                   dir="ltr"
@@ -639,6 +643,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.recipientAmount}</span>
                 <input
+                  className="amount-emphasis"
                   value={recipientAmount}
                   onChange={(e) => setRecipientAmount(e.target.value)}
                   inputMode="decimal"
@@ -650,6 +655,7 @@ export function AccountOrderDetailPage() {
               <label className="field">
                 <span>{t.accountOrders.distributionFeePercent}</span>
                 <input
+                  className="amount-emphasis"
                   value={recipientFeePercent}
                   onChange={(e) => setRecipientFeePercent(e.target.value)}
                   inputMode="decimal"
@@ -731,16 +737,16 @@ export function AccountOrderDetailPage() {
                       </td>
                       <td dir="ltr">{String(row.recipientDate).slice(0, 10)}</td>
                       <td>{row.detail ?? "—"}</td>
-                      <td className="num" dir="ltr">
+                      <td className="num amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.amount)}
                       </td>
                       <td className="num" dir="ltr">
                         {row.distributionFeePercent}
                       </td>
-                      <td className="num" dir="ltr">
+                      <td className="num amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.distributionFeeAmount)}
                       </td>
-                      <td className="num" dir="ltr">
+                      <td className="num amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.netAmount)}
                       </td>
                       <td>
@@ -783,33 +789,35 @@ export function AccountOrderDetailPage() {
       <footer className="account-order-footer section-card row wrap gap">
         <div className="stat">
           <span className="muted">{t.accountOrders.originalAmount}</span>
-          <strong dir="ltr">{formatAmountDisplay(detail.originalAmount)}</strong>
+          <strong className="amount-emphasis" dir="ltr">
+            {formatAmountDisplay(detail.originalAmount)}
+          </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.totalDistributed}</span>
-          <strong dir="ltr">
+          <strong className="amount-emphasis" dir="ltr">
             {formatAmountDisplay(totals.totalDistributed)}
           </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.remainingAmount}</span>
-          <strong dir="ltr">
+          <strong className="amount-emphasis" dir="ltr">
             {formatAmountDisplay(totals.remainingAmount)}
           </strong>
         </div>
         <div className="stat account-order-fee-total">
           <span className="muted">{t.accountOrders.totalDistributionFees}</span>
-          <strong dir="ltr">
+          <strong className="amount-emphasis" dir="ltr">
             {formatAmountDisplay(totals.totalDistributionFees)}
           </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.recipients}</span>
-          <strong dir="ltr">
+          <strong className="amount-emphasis" dir="ltr">
             {totals.completedCount}/{totals.recipientCount}
           </strong>
         </div>
-        <div className="stat">
+        <div className="stat account-order-net-benefit">
           <span className="muted">{t.accountOrders.netBenefit}</span>
           <strong className="amount-emphasis" dir="ltr">
             {formatAmountDisplay(totals.netBenefit ?? totals.netProfit)}

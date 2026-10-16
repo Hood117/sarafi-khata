@@ -315,10 +315,10 @@ export function AccountOrdersPage() {
                 <td>
                   <CurrencyCodeWithFlag code={row.currencyCode} />
                 </td>
-                <td className="num" dir="ltr">
+                <td className="num amount-emphasis" dir="ltr">
                   {formatAmountDisplay(row.originalAmount)}
                 </td>
-                <td className="num" dir="ltr">
+                <td className="num amount-emphasis" dir="ltr">
                   {formatAmountDisplay(row.totals.remainingAmount)}
                 </td>
                 <td className="num amount-emphasis" dir="ltr">

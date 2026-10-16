@@ -8447,12 +8447,54 @@ button.danger:hover:not(:disabled) {
 .account-order-footer .stat .muted {
   font-size: 0.75rem;
   line-height: 1.15;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+
+.account-order-footer .stat .amount-emphasis,
+.account-order-footer .stat strong {
+  font-size: 1.08rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.account-order-desk .amount-emphasis,
+.page-account-orders .amount-emphasis {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  letter-spacing: -0.015em;
+}
+
+.account-order-desk table.data-table td.amount-emphasis {
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.account-order-desk input.amount-emphasis {
+  font-size: 0.98rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .account-order-fee-total {
   background: color-mix(in srgb, #0d9488 18%, transparent);
   border-radius: 0.35rem;
   padding: 0.3rem 0.5rem;
+}
+
+.account-order-net-benefit {
+  background: color-mix(in srgb, var(--brand, #0f6b4c) 14%, transparent);
+  border-radius: 0.35rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.account-order-net-benefit .amount-emphasis {
+  font-size: 1.15rem;
+  color: var(--brand-deep, #0a4d38);
 }
 
 .account-order-list tbody tr.customer-row-clickable:hover > td {
