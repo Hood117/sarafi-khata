@@ -35,6 +35,16 @@ const CommissionTrackingPage = lazy(() =>
     default: m.CommissionTrackingPage,
   })),
 );
+const AccountOrdersPage = lazy(() =>
+  import("@desktop/pages/account-orders").then((m) => ({
+    default: m.AccountOrdersPage,
+  })),
+);
+const AccountOrderDetailPage = lazy(() =>
+  import("@desktop/pages/account-order-detail").then((m) => ({
+    default: m.AccountOrderDetailPage,
+  })),
+);
 const HawalaDetailPage = lazy(() =>
   import("@desktop/pages/hawala-detail").then((m) => ({
     default: m.HawalaDetailPage,
@@ -288,6 +298,22 @@ export function App() {
           element={
             <Lazy>
               <HawalaDetailPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="account-orders"
+          element={
+            <Lazy>
+              <AccountOrdersPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="account-orders/:id"
+          element={
+            <Lazy>
+              <AccountOrderDetailPage />
             </Lazy>
           }
         />

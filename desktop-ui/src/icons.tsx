@@ -278,6 +278,19 @@ export function IconExpenses(p: IconProps) {
   );
 }
 
+export function IconAccountOrders(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <rect x="3" y="4.5" width="3" height="3" rx="0.5" />
+      <rect x="3" y="10.5" width="3" height="3" rx="0.5" />
+      <rect x="3" y="16.5" width="3" height="3" rx="0.5" />
+    </Svg>
+  );
+}
+
 export function IconEmployees(p: IconProps) {
   return (
     <Svg {...p}>

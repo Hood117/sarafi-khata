@@ -8268,4 +8268,118 @@ button.partner-settle-btn:disabled {
   }
 }
 
+/* Account Orders workspace */
+.page-account-orders .filters,
+.account-order-desk .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.page-account-orders .field.grow {
+  flex: 1 1 14rem;
+}
+
+.page-account-orders table.data-table th.num,
+.page-account-orders table.data-table td.num,
+.account-order-desk table.data-table th.num,
+.account-order-desk table.data-table td.num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn.small {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.82rem;
+}
+
+.btn.danger,
+button.danger {
+  color: #b91c1c;
+  border-color: color-mix(in srgb, #b91c1c 45%, var(--border, #cbd5e1));
+}
+
+.btn.danger:hover:not(:disabled),
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #b91c1c 12%, transparent);
+}
+
+.account-order-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.account-order-list-scroll {
+  max-height: min(70vh, 640px);
+}
+
+.account-order-header-grid,
+.account-order-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+}
+
+.account-order-entry-actions {
+  align-items: end;
+  padding-bottom: 0.1rem;
+}
+
+.account-order-footer {
+  justify-content: space-between;
+  align-items: stretch;
+}
+
+.account-order-footer .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 7rem;
+}
+
+.account-order-fee-total {
+  background: color-mix(in srgb, #0d9488 18%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.account-order-list tbody tr.customer-row-clickable:hover > td {
+  background-color: var(--table-row-hover, color-mix(in srgb, var(--brand, #0f6b4c) 10%, transparent));
+}
+
+.account-order-list tbody tr.is-selected > td,
+.account-order-list tbody tr[aria-selected="true"] > td {
+  background-color: color-mix(in srgb, var(--brand, #0f6b4c) 22%, transparent);
+  font-weight: 600;
+}
+
+.account-order-list tbody tr.is-selected > td:first-child,
+.account-order-list tbody tr[aria-selected="true"] > td:first-child {
+  box-shadow: inset 3px 0 0 var(--brand, #0f6b4c);
+}
+
+html[dir="rtl"] .account-order-list tbody tr.is-selected > td:first-child,
+html[dir="rtl"] .account-order-list tbody tr[aria-selected="true"] > td:first-child {
+  box-shadow: inset -3px 0 0 var(--brand, #0f6b4c);
+}
+
+.account-order-list tbody tr.is-selected:hover > td,
+.account-order-list tbody tr[aria-selected="true"]:hover > td {
+  background-color: color-mix(in srgb, var(--brand, #0f6b4c) 28%, transparent);
+}
+
+@media (max-width: 960px) {
+  .account-order-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-order-list-scroll {
+    max-height: 220px;
+  }
+}
+
 

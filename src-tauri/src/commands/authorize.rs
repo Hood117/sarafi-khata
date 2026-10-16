@@ -22,6 +22,7 @@ pub const DESK_SCREENS: &[(&str, &str)] = &[
   ("customers", "Customers"),
   ("debtorsCreditors", "Debtors & Creditors"),
   ("hawala", "Hawala"),
+  ("accountOrders", "Account Orders"),
   ("partners", "Partner Sarafis"),
   ("trading", "Trading"),
   ("capital", "Owner capital"),

@@ -1,5 +1,6 @@
 //! Tauri commands — native desktop API (no Node / Prisma).
 
+pub mod account_orders;
 pub mod auth;
 pub mod authorize;
 pub(crate) mod auth_pin;
@@ -35,6 +36,7 @@ mod users;
 mod vaults;
 mod wallets;
 
+pub use account_orders::*;
 pub use auth::*;
 pub use authorize::{bind_session, AuthUser};
 pub use auth_pin::*;

@@ -94,6 +94,8 @@ const wipeStatements = [
   "DELETE FROM HawalaAttachment",
   "DELETE FROM HawalaEvent",
   "DELETE FROM HawalaTransfer",
+  "DELETE FROM AccountOrderRecipient",
+  "DELETE FROM AccountOrder",
   "DELETE FROM PartnerSarafi",
   "DELETE FROM TradingTrade",
   "DELETE FROM TradingInventory",

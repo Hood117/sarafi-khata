@@ -67,6 +67,7 @@ export function pathToScreenId(path: string): string {
   if (path.startsWith("/customers")) return "customers";
   if (path.startsWith("/debtors-creditors")) return "debtorsCreditors";
   if (path.startsWith("/hawala")) return "hawala";
+  if (path.startsWith("/account-orders")) return "accountOrders";
   if (path.startsWith("/reports")) return "reports";
   if (path.startsWith("/transactions")) return "transactions";
   if (path.startsWith("/rates")) return "rates";

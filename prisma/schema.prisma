@@ -37,6 +37,7 @@ model User {
   createdTransactions            Transaction[]                 @relation("TransactionCreatedBy")
   createdHawalaTransfers         HawalaTransfer[]              @relation("HawalaCreatedBy")
   createdPartnerCommissionSettlements PartnerCommissionSettlement[] @relation("PartnerCommissionSettlementCreatedBy")
+  createdAccountOrders           AccountOrder[]
   auditLogs                      AuditLog[]
 }
 
@@ -134,6 +135,7 @@ model Currency {
   hawalaCommissions  HawalaTransfer[] @relation("HawalaCommissionCurrency")
   partnerCommissionRates PartnerSarafi[] @relation("PartnerSarafiCommissionCurrency")
   partnerCommissionSettlements PartnerCommissionSettlement[]
+  accountOrders      AccountOrder[]
 
   @@index([isActive, deletedAt])
   @@index([deletedAt])
@@ -187,6 +189,7 @@ model Customer {
   hawalaTransfers      HawalaTransfer[]  @relation("HawalaLocalCustomer")
   hawalaAsSender       HawalaTransfer[]  @relation("HawalaSenderCustomer")
   hawalaAsReceiver     HawalaTransfer[]  @relation("HawalaReceiverCustomer")
+  accountOrders        AccountOrder[]
 
   @@index([fullName])
   @@index([fatherName])
@@ -447,6 +450,58 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([action, createdAt])
   @@index([entityType, entityId])
+}
+
+/// Account Orders — remittance distribution documents (tracking only; no ledger posts).
+model AccountOrder {
+  id                       String    @id @default(uuid())
+  orderNumber              Int       @unique
+  name                     String
+  customerId               String?
+  currencyId               String
+  orderDate                DateTime
+  originalAmount           Decimal
+  purchaseDeductionPercent Decimal   @default(0)
+  status                   String    @default("OPEN")
+  notes                    String?
+  createdById              String?
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  customer   Customer?               @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  currency   Currency                @relation(fields: [currencyId], references: [id], onDelete: Restrict)
+  createdBy  User?                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  recipients AccountOrderRecipient[]
+
+  @@index([deletedAt, orderDate])
+  @@index([deletedAt, status, orderDate])
+  @@index([customerId])
+  @@index([currencyId])
+  @@index([name])
+  @@index([createdById])
+}
+
+model AccountOrderRecipient {
+  id                     String    @id @default(uuid())
+  orderId                String
+  recipientNumber        Int       @unique
+  name                   String
+  detail                 String?
+  recipientDate          DateTime
+  amount                 Decimal
+  distributionFeePercent Decimal   @default(0)
+  status                 String    @default("COMPLETED")
+  notes                  String?
+  deletedAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  order AccountOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, deletedAt])
+  @@index([deletedAt, status])
+  @@index([name])
 }
 
 /// Append-only ledger line. Do not update or delete posted entries.

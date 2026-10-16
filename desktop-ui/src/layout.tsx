@@ -18,6 +18,7 @@ import {
   IconDashboard,
   IconDaybook,
   IconDebtorsCreditors,
+  IconAccountOrders,
   IconExpenses,
   IconHawala,
   IconRefresh,
@@ -110,6 +111,12 @@ export function AppLayout() {
       screen: "hawala",
       label: t.nav.commissionTracking,
       icon: <IconHawala />,
+    },
+    {
+      to: "/account-orders",
+      screen: "accountOrders",
+      label: t.nav.accountOrders,
+      icon: <IconAccountOrders />,
     },
     {
       to: "/expenses",

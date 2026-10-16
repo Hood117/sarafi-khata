@@ -2104,6 +2104,163 @@ export function getExpenseSummary(input?: {
   return invoke<ExpenseSummary>("get_expense_summary", { input: input ?? {} });
 }
 
+/* ── Account Orders ────────────────────────────────────────────── */
+
+export type AccountOrderTotals = {
+  purchaseDeduction: string;
+  netPurchaseAmount: string;
+  totalDistributed: string;
+  totalDistributionFees: string;
+  remainingAmount: string;
+  netProfit: string;
+  recipientCount: number;
+  pendingCount: number;
+  completedCount: number;
+};
+
+export type AccountOrderListItem = {
+  id: string;
+  orderNumber: number;
+  name: string;
+  customerId: string | null;
+  customerName: string | null;
+  customerCode: string | null;
+  currencyId: string;
+  currencyCode: string;
+  currencyName: string;
+  orderDate: string;
+  originalAmount: string;
+  purchaseDeductionPercent: string;
+  status: string;
+  notes: string | null;
+  totals: AccountOrderTotals;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountOrderRecipientRow = {
+  id: string;
+  orderId: string;
+  recipientNumber: number;
+  name: string;
+  detail: string | null;
+  recipientDate: string;
+  amount: string;
+  distributionFeePercent: string;
+  distributionFeeAmount: string;
+  netAmount: string;
+  status: string;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AccountOrderDetail = {
+  id: string;
+  orderNumber: number;
+  name: string;
+  customerId: string | null;
+  customerName: string | null;
+  customerCode: string | null;
+  currencyId: string;
+  currencyCode: string;
+  currencyName: string;
+  currencyDecimalPlaces: number;
+  orderDate: string;
+  originalAmount: string;
+  purchaseDeductionPercent: string;
+  status: string;
+  notes: string | null;
+  totals: AccountOrderTotals;
+  recipients: AccountOrderRecipientRow[];
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function listAccountOrders(input?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  customerId?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  currencyCode?: string;
+}) {
+  return invoke<{
+    items: AccountOrderListItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }>("list_account_orders", { input: input ?? {} });
+}
+
+export function getAccountOrder(id: string) {
+  return invoke<AccountOrderDetail>("get_account_order", { id });
+}
+
+export function createAccountOrder(input: {
+  name: string;
+  customerId?: string | null;
+  currencyCode: string;
+  orderDate: string;
+  originalAmount: string;
+  purchaseDeductionPercent?: string;
+  notes?: string | null;
+  status?: string;
+}) {
+  return invoke<AccountOrderDetail>("create_account_order", { input });
+}
+
+export function updateAccountOrder(input: {
+  id: string;
+  name?: string;
+  customerId?: string | null;
+  clearCustomer?: boolean;
+  currencyCode?: string;
+  orderDate?: string;
+  originalAmount?: string;
+  purchaseDeductionPercent?: string;
+  notes?: string | null;
+  status?: string;
+}) {
+  return invoke<AccountOrderDetail>("update_account_order", { input });
+}
+
+export function archiveAccountOrder(id: string) {
+  return invoke<void>("archive_account_order", { id });
+}
+
+export function upsertAccountOrderRecipient(input: {
+  id?: string;
+  orderId: string;
+  name: string;
+  detail?: string | null;
+  recipientDate: string;
+  amount: string;
+  distributionFeePercent?: string;
+  status?: string;
+  notes?: string | null;
+}) {
+  return invoke<AccountOrderDetail>("upsert_account_order_recipient", {
+    input,
+  });
+}
+
+export function setAccountOrderRecipientStatus(input: {
+  id: string;
+  status: string;
+}) {
+  return invoke<AccountOrderDetail>("set_account_order_recipient_status", {
+    input,
+  });
+}
+
+export function deleteAccountOrderRecipient(id: string) {
+  return invoke<AccountOrderDetail>("delete_account_order_recipient", { id });
+}
+
 /* ── Employees ─────────────────────────────────────────────────── */
 
 export type EmployeeRow = {
