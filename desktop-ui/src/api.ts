@@ -2113,6 +2113,7 @@ export type AccountOrderTotals = {
   totalDistributionFees: string;
   remainingAmount: string;
   netProfit: string;
+  netBenefit: string;
   recipientCount: number;
   pendingCount: number;
   completedCount: number;
@@ -2133,6 +2134,7 @@ export type AccountOrderListItem = {
   purchaseDeductionPercent: string;
   status: string;
   notes: string | null;
+  transactionId: string | null;
   totals: AccountOrderTotals;
   createdAt: string;
   updatedAt: string;
@@ -2142,6 +2144,9 @@ export type AccountOrderRecipientRow = {
   id: string;
   orderId: string;
   recipientNumber: number;
+  customerId: string | null;
+  customerName: string | null;
+  customerCode: string | null;
   name: string;
   detail: string | null;
   recipientDate: string;
@@ -2151,6 +2156,7 @@ export type AccountOrderRecipientRow = {
   netAmount: string;
   status: string;
   notes: string | null;
+  payoutTransactionId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -2171,6 +2177,7 @@ export type AccountOrderDetail = {
   purchaseDeductionPercent: string;
   status: string;
   notes: string | null;
+  transactionId: string | null;
   totals: AccountOrderTotals;
   recipients: AccountOrderRecipientRow[];
   createdByName: string | null;
@@ -2202,7 +2209,7 @@ export function getAccountOrder(id: string) {
 
 export function createAccountOrder(input: {
   name: string;
-  customerId?: string | null;
+  customerId: string;
   currencyCode: string;
   orderDate: string;
   originalAmount: string;
@@ -2235,17 +2242,22 @@ export function archiveAccountOrder(id: string) {
 export function upsertAccountOrderRecipient(input: {
   id?: string;
   orderId: string;
-  name: string;
+  customerId?: string | null;
+  newCustomer?: { fullName: string; phone: string } | null;
+  name?: string | null;
   detail?: string | null;
   recipientDate: string;
   amount: string;
   distributionFeePercent?: string;
-  status?: string;
   notes?: string | null;
 }) {
   return invoke<AccountOrderDetail>("upsert_account_order_recipient", {
     input,
   });
+}
+
+export function completeAccountOrderRecipient(id: string) {
+  return invoke<AccountOrderDetail>("complete_account_order_recipient", { id });
 }
 
 export function setAccountOrderRecipientStatus(input: {

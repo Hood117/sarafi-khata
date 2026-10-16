@@ -77,6 +77,7 @@ enum TransactionType {
   TRANSFER
   HAWALA
   ADJUSTMENT
+  ACCOUNT_ORDER
 }
 
 enum TransactionStatus {
@@ -189,7 +190,8 @@ model Customer {
   hawalaTransfers      HawalaTransfer[]  @relation("HawalaLocalCustomer")
   hawalaAsSender       HawalaTransfer[]  @relation("HawalaSenderCustomer")
   hawalaAsReceiver     HawalaTransfer[]  @relation("HawalaReceiverCustomer")
-  accountOrders        AccountOrder[]
+  accountOrders           AccountOrder[]
+  accountOrderRecipients  AccountOrderRecipient[]
 
   @@index([fullName])
   @@index([fatherName])
@@ -464,6 +466,8 @@ model AccountOrder {
   purchaseDeductionPercent Decimal   @default(0)
   status                   String    @default("OPEN")
   notes                    String?
+  /// Linked purchase posting; null = tracking-only / legacy.
+  transactionId            String?   @unique
   createdById              String?
   deletedAt                DateTime?
   createdAt                DateTime  @default(now())
@@ -486,21 +490,26 @@ model AccountOrderRecipient {
   id                     String    @id @default(uuid())
   orderId                String
   recipientNumber        Int       @unique
+  customerId             String?
   name                   String
   detail                 String?
   recipientDate          DateTime
   amount                 Decimal
   distributionFeePercent Decimal   @default(0)
-  status                 String    @default("COMPLETED")
+  status                 String    @default("PENDING")
   notes                  String?
+  /// Cash payout posting; null while PENDING.
+  payoutTransactionId    String?   @unique
   deletedAt              DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
-  order AccountOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  order    AccountOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer Customer?    @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
   @@index([orderId, deletedAt])
   @@index([deletedAt, status])
+  @@index([customerId])
   @@index([name])
 }
 

@@ -513,6 +513,7 @@ pub fn run() {
       commands::archive_account_order,
       commands::upsert_account_order_recipient,
       commands::set_account_order_recipient_status,
+      commands::complete_account_order_recipient,
       commands::delete_account_order_recipient,
       commands::list_employees,
       commands::upsert_employee,

@@ -149,12 +149,16 @@ export function AccountOrdersPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     if (saving) return;
+    if (!customerId.trim()) {
+      setFormError(t.accountOrders.customerRequired);
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
       const created = await createAccountOrder({
         name: name.trim(),
-        customerId: customerId || null,
+        customerId: customerId.trim(),
         currencyCode,
         orderDate,
         originalAmount: originalAmount.trim(),
@@ -171,15 +175,13 @@ export function AccountOrdersPage() {
   }
 
   const customerOptions = useMemo(
-    () => [
-      { value: "", label: t.accountOrders.noCustomer },
-      ...customers.map((c) => ({
+    () =>
+      customers.map((c) => ({
         value: c.id,
         label: c.code ? `${c.fullName} (${c.code})` : c.fullName,
         keywords: [c.fullName, c.code ?? "", c.phone ?? ""].join(" "),
       })),
-    ],
-    [customers, t.accountOrders.noCustomer],
+    [customers],
   );
 
   return (
@@ -282,7 +284,7 @@ export function AccountOrdersPage() {
               <th>{t.common.currency}</th>
               <th className="num">{t.accountOrders.originalAmount}</th>
               <th className="num">{t.accountOrders.remainingAmount}</th>
-              <th className="num">{t.accountOrders.netProfit}</th>
+              <th className="num">{t.accountOrders.netBenefit}</th>
               <th>{t.common.status}</th>
             </tr>
           </thead>
@@ -320,7 +322,9 @@ export function AccountOrdersPage() {
                   {formatAmountDisplay(row.totals.remainingAmount)}
                 </td>
                 <td className="num amount-emphasis" dir="ltr">
-                  {formatAmountDisplay(row.totals.netProfit)}
+                  {formatAmountDisplay(
+                    row.totals.netBenefit ?? row.totals.netProfit,
+                  )}
                 </td>
                 <td>
                   <span className={statusBadgeClass(row.status)}>
@@ -364,7 +368,7 @@ export function AccountOrdersPage() {
               value={customerId}
               options={customerOptions}
               onChange={setCustomerId}
-              placeholder={t.accountOrders.optionalCustomer}
+              placeholder={t.accountOrders.customerRequired}
             />
             <label className="field">
               <span>{t.accountOrders.orderDate}</span>

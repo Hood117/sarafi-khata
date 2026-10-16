@@ -1,4 +1,3 @@
--- Recipients are completed on save; flip default + any leftover PENDING rows.
-UPDATE "AccountOrderRecipient"
-SET "status" = 'COMPLETED', "updatedAt" = CURRENT_TIMESTAMP
-WHERE deletedAt IS NULL AND UPPER("status") = 'PENDING';
+-- Superseded by ledger phase: recipients stay PENDING until payout.
+-- Keep migration file for already-applied stamps; no-op.
+SELECT 1;

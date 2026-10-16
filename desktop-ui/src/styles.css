@@ -8316,12 +8316,29 @@ button.danger:hover:not(:disabled) {
   max-height: min(70vh, 640px);
 }
 
+/* Keep customer suggest lists above following section-cards
+   (backdrop-filter on .section-card creates stacking contexts). */
+.account-order-main > .section-card:has(.customer-search-wrap) {
+  position: relative;
+  z-index: 6;
+  overflow: visible;
+}
+
+.account-order-main > .section-card:has(.customer-search-wrap):focus-within {
+  z-index: 20;
+}
+
+.account-order-main .customer-suggest {
+  z-index: 50;
+}
+
 .account-order-header-grid,
 .account-order-entry-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 0.65rem 0.75rem;
   align-items: end;
+  overflow: visible;
 }
 
 .account-order-entry-actions {
@@ -8329,9 +8346,34 @@ button.danger:hover:not(:disabled) {
   padding-bottom: 0.1rem;
 }
 
+.account-order-desk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  /* Fill the shell viewport so the totals bar stays pinned at the bottom. */
+  height: calc(
+    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 3.75rem
+  );
+  max-height: calc(
+    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 3.75rem
+  );
+  min-height: 0;
+  overflow: hidden;
+}
+
+.account-order-desk > .account-order-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 .account-order-footer {
+  flex: 0 0 auto;
+  margin-top: auto;
   justify-content: space-between;
   align-items: stretch;
+  z-index: 12;
+  background: var(--surface);
 }
 
 .account-order-footer .stat {

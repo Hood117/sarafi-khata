@@ -22,6 +22,7 @@ const ALLOWED_TYPES: &[&str] = &[
   "EXPENSE",
   "TRADE_BUY",
   "TRADE_SELL",
+  "ACCOUNT_ORDER",
 ];
 
 #[derive(Debug, Deserialize)]

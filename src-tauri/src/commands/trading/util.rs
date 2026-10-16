@@ -453,6 +453,79 @@ pub fn soft_delete_desk_transaction(
     )?;
   }
 
+  let has_ao: bool = conn.query_row(
+    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='AccountOrder')",
+    [],
+    |row| row.get(0),
+  )?;
+  if has_ao {
+    let has_ao_tx: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('AccountOrder') WHERE name = 'transactionId'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap_or(0);
+    if has_ao_tx > 0 {
+      // Purchase void: detach order (document kept) and void linked payouts.
+      let order_ids: Vec<String> = {
+        let mut stmt = conn.prepare(
+          r#"SELECT id FROM "AccountOrder"
+             WHERE "transactionId" = ?1 AND deletedAt IS NULL"#,
+        )?;
+        let ids = stmt
+          .query_map([transaction_id], |row| row.get(0))?
+          .collect::<Result<Vec<_>, _>>()?;
+        ids
+      };
+      for oid in order_ids {
+        let payout_ids: Vec<String> = {
+          let mut stmt = conn.prepare(
+            r#"SELECT "payoutTransactionId" FROM "AccountOrderRecipient"
+               WHERE "orderId" = ?1 AND deletedAt IS NULL
+                 AND "payoutTransactionId" IS NOT NULL"#,
+          )?;
+          let ids: Vec<String> = stmt
+            .query_map([&oid], |row| row.get::<_, Option<String>>(0))?
+            .filter_map(|r| r.ok().flatten())
+            .collect();
+          ids
+        };
+        for pid in payout_ids {
+          if pid != transaction_id {
+            soft_delete_transaction(conn, &pid)?;
+          }
+        }
+        conn.execute(
+          r#"UPDATE "AccountOrderRecipient"
+             SET status = 'PENDING', "payoutTransactionId" = NULL, "updatedAt" = ?1
+             WHERE "orderId" = ?2 AND deletedAt IS NULL"#,
+          params![now, oid],
+        )?;
+        conn.execute(
+          r#"UPDATE "AccountOrder" SET "transactionId" = NULL, "updatedAt" = ?1
+             WHERE id = ?2 AND deletedAt IS NULL"#,
+          params![now, oid],
+        )?;
+      }
+    }
+    let has_pay_col: i64 = conn
+      .query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('AccountOrderRecipient') WHERE name = 'payoutTransactionId'",
+        [],
+        |row| row.get(0),
+      )
+      .unwrap_or(0);
+    if has_pay_col > 0 {
+      conn.execute(
+        r#"UPDATE "AccountOrderRecipient"
+           SET status = 'PENDING', "payoutTransactionId" = NULL, "updatedAt" = ?1
+           WHERE "payoutTransactionId" = ?2 AND deletedAt IS NULL"#,
+        params![now, transaction_id],
+      )?;
+    }
+  }
+
   Ok(())
 }
 

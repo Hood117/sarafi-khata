@@ -125,6 +125,7 @@ commands.allow = [
   "archive_account_order",
   "upsert_account_order_recipient",
   "set_account_order_recipient_status",
+  "complete_account_order_recipient",
   "delete_account_order_recipient",
   "list_employees",
   "upsert_employee",

@@ -378,6 +378,49 @@ pub fn ensure_schema_compat(conn: &Connection) -> Result<(), AppError> {
   crate::ledger::ensure_display_seq_schema(conn)?;
   crate::ledger::ensure_wallet_balance_cache(conn)?;
   ensure_hawala_auto_completed(conn)?;
+  ensure_account_order_ledger_columns(conn)?;
+  Ok(())
+}
+
+/// Account Orders ledger links (purchase / payout transactions + recipient customer).
+/// No-op when the AccountOrder tables do not exist yet.
+fn ensure_account_order_ledger_columns(conn: &Connection) -> Result<(), AppError> {
+  ensure_column(
+    conn,
+    "AccountOrder",
+    "transactionId",
+    r#"ALTER TABLE "AccountOrder" ADD COLUMN "transactionId" TEXT;"#,
+  )?;
+  ensure_column(
+    conn,
+    "AccountOrderRecipient",
+    "customerId",
+    r#"ALTER TABLE "AccountOrderRecipient" ADD COLUMN "customerId" TEXT;"#,
+  )?;
+  ensure_column(
+    conn,
+    "AccountOrderRecipient",
+    "payoutTransactionId",
+    r#"ALTER TABLE "AccountOrderRecipient" ADD COLUMN "payoutTransactionId" TEXT;"#,
+  )?;
+  if table_exists(conn, "AccountOrder")? {
+    conn
+      .execute_batch(
+        r#"CREATE UNIQUE INDEX IF NOT EXISTS "AccountOrder_transactionId_key"
+             ON "AccountOrder"("transactionId");"#,
+      )
+      .map_err(|e| AppError::Db(format!("schema repair AccountOrder index: {e}")))?;
+  }
+  if table_exists(conn, "AccountOrderRecipient")? {
+    conn
+      .execute_batch(
+        r#"CREATE UNIQUE INDEX IF NOT EXISTS "AccountOrderRecipient_payoutTransactionId_key"
+             ON "AccountOrderRecipient"("payoutTransactionId");
+           CREATE INDEX IF NOT EXISTS "AccountOrderRecipient_customerId_idx"
+             ON "AccountOrderRecipient"("customerId");"#,
+      )
+      .map_err(|e| AppError::Db(format!("schema repair AccountOrderRecipient index: {e}")))?;
+  }
   Ok(())
 }
 

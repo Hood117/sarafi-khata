@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "AccountOrderRecipient" (
   "recipientDate" DATETIME NOT NULL,
   "amount" DECIMAL NOT NULL,
   "distributionFeePercent" DECIMAL NOT NULL DEFAULT 0,
-  "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+  "status" TEXT NOT NULL DEFAULT 'PENDING',
   "notes" TEXT,
   "deletedAt" DATETIME,
   "createdAt" DATETIME NOT NULL,

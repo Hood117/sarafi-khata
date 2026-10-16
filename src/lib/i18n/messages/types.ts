@@ -1984,6 +1984,7 @@ export type Dictionary = {
     totalDistributionFees: string;
     remainingAmount: string;
     netProfit: string;
+    netBenefit: string;
     recipients: string;
     addRecipient: string;
     editRecipient: string;
@@ -1995,9 +1996,14 @@ export type Dictionary = {
     netRecipientAmount: string;
     detail: string;
     recipientDate: string;
+    recipientCustomer: string;
+    newRecipientCustomer: string;
+    completePayout: string;
     markCompleted: string;
     markPending: string;
     deleteRecipient: string;
+    customerRequired: string;
+    trackingOnlyLegacy: string;
     archiveOrder: string;
     searchPlaceholder: string;
     clearFilters: string;

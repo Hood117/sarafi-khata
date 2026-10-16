@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   archiveAccountOrder,
+  completeAccountOrderRecipient,
   deleteAccountOrderRecipient,
   getAccountOrder,
   listAccountOrders,
@@ -25,8 +26,12 @@ import {
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import { errorMessage, todayIso } from "@desktop/lib/datetime";
+import { statusLabel } from "@desktop/lib/i18n-labels";
 import { canWritePath } from "@desktop/lib/permissions";
-import { formatAmountDisplay } from "@desktop/pages/hawala-helpers";
+import {
+  formatAmountDisplay,
+  statusBadgeClass,
+} from "@desktop/pages/hawala-helpers";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
@@ -61,11 +66,17 @@ export function AccountOrderDetailPage() {
   const [status, setStatus] = useState("OPEN");
 
   const [editRecipientId, setEditRecipientId] = useState<string | null>(null);
-  const [recipientName, setRecipientName] = useState("");
+  const [recipientCustomerId, setRecipientCustomerId] = useState("");
+  const [recipientMode, setRecipientMode] = useState<"existing" | "new">(
+    "existing",
+  );
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [recipientDetail, setRecipientDetail] = useState("");
   const [recipientDate, setRecipientDate] = useState(todayIso());
   const [recipientAmount, setRecipientAmount] = useState("");
   const [recipientFeePercent, setRecipientFeePercent] = useState("0");
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -106,15 +117,13 @@ export function AccountOrderDetailPage() {
   }, []);
 
   const customerOptions = useMemo(
-    () => [
-      { value: "", label: t.accountOrders.noCustomer },
-      ...customers.map((c) => ({
+    () =>
+      customers.map((c) => ({
         value: c.id,
         label: c.code ? `${c.fullName} (${c.code})` : c.fullName,
         keywords: [c.fullName, c.code ?? "", c.phone ?? ""].join(" "),
       })),
-    ],
-    [customers, t.accountOrders.noCustomer],
+    [customers],
   );
 
   function resetRecipientForm(defaults?: {
@@ -122,7 +131,10 @@ export function AccountOrderDetailPage() {
     date?: string;
   }) {
     setEditRecipientId(null);
-    setRecipientName("");
+    setRecipientCustomerId("");
+    setRecipientMode("existing");
+    setNewCustomerName("");
+    setNewCustomerPhone("");
     setRecipientDetail(defaults?.detail ?? detail?.customerName ?? detail?.name ?? "");
     setRecipientDate(defaults?.date ?? (orderDate || todayIso()));
     setRecipientAmount("");
@@ -141,7 +153,10 @@ export function AccountOrderDetailPage() {
 
   function startEditRecipient(row: AccountOrderRecipientRow) {
     setEditRecipientId(row.id);
-    setRecipientName(row.name);
+    setRecipientMode("existing");
+    setRecipientCustomerId(row.customerId ?? "");
+    setNewCustomerName("");
+    setNewCustomerPhone("");
     setRecipientDetail(row.detail ?? "");
     setRecipientDate(String(row.recipientDate).slice(0, 10));
     setRecipientAmount(row.amount);
@@ -152,6 +167,10 @@ export function AccountOrderDetailPage() {
   async function onSaveOrder(e: FormEvent) {
     e.preventDefault();
     if (!detail || !canWrite || savingOrder) return;
+    if (!customerId.trim() && detail.transactionId) {
+      setFormError(t.accountOrders.customerRequired);
+      return;
+    }
     setSavingOrder(true);
     setFormError(null);
     try {
@@ -159,7 +178,7 @@ export function AccountOrderDetailPage() {
         id: detail.id,
         name: name.trim(),
         customerId: customerId || null,
-        clearCustomer: !customerId,
+        clearCustomer: !customerId && !detail.transactionId,
         currencyCode,
         orderDate,
         originalAmount: originalAmount.trim(),
@@ -168,6 +187,9 @@ export function AccountOrderDetailPage() {
       });
       setDetail(updated);
       showSuccess(t.common.success);
+      void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
+        (res) => setCustomers(res.items),
+      );
       void listAccountOrders({ page: 1, pageSize: 40 }).then((list) =>
         setOrderList(list.items),
       );
@@ -181,20 +203,41 @@ export function AccountOrderDetailPage() {
   async function onSaveRecipient(e: FormEvent) {
     e.preventDefault();
     if (!detail || !canWrite || savingRecipient) return;
+    if (recipientMode === "existing" && !recipientCustomerId.trim()) {
+      setFormError(t.accountOrders.customerRequired);
+      return;
+    }
+    if (
+      recipientMode === "new" &&
+      (!newCustomerName.trim() || !newCustomerPhone.trim())
+    ) {
+      setFormError(t.accountOrders.customerRequired);
+      return;
+    }
     setSavingRecipient(true);
     setFormError(null);
     try {
       const updated = await upsertAccountOrderRecipient({
         id: editRecipientId ?? undefined,
         orderId: detail.id,
-        name: recipientName.trim(),
+        customerId:
+          recipientMode === "existing" ? recipientCustomerId.trim() : null,
+        newCustomer:
+          recipientMode === "new"
+            ? {
+                fullName: newCustomerName.trim(),
+                phone: newCustomerPhone.trim(),
+              }
+            : null,
         detail: recipientDetail.trim() || null,
         recipientDate,
         amount: recipientAmount.trim(),
         distributionFeePercent: recipientFeePercent.trim() || "0",
-        status: "COMPLETED",
       });
       setDetail(updated);
+      void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
+        (res) => setCustomers(res.items),
+      );
       resetRecipientForm({
         detail: updated.customerName ?? updated.name,
         date: String(updated.orderDate).slice(0, 10),
@@ -204,6 +247,21 @@ export function AccountOrderDetailPage() {
       setFormError(errorMessage(err, t.accountOrders.overDistribution));
     } finally {
       setSavingRecipient(false);
+    }
+  }
+
+  async function onCompletePayout(row: AccountOrderRecipientRow) {
+    if (!canWrite || !detail?.transactionId) return;
+    setCompletingId(row.id);
+    setFormError(null);
+    try {
+      const updated = await completeAccountOrderRecipient(row.id);
+      setDetail(updated);
+      showSuccess(t.common.success);
+    } catch (err) {
+      setFormError(errorMessage(err, t.errors.genericTryAgain));
+    } finally {
+      setCompletingId(null);
     }
   }
 
@@ -289,6 +347,9 @@ export function AccountOrderDetailPage() {
       </header>
 
       <ModalErrorBanner message={formError} />
+      {!detail.transactionId ? (
+        <p className="muted small">{t.accountOrders.trackingOnlyLegacy}</p>
+      ) : null}
 
       <div className="account-order-layout">
         <aside className="account-order-list section-card">
@@ -434,14 +495,50 @@ export function AccountOrderDetailPage() {
             </h2>
             <div className="account-order-entry-grid">
               <label className="field">
-                <span>{t.accountOrders.recipientName}</span>
-                <input
-                  value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
+                <span>{t.accountOrders.recipientCustomer}</span>
+                <select
+                  value={recipientMode}
+                  onChange={(e) =>
+                    setRecipientMode(e.target.value === "new" ? "new" : "existing")
+                  }
                   disabled={!canWrite}
-                  required
-                />
+                >
+                  <option value="existing">{t.accountOrders.linkedCustomer}</option>
+                  <option value="new">{t.accountOrders.newRecipientCustomer}</option>
+                </select>
               </label>
+              {recipientMode === "existing" ? (
+                <SearchableSelect
+                  label={t.accountOrders.recipientCustomer}
+                  value={recipientCustomerId}
+                  options={customerOptions}
+                  onChange={setRecipientCustomerId}
+                  disabled={!canWrite}
+                  placeholder={t.accountOrders.customerRequired}
+                />
+              ) : (
+                <>
+                  <label className="field">
+                    <span>{t.common.fullName}</span>
+                    <input
+                      value={newCustomerName}
+                      onChange={(e) => setNewCustomerName(e.target.value)}
+                      disabled={!canWrite}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>{t.common.phone}</span>
+                    <input
+                      value={newCustomerPhone}
+                      onChange={(e) => setNewCustomerPhone(e.target.value)}
+                      disabled={!canWrite}
+                      dir="ltr"
+                      required
+                    />
+                  </label>
+                </>
+              )}
               <label className="field">
                 <span>{t.accountOrders.detail}</span>
                 <input
@@ -520,12 +617,12 @@ export function AccountOrderDetailPage() {
                     <th>{t.accountOrders.recipientName}</th>
                     <th>{t.accountOrders.recipientDate}</th>
                     <th>{t.accountOrders.detail}</th>
-                    <th className="num">{t.accountOrders.originalAmount}</th>
                     <th className="num">{t.accountOrders.recipientAmount}</th>
                     <th className="num">{t.accountOrders.distributionFeePercent}</th>
                     <th className="num">{t.accountOrders.distributionFeeAmount}</th>
                     <th className="num">{t.accountOrders.netRecipientAmount}</th>
                     <th>{t.common.currency}</th>
+                    <th>{t.common.status}</th>
                     {canWrite ? <th /> : null}
                   </tr>
                 </thead>
@@ -547,12 +644,14 @@ export function AccountOrderDetailPage() {
                     >
                       <td dir="ltr">{index + 1}</td>
                       <td dir="ltr">{row.recipientNumber}</td>
-                      <td>{row.name}</td>
+                      <td>
+                        {row.customerName ?? row.name}
+                        {row.customerCode ? (
+                          <span className="muted"> ({row.customerCode})</span>
+                        ) : null}
+                      </td>
                       <td dir="ltr">{String(row.recipientDate).slice(0, 10)}</td>
                       <td>{row.detail ?? "—"}</td>
-                      <td className="num" dir="ltr">
-                        {formatAmountDisplay(detail.originalAmount)}
-                      </td>
                       <td className="num" dir="ltr">
                         {formatAmountDisplay(row.amount)}
                       </td>
@@ -568,9 +667,25 @@ export function AccountOrderDetailPage() {
                       <td>
                         <CurrencyCodeWithFlag code={detail.currencyCode} />
                       </td>
+                      <td>
+                        <span className={statusBadgeClass(row.status)}>
+                          {statusLabel(t, row.status)}
+                        </span>
+                      </td>
                       {canWrite ? (
                         <td>
                           <div className="row gap wrap">
+                            {row.status.toUpperCase() !== "COMPLETED" &&
+                            detail.transactionId ? (
+                              <button
+                                type="button"
+                                className="btn small primary"
+                                disabled={completingId === row.id}
+                                onClick={() => void onCompletePayout(row)}
+                              >
+                                {t.accountOrders.completePayout}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="btn small"
@@ -594,43 +709,45 @@ export function AccountOrderDetailPage() {
               </table>
             </div>
           </div>
-
-          <footer className="account-order-footer section-card row wrap gap">
-            <div className="stat">
-              <span className="muted">{t.accountOrders.originalAmount}</span>
-              <strong dir="ltr">{formatAmountDisplay(detail.originalAmount)}</strong>
-            </div>
-            <div className="stat">
-              <span className="muted">{t.accountOrders.totalDistributed}</span>
-              <strong dir="ltr">
-                {formatAmountDisplay(totals.totalDistributed)}
-              </strong>
-            </div>
-            <div className="stat">
-              <span className="muted">{t.accountOrders.remainingAmount}</span>
-              <strong dir="ltr">
-                {formatAmountDisplay(totals.remainingAmount)}
-              </strong>
-            </div>
-            <div className="stat account-order-fee-total">
-              <span className="muted">{t.accountOrders.totalDistributionFees}</span>
-              <strong dir="ltr">
-                {formatAmountDisplay(totals.totalDistributionFees)}
-              </strong>
-            </div>
-            <div className="stat">
-              <span className="muted">{t.accountOrders.netProfit}</span>
-              <strong className="amount-emphasis" dir="ltr">
-                {formatAmountDisplay(totals.netProfit)}
-              </strong>
-            </div>
-            <div className="stat">
-              <span className="muted">{t.accountOrders.recipients}</span>
-              <strong dir="ltr">{totals.recipientCount}</strong>
-            </div>
-          </footer>
         </section>
       </div>
+
+      <footer className="account-order-footer section-card row wrap gap">
+        <div className="stat">
+          <span className="muted">{t.accountOrders.originalAmount}</span>
+          <strong dir="ltr">{formatAmountDisplay(detail.originalAmount)}</strong>
+        </div>
+        <div className="stat">
+          <span className="muted">{t.accountOrders.totalDistributed}</span>
+          <strong dir="ltr">
+            {formatAmountDisplay(totals.totalDistributed)}
+          </strong>
+        </div>
+        <div className="stat">
+          <span className="muted">{t.accountOrders.remainingAmount}</span>
+          <strong dir="ltr">
+            {formatAmountDisplay(totals.remainingAmount)}
+          </strong>
+        </div>
+        <div className="stat account-order-fee-total">
+          <span className="muted">{t.accountOrders.totalDistributionFees}</span>
+          <strong dir="ltr">
+            {formatAmountDisplay(totals.totalDistributionFees)}
+          </strong>
+        </div>
+        <div className="stat">
+          <span className="muted">{t.accountOrders.recipients}</span>
+          <strong dir="ltr">
+            {totals.completedCount}/{totals.recipientCount}
+          </strong>
+        </div>
+        <div className="stat">
+          <span className="muted">{t.accountOrders.netBenefit}</span>
+          <strong className="amount-emphasis" dir="ltr">
+            {formatAmountDisplay(totals.netBenefit ?? totals.netProfit)}
+          </strong>
+        </div>
+      </footer>
 
       {successModal}
     </div>
