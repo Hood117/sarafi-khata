@@ -203,6 +203,43 @@ fn load_order_amounts(
   Ok((original_minor, distributed_minor, places))
 }
 
+/// Keep order status in sync with remaining distribution capacity.
+/// `remaining == 0` → `COMPLETED`; `remaining > 0` → `OPEN`. Never overrides `CANCELLED`.
+fn sync_order_status_from_remaining(conn: &Connection, order_id: &str) -> Result<(), AppError> {
+  let status: String = conn
+    .query_row(
+      r#"SELECT status FROM "AccountOrder" WHERE id = ?1 AND deletedAt IS NULL"#,
+      [order_id],
+      |row| row.get(0),
+    )
+    .map_err(|e| match e {
+      rusqlite::Error::QueryReturnedNoRows => {
+        AppError::NotFound("Account order was not found.".into())
+      }
+      other => other.into(),
+    })?;
+  if status.eq_ignore_ascii_case("CANCELLED") {
+    return Ok(());
+  }
+  let (original_minor, distributed_minor, _) = load_order_amounts(conn, order_id, None)?;
+  let remaining = original_minor.saturating_sub(distributed_minor);
+  let next = if remaining == 0 {
+    "COMPLETED"
+  } else {
+    "OPEN"
+  };
+  if status.eq_ignore_ascii_case(next) {
+    return Ok(());
+  }
+  let now = now_sqlite();
+  conn.execute(
+    r#"UPDATE "AccountOrder" SET status = ?1, "updatedAt" = ?2
+       WHERE id = ?3 AND deletedAt IS NULL"#,
+    params![next, now, order_id],
+  )?;
+  Ok(())
+}
+
 fn assert_distribution_fits(
   original_minor: i128,
   distributed_minor: i128,
@@ -730,6 +767,8 @@ fn load_recipient_math(
 }
 
 fn map_list_item(conn: &Connection, order_id: &str) -> Result<AccountOrderListItem, AppError> {
+  // Heal OPEN/COMPLETED from remaining so list/detail stay consistent.
+  let _ = sync_order_status_from_remaining(conn, order_id);
   let row = conn
     .query_row(
       r#"SELECT
@@ -1391,6 +1430,9 @@ pub(crate) fn update_account_order_inner(
     Ok(())
   })?;
 
+  // Amount / recipient voids may change remaining → OPEN vs COMPLETED.
+  sync_order_status_from_remaining(conn, &id)?;
+
   map_detail(conn, &id)
 }
 
@@ -1641,6 +1683,7 @@ pub(crate) fn save_account_order_recipient_inner(
       params![now, recipient_id],
     )?;
   }
+  sync_order_status_from_remaining(conn, &order_id)?;
   Ok(order_id)
 }
 
@@ -1663,7 +1706,7 @@ pub(crate) fn complete_account_order_recipient_inner(
 ) -> Result<String, AppError> {
   let recipient_id = require_nonempty(recipient_id, "Recipient id")?;
 
-  run_in_immediate_tx(conn, |conn| {
+  let order_id = run_in_immediate_tx(conn, |conn| {
     let (
       order_id,
       order_number,
@@ -1810,7 +1853,11 @@ pub(crate) fn complete_account_order_recipient_inner(
       ));
     }
     Ok(order_id)
-  })
+  })?;
+  // complete runs in its own tx; sync order OPEN/COMPLETED after payout posts.
+  // When called from save_*, save also syncs (idempotent).
+  sync_order_status_from_remaining(conn, &order_id)?;
+  Ok(order_id)
 }
 
 #[tauri::command]
@@ -1836,7 +1883,7 @@ pub(crate) fn set_account_order_recipient_status_inner(
     return complete_account_order_recipient_inner(conn, actor_id, &id);
   }
 
-  run_in_immediate_tx(conn, |conn| {
+  let order_id = run_in_immediate_tx(conn, |conn| {
     let (order_id, payout_tx): (String, Option<String>) = conn
       .query_row(
         r#"SELECT "orderId", "payoutTransactionId" FROM "AccountOrderRecipient"
@@ -1856,7 +1903,9 @@ pub(crate) fn set_account_order_recipient_status_inner(
       params![now, id],
     )?;
     Ok(order_id)
-  })
+  })?;
+  sync_order_status_from_remaining(conn, &order_id)?;
+  Ok(order_id)
 }
 
 #[tauri::command]
@@ -1875,7 +1924,7 @@ pub(crate) fn delete_account_order_recipient_inner(
   id: &str,
 ) -> Result<String, AppError> {
   let id = require_nonempty(id, "Recipient id")?;
-  run_in_immediate_tx(conn, |conn| {
+  let order_id = run_in_immediate_tx(conn, |conn| {
     let (order_id, payout_tx): (String, Option<String>) = conn
       .query_row(
         r#"SELECT "orderId", "payoutTransactionId" FROM "AccountOrderRecipient"
@@ -1895,7 +1944,9 @@ pub(crate) fn delete_account_order_recipient_inner(
       params![now, id],
     )?;
     Ok(order_id)
-  })
+  })?;
+  sync_order_status_from_remaining(conn, &order_id)?;
+  Ok(order_id)
 }
 
 #[tauri::command]
@@ -2290,6 +2341,39 @@ mod tests {
     assert_eq!(net(&conn, "Customer One"), -500);
     assert_eq!(net(&conn, FEE_INCOME_WALLET_NAME), 0);
     assert_eq!(net(&conn, OPENING_EQUITY_WALLET_NAME), 0);
+  }
+
+  #[test]
+  fn order_status_completed_when_remaining_zero() {
+    let conn = setup();
+    let order = create_account_order_inner(&conn, "u1", create_input("1000", "0")).unwrap();
+    assert_eq!(order.status, "OPEN");
+    save_account_order_recipient_inner(
+      &conn,
+      "u1",
+      recipient_input(&order.id, "600", "0"),
+    )
+    .unwrap();
+    let d = map_detail(&conn, &order.id).unwrap();
+    assert_eq!(d.totals.remaining_amount, "400");
+    assert_eq!(d.status, "OPEN");
+
+    save_account_order_recipient_inner(
+      &conn,
+      "u1",
+      recipient_input(&order.id, "400", "0"),
+    )
+    .unwrap();
+    let d = map_detail(&conn, &order.id).unwrap();
+    assert_eq!(d.totals.remaining_amount, "0");
+    assert_eq!(d.status, "COMPLETED");
+
+    // Freeing capacity reopens the order.
+    let rid = first_recipient_id(&d);
+    delete_account_order_recipient_inner(&conn, &rid).unwrap();
+    let d = map_detail(&conn, &order.id).unwrap();
+    assert!(d.totals.remaining_amount.parse::<i64>().unwrap() > 0);
+    assert_eq!(d.status, "OPEN");
   }
 
   #[test]
