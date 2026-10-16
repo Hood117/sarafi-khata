@@ -1460,11 +1460,11 @@ pub fn archive_account_order(
 
 // ─── Recipients ──────────────────────────────────────────────────────────────
 
-/// Returns the order id. Never posts to the ledger (payouts happen on complete).
+/// Returns `(order_id, recipient_id)`. Leaves recipient `PENDING` (payouts via complete / save).
 pub(crate) fn upsert_account_order_recipient_inner(
   conn: &Connection,
   input: UpsertAccountOrderRecipientInput,
-) -> Result<String, AppError> {
+) -> Result<(String, String), AppError> {
   let order_id = require_nonempty(&input.order_id, "Order id")?;
   let recipient_date = require_nonempty(&input.recipient_date, "Recipient date")?;
   ensure_order_exists(conn, &order_id)?;
@@ -1499,7 +1499,7 @@ pub(crate) fn upsert_account_order_recipient_inner(
   let fee_s = percent_cp_to_string(fee_cp)?;
   let recipient_id = trim_opt(input.id);
 
-  run_in_immediate_tx(conn, |conn| {
+  let saved_recipient_id = run_in_immediate_tx(conn, |conn| {
     let now = now_sqlite();
 
     // Existing recipient state (edit path).
@@ -1588,6 +1588,7 @@ pub(crate) fn upsert_account_order_recipient_inner(
       if n == 0 {
         return Err(AppError::NotFound("Recipient was not found.".into()));
       }
+      Ok(rid.clone())
     } else {
       let id = uuid::Uuid::new_v4().to_string();
       let recipient_number = next_recipient_number(conn)?;
@@ -1611,10 +1612,40 @@ pub(crate) fn upsert_account_order_recipient_inner(
           now,
         ],
       )?;
+      Ok(id)
     }
-    Ok(())
   })?;
 
+  Ok((order_id, saved_recipient_id))
+}
+
+/// Upsert then immediately complete (ledger payout, or status-only for legacy tracking orders).
+pub(crate) fn save_account_order_recipient_inner(
+  conn: &Connection,
+  actor_id: &str,
+  input: UpsertAccountOrderRecipientInput,
+) -> Result<String, AppError> {
+  let (order_id, recipient_id) = upsert_account_order_recipient_inner(conn, input)?;
+  let order_tx: Option<String> = conn.query_row(
+    r#"SELECT "transactionId" FROM "AccountOrder" WHERE id = ?1 AND deletedAt IS NULL"#,
+    [&order_id],
+    |row| row.get(0),
+  )?;
+  if order_tx
+    .as_deref()
+    .map(str::trim)
+    .is_some_and(|s| !s.is_empty())
+  {
+    complete_account_order_recipient_inner(conn, actor_id, &recipient_id)?;
+  } else {
+    let now = now_sqlite();
+    conn.execute(
+      r#"UPDATE "AccountOrderRecipient"
+         SET status = 'COMPLETED', "updatedAt" = ?1
+         WHERE id = ?2 AND deletedAt IS NULL"#,
+      params![now, recipient_id],
+    )?;
+  }
   Ok(order_id)
 }
 
@@ -1624,8 +1655,8 @@ pub fn upsert_account_order_recipient(
   input: UpsertAccountOrderRecipientInput,
 ) -> Result<AccountOrderDetail, AppError> {
   let conn = state.db.lock();
-  let _actor = require_screen_write(&state, &conn, SCREEN)?;
-  let order_id = upsert_account_order_recipient_inner(&conn, input)?;
+  let actor = require_screen_write(&state, &conn, SCREEN)?;
+  let order_id = save_account_order_recipient_inner(&conn, &actor.id, input)?;
   map_detail(&conn, &order_id)
 }
 
@@ -2221,14 +2252,31 @@ mod tests {
   }
 
   #[test]
+  fn save_recipient_auto_completes_payout() {
+    let conn = setup();
+    let order = create_account_order_inner(&conn, "u1", create_input("1000", "3")).unwrap();
+    let oid = save_account_order_recipient_inner(
+      &conn,
+      "u1",
+      recipient_input(&order.id, "400", "5"),
+    )
+    .unwrap();
+    let d = map_detail(&conn, &oid).unwrap();
+    assert_eq!(d.recipients[0].status, "COMPLETED");
+    assert!(d.recipients[0].payout_transaction_id.is_some());
+    assert_eq!(net(&conn, "Main Vault"), -380);
+    assert_all_balanced(&conn);
+  }
+
+  #[test]
   fn payout_posts_balanced_entries_and_completes() {
     let conn = setup();
     let order = create_account_order_inner(&conn, "u1", create_input("1000", "3")).unwrap();
     let oid = order.id.clone();
     let after = upsert_account_order_recipient_inner(&conn, recipient_input(&oid, "400", "5"))
-      .and_then(|id| map_detail(&conn, &id))
+      .and_then(|(id, _)| map_detail(&conn, &id))
       .unwrap();
-    // Upsert never posts.
+    // Raw upsert leaves PENDING (save_ / command auto-completes).
     assert_eq!(after.recipients[0].status, "PENDING");
     assert!(after.recipients[0].payout_transaction_id.is_none());
     assert_eq!(net(&conn, "Main Vault"), 0);
@@ -2495,15 +2543,20 @@ mod tests {
       .unwrap();
     assert_eq!(txs, 0);
 
-    // Recipients can be tracked, but payout is blocked without a purchase posting.
-    upsert_account_order_recipient_inner(&conn, recipient_input("legacy", "100", "0")).unwrap();
-    let d = map_detail(&conn, "legacy").unwrap();
-    let msg = err_text(complete_account_order_recipient_inner(
+    // Legacy: save marks COMPLETED without posting; raw complete still blocked.
+    save_account_order_recipient_inner(
       &conn,
       "u1",
-      &first_recipient_id(&d),
-    ));
-    assert!(msg.contains("no ledger purchase"), "{msg}");
+      recipient_input("legacy", "100", "0"),
+    )
+    .unwrap();
+    let d = map_detail(&conn, "legacy").unwrap();
+    assert_eq!(d.recipients[0].status, "COMPLETED");
+    assert!(d.recipients[0].payout_transaction_id.is_none());
+    let txs: i64 = conn
+      .query_row(r#"SELECT COUNT(*) FROM "Transaction""#, [], |r| r.get(0))
+      .unwrap();
+    assert_eq!(txs, 0);
   }
 
   #[test]

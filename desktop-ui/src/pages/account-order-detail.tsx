@@ -245,10 +245,10 @@ export function AccountOrderDetailPage() {
     }
     setSavingRecipient(true);
     setFormError(null);
-    const editingId = editRecipientId;
     try {
-      let updated = await upsertAccountOrderRecipient({
-        id: editingId ?? undefined,
+      // Backend save upserts + completes the payout in one step.
+      const updated = await upsertAccountOrderRecipient({
+        id: editRecipientId ?? undefined,
         orderId: detail.id,
         customerId:
           recipientMode === "existing" ? recipientCustomerId.trim() : null,
@@ -264,17 +264,6 @@ export function AccountOrderDetailPage() {
         amount: recipientAmount.trim(),
         distributionFeePercent: recipientFeePercent.trim() || "0",
       });
-      // Ledger orders: saving a recipient posts the payout immediately.
-      if (updated.transactionId) {
-        const target =
-          updated.recipients.find((r) =>
-            editingId ? r.id === editingId : r.status.toUpperCase() === "PENDING",
-          ) ??
-          updated.recipients[updated.recipients.length - 1];
-        if (target && target.status.toUpperCase() !== "COMPLETED") {
-          updated = await completeAccountOrderRecipient(target.id);
-        }
-      }
       setDetail(updated);
       void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
         (res) => setCustomers(res.items),
