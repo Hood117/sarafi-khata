@@ -56,6 +56,7 @@ export function AccountOrderDetailPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
   const [savingRecipient, setSavingRecipient] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(false);
 
   const [name, setName] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -76,7 +77,6 @@ export function AccountOrderDetailPage() {
   const [recipientDate, setRecipientDate] = useState(todayIso());
   const [recipientAmount, setRecipientAmount] = useState("");
   const [recipientFeePercent, setRecipientFeePercent] = useState("0");
-  const [completingId, setCompletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -87,16 +87,26 @@ export function AccountOrderDetailPage() {
         listAccountOrders({ page: 1, pageSize: 40 }),
         listCurrenciesPage({ activeOnly: true, pageSize: 200 }),
       ]);
-      setDetail(order);
+      // Finish any leftover pending payouts from older saves (now auto-complete on save).
+      let resolved = order;
+      if (order.transactionId && canWrite) {
+        for (const row of order.recipients) {
+          if (row.status.toUpperCase() === "PENDING") {
+            resolved = await completeAccountOrderRecipient(row.id);
+          }
+        }
+      }
+      setDetail(resolved);
       setOrderList(list.items);
       setCurrencies(ccy.items);
-      setName(order.name);
-      setCustomerId(order.customerId ?? "");
-      setCurrencyCode(order.currencyCode);
-      setOrderDate(String(order.orderDate).slice(0, 10));
-      setOriginalAmount(order.originalAmount);
-      setPurchaseDeductionPercent(order.purchaseDeductionPercent);
-      setStatus(order.status);
+      setName(resolved.name);
+      setCustomerId(resolved.customerId ?? "");
+      setCurrencyCode(resolved.currencyCode);
+      setOrderDate(String(resolved.orderDate).slice(0, 10));
+      setOriginalAmount(resolved.originalAmount);
+      setPurchaseDeductionPercent(resolved.purchaseDeductionPercent);
+      setStatus(resolved.status);
+      setEditingOrder(false);
       setError(null);
     } catch (err) {
       setError(errorMessage(err, t.errors.loadGeneric));
@@ -104,11 +114,28 @@ export function AccountOrderDetailPage() {
     } finally {
       setBusy(false);
     }
-  }, [id, t.errors.loadGeneric]);
+  }, [canWrite, id, t.errors.loadGeneric]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  function applyOrderFields(order: AccountOrderDetail) {
+    setName(order.name);
+    setCustomerId(order.customerId ?? "");
+    setCurrencyCode(order.currencyCode);
+    setOrderDate(String(order.orderDate).slice(0, 10));
+    setOriginalAmount(order.originalAmount);
+    setPurchaseDeductionPercent(order.purchaseDeductionPercent);
+    setStatus(order.status);
+  }
+
+  function cancelEditOrder() {
+    if (!detail) return;
+    applyOrderFields(detail);
+    setEditingOrder(false);
+    setFormError(null);
+  }
 
   useEffect(() => {
     void listCustomersPage({ archiveFilter: "active", pageSize: 200 })
@@ -166,7 +193,7 @@ export function AccountOrderDetailPage() {
 
   async function onSaveOrder(e: FormEvent) {
     e.preventDefault();
-    if (!detail || !canWrite || savingOrder) return;
+    if (!detail || !canWrite || !editingOrder || savingOrder) return;
     if (!customerId.trim() && detail.transactionId) {
       setFormError(t.accountOrders.customerRequired);
       return;
@@ -186,6 +213,8 @@ export function AccountOrderDetailPage() {
         status,
       });
       setDetail(updated);
+      applyOrderFields(updated);
+      setEditingOrder(false);
       showSuccess(t.common.success);
       void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
         (res) => setCustomers(res.items),
@@ -216,9 +245,10 @@ export function AccountOrderDetailPage() {
     }
     setSavingRecipient(true);
     setFormError(null);
+    const editingId = editRecipientId;
     try {
-      const updated = await upsertAccountOrderRecipient({
-        id: editRecipientId ?? undefined,
+      let updated = await upsertAccountOrderRecipient({
+        id: editingId ?? undefined,
         orderId: detail.id,
         customerId:
           recipientMode === "existing" ? recipientCustomerId.trim() : null,
@@ -234,6 +264,17 @@ export function AccountOrderDetailPage() {
         amount: recipientAmount.trim(),
         distributionFeePercent: recipientFeePercent.trim() || "0",
       });
+      // Ledger orders: saving a recipient posts the payout immediately.
+      if (updated.transactionId) {
+        const target =
+          updated.recipients.find((r) =>
+            editingId ? r.id === editingId : r.status.toUpperCase() === "PENDING",
+          ) ??
+          updated.recipients[updated.recipients.length - 1];
+        if (target && target.status.toUpperCase() !== "COMPLETED") {
+          updated = await completeAccountOrderRecipient(target.id);
+        }
+      }
       setDetail(updated);
       void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
         (res) => setCustomers(res.items),
@@ -247,21 +288,6 @@ export function AccountOrderDetailPage() {
       setFormError(errorMessage(err, t.accountOrders.overDistribution));
     } finally {
       setSavingRecipient(false);
-    }
-  }
-
-  async function onCompletePayout(row: AccountOrderRecipientRow) {
-    if (!canWrite || !detail?.transactionId) return;
-    setCompletingId(row.id);
-    setFormError(null);
-    try {
-      const updated = await completeAccountOrderRecipient(row.id);
-      setDetail(updated);
-      showSuccess(t.common.success);
-    } catch (err) {
-      setFormError(errorMessage(err, t.errors.genericTryAgain));
-    } finally {
-      setCompletingId(null);
     }
   }
 
@@ -391,8 +417,9 @@ export function AccountOrderDetailPage() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={!canWrite}
-                  required
+                  disabled={!editingOrder}
+                  readOnly={!editingOrder}
+                  required={editingOrder}
                 />
               </label>
               <label className="field">
@@ -405,35 +432,57 @@ export function AccountOrderDetailPage() {
                   type="date"
                   value={orderDate}
                   onChange={(e) => setOrderDate(e.target.value)}
-                  disabled={!canWrite}
-                  required
+                  disabled={!editingOrder}
+                  required={editingOrder}
                 />
               </label>
-              <SearchableSelect
-                label={t.accountOrders.linkedCustomer}
-                value={customerId}
-                options={customerOptions}
-                onChange={setCustomerId}
-                disabled={!canWrite}
-                placeholder={t.accountOrders.optionalCustomer}
-              />
-              <CurrencyPicker
-                label={t.common.currency}
-                currencies={currencies}
-                value={currencyCode}
-                onChange={setCurrencyCode}
-                onCurrenciesChange={setCurrencies}
-                emptyLabel={t.common.noData}
-                searchPlaceholder={t.common.search}
-                required
-                allowManage={false}
-              />
+              {editingOrder ? (
+                <SearchableSelect
+                  label={t.accountOrders.linkedCustomer}
+                  value={customerId}
+                  options={customerOptions}
+                  onChange={setCustomerId}
+                  placeholder={t.accountOrders.optionalCustomer}
+                />
+              ) : (
+                <label className="field">
+                  <span>{t.accountOrders.linkedCustomer}</span>
+                  <input
+                    value={
+                      detail.customerName
+                        ? detail.customerCode
+                          ? `${detail.customerName} (${detail.customerCode})`
+                          : detail.customerName
+                        : "—"
+                    }
+                    readOnly
+                  />
+                </label>
+              )}
+              {editingOrder ? (
+                <CurrencyPicker
+                  label={t.common.currency}
+                  currencies={currencies}
+                  value={currencyCode}
+                  onChange={setCurrencyCode}
+                  onCurrenciesChange={setCurrencies}
+                  emptyLabel={t.common.noData}
+                  searchPlaceholder={t.common.search}
+                  required
+                  allowManage={false}
+                />
+              ) : (
+                <label className="field">
+                  <span>{t.common.currency}</span>
+                  <input value={currencyCode} readOnly dir="ltr" />
+                </label>
+              )}
               <label className="field">
                 <span>{t.common.status}</span>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  disabled={!canWrite}
+                  disabled={!editingOrder}
                 >
                   <option value="OPEN">{t.accountOrders.statusOpen}</option>
                   <option value="COMPLETED">{t.accountOrders.statusCompleted}</option>
@@ -447,8 +496,9 @@ export function AccountOrderDetailPage() {
                   onChange={(e) => setOriginalAmount(e.target.value)}
                   inputMode="decimal"
                   dir="ltr"
-                  disabled={!canWrite}
-                  required
+                  disabled={!editingOrder}
+                  readOnly={!editingOrder}
+                  required={editingOrder}
                 />
               </label>
               <label className="field">
@@ -458,7 +508,8 @@ export function AccountOrderDetailPage() {
                   onChange={(e) => setPurchaseDeductionPercent(e.target.value)}
                   inputMode="decimal"
                   dir="ltr"
-                  disabled={!canWrite}
+                  disabled={!editingOrder}
+                  readOnly={!editingOrder}
                 />
               </label>
               <label className="field">
@@ -479,10 +530,38 @@ export function AccountOrderDetailPage() {
               </label>
             </div>
             {canWrite ? (
-              <div className="row gap end">
-                <button type="submit" className="btn primary" disabled={savingOrder}>
-                  {t.accountOrders.saveOrder}
-                </button>
+              <div className="row gap end account-order-entry-actions">
+                {editingOrder ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={cancelEditOrder}
+                      disabled={savingOrder}
+                    >
+                      {t.common.cancel}
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn primary"
+                      disabled={savingOrder}
+                    >
+                      {t.accountOrders.saveOrder}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      applyOrderFields(detail);
+                      setEditingOrder(true);
+                      setFormError(null);
+                    }}
+                  >
+                    {t.accountOrders.editOrder}
+                  </button>
+                )}
               </div>
             ) : null}
           </form>
@@ -675,23 +754,12 @@ export function AccountOrderDetailPage() {
                       {canWrite ? (
                         <td>
                           <div className="row gap wrap">
-                            {row.status.toUpperCase() !== "COMPLETED" &&
-                            detail.transactionId ? (
-                              <button
-                                type="button"
-                                className="btn small primary"
-                                disabled={completingId === row.id}
-                                onClick={() => void onCompletePayout(row)}
-                              >
-                                {t.accountOrders.completePayout}
-                              </button>
-                            ) : null}
                             <button
                               type="button"
                               className="btn small"
                               onClick={() => startEditRecipient(row)}
                             >
-                              {t.common.edit}
+                              {t.common.editAction}
                             </button>
                             <button
                               type="button"
