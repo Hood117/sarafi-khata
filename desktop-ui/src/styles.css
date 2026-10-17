@@ -8284,17 +8284,29 @@ button.partner-settle-btn:disabled {
 .page-account-orders table.data-table th.num,
 .page-account-orders table.data-table td.num,
 .account-order-desk table.data-table th.num,
-.account-order-desk table.data-table td.num {
-  text-align: end;
-  font-variant-numeric: tabular-nums;
-}
-
+.account-order-desk table.data-table td.num,
 .page-account-orders table.data-table th.col-date,
 .page-account-orders table.data-table td.col-date,
 .account-order-desk table.data-table th.col-date,
-.account-order-desk table.data-table td.col-date {
+.account-order-desk table.data-table td.col-date,
+.page-account-orders table.data-table th.col-center,
+.page-account-orders table.data-table td.col-center,
+.account-order-desk table.data-table th.col-center,
+.account-order-desk table.data-table td.col-center {
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.page-account-orders table.data-table td.col-center,
+.account-order-desk table.data-table td.col-center {
+  vertical-align: middle;
+}
+
+.page-account-orders table.data-table td.col-center .currency-code-with-flag,
+.account-order-desk table.data-table td.col-center .currency-code-with-flag {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
 }
 
 .btn.small {

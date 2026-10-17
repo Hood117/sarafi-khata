@@ -281,7 +281,7 @@ export function AccountOrdersPage() {
               <th>{t.accountOrders.orderName}</th>
               <th>{t.accountOrders.linkedCustomer}</th>
               <th className="col-date">{t.accountOrders.orderDate}</th>
-              <th>{t.common.currency}</th>
+              <th className="col-center">{t.common.currency}</th>
               <th className="num">{t.accountOrders.originalAmount}</th>
               <th className="num">{t.accountOrders.remainingAmount}</th>
               <th className="num">{t.accountOrders.netBenefit}</th>
@@ -314,7 +314,7 @@ export function AccountOrdersPage() {
                 <td className="col-date" dir="ltr">
                   {String(row.orderDate).slice(0, 10)}
                 </td>
-                <td>
+                <td className="col-center">
                   <CurrencyCodeWithFlag code={row.currencyCode} />
                 </td>
                 <td className="num amount-emphasis" dir="ltr">

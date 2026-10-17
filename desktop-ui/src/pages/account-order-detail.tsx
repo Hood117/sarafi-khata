@@ -567,7 +567,7 @@ export function AccountOrderDetailPage() {
             </h2>
             <div className="account-order-entry-grid">
               <label className="field">
-                <span>{t.accountOrders.recipientCustomer}</span>
+                <span>{t.accountOrders.recipientType}</span>
                 <select
                   value={recipientMode}
                   onChange={(e) =>
@@ -695,7 +695,7 @@ export function AccountOrderDetailPage() {
                     <th className="num">{t.accountOrders.distributionFeePercent}</th>
                     <th className="num">{t.accountOrders.distributionFeeAmount}</th>
                     <th className="num">{t.accountOrders.netRecipientAmount}</th>
-                    <th>{t.common.currency}</th>
+                    <th className="col-center">{t.common.currency}</th>
                     <th>{t.common.status}</th>
                     {canWrite ? <th /> : null}
                   </tr>
@@ -740,7 +740,7 @@ export function AccountOrderDetailPage() {
                       <td className="num amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.netAmount)}
                       </td>
-                      <td>
+                      <td className="col-center">
                         <CurrencyCodeWithFlag code={detail.currencyCode} />
                       </td>
                       <td>

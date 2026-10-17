@@ -1996,6 +1996,7 @@ export type Dictionary = {
     netRecipientAmount: string;
     detail: string;
     recipientDate: string;
+    recipientType: string;
     recipientCustomer: string;
     newRecipientCustomer: string;
     completePayout: string;
