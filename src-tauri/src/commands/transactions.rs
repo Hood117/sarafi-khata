@@ -279,6 +279,10 @@ fn activity_label(tx_type: &str, reference: &str, description: Option<&str>) -> 
     "TRANSFER" => "Transfer".into(),
     "TRADE_BUY" => "Trading purchase".into(),
     "TRADE_SELL" => "Trading sale".into(),
+    "ACCOUNT_ORDER" => description
+      .map(|d| d.trim().to_string())
+      .filter(|d| !d.is_empty())
+      .unwrap_or_else(|| "Account order".into()),
     other => other.to_string(),
   }
 }
@@ -304,6 +308,7 @@ fn ledger_history_description(
     "EXCHANGE" => "Currency exchange".into(),
     "HAWALA" => "Hawala".into(),
     "EXPENSE" => "Expense".into(),
+    "ACCOUNT_ORDER" => "Account order".into(),
     "ADJUSTMENT" => {
       let r = reference.trim();
       if r.is_empty() {
@@ -530,6 +535,122 @@ pub fn list_customer_ledger(
       balance_after: *entry,
     });
   }
+
+  // Account Order cash payouts set Transaction.customerId to the recipient but do
+  // not post to their CUSTOMER wallet (cash leaves Main Vault). Include those so
+  // the daybook description also appears on the recipient's history — without
+  // changing their running balance.
+  let mut linked_sql = String::from(
+    r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, t.description,
+              t.valueDate, t.createdAt, c.code,
+              COALESCE(SUM(
+                CASE WHEN le.direction = 'CREDIT' AND w.name = 'Account Order Clearing'
+                     THEN CAST(le.amount AS REAL) ELSE 0 END
+              ), 0)
+       FROM "Transaction" t
+       INNER JOIN LedgerEntry le ON le.transactionId = t.id
+       INNER JOIN Wallet w ON w.id = le.walletId
+       INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
+       WHERE t.deletedAt IS NULL
+         AND t.customerId = ?1
+         AND UPPER(t.type) = 'ACCOUNT_ORDER'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM LedgerEntry le2
+           INNER JOIN Wallet w2 ON w2.id = le2.walletId
+           WHERE le2.transactionId = t.id
+             AND w2.customerId = ?1
+             AND w2.type = 'CUSTOMER'
+             AND w2.deletedAt IS NULL
+         )"#,
+  );
+  let mut linked_params: Vec<Box<dyn rusqlite::types::ToSql>> =
+    vec![Box::new(customer_id.clone())];
+  if let Some(ref from) = date_from {
+    linked_sql.push_str(" AND t.valueDate >= ?");
+    linked_params.push(Box::new(from.clone()));
+  }
+  if let Some(ref to) = date_to {
+    linked_sql.push_str(" AND t.valueDate < date(?, '+1 day')");
+    linked_params.push(Box::new(to.clone()));
+  }
+  if let Some(ref cf) = currency_filter {
+    linked_sql.push_str(" AND c.code = ?");
+    linked_params.push(Box::new(cf.clone()));
+  }
+  linked_sql.push_str(
+    " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description,
+              t.valueDate, t.createdAt, t.displaySeq, c.code",
+  );
+  let linked_refs: Vec<&dyn rusqlite::types::ToSql> =
+    linked_params.iter().map(|p| p.as_ref()).collect();
+  let mut linked_stmt = conn.prepare(&linked_sql)?;
+  for row in linked_stmt.query_map(linked_refs.as_slice(), |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, String>(2)?,
+      row.get::<_, String>(3)?,
+      row.get::<_, String>(4)?,
+      row.get::<_, Option<String>>(5)?,
+      row.get::<_, String>(6)?,
+      row.get::<_, String>(7)?,
+      row.get::<_, String>(8)?,
+      row.get::<_, f64>(9)?,
+    ))
+  })? {
+    let (
+      id,
+      reference,
+      display_ref,
+      tx_type,
+      status,
+      description,
+      value_date,
+      created_at,
+      code,
+      payout_amount,
+    ) = row?;
+    let type_ok = type_filter
+      .as_ref()
+      .map(|tf| tx_type.eq_ignore_ascii_case(tf))
+      .unwrap_or(true);
+    if !type_ok {
+      continue;
+    }
+    if display.iter().any(|l| l.id == id && l.currency_code == code) {
+      continue;
+    }
+    let balance_after = running.get(&code).copied().unwrap_or(0.0);
+    display.push(RawLine {
+      id,
+      reference,
+      display_ref,
+      tx_type,
+      status,
+      description,
+      value_date,
+      created_at,
+      currency_code: code,
+      debit: 0.0,
+      credit: payout_amount,
+      balance_after,
+    });
+  }
+  display.sort_by(|a, b| {
+    (
+      a.value_date.as_str(),
+      a.created_at.as_str(),
+      a.id.as_str(),
+      a.currency_code.as_str(),
+    )
+      .cmp(&(
+        b.value_date.as_str(),
+        b.created_at.as_str(),
+        b.id.as_str(),
+        b.currency_code.as_str(),
+      ))
+  });
 
   let total = display.len() as i64;
   let total_pages = if total == 0 {
