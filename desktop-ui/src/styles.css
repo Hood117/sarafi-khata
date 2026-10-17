@@ -8433,21 +8433,27 @@ button.danger:hover:not(:disabled) {
   margin-top: auto;
   margin-inline-start: auto;
   margin-bottom: 0.55rem;
-  justify-content: space-between;
-  align-items: stretch;
-  gap: 0.45rem;
   z-index: 12;
   background: var(--surface);
   padding: 0.4rem 0.65rem;
   box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
 }
 
 .account-order-footer .stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 5rem;
-  flex: 1 1 auto;
+  /* Label then amount inline. In RTL the amount sits to the left of the label. */
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+  unicode-bidi: isolate;
 }
 
 @media (max-width: 960px) {
@@ -8458,20 +8464,24 @@ button.danger:hover:not(:disabled) {
 }
 
 .account-order-footer .stat .muted {
-  font-size: 0.75rem;
-  line-height: 1.15;
+  font-size: 0.78rem;
+  line-height: 1.2;
   font-weight: 600;
   color: color-mix(in srgb, var(--ink) 72%, transparent);
+  white-space: nowrap;
 }
 
 .account-order-footer .stat .amount-emphasis,
 .account-order-footer .stat strong {
-  font-size: 1.08rem;
+  font-size: 1.05rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
   letter-spacing: -0.02em;
-  line-height: 1.25;
+  line-height: 1.2;
+  direction: ltr;
+  unicode-bidi: isolate;
+  white-space: nowrap;
 }
 
 .account-order-desk .amount-emphasis,
@@ -8493,22 +8503,26 @@ button.danger:hover:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
-.account-order-fee-total {
-  background: color-mix(in srgb, #0d9488 18%, transparent);
+.account-order-fee-total,
+.account-order-net-benefit {
   border-radius: 0.35rem;
   padding: 0.3rem 0.5rem;
+  min-width: 0;
+}
+
+.account-order-fee-total {
+  background: color-mix(in srgb, #0d9488 18%, transparent);
 }
 
 .account-order-net-benefit {
   background: color-mix(in srgb, var(--brand, #0f6b4c) 14%, transparent);
-  border-radius: 0.35rem;
-  padding: 0.3rem 0.5rem;
 }
 
 .account-order-net-benefit .amount-emphasis {
   font-size: 1.15rem;
   color: var(--brand-deep, #0a4d38);
 }
+
 
 .account-order-list tbody tr.customer-row-clickable:hover > td {
   background-color: var(--table-row-hover, color-mix(in srgb, var(--brand, #0f6b4c) 10%, transparent));

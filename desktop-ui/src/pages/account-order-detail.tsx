@@ -775,40 +775,40 @@ export function AccountOrderDetailPage() {
         </section>
       </div>
 
-      <footer className="account-order-footer section-card row wrap gap">
+      <footer className="account-order-footer section-card">
         <div className="stat">
           <span className="muted">{t.accountOrders.originalAmount}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {formatAmountDisplay(detail.originalAmount)}
           </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.totalDistributed}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {formatAmountDisplay(totals.totalDistributed)}
           </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.remainingAmount}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {formatAmountDisplay(totals.remainingAmount)}
           </strong>
         </div>
         <div className="stat account-order-fee-total">
           <span className="muted">{t.accountOrders.totalDistributionFees}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {formatAmountDisplay(totals.totalDistributionFees)}
           </strong>
         </div>
         <div className="stat">
           <span className="muted">{t.accountOrders.recipients}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {totals.completedCount}/{totals.recipientCount}
           </strong>
         </div>
         <div className="stat account-order-net-benefit">
           <span className="muted">{t.accountOrders.netBenefit}</span>
-          <strong className="amount-emphasis" dir="ltr">
+          <strong className="amount-emphasis">
             {formatAmountDisplay(totals.netBenefit ?? totals.netProfit)}
           </strong>
         </div>
