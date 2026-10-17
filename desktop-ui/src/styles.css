@@ -8289,6 +8289,14 @@ button.partner-settle-btn:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.page-account-orders table.data-table th.col-date,
+.page-account-orders table.data-table td.col-date,
+.account-order-desk table.data-table th.col-date,
+.account-order-desk table.data-table td.col-date {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .btn.small {
   padding: 0.2rem 0.45rem;
   font-size: 0.82rem;

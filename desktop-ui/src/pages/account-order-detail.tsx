@@ -689,7 +689,7 @@ export function AccountOrderDetailPage() {
                     <th>#</th>
                     <th>{t.accountOrders.recipientId}</th>
                     <th>{t.accountOrders.recipientName}</th>
-                    <th>{t.accountOrders.recipientDate}</th>
+                    <th className="col-date">{t.accountOrders.recipientDate}</th>
                     <th>{t.accountOrders.detail}</th>
                     <th className="num">{t.accountOrders.recipientAmount}</th>
                     <th className="num">{t.accountOrders.distributionFeePercent}</th>
@@ -724,7 +724,9 @@ export function AccountOrderDetailPage() {
                           <span className="muted"> ({row.customerCode})</span>
                         ) : null}
                       </td>
-                      <td dir="ltr">{String(row.recipientDate).slice(0, 10)}</td>
+                      <td className="col-date" dir="ltr">
+                        {String(row.recipientDate).slice(0, 10)}
+                      </td>
                       <td>{row.detail ?? "—"}</td>
                       <td className="num amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.amount)}
