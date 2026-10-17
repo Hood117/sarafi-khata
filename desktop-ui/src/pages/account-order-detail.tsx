@@ -586,7 +586,7 @@ export function AccountOrderDetailPage() {
                   options={customerOptions}
                   onChange={setRecipientCustomerId}
                   disabled={!canWrite}
-                  placeholder={t.accountOrders.customerRequired}
+                  placeholder=""
                 />
               ) : (
                 <>
