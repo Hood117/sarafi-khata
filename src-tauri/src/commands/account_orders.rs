@@ -1710,6 +1710,7 @@ pub(crate) fn complete_account_order_recipient_inner(
     let (
       order_id,
       order_number,
+      order_name,
       order_tx,
       order_status,
       recipient_number,
@@ -1724,6 +1725,7 @@ pub(crate) fn complete_account_order_recipient_inner(
     ): (
       String,
       i64,
+      String,
       Option<String>,
       String,
       i64,
@@ -1737,7 +1739,7 @@ pub(crate) fn complete_account_order_recipient_inner(
       i64,
     ) = conn
       .query_row(
-        r#"SELECT o.id, o."orderNumber", o."transactionId", o.status,
+        r#"SELECT o.id, o."orderNumber", o.name, o."transactionId", o.status,
                   r."recipientNumber", r."customerId", r.name, r.status,
                   r."payoutTransactionId",
                   CAST(r.amount AS TEXT), CAST(r."distributionFeePercent" AS TEXT),
@@ -1762,6 +1764,7 @@ pub(crate) fn complete_account_order_recipient_inner(
             row.get(10)?,
             row.get(11)?,
             row.get(12)?,
+            row.get(13)?,
           ))
         },
       )
@@ -1833,7 +1836,8 @@ pub(crate) fn complete_account_order_recipient_inner(
         walk_in_name: None,
         walk_in_phone: None,
         description: Some(format!(
-          "Account order #{order_number} payout to {name} (R{recipient_number})"
+          "Order #{order_number} ({order_name}) payout to {name} ({}%)",
+          fee_raw.trim()
         )),
         created_by_id: Some(actor_id.to_string()),
       },
