@@ -8430,16 +8430,46 @@ button.danger:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  /* Fill the shell viewport so the totals bar stays pinned near the bottom. */
+  /* Prefer flex fill under the sticky chrome (see accountOrders shell rules).
+     Fallback keeps room for tab bar + Quick Actions (~8.5rem). */
   height: calc(
-    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 4.75rem
+    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 8.5rem
   );
   max-height: calc(
-    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 4.75rem
+    100dvh - var(--shell-pad-y) - var(--shell-pad-bottom) - 8.5rem
   );
   min-height: 0;
   overflow: hidden;
   padding-bottom: 0.35rem;
+}
+
+/* Order detail: lock shell scroll so topbar (Quick Actions) stays visible;
+   the desk itself scrolls internally. */
+.app-shell[data-screen="accountOrders"]:has(.account-order-desk) {
+  overflow: hidden;
+}
+
+.app-shell[data-screen="accountOrders"]:has(.account-order-desk) > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="accountOrders"]:has(.account-order-desk) > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  gap: 0.45rem;
+}
+
+.app-shell[data-screen="accountOrders"]:has(.account-order-desk)
+  > .app-main
+  > .account-order-desk {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
 }
 
 .account-order-desk > .account-order-layout {
