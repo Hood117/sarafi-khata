@@ -30,5 +30,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "src-tauri", "src/generated", "**/*.test.ts", "**/*.test.tsx"]
+  "exclude": [
+    "node_modules",
+    "src-tauri",
+    "src/generated",
+    "desktop-ui",
+    "license-server",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }

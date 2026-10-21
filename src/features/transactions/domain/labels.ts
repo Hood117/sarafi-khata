@@ -10,6 +10,7 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   TRANSFER: "Transfer",
   HAWALA: "Hawala",
   ADJUSTMENT: "Adjustment",
+  ACCOUNT_ORDER: "Account order",
 };
 
 export const TRANSACTION_STATUS_LABELS: Record<TransactionStatus, string> = {

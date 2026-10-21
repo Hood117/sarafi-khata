@@ -591,10 +591,16 @@ export function SettingsPage() {
           {error ? <p className="error">{error}</p> : null}
 
           <div className="card settings-general-card">
-            <div className="settings-general-grid">
-              <label>
+            <div className="settings-general-head">
+              <h2>{t.settings.shopPreferences}</h2>
+              <p className="muted">{t.settings.languageHint}</p>
+            </div>
+
+            <div className="settings-general-prefs" role="group" aria-label={t.settings.shopPreferences}>
+              <label className="settings-general-field">
                 <span>{t.settings.language}</span>
                 <select
+                  className="settings-general-select"
                   value={locale}
                   disabled={localeBusy}
                   onChange={(e) => void handleLocaleChange(e.target.value as AppLocale)}
@@ -607,9 +613,10 @@ export function SettingsPage() {
                 </select>
               </label>
 
-              <label>
+              <label className="settings-general-field">
                 <span>{t.settings.textSize}</span>
                 <select
+                  className="settings-general-select"
                   value={fontSize}
                   disabled={textPrefsBusy}
                   onChange={(e) => void handleFontSizeChange(e.target.value as UiFontSize)}
@@ -628,9 +635,10 @@ export function SettingsPage() {
                 </select>
               </label>
 
-              <label>
+              <label className="settings-general-field">
                 <span>{t.settings.appearance}</span>
                 <select
+                  className="settings-general-select"
                   value={theme}
                   disabled={textPrefsBusy}
                   onChange={(e) => void handleThemeChange(e.target.value as UiTheme)}
@@ -652,29 +660,29 @@ export function SettingsPage() {
                   <span className="muted settings-general-hint">{t.settings.boldTextHint}</span>
                 </span>
               </label>
-
-              <form
-                className="settings-general-business"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void handleSaveBusinessName();
-                }}
-              >
-                <label>
-                  <span>{t.settings.businessName}</span>
-                  <input
-                    value={businessNameDraft}
-                    maxLength={120}
-                    required
-                    disabled={businessNameBusy}
-                    onChange={(e) => setBusinessNameDraft(e.target.value)}
-                  />
-                </label>
-                <button type="submit" disabled={businessNameBusy || !businessNameDraft.trim()}>
-                  {businessNameBusy ? t.common.loading : t.common.save}
-                </button>
-              </form>
             </div>
+
+            <form
+              className="settings-general-business"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSaveBusinessName();
+              }}
+            >
+              <label className="settings-general-field settings-general-field--grow">
+                <span>{t.settings.businessName}</span>
+                <input
+                  value={businessNameDraft}
+                  maxLength={120}
+                  required
+                  disabled={businessNameBusy}
+                  onChange={(e) => setBusinessNameDraft(e.target.value)}
+                />
+              </label>
+              <button type="submit" disabled={businessNameBusy || !businessNameDraft.trim()}>
+                {businessNameBusy ? t.common.loading : t.common.save}
+              </button>
+            </form>
           </div>
 
           <SettingsPrinterPanel />

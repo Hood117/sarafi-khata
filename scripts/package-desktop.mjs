@@ -311,11 +311,25 @@ const zipPath = path.join(root, "dist", "Saraf-portable.zip");
 if (existsSync(zipPath)) {
   rmSync(zipPath, { force: true });
 }
-execFileSync(
-  "tar",
-  ["-a", "-c", "-f", zipPath, "-C", path.join(root, "dist"), "saraf-portable"],
-  { stdio: "inherit" },
-);
+// Avoid `tar` here: Git Bash GNU tar treats "E:..." as a remote host, and
+// Windows bsdtar rejects --force-local. Compress-Archive is reliable on win32.
+if (process.platform === "win32") {
+  execFileSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `Compress-Archive -Path ${JSON.stringify(distPortable)} -DestinationPath ${JSON.stringify(zipPath)} -Force`,
+    ],
+    { stdio: "inherit" },
+  );
+} else {
+  execFileSync(
+    "tar",
+    ["-a", "-c", "-f", zipPath, "-C", path.join(root, "dist"), "saraf-portable"],
+    { stdio: "inherit" },
+  );
+}
 
 console.log(`Portable app: ${distPortable}`);
 console.log(`Portable zip: ${zipPath}`);

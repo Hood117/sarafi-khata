@@ -40,24 +40,26 @@ const CATALOG_MODULES: SettingsModule[] = [
 
 function ModuleList({ modules }: { modules: SettingsModule[] }) {
   return (
-    <ul className="space-y-3">
+    <ul className="grid gap-2 sm:grid-cols-2">
       {modules.map((section) => {
         const Icon = section.icon;
 
         return (
-          <li key={section.href}>
+          <li key={section.href} className={section.href === "/partner-sarafi" ? "sm:col-span-2" : undefined}>
             <Link
               href={section.href}
-              className="bg-card hover:bg-muted/40 focus-visible:ring-ring flex items-start gap-4 rounded-xl px-3 py-2 shadow-sm ring-1 ring-foreground/10 transition-colors outline-none focus-visible:ring-3"
+              className="bg-muted/30 hover:bg-muted/55 focus-visible:ring-ring flex items-start gap-3 rounded-xl px-3 py-2.5 ring-1 ring-foreground/8 transition-colors outline-none focus-visible:ring-3"
             >
-              <span className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-lg">
-                <Icon className="size-5" aria-hidden />
+              <span className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg">
+                <Icon className="size-4" aria-hidden />
               </span>
-              <span className="min-w-0 space-y-1">
-                <Typography variant="h4" className="font-semibold">
+              <span className="min-w-0 space-y-0.5">
+                <Typography variant="h4" className="text-sm font-semibold">
                   {section.title}
                 </Typography>
-                <Typography variant="muted">{section.description}</Typography>
+                <Typography variant="muted" className="text-xs leading-snug">
+                  {section.description}
+                </Typography>
               </span>
             </Link>
           </li>
@@ -69,13 +71,12 @@ function ModuleList({ modules }: { modules: SettingsModule[] }) {
 
 export function SettingsModules() {
   return (
-    <div className="space-y-2">
-      <FormSection
-        title="Catalog"
-        description="Manage currencies, exchange rates, and partner sarafis."
-      >
-        <ModuleList modules={CATALOG_MODULES} />
-      </FormSection>
-    </div>
+    <FormSection
+      title="Catalog"
+      description="Manage currencies, exchange rates, and partner sarafis."
+      className="bg-card ring-foreground/10 gap-4 rounded-2xl p-4 shadow-sm ring-1"
+    >
+      <ModuleList modules={CATALOG_MODULES} />
+    </FormSection>
   );
 }

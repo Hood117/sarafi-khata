@@ -11,7 +11,14 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { FormSection } from "@/design-system/form-layout";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FormGrid, FormSection } from "@/design-system/form-layout";
 import { Typography } from "@/design-system/typography";
 import {
   updateAppSettingsAction,
@@ -23,9 +30,6 @@ import type {
   SettingsCurrencyOption,
 } from "@/features/settings/domain/types";
 import { useT } from "@/lib/i18n";
-
-const selectClassName =
-  "border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-lg border px-2.5 text-sm outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50";
 
 type AppSettingsFormValues = {
   businessName: string;
@@ -102,12 +106,13 @@ export function AppSettingsForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-2">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <FormSection
         title={t.settings.shopPreferences}
         description={t.settings.languageHint}
+        className="bg-card ring-foreground/10 gap-4 rounded-2xl p-4 shadow-sm ring-1"
       >
-        <FieldGroup>
+        <FieldGroup className="gap-4">
           <Field data-invalid={fieldErrors.businessName ? true : undefined}>
             <FieldLabel htmlFor="settings-businessName">
               {t.settings.businessName}
@@ -128,72 +133,104 @@ export function AppSettingsForm({
             ) : null}
           </Field>
 
-          <Field
-            data-invalid={fieldErrors.baseCurrencyCode ? true : undefined}
-          >
-            <FieldLabel htmlFor="settings-baseCurrencyCode">
-              {t.settings.baseCurrency}
-            </FieldLabel>
-            <select
-              id="settings-baseCurrencyCode"
-              name="baseCurrencyCode"
-              value={form.baseCurrencyCode}
-              disabled={isSubmitting || currencies.length === 0}
-              aria-invalid={fieldErrors.baseCurrencyCode ? true : undefined}
-              className={selectClassName}
-              onChange={(event) =>
-                updateField("baseCurrencyCode", event.target.value)
-              }
+          <FormGrid columns={2} className="gap-4">
+            <Field
+              data-invalid={fieldErrors.baseCurrencyCode ? true : undefined}
+              className="min-w-0"
             >
-              {currencies.length === 0 ? (
-                <option value="">—</option>
+              <FieldLabel htmlFor="settings-baseCurrencyCode">
+                {t.settings.baseCurrency}
+              </FieldLabel>
+              <Select
+                value={form.baseCurrencyCode || null}
+                onValueChange={(value) =>
+                  updateField(
+                    "baseCurrencyCode",
+                    typeof value === "string" ? value : "",
+                  )
+                }
+                disabled={isSubmitting || currencies.length === 0}
+              >
+                <SelectTrigger
+                  id="settings-baseCurrencyCode"
+                  size="default"
+                  className="w-full max-w-[13rem]"
+                  aria-invalid={
+                    fieldErrors.baseCurrencyCode ? true : undefined
+                  }
+                >
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  side="bottom"
+                  align="start"
+                  className="min-w-[13rem]"
+                >
+                  {currencies.map((currency) => (
+                    <SelectItem key={currency.id} value={currency.code}>
+                      {currency.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.baseCurrencyCode ? (
+                <FieldError>{fieldErrors.baseCurrencyCode}</FieldError>
               ) : null}
-              {currencies.map((currency) => (
-                <option key={currency.id} value={currency.code}>
-                  {currency.label}
-                </option>
-              ))}
-            </select>
-            {fieldErrors.baseCurrencyCode ? (
-              <FieldError>{fieldErrors.baseCurrencyCode}</FieldError>
-            ) : null}
-          </Field>
+            </Field>
 
-          <Field data-invalid={fieldErrors.locale ? true : undefined}>
-            <FieldLabel htmlFor="settings-locale">
-              {t.settings.language}
-            </FieldLabel>
-            <select
-              id="settings-locale"
-              name="locale"
-              value={form.locale}
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.locale ? true : undefined}
-              className={selectClassName}
-              onChange={(event) => updateField("locale", event.target.value)}
+            <Field
+              data-invalid={fieldErrors.locale ? true : undefined}
+              className="min-w-0"
             >
-              {LOCALE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <Typography variant="caption">{t.settings.languageHint}</Typography>
-            {fieldErrors.locale ? (
-              <FieldError>{fieldErrors.locale}</FieldError>
-            ) : null}
-          </Field>
+              <FieldLabel htmlFor="settings-locale">
+                {t.settings.language}
+              </FieldLabel>
+              <Select
+                value={form.locale || null}
+                onValueChange={(value) =>
+                  updateField("locale", typeof value === "string" ? value : "")
+                }
+                disabled={isSubmitting}
+              >
+                <SelectTrigger
+                  id="settings-locale"
+                  size="default"
+                  className="w-full max-w-[13rem]"
+                  aria-invalid={fieldErrors.locale ? true : undefined}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent
+                  alignItemWithTrigger={false}
+                  side="bottom"
+                  align="start"
+                  className="min-w-[13rem]"
+                >
+                  {LOCALE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.locale ? (
+                <FieldError>{fieldErrors.locale}</FieldError>
+              ) : null}
+            </Field>
+          </FormGrid>
         </FieldGroup>
       </FormSection>
 
       <FormSection
-        title="Receipt preferences"
+        title={t.settings.receiptPreferences}
         description="Printer templates and receipt layout options will appear here."
+        className="bg-card ring-foreground/10 gap-4 rounded-2xl p-4 shadow-sm ring-1"
       >
-        <div className="bg-muted/40 space-y-3 rounded-xl px-3 py-2 ring-1 ring-foreground/10">
+        <div className="bg-muted/40 space-y-3 rounded-xl px-3 py-2.5 ring-1 ring-foreground/10">
           <label className="text-muted-foreground flex items-center gap-2 text-sm">
             <input type="checkbox" disabled className="size-4 rounded" />
-            Show business name on receipts
+            {t.settings.showBusinessNameOnReceipts}
           </label>
           <label className="text-muted-foreground flex items-center gap-2 text-sm">
             <input type="checkbox" disabled className="size-4 rounded" />

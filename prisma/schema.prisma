@@ -192,6 +192,7 @@ model Customer {
   hawalaAsReceiver     HawalaTransfer[]  @relation("HawalaReceiverCustomer")
   accountOrders           AccountOrder[]
   accountOrderRecipients  AccountOrderRecipient[]
+  partnerSarafiLinks      PartnerSarafi[]
 
   @@index([fullName])
   @@index([fatherName])
@@ -274,6 +275,8 @@ model Transaction {
 /// Counterpart sarafi shop used on hawala send/receive corridors.
 model PartnerSarafi {
   id        String    @id @default(uuid())
+  /// Optional link to an existing Customer. Unique among live partners via partial DB index.
+  customerId String?
   name      String
   phone     String?
   city      String?
@@ -292,6 +295,7 @@ model PartnerSarafi {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  customer           Customer? @relation(fields: [customerId], references: [id], onDelete: Restrict)
   commissionCurrency Currency? @relation("PartnerSarafiCommissionCurrency", fields: [commissionCurrencyId], references: [id], onDelete: Restrict)
   hawalaTransfers HawalaTransfer[]
   commissionSettlements PartnerCommissionSettlement[]
@@ -301,6 +305,7 @@ model PartnerSarafi {
   @@index([isActive, deletedAt])
   @@index([deletedAt])
   @@index([commissionCurrencyId])
+  @@index([customerId])
 }
 
 /// Cash settlement of partner hawala commission (posted via postTransaction).

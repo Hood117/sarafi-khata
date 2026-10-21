@@ -958,6 +958,10 @@ export type Dictionary = {
     deleteSettlementConfirm: string;
     deleteSettlementOk: string;
     linkedCustomer: string;
+    selectCustomer: string;
+    searchCustomers: string;
+    customerLinkedHint: string;
+    needsCustomerLink: string;
     viewCustomerProfile: string;
     settleDestination: string;
     settleDestinationCash: string;
