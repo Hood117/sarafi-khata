@@ -1815,7 +1815,7 @@ tbody tr.customer-row-clickable:focus-visible {
 .dashboard-footer-inner {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1.1rem 2.5rem;
   width: 100%;
@@ -1913,8 +1913,17 @@ html[dir="rtl"] .dashboard-footer-credits-heading {
   font-weight: 550;
 }
 
+.dashboard-footer-company-block {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.85rem;
+  margin: 0 0 0.55rem;
+}
+
 .dashboard-footer-company {
-  margin: 0 0 0.45rem;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1929,13 +1938,38 @@ html[dir="rtl"] .dashboard-footer-credits-heading {
   text-decoration: none;
 }
 
+.dashboard-footer-company-phone {
+  appearance: none;
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .dashboard-footer-company:hover {
   color: var(--brand);
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
 
-.dashboard-footer-company:focus-visible {
+.dashboard-footer-company-phone:hover {
+  color: var(--brand-deep);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.dashboard-footer-company:focus-visible,
+.dashboard-footer-company-phone:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
   outline-offset: 3px;
   border-radius: 4px;

@@ -19,6 +19,14 @@ html[data-theme="dark"] .dashboard-footer-company:hover {
   color: #8aefc8;
 }
 
+html[data-theme="dark"] .dashboard-footer-company-phone {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .dashboard-footer-company-phone:hover {
+  color: var(--brand);
+}
+
 html[data-theme="dark"] .dashboard-footer-link {
   background: transparent;
   border: 0;
