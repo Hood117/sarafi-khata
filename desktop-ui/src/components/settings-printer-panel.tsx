@@ -45,6 +45,14 @@ function formFactorLabel(
   }
 }
 
+function printerOptionLabel(printer: PrinterInfo, t: ReturnType<typeof useT>): string {
+  const parts = [printer.name];
+  if (printer.isDefault) {
+    parts.push(`(${t.settings.printerWindowsDefault})`);
+  }
+  return parts.join(" ");
+}
+
 /**
  * Settings: pick Saraf's preferred Windows printer (used only by a future Print button).
  */
@@ -106,10 +114,16 @@ export function SettingsPrinterPanel() {
   }, [refresh]);
 
   function selectPrinter(name: string) {
+    if (!name) {
+      setSelectedName(null);
+      return;
+    }
     setSelectedName(name);
     setPreferredPrinterName(name);
     setUnavailableName(null);
   }
+
+  const selected = printers.find((p) => p.name === selectedName) ?? null;
 
   return (
     <div className="card settings-general-card settings-printer-card">
@@ -120,7 +134,7 @@ export function SettingsPrinterPanel() {
         </div>
         <button
           type="button"
-          className="btn secondary"
+          className="btn secondary settings-printer-refresh"
           disabled={busy}
           onClick={() => void refresh()}
         >
@@ -141,45 +155,41 @@ export function SettingsPrinterPanel() {
       ) : null}
 
       {printers.length > 0 ? (
-        <ul className="settings-printer-list" role="radiogroup" aria-label={t.settings.printer}>
-          {printers.map((printer) => {
-            const checked = selectedName === printer.name;
-            return (
-              <li key={printer.name}>
-                <label
-                  className={`settings-printer-item${checked ? " settings-printer-item--selected" : ""}`}
-                >
-                  <input
-                    type="radio"
-                    name="saraf-preferred-printer"
-                    value={printer.name}
-                    checked={checked}
-                    disabled={busy}
-                    onChange={() => selectPrinter(printer.name)}
-                  />
-                  <span className="settings-printer-item-body">
-                    <span className="settings-printer-name">
-                      {printer.name}
-                      {printer.isDefault ? (
-                        <span className="muted settings-printer-default-badge">
-                          {t.settings.printerWindowsDefault}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="muted settings-printer-meta">
-                      {connectionLabel(printer.connection, t)}
-                      {" · "}
-                      {formFactorLabel(printer.formFactor, t)}
-                      {printer.status && printer.status !== "Ready"
-                        ? ` · ${printer.status}`
-                        : ""}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="settings-printer-prefs">
+          <label className="settings-general-field settings-printer-field">
+            <span>{t.settings.printer}</span>
+            <select
+              className="settings-general-select settings-printer-select"
+              value={selectedName ?? ""}
+              disabled={busy}
+              aria-label={t.settings.printer}
+              onChange={(e) => selectPrinter(e.target.value)}
+            >
+              {!selectedName ? (
+                <option value="">{t.common.selectOption}</option>
+              ) : null}
+              {printers.map((printer) => (
+                <option key={printer.name} value={printer.name}>
+                  {printerOptionLabel(printer, t)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selected ? (
+            <p className="muted settings-printer-meta-line">
+              {connectionLabel(selected.connection, t)}
+              {" · "}
+              {formFactorLabel(selected.formFactor, t)}
+              {selected.status && selected.status !== "Ready"
+                ? ` · ${selected.status}`
+                : ""}
+              {selected.isDefault
+                ? ` · ${t.settings.printerWindowsDefault}`
+                : ""}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
