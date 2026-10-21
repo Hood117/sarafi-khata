@@ -59,74 +59,76 @@ export function DashboardPage() {
   }, [reloadDashboard]);
 
   return (
-    <div className="stack dashboard-page">
-      {error ? (
-        <PageLoadError message={error} onRetry={reloadDashboard} />
-      ) : null}
-      {busy && !data ? <p className="muted">{t.common.loading}</p> : null}
+    <div className="dashboard-page">
+      <div className="stack dashboard-page-body">
+        {error ? (
+          <PageLoadError message={error} onRetry={reloadDashboard} />
+        ) : null}
+        {busy && !data ? <p className="muted">{t.common.loading}</p> : null}
 
-      {data ? (
-        <>
-          <div className="stat-grid">
-            <Stat
-              label={t.dashboard.deposits}
-              value={data.month.deposits}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.dashboard.withdrawals}
-              value={data.month.withdrawals}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.nav.transfers}
-              value={data.month.transfers}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.dashboard.exchanges}
-              value={data.month.exchanges}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.dashboard.newCustomers}
-              value={data.customers.newThisMonth}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.dashboard.activeCustomers}
-              value={data.customers.active}
-              hint={t.dashboard.currentlyActive}
-              valueSize="1.75rem"
-            />
-            <Stat
-              label={t.nav.hawala}
-              value={data.month.hawala}
-              hint={t.common.thisMonth}
-              valueSize="1.75rem"
-            />
-          </div>
-
-          <div className="card stack">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 className="section-title">{t.dashboard.businessCash}</h2>
-              <Link className="nav-link" to="/cash">
-                {t.dashboard.viewCash}
-              </Link>
+        {data ? (
+          <>
+            <div className="stat-grid">
+              <Stat
+                label={t.dashboard.deposits}
+                value={data.month.deposits}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.dashboard.withdrawals}
+                value={data.month.withdrawals}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.nav.transfers}
+                value={data.month.transfers}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.dashboard.exchanges}
+                value={data.month.exchanges}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.dashboard.newCustomers}
+                value={data.customers.newThisMonth}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.dashboard.activeCustomers}
+                value={data.customers.active}
+                hint={t.dashboard.currentlyActive}
+                valueSize="1.75rem"
+              />
+              <Stat
+                label={t.nav.hawala}
+                value={data.month.hawala}
+                hint={t.common.thisMonth}
+                valueSize="1.75rem"
+              />
             </div>
-            {data.cash.length === 0 ? (
-              <p className="muted">{t.cash.noBalances}</p>
-            ) : (
-              <CashBalanceCards rows={data.cash} />
-            )}
-          </div>
-        </>
-      ) : null}
+
+            <div className="card stack">
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <h2 className="section-title">{t.dashboard.businessCash}</h2>
+                <Link className="nav-link" to="/cash">
+                  {t.dashboard.viewCash}
+                </Link>
+              </div>
+              {data.cash.length === 0 ? (
+                <p className="muted">{t.cash.noBalances}</p>
+              ) : (
+                <CashBalanceCards rows={data.cash} />
+              )}
+            </div>
+          </>
+        ) : null}
+      </div>
 
       <footer className="dashboard-footer">
         <div className="dashboard-footer-inner">

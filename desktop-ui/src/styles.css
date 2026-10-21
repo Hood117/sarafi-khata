@@ -483,6 +483,28 @@ a {
   --brand-soft: #d8efe4;
   --accent: #b8892d;
   --accent-soft: rgba(184, 137, 45, 0.14);
+  /* Keep chrome fixed; main fills leftover so the developer footer can sit at the bottom. */
+  overflow: hidden;
+  padding-bottom: 1.65rem;
+}
+
+.app-shell[data-screen="dashboard"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="dashboard"] > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="dashboard"] > .app-main > .dashboard-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .app-shell[data-screen="cash"] {
@@ -1741,24 +1763,37 @@ tbody tr.customer-row-clickable:focus-visible {
 }
 
 .dashboard-page {
-  min-height: 100%;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
-.dashboard-page > .stat-grid {
+.dashboard-page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 0.35rem;
+}
+
+.dashboard-page-body > .stat-grid {
   margin-top: 0.9rem;
 }
 
 .dashboard-footer {
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 0;
   width: 100%;
-  padding: 1.5rem 0 0.35rem;
+  padding: 0.85rem 0 0.45rem;
   border: 0;
-  background: transparent;
+  background: color-mix(in srgb, var(--brand-soft) 22%, transparent);
   position: relative;
   color: var(--ink-soft);
   font-size: var(--text-xs);
   line-height: 1.5;
+  z-index: 2;
 }
 
 .dashboard-footer::before {
@@ -1792,7 +1827,7 @@ tbody tr.customer-row-clickable:focus-visible {
   );
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding-inline: 0.15rem;
-  padding-bottom: 0.85rem;
+  padding-bottom: 0.55rem;
 }
 
 .dashboard-footer-brand {
