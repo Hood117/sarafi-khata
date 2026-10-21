@@ -141,25 +141,14 @@ export function DashboardPage() {
               {t.dashboard.companyCredits}
             </p>
             <p className="dashboard-footer-developed">{t.dashboard.developedBy}</p>
-            <div className="dashboard-footer-company-block">
-              <button
-                type="button"
-                className="dashboard-footer-company"
-                onClick={() => void openExternalUrl(APP_COMPANY.url)}
-                title={APP_COMPANY.url}
-              >
-                {APP_COMPANY.name}
-              </button>
-              <button
-                type="button"
-                className="dashboard-footer-company-phone ltr-text"
-                dir="ltr"
-                onClick={() => void openWhatsApp(APP_COMPANY.whatsapp, "")}
-                title={t.dashboard.whatsapp}
-              >
-                {APP_COMPANY.phoneDisplay}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="dashboard-footer-company"
+              onClick={() => void openExternalUrl(APP_COMPANY.url)}
+              title={APP_COMPANY.url}
+            >
+              {APP_COMPANY.name}
+            </button>
             <ul className="dashboard-footer-devs">
               {APP_DEVELOPERS.map((dev) => (
                 <li key={dev.email} className="dashboard-footer-dev">

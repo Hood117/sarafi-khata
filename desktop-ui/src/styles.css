@@ -593,6 +593,27 @@ a {
   --brand-soft: #dce5ee;
   --accent: #9a6b12;
   --accent-soft: rgba(154, 107, 18, 0.14);
+  /* Keep tabs + Quick Actions fixed; daybook page scrolls under the chrome. */
+  overflow: hidden;
+}
+
+.app-shell[data-screen="daybook"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="daybook"] > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="daybook"] > .app-main > .daybook-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-shell[data-screen="reports"] {
@@ -1913,17 +1934,8 @@ html[dir="rtl"] .dashboard-footer-credits-heading {
   font-weight: 550;
 }
 
-.dashboard-footer-company-block {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 0.85rem;
-  margin: 0 0 0.55rem;
-}
-
 .dashboard-footer-company {
-  margin: 0;
+  margin: 0 0 0.45rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -1938,38 +1950,13 @@ html[dir="rtl"] .dashboard-footer-credits-heading {
   text-decoration: none;
 }
 
-.dashboard-footer-company-phone {
-  appearance: none;
-  display: inline-block;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 650;
-  line-height: 1.3;
-  color: var(--ink);
-  cursor: pointer;
-  text-decoration: none;
-  direction: ltr;
-  unicode-bidi: isolate;
-}
-
 .dashboard-footer-company:hover {
   color: var(--brand);
   text-decoration: underline;
   text-underline-offset: 0.18em;
 }
 
-.dashboard-footer-company-phone:hover {
-  color: var(--brand-deep);
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
-}
-
-.dashboard-footer-company:focus-visible,
-.dashboard-footer-company-phone:focus-visible {
+.dashboard-footer-company:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--brand) 55%, transparent);
   outline-offset: 3px;
   border-radius: 4px;
