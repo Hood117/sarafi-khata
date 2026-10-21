@@ -951,35 +951,6 @@ export function DaybookPage() {
               onClose={() => setJournalMenu(null)}
             />
           ) : null}
-
-          <div
-            className="row"
-            style={{
-              marginTop: "1rem",
-              justifyContent: "space-between",
-              gap: "2rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <div
-              style={{
-                minWidth: "12rem",
-                borderTop: "1px solid rgba(0,0,0,0.25)",
-                paddingTop: "0.35rem",
-              }}
-            >
-              {t.users.cashier}
-            </div>
-            <div
-              style={{
-                minWidth: "12rem",
-                borderTop: "1px solid rgba(0,0,0,0.25)",
-                paddingTop: "0.35rem",
-              }}
-            >
-              {t.users.manager}
-            </div>
-          </div>
         </>
       ) : null}
 
