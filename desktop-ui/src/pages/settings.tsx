@@ -648,17 +648,18 @@ export function SettingsPage() {
                 </select>
               </label>
 
-              <label className="settings-general-bold">
-                <input
-                  type="checkbox"
-                  checked={boldText}
+              <label className="settings-general-field">
+                <span>{t.settings.boldText}</span>
+                <select
+                  className="settings-general-select"
+                  value={boldText ? "on" : "off"}
                   disabled={textPrefsBusy}
-                  onChange={(e) => void handleBoldTextChange(e.target.checked)}
-                />
-                <span>
-                  <strong>{t.settings.boldText}</strong>
-                  <span className="muted settings-general-hint">{t.settings.boldTextHint}</span>
-                </span>
+                  title={t.settings.boldTextHint}
+                  onChange={(e) => void handleBoldTextChange(e.target.value === "on")}
+                >
+                  <option value="off">{t.common.no}</option>
+                  <option value="on">{t.common.yes}</option>
+                </select>
               </label>
             </div>
 

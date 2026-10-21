@@ -136,7 +136,6 @@ html[data-theme="dark"] .settings-general-field > span {
 }
 
 html[data-theme="dark"] .muted,
-html[data-theme="dark"] .settings-general-hint,
 html[data-theme="dark"] .dash-quick-label,
 html[data-theme="dark"] .daybook-quick-hint,
 html[data-theme="dark"] .report-period-label,
@@ -544,11 +543,6 @@ html[data-theme="dark"] .settings-general-head {
 
 html[data-theme="dark"] .settings-general-head h2 {
   color: var(--brand);
-}
-
-html[data-theme="dark"] .settings-general-bold {
-  border-color: color-mix(in srgb, var(--brand) 18%, var(--line));
-  background: color-mix(in srgb, var(--brand) 8%, var(--control-bg));
 }
 
 html[data-theme="dark"] .settings-general-business {
