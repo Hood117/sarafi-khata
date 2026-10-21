@@ -351,7 +351,8 @@ export const ps: Dictionary = {
     summary: "لنډیز",
     copyright: "© {year} ASMS. ټول حقوق خوندي دي.",
     rightsReserved: "ټول حقوق خوندي دي.",
-    developedBy: "دا اپلیکیشن د دې پراختیاکوونکو لخوا جوړ شوی",
+    companyCredits: "د شرکت او پراختیا اعتبار",
+    developedBy: "دا اپلیکیشن د دې لخوا جوړ شوی",
     whatsapp: "واټساپ",
   },
   customers: {

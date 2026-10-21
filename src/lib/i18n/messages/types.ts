@@ -348,6 +348,7 @@ export type Dictionary = {
     summary: string;
     copyright: string;
     rightsReserved: string;
+    companyCredits: string;
     developedBy: string;
     whatsapp: string;
   };

@@ -4,7 +4,11 @@ import { Link } from "react-router-dom";
 import { getDashboardSnapshot, openExternalUrl, type DashboardSnapshot } from "@desktop/api";
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
-import { APP_DEVELOPERS, formatWhatsAppDisplay } from "@desktop/lib/app-developers";
+import {
+  APP_COMPANY,
+  APP_DEVELOPERS,
+  formatWhatsAppDisplay,
+} from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/datetime";
 import { openWhatsApp } from "@desktop/lib/whatsapp";
 import { PageLoadError } from "@desktop/ui/page-load-error";
@@ -132,6 +136,46 @@ export function DashboardPage() {
 
       <footer className="dashboard-footer">
         <div className="dashboard-footer-inner">
+          <div className="dashboard-footer-credit">
+            <p className="dashboard-footer-credits-heading">
+              {t.dashboard.companyCredits}
+            </p>
+            <p className="dashboard-footer-developed">{t.dashboard.developedBy}</p>
+            <button
+              type="button"
+              className="dashboard-footer-company"
+              onClick={() => void openExternalUrl(APP_COMPANY.url)}
+              title={APP_COMPANY.url}
+            >
+              {APP_COMPANY.name}
+            </button>
+            <ul className="dashboard-footer-devs">
+              {APP_DEVELOPERS.map((dev) => (
+                <li key={dev.email} className="dashboard-footer-dev">
+                  <span className="dashboard-footer-dev-name">{dev.name}</span>
+                  <button
+                    type="button"
+                    className="dashboard-footer-link ltr-text"
+                    dir="ltr"
+                    onClick={() => void openExternalUrl(`mailto:${dev.email}`)}
+                    title={t.common.email}
+                  >
+                    {dev.email}
+                  </button>
+                  <button
+                    type="button"
+                    className="dashboard-footer-link ltr-text"
+                    dir="ltr"
+                    onClick={() => void openWhatsApp(dev.whatsapp, "")}
+                    title={t.dashboard.whatsapp}
+                  >
+                    {formatWhatsAppDisplay(dev.whatsapp)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <div className="dashboard-footer-brand">
             <span className="dashboard-footer-mark" aria-hidden>
               ASMS
@@ -142,40 +186,6 @@ export function DashboardPage() {
               </span>
               <span className="dashboard-footer-rights">{t.dashboard.rightsReserved}</span>
             </p>
-          </div>
-
-          <div className="dashboard-footer-credit">
-            <p className="dashboard-footer-developed">{t.dashboard.developedBy}</p>
-            <ul className="dashboard-footer-devs">
-              {APP_DEVELOPERS.map((dev) => (
-                <li key={dev.email} className="dashboard-footer-dev">
-                  <span className="dashboard-footer-dev-name">{dev.name}</span>
-                  <span className="dashboard-footer-dev-meta">
-                    <button
-                      type="button"
-                      className="dashboard-footer-link ltr-text"
-                      dir="ltr"
-                      onClick={() => void openExternalUrl(`mailto:${dev.email}`)}
-                      title={t.common.email}
-                    >
-                      {dev.email}
-                    </button>
-                    <span className="dashboard-footer-dot" aria-hidden>
-                      ·
-                    </span>
-                    <button
-                      type="button"
-                      className="dashboard-footer-link ltr-text"
-                      dir="ltr"
-                      onClick={() => void openWhatsApp(dev.whatsapp, "")}
-                      title={t.dashboard.whatsapp}
-                    >
-                      {formatWhatsAppDisplay(dev.whatsapp)}
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </footer>

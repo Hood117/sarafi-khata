@@ -351,7 +351,8 @@ export const fa: Dictionary = {
     summary: "خلاصه",
     copyright: "© {year} ASMS. تمامی حقوق محفوظ است.",
     rightsReserved: "تمامی حقوق محفوظ است.",
-    developedBy: "این برنامه توسط این توسعه‌دهندگان ساخته شده است",
+    companyCredits: "اعتبار شرکت و توسعه",
+    developedBy: "این برنامه توسط ساخته شده است",
     whatsapp: "واتساپ",
   },
   customers: {

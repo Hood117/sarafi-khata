@@ -1,8 +1,17 @@
-/** Shared developer contacts (dashboard footer + license activation). */
+/** Shared company + developer contacts (dashboard footer + license activation). */
+export const APP_COMPANY = {
+  name: "Radefy Systems",
+  url: "https://www.radefysystems.com/",
+  email: "hello@radefysystems.com",
+  /** Digits only, country code included (Afghanistan). */
+  whatsapp: "93771707272",
+  phoneDisplay: "+93 77 170 7272",
+} as const;
+
 export const APP_DEVELOPERS = [
   {
-    name: "Samsoor Enzo",
-    email: "samsoorsamander@gmail.com",
+    name: "Samsoor",
+    email: "samsoor.samander@gmail.com",
     whatsapp: "93764273409",
   },
   {

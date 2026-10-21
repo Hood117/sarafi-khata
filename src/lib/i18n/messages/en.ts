@@ -351,6 +351,7 @@ export const en: Dictionary = {
     summary: "Summary",
     copyright: "© {year} ASMS. All rights reserved.",
     rightsReserved: "All rights reserved.",
+    companyCredits: "Company & development credits",
     developedBy: "This app was developed by",
     whatsapp: "WhatsApp",
   },
