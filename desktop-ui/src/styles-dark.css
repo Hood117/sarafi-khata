@@ -234,6 +234,8 @@ html[data-theme="dark"] .app-menu-btn:hover {
 }
 
 html[data-theme="dark"] .app-chrome-actions {
+  border-radius: 18px;
+  overflow: hidden;
   background: linear-gradient(
     105deg,
     color-mix(in srgb, var(--brand) 18%, var(--control-bg)) 0%,
@@ -245,6 +247,8 @@ html[data-theme="dark"] .app-chrome-actions {
 }
 
 html[data-theme="dark"] .app-tabbar {
+  border-radius: 18px;
+  overflow: hidden;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--surface-elevated) 88%, var(--brand-soft)) 0%,
@@ -966,11 +970,15 @@ html[data-theme="dark"][data-ui="liquid-glass"] .settings-menu-btn:hover {
 }
 
 html[data-theme="dark"][data-ui="liquid-glass"] .app-chrome-actions {
+  border-radius: 18px;
+  overflow: hidden;
   background: color-mix(in srgb, var(--brand) 18%, var(--lg-fill-strong));
   border-color: var(--lg-border);
 }
 
 html[data-theme="dark"][data-ui="liquid-glass"] .app-tabbar {
+  border-radius: 18px;
+  overflow: hidden;
   background: color-mix(in srgb, var(--lg-fill-strong) 90%, var(--brand-soft));
   border-color: var(--lg-border);
 }
