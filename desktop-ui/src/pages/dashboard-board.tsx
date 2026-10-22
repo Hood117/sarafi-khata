@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 
-import type { CashBalanceRow, DashboardSnapshot, ExchangeRateItem } from "@desktop/api";
+import type { CashBalanceRow, DashboardSnapshot } from "@desktop/api";
 import { useLocale } from "@desktop/i18n";
 import { animateDashboard, useGSAP } from "@desktop/lib/motion";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
@@ -166,21 +166,6 @@ function CashBars({ rows }: { rows: CashBalanceRow[] }) {
   );
 }
 
-function RateList({ rates }: { rates: ExchangeRateItem[] }) {
-  return (
-    <ul className="dash-rates">
-      {rates.slice(0, 6).map((rate) => (
-        <li key={rate.id}>
-          <span dir="ltr">
-            {rate.baseCode}/{rate.quoteCode}
-          </span>
-          <strong dir="ltr">{rate.rate}</strong>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function shareOf(part: number, total: number): number {
   if (total <= 0) return 0;
   return Math.round((part / total) * 100);
@@ -287,11 +272,19 @@ export function DashboardBoard({ data }: { data: DashboardSnapshot }) {
             <em>{t.common.thisMonth}</em>
           </article>
           <article className="dash-kpi">
-            <span>{t.dashboard.activeCustomers}</span>
-            <strong data-count={data.customers.active}>{data.customers.active}</strong>
-            <em>
-              {t.dashboard.totalCount.replace("{count}", String(data.customers.total))}
-            </em>
+            <span>{t.nav.transfers}</span>
+            <strong data-count={data.month.transfers}>{data.month.transfers}</strong>
+            <em>{t.common.thisMonth}</em>
+          </article>
+          <article className="dash-kpi">
+            <span>{t.dashboard.exchanges}</span>
+            <strong data-count={data.month.exchanges}>{data.month.exchanges}</strong>
+            <em>{t.common.thisMonth}</em>
+          </article>
+          <article className="dash-kpi">
+            <span>{t.nav.hawala}</span>
+            <strong data-count={data.month.hawala}>{data.month.hawala}</strong>
+            <em>{t.common.thisMonth}</em>
           </article>
         </div>
 
@@ -364,17 +357,6 @@ export function DashboardBoard({ data }: { data: DashboardSnapshot }) {
               ) : (
                 <CashBars rows={cashRows} />
               )}
-              {data.rates.length > 0 ? (
-                <>
-                  <div className="dash-panel-head dash-panel-head-sub">
-                    <h3>{t.exchangeRates.deskRatesTitle}</h3>
-                    <Link className="dash-more" to="/rates">
-                      {t.common.view}
-                    </Link>
-                  </div>
-                  <RateList rates={data.rates.slice(0, 4)} />
-                </>
-              ) : null}
             </div>
           </div>
         </article>
