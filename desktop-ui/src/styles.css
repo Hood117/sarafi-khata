@@ -5502,6 +5502,25 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   align-items: stretch;
 }
 
+.customer-history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.55rem 0.85rem;
+  width: 100%;
+}
+
+.customer-history-filters {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.customer-history-print {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
 /* ── Reports hub ─────────────────────────────────────────────── */
 .reports-hub {
   gap: var(--space-lg);

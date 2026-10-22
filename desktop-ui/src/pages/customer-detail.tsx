@@ -32,7 +32,15 @@ import {
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
-import { amountPartsFromDebitCredit } from "@desktop/lib/format-transaction-line";
+import {
+  amountPartsFromDebitCredit,
+  fmtAmountPart,
+} from "@desktop/lib/format-transaction-line";
+import {
+  printReportSheet,
+  type ExportColumn,
+  type ExportRow,
+} from "@desktop/lib/export-table";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
 import { CreatePartnerFromCustomerModal } from "@desktop/components/create-partner-from-customer-modal";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
@@ -88,7 +96,8 @@ export function CustomerDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const t = useT();
-  const { locale } = useLocale();
+  const { locale, dir } = useLocale();
+  const rtl = dir === "rtl";
 
   const [showEdit, setShowEdit] = useState(false);
   const [showAddPartner, setShowAddPartner] = useState(false);
@@ -106,6 +115,7 @@ export function CustomerDetailPage() {
   const [ledgerCurrency, setLedgerCurrency] = useState("ALL");
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [ledgerBusy, setLedgerBusy] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -201,6 +211,118 @@ export function CustomerDetailPage() {
   useEffect(() => {
     setHistoryPage(1);
   }, [ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
+
+  function ledgerTypeLabel(type: LedgerTypeFilter): string {
+    switch (type) {
+      case "DEPOSIT":
+        return t.transactions.deposit;
+      case "WITHDRAWAL":
+        return t.transactions.withdrawal;
+      case "TRANSFER":
+        return t.reports.transfer;
+      case "HAWALA":
+        return t.nav.hawala;
+      case "EXCHANGE":
+        return t.nav.exchange;
+      default:
+        return t.common.allTypes;
+    }
+  }
+
+  function historyPeriodLabel(): string {
+    const parts: string[] = [];
+    if (ledgerDateFrom || ledgerDateTo) {
+      const from = ledgerDateFrom || "…";
+      const to = ledgerDateTo || "…";
+      parts.push(`${t.common.from} ${from} · ${t.common.to} ${to}`);
+    }
+    if (ledgerType !== "ALL") parts.push(ledgerTypeLabel(ledgerType));
+    if (ledgerCurrency !== "ALL") parts.push(ledgerCurrency);
+    return parts.length ? parts.join(" · ") : t.customers.customerHistory;
+  }
+
+  async function fetchAllFilteredHistory(): Promise<CustomerLedgerRow[]> {
+    if (!id) return [];
+    const pageSize = 100;
+    const all: CustomerLedgerRow[] = [];
+    let page = 1;
+    for (;;) {
+      const hist = await listCustomerLedger({
+        customerId: id,
+        page,
+        pageSize,
+        dateFrom: ledgerDateFrom || undefined,
+        dateTo: ledgerDateTo || undefined,
+        txType: ledgerType === "ALL" ? undefined : ledgerType,
+        currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
+      });
+      all.push(...hist.items);
+      if (all.length >= hist.total || hist.items.length === 0) break;
+      page += 1;
+      if (page > 200) break;
+    }
+    return all;
+  }
+
+  async function printCustomerHistory() {
+    if (!customer || printBusy) return;
+    setPrintBusy(true);
+    setError(null);
+    try {
+      const rowsSource = await fetchAllFilteredHistory();
+      const columns: ExportColumn[] = [
+        { key: "date", header: t.common.date, kind: "date" },
+        { key: "description", header: t.common.description, kind: "description" },
+        { key: "amount", header: t.common.amount, kind: "amount" },
+        { key: "currency", header: t.common.currency, kind: "text" },
+        { key: "balance", header: t.common.balance, kind: "amount" },
+        { key: "reference", header: t.common.reference, kind: "ref" },
+      ];
+      const rows: ExportRow[] = rowsSource.map((row) => {
+        const parts = amountPartsFromDebitCredit(row);
+        const amountText = parts.length
+          ? parts.map(fmtAmountPart).join(" · ")
+          : "—";
+        const tone =
+          parts.some((p) => p.sign === "+") && parts.every((p) => p.sign === "+")
+            ? "in"
+            : parts.some((p) => p.sign === "−") &&
+                parts.every((p) => p.sign === "−")
+              ? "out"
+              : "";
+        const description =
+          (row.description ?? "").trim() || row.activity || "—";
+        return {
+          date: row.valueDate,
+          description,
+          amount: amountText,
+          _amountTone: tone,
+          currency: row.currencyCode,
+          balance: `${row.balanceAfter} ${row.currencyCode}`,
+          reference: txDisplayRef(row),
+        };
+      });
+      const codeBit = customer.code ? ` · #${customer.code}` : "";
+      printReportSheet({
+        columns,
+        rows,
+        meta: {
+          title: `${t.customers.customerHistory} — ${customer.fullName}${codeBit}`,
+          businessName: "ASMS",
+          periodLabel: historyPeriodLabel(),
+          generatedAt: new Date().toLocaleString(
+            locale === "en" ? "en" : locale,
+          ),
+          rtl,
+        },
+        emptyLabel: t.common.noEntries,
+      });
+    } catch (err) {
+      setError(errorMessage(err, t.errors.loadCustomerHistory));
+    } finally {
+      setPrintBusy(false);
+    }
+  }
 
   async function onArchive() {
     if (!customer) return;
@@ -428,64 +550,84 @@ export function CustomerDetailPage() {
             </section>
           ) : (
             <section className="stack customer-detail-panel" aria-label={t.common.ledgerEntries}>
-              <div className="row" style={{ flexWrap: "wrap", alignItems: "end" }}>
-                <label className="stack" style={{ gap: "0.25rem" }}>
-                  <span className="muted">{t.common.from}</span>
-                  <input
-                    type="date"
-                    value={ledgerDateFrom}
-                    max={ledgerDateTo || undefined}
-                    onChange={(e) => setLedgerDateFrom(e.target.value)}
-                  />
-                </label>
-                <label className="stack" style={{ gap: "0.25rem" }}>
-                  <span className="muted">{t.common.to}</span>
-                  <input
-                    type="date"
-                    value={ledgerDateTo}
-                    min={ledgerDateFrom || undefined}
-                    onChange={(e) => setLedgerDateTo(e.target.value)}
-                  />
-                </label>
-                <label className="stack" style={{ gap: "0.25rem", minWidth: "11rem" }}>
-                  <span className="muted">{t.common.filter}</span>
-                  <select
-                    value={ledgerType}
-                    onChange={(e) => setLedgerType(e.target.value as LedgerTypeFilter)}
-                  >
-                    <option value="ALL">{t.common.allTypes}</option>
-                    <option value="DEPOSIT">{t.transactions.deposit}</option>
-                    <option value="WITHDRAWAL">{t.transactions.withdrawal}</option>
-                    <option value="TRANSFER">{t.reports.transfer}</option>
-                    <option value="HAWALA">{t.nav.hawala}</option>
-                    <option value="EXCHANGE">{t.nav.exchange}</option>
-                  </select>
-                </label>
-                <div style={{ minWidth: "11rem" }}>
-                  <CurrencyFilter
-                    currencies={currencies}
-                    value={ledgerCurrency === "ALL" ? "" : ledgerCurrency}
-                    onChange={(code) => setLedgerCurrency(code || "ALL")}
-                    allLabel={t.dailyBook.allCurrencies}
-                  />
+              <div className="customer-history-toolbar no-print">
+                <div className="row customer-history-filters" style={{ flexWrap: "wrap", alignItems: "end" }}>
+                  <label className="stack" style={{ gap: "0.25rem" }}>
+                    <span className="muted">{t.common.from}</span>
+                    <input
+                      type="date"
+                      value={ledgerDateFrom}
+                      max={ledgerDateTo || undefined}
+                      onChange={(e) => setLedgerDateFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="stack" style={{ gap: "0.25rem" }}>
+                    <span className="muted">{t.common.to}</span>
+                    <input
+                      type="date"
+                      value={ledgerDateTo}
+                      min={ledgerDateFrom || undefined}
+                      onChange={(e) => setLedgerDateTo(e.target.value)}
+                    />
+                  </label>
+                  <label className="stack" style={{ gap: "0.25rem", minWidth: "11rem" }}>
+                    <span className="muted">{t.common.filter}</span>
+                    <select
+                      value={ledgerType}
+                      onChange={(e) => setLedgerType(e.target.value as LedgerTypeFilter)}
+                    >
+                      <option value="ALL">{t.common.allTypes}</option>
+                      <option value="DEPOSIT">{t.transactions.deposit}</option>
+                      <option value="WITHDRAWAL">{t.transactions.withdrawal}</option>
+                      <option value="TRANSFER">{t.reports.transfer}</option>
+                      <option value="HAWALA">{t.nav.hawala}</option>
+                      <option value="EXCHANGE">{t.nav.exchange}</option>
+                    </select>
+                  </label>
+                  <div style={{ minWidth: "11rem" }}>
+                    <CurrencyFilter
+                      currencies={currencies}
+                      value={ledgerCurrency === "ALL" ? "" : ledgerCurrency}
+                      onChange={(code) => setLedgerCurrency(code || "ALL")}
+                      allLabel={t.dailyBook.allCurrencies}
+                    />
+                  </div>
+                  {ledgerDateFrom ||
+                  ledgerDateTo ||
+                  ledgerType !== "ALL" ||
+                  ledgerCurrency !== "ALL" ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => {
+                        setLedgerDateFrom("");
+                        setLedgerDateTo("");
+                        setLedgerType("ALL");
+                        setLedgerCurrency("ALL");
+                      }}
+                    >
+                      {t.common.clear}
+                    </button>
+                  ) : null}
                 </div>
-                {ledgerDateFrom ||
-                ledgerDateTo ||
-                ledgerType !== "ALL" ||
-                ledgerCurrency !== "ALL" ? (
+                <div className="report-toolbar customer-history-print">
                   <button
                     type="button"
-                    className="secondary"
-                    onClick={() => {
-                      setLedgerDateFrom("");
-                      setLedgerDateTo("");
-                      setLedgerType("ALL");
-                      setLedgerCurrency("ALL");
-                    }}
+                    className="btn"
+                    disabled={printBusy || ledgerBusy}
+                    onClick={() => void printCustomerHistory()}
                   >
-                    {t.common.clear}
+                    {printBusy ? t.common.loading : t.common.print}
                   </button>
-                ) : null}
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={printBusy || ledgerBusy}
+                    onClick={() => void printCustomerHistory()}
+                  >
+                    PDF
+                  </button>
+                </div>
               </div>
               {ledgerBusy && history.length === 0 ? (
                 <p className="muted">{t.common.loading}</p>
