@@ -48,9 +48,12 @@
   --space-md: 0.55rem;
   --space-lg: 0.7rem;
   --space-xl: 0.85rem;
-  --shell-pad-y: 0.5rem;
-  --shell-pad-x: 0.7rem;
-  --shell-pad-bottom: 3.25rem;
+  /* Fluid shell insets — grow a little on big monitors, stay tight on small ones */
+  --shell-pad-y: clamp(0.4rem, 0.7vh, 0.75rem);
+  --shell-pad-x: clamp(0.55rem, 1.1vw, 1.35rem);
+  --shell-pad-bottom: clamp(1.15rem, 2.4vh, 2.35rem);
+  /* Desk pages use the full window width */
+  --content-max-width: 100%;
 
   font-family: var(--font-ui);
   font-size: var(--ui-rem-baseline);
@@ -177,8 +180,11 @@ html,
 body,
 #root {
   height: 100%;
+  height: 100dvh;
   max-height: 100%;
+  max-height: 100dvh;
   margin: 0;
+  width: 100%;
 }
 
 html,
@@ -191,6 +197,7 @@ body {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  width: 100%;
 }
 
 button,
@@ -204,7 +211,7 @@ a {
 .app-shell {
   flex: 1 1 auto;
   width: 100%;
-  max-width: 1180px;
+  max-width: none;
   margin: 0 auto;
   min-height: 0;
   height: 100%;
@@ -822,23 +829,29 @@ a {
 }
 
 .app-main {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
   gap: var(--space-md);
   /* Clear space under sticky chrome so page content sits fully below it */
   padding-top: 0.85rem;
   padding-bottom: var(--space-lg);
   position: relative;
   z-index: 1;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
-/* Centered reading column. Journals stay full width by not using this class. */
+/* Desk content fills the window; soft max only on extreme ultrawide. */
 .page-column {
-  width: min(100%, 72rem);
+  width: var(--content-max-width);
   max-width: 100%;
   margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .dashboard-page.page-column {
-  width: min(100%, 72rem);
+  width: var(--content-max-width);
 }
 
 .app-main > .stack:last-child,
@@ -1862,7 +1875,9 @@ tbody tr.customer-row-clickable:focus-visible {
 .dash-board {
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: clamp(0.55rem, 1vh, 0.9rem);
+  width: 100%;
+  min-width: 0;
   color: var(--ink);
 }
 
@@ -1891,8 +1906,8 @@ tbody tr.customer-row-clickable:focus-visible {
 .dash-top,
 .dash-board-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 26rem);
+  gap: clamp(0.55rem, 1vw, 0.95rem);
   align-items: start;
 }
 
@@ -2216,8 +2231,8 @@ tbody tr.customer-row-clickable:focus-visible {
 
 .dash-growth {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.85rem;
+  grid-template-columns: minmax(12rem, 0.85fr) minmax(0, 1.35fr);
+  gap: clamp(0.65rem, 1.2vw, 1.1rem);
   align-items: start;
 }
 
@@ -2298,9 +2313,45 @@ tbody tr.customer-row-clickable:focus-visible {
   background: color-mix(in srgb, var(--brand-soft) 55%, transparent);
 }
 
+@media (min-width: 1400px) {
+  .dash-top,
+  .dash-board-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 30rem);
+  }
+
+  .dash-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dash-kpi {
+    min-height: 5.5rem;
+  }
+
+  .dash-kpi strong {
+    font-size: clamp(1.45rem, 1.6vw, 1.85rem);
+  }
+
+  .dash-vbars {
+    min-height: 14rem;
+    height: 14.5rem;
+  }
+}
+
+@media (min-width: 1800px) {
+  .dash-top,
+  .dash-board-grid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(22rem, 34rem);
+    gap: 1.1rem;
+  }
+}
+
 @media (max-width: 980px) {
   .dash-top,
   .dash-board-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-growth {
     grid-template-columns: 1fr;
   }
 }
@@ -4040,14 +4091,25 @@ tr.hawala-row-pending td {
 
 @media (max-width: 640px) {
   .app-shell {
-    --shell-pad-x: 0.55rem;
-    --shell-pad-bottom: 2.75rem;
+    --shell-pad-x: 0.45rem;
+    --shell-pad-y: 0.35rem;
+    --shell-pad-bottom: 1.35rem;
   }
   .nav-link-label {
     font-size: var(--text-xs);
   }
   .brand {
     font-size: var(--text-lg);
+  }
+}
+
+@media (min-width: 1600px) {
+  .app-shell {
+    --shell-pad-x: clamp(1rem, 1.6vw, 1.75rem);
+  }
+
+  .app-main {
+    padding-top: 1rem;
   }
 }
 
@@ -6122,7 +6184,10 @@ button.report-period-preset.active:hover:not(:disabled) {
 
 .report-page {
   gap: var(--space-md);
-  width: min(100%, 72rem);
+  width: var(--content-max-width);
+  max-width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
 }
 
 .report-page > .stack {
