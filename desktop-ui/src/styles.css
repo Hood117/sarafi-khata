@@ -537,6 +537,38 @@ a {
   --brand-soft: #f0e4d6;
   --accent: #0f6b4c;
   --accent-soft: rgba(15, 107, 76, 0.12);
+  /* Keep tabs + Quick Actions fixed above the list; only the page scrolls. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell[data-screen="customers"] > .app-topbar {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 60;
+  overflow: visible;
+}
+
+.app-shell[data-screen="customers"] > .app-main {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  position: relative;
+  z-index: 0;
+}
+
+.app-shell[data-screen="customers"] > .app-main > .customers-page,
+.app-shell[data-screen="customers"] > .app-main > .customer-detail-page,
+.app-shell[data-screen="customers"] > .app-main > .page-column,
+.app-shell[data-screen="customers"] > .app-main > .stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-shell[data-screen="exchange"] {

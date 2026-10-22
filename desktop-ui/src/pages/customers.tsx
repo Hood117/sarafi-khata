@@ -251,7 +251,7 @@ export function CustomersPage() {
     : 1;
 
   return (
-    <div className="stack">
+    <div className="stack customers-page">
       <div className="card stack">
         <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <label ref={searchWrapRef} className="customer-search-wrap" style={{ flex: 1, minWidth: 220 }}>
