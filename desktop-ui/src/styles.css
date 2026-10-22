@@ -660,6 +660,27 @@ a {
   --brand-soft: #f3e7c6;
   --accent: #2f5d8c;
   --accent-soft: rgba(47, 93, 140, 0.14);
+  /* Keep tabs + Quick Actions fixed; rates scroll under the chrome. */
+  overflow: hidden;
+}
+
+.app-shell[data-screen="rates"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="rates"] > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="rates"] > .app-main > .rates-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-shell[data-screen="settings"] {
