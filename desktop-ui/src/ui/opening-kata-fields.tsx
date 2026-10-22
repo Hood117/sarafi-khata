@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import type { CurrencyListItem } from "@desktop/api";
 import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 
 export type OpeningLine = {
@@ -71,12 +72,10 @@ export function OpeningKataFields({
             <div className="money-ccy-row customer-form-span">
               <label className="money-ccy-amount">
                 {t.openingKata.amount}
-                <input
-                  className="deposit-amount-input"
+                <AmountInput
                   value={line.amount}
                   placeholder="0.00"
-                  inputMode="decimal"
-                  onChange={(e) => onChange(index, { amount: e.target.value })}
+                  onValueChange={(amount) => onChange(index, { amount })}
                 />
               </label>
               <CurrencyPicker

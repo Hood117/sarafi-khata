@@ -34,6 +34,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { resolveCommission } from "@desktop/pages/hawala-helpers";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
@@ -784,7 +785,7 @@ export function HawalaFormModal({
                         setLastEdited("send");
                         setForm((prev) => ({
                           ...prev,
-                          sendAmount: e.target.value,
+                          sendAmount: normalizeAmountInput(e.target.value),
                         }));
                         setError(null);
                       }}
@@ -830,7 +831,7 @@ export function HawalaFormModal({
                           setLastEdited("receive");
                           setForm((prev) => ({
                             ...prev,
-                            receiveAmount: e.target.value,
+                            receiveAmount: normalizeAmountInput(e.target.value),
                           }));
                           setError(null);
                         }}
@@ -928,7 +929,7 @@ export function HawalaFormModal({
                         setLastEdited("rate");
                         setForm((prev) => ({
                           ...prev,
-                          rate: e.target.value,
+                          rate: normalizeAmountInput(e.target.value),
                         }));
                         setError(null);
                       }}
@@ -1127,7 +1128,7 @@ export function HawalaFormModal({
                     onChange={(e) =>
                       setForm((prev) => ({
                         ...prev,
-                        ownCommission: e.target.value,
+                        ownCommission: normalizeAmountInput(e.target.value),
                         ownCommissionMode: "FIXED",
                       }))
                     }
@@ -1146,7 +1147,7 @@ export function HawalaFormModal({
                     onChange={(e) =>
                       setForm((prev) => ({
                         ...prev,
-                        partnerCommission: e.target.value,
+                        partnerCommission: normalizeAmountInput(e.target.value),
                         partnerCommissionMode: "FIXED",
                       }))
                     }

@@ -31,6 +31,7 @@ import { hawalaNumberRef, txDisplayRef } from "@desktop/lib/tx-ref";
 import { PartnerForm } from "@desktop/pages/partner-forms";
 import { statusBadgeClass } from "@desktop/pages/hawala-helpers";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
@@ -997,12 +998,11 @@ export function PartnerDetailPage() {
             ) : null}
             <label>
               {t.partner.settleAmount} *
-              <input
+              <AmountInput
                 required
                 autoFocus
-                inputMode="decimal"
                 value={settleAmount}
-                onChange={(e) => setSettleAmount(e.target.value)}
+                onValueChange={setSettleAmount}
               />
             </label>
             <label>

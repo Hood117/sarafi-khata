@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@desktop/auth";
 import { EmployeeDetailModal } from "@desktop/components/employee-detail-modal";
 import { SalaryPaymentDetailModal } from "@desktop/components/salary-payment-detail-modal";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
@@ -760,11 +761,9 @@ export function EmployeesPage() {
             <div className="money-ccy-row">
               <label className="money-ccy-amount">
                 {t.common.amount} *
-                <input
-                  className="deposit-amount-input"
+                <AmountInput
                   value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  inputMode="decimal"
+                  onValueChange={setPayAmount}
                   required
                   autoFocus
                 />

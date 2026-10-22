@@ -44,6 +44,7 @@ import {
   useExchangeDealDetailModal,
 } from "@desktop/components/exchange-deal-detail-modal";
 import { TransactionLine } from "@desktop/components/transaction-line";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import {
@@ -2117,11 +2118,10 @@ export function ReportsPage() {
               </div>
               <label className="stack" style={{ minWidth: "8rem" }}>
                 <span>{t.common.amount}</span>
-                <input
+                <AmountInput
                   value={txAmount}
-                  onChange={(e) => setTxAmount(e.target.value)}
+                  onValueChange={setTxAmount}
                   placeholder={t.common.amount}
-                  inputMode="decimal"
                 />
               </label>
               <label className="stack" style={{ minWidth: "10rem" }}>

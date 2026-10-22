@@ -17,6 +17,7 @@ import {
   clickableExpenseRowProps,
 } from "@desktop/components/expense-detail-modal";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { Modal } from "@desktop/ui/modal";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
@@ -338,13 +339,12 @@ export function ExpensesPage() {
             <div className="money-ccy-row">
               <label className="money-ccy-amount stack" style={{ gap: "0.25rem" }}>
                 <span className="muted">{t.common.amount}</span>
-                <input
+                <AmountInput
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onValueChange={setAmount}
                   placeholder={t.common.amountPlaceholder}
                   required
                   autoFocus
-                  inputMode="decimal"
                 />
               </label>
               <CurrencyPicker

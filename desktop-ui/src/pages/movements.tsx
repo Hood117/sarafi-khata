@@ -19,6 +19,7 @@ import { todayIso } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 type Tab = "deposit" | "withdraw" | "transfer";
@@ -180,11 +181,11 @@ export function MovementsPage() {
         <div className="row">
           <label style={{ flex: 1 }}>
             {t.common.amount} *
-            <input
+            <AmountInput
               required
               value={amount}
               placeholder="0.00"
-              onChange={(e) => setAmount(e.target.value)}
+              onValueChange={setAmount}
             />
           </label>
           <label style={{ minWidth: 120 }}>

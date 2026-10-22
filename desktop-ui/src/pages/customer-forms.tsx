@@ -22,6 +22,7 @@ import {
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import {
   pauseFingerprintIdentify,
   resumeFingerprintIdentify,
@@ -44,11 +45,11 @@ import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 
 function mapOpeningKata(lines: OpeningLine[]) {
   return lines
-    .filter((l) => l.amount.trim())
+    .filter((l) => normalizeAmountInput(l.amount).trim())
     .map((l) => ({
       transactionId: l.transactionId ?? null,
       currencyCode: l.currencyCode,
-      amount: l.amount.trim(),
+      amount: normalizeAmountInput(l.amount).trim(),
       direction: l.direction,
       description: l.description.trim() || null,
       notes: l.notes.trim() || null,

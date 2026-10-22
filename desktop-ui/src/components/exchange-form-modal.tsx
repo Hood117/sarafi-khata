@@ -37,6 +37,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
@@ -687,7 +688,10 @@ export function ExchangeFormModal({
           placeholder={t.common.amountPlaceholder}
           onChange={(e) => {
             setLastEdited("buy");
-            setForm((prev) => ({ ...prev, buyAmount: e.target.value }));
+            setForm((prev) => ({
+              ...prev,
+              buyAmount: normalizeAmountInput(e.target.value),
+            }));
             setError(null);
           }}
         />
@@ -719,7 +723,10 @@ export function ExchangeFormModal({
           placeholder={t.common.amountPlaceholder}
           onChange={(e) => {
             setLastEdited("sell");
-            setForm((prev) => ({ ...prev, sellAmount: e.target.value }));
+            setForm((prev) => ({
+              ...prev,
+              sellAmount: normalizeAmountInput(e.target.value),
+            }));
             setError(null);
           }}
         />
@@ -786,7 +793,10 @@ export function ExchangeFormModal({
             placeholder="0"
             onChange={(e) => {
               setLastEdited("rate");
-              setForm((prev) => ({ ...prev, rate: e.target.value }));
+              setForm((prev) => ({
+                ...prev,
+                rate: normalizeAmountInput(e.target.value),
+              }));
               setError(null);
             }}
           />

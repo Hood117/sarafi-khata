@@ -28,6 +28,7 @@ import {
   formatAmountDisplay,
   statusBadgeClass,
 } from "@desktop/pages/hawala-helpers";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
@@ -393,21 +394,17 @@ export function AccountOrdersPage() {
             />
             <label className="field">
               <span>{t.accountOrders.originalAmount}</span>
-              <input
+              <AmountInput
                 value={originalAmount}
-                onChange={(e) => setOriginalAmount(e.target.value)}
-                inputMode="decimal"
-                dir="ltr"
+                onValueChange={setOriginalAmount}
                 required
               />
             </label>
             <label className="field">
               <span>{t.accountOrders.purchaseDeductionPercent}</span>
-              <input
+              <AmountInput
                 value={purchaseDeductionPercent}
-                onChange={(e) => setPurchaseDeductionPercent(e.target.value)}
-                inputMode="decimal"
-                dir="ltr"
+                onValueChange={setPurchaseDeductionPercent}
               />
             </label>
             <div className="row gap end">

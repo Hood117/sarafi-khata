@@ -32,6 +32,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import {
   formatMoney,
@@ -734,7 +735,10 @@ export function SendHawalaFormModal({
                   value={form.amount}
                   placeholder={t.common.amountPlaceholder}
                   onChange={(e) => {
-                    setForm((prev) => ({ ...prev, amount: e.target.value }));
+                    setForm((prev) => ({
+                      ...prev,
+                      amount: normalizeAmountInput(e.target.value),
+                    }));
                     setError(null);
                   }}
                 />
@@ -1080,7 +1084,10 @@ export function SendHawalaFormModal({
                 value={form.commission}
                 placeholder="0"
                 onChange={(e) => {
-                  setForm((prev) => ({ ...prev, commission: e.target.value }));
+                  setForm((prev) => ({
+                    ...prev,
+                    commission: normalizeAmountInput(e.target.value),
+                  }));
                   setError(null);
                 }}
               />

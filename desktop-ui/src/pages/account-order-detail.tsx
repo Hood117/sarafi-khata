@@ -32,6 +32,7 @@ import {
   formatAmountDisplay,
   statusBadgeClass,
 } from "@desktop/pages/hawala-helpers";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
@@ -480,12 +481,10 @@ export function AccountOrderDetailPage() {
               </label>
               <label className="field">
                 <span>{t.accountOrders.originalAmount}</span>
-                <input
+                <AmountInput
                   className="amount-emphasis"
                   value={originalAmount}
-                  onChange={(e) => setOriginalAmount(e.target.value)}
-                  inputMode="decimal"
-                  dir="ltr"
+                  onValueChange={setOriginalAmount}
                   disabled={!editingOrder}
                   readOnly={!editingOrder}
                   required={editingOrder}
@@ -493,12 +492,10 @@ export function AccountOrderDetailPage() {
               </label>
               <label className="field">
                 <span>{t.accountOrders.purchaseDeductionPercent}</span>
-                <input
+                <AmountInput
                   className="amount-emphasis"
                   value={purchaseDeductionPercent}
-                  onChange={(e) => setPurchaseDeductionPercent(e.target.value)}
-                  inputMode="decimal"
-                  dir="ltr"
+                  onValueChange={setPurchaseDeductionPercent}
                   disabled={!editingOrder}
                   readOnly={!editingOrder}
                 />
@@ -631,24 +628,20 @@ export function AccountOrderDetailPage() {
               </label>
               <label className="field">
                 <span>{t.accountOrders.recipientAmount}</span>
-                <input
+                <AmountInput
                   className="amount-emphasis"
                   value={recipientAmount}
-                  onChange={(e) => setRecipientAmount(e.target.value)}
-                  inputMode="decimal"
-                  dir="ltr"
+                  onValueChange={setRecipientAmount}
                   disabled={!canWrite}
                   required
                 />
               </label>
               <label className="field">
                 <span>{t.accountOrders.distributionFeePercent}</span>
-                <input
+                <AmountInput
                   className="amount-emphasis"
                   value={recipientFeePercent}
-                  onChange={(e) => setRecipientFeePercent(e.target.value)}
-                  inputMode="decimal"
-                  dir="ltr"
+                  onValueChange={setRecipientFeePercent}
                   disabled={!canWrite}
                 />
               </label>

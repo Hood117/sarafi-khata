@@ -16,6 +16,7 @@ import {
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
@@ -277,12 +278,10 @@ export function VaultCashFormModal({
             <div className="money-ccy-row">
               <label className="money-ccy-amount">
                 {t.common.amount} *
-                <input
-                  className="deposit-amount-input"
+                <AmountInput
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onValueChange={setAmount}
                   required
-                  inputMode="decimal"
                   disabled={formBusy}
                 />
               </label>
@@ -304,10 +303,9 @@ export function VaultCashFormModal({
             {showCostRate ? (
               <label>
                 {t.desk.cashInCostRate.replace("{currency}", currencyCode || "—")}
-                <input
-                  inputMode="decimal"
+                <AmountInput
                   value={costRate}
-                  onChange={(e) => setCostRate(e.target.value)}
+                  onValueChange={setCostRate}
                   placeholder={t.desk.referenceOptional}
                   disabled={formBusy}
                 />

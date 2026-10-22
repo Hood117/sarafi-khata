@@ -67,8 +67,8 @@ pub fn money_from_major_units_allow_zero(
       "decimalPlaces must be an integer between 0 and 8.".into(),
     ));
   }
-  let normalized = major_amount.trim();
-  if !major_amount_ok(normalized) {
+  let normalized = normalize_major_amount_input(major_amount);
+  if !major_amount_ok(&normalized) {
     return Err(AppError::Validation(format!(
       "Invalid major-unit amount: \"{major_amount}\"."
     )));
@@ -76,7 +76,7 @@ pub fn money_from_major_units_allow_zero(
 
   let (whole_part, fraction_part) = match normalized.split_once('.') {
     Some((w, f)) => (w, f),
-    None => (normalized, ""),
+    None => (normalized.as_str(), ""),
   };
 
   let places = decimal_places as usize;
@@ -142,6 +142,31 @@ pub fn money_from_major_units_signed(
   } else {
     money_from_major_units_allow_zero(normalized, decimal_places)
   }
+}
+
+/// Convert Pashto/Dari/Arabic digits and strip thousand separators before parse.
+fn normalize_major_amount_input(raw: &str) -> String {
+  let mut out = String::with_capacity(raw.len());
+  let mut seen_dot = false;
+  for ch in raw.trim().chars() {
+    let mapped = match ch {
+      '٠'..='٩' => char::from_u32(u32::from(ch) - 0x0660 + u32::from('0')),
+      '۰'..='۹' => char::from_u32(u32::from(ch) - 0x06F0 + u32::from('0')),
+      '٫' => Some('.'),
+      ',' | '٬' | ' ' | '\u{00a0}' | '\u{202f}' | '\u{200e}' | '\u{200f}' => None,
+      other => Some(other),
+    };
+    let Some(c) = mapped else { continue };
+    if c.is_ascii_digit() {
+      out.push(c);
+      continue;
+    }
+    if c == '.' && !seen_dot {
+      out.push('.');
+      seen_dot = true;
+    }
+  }
+  out
 }
 
 fn major_amount_ok(value: &str) -> bool {

@@ -1,11 +1,40 @@
 /**
- * Normalize Arabic-Indic / Extended Arabic-Indic (Pashto/Dari) digits to Western 0-9
- * so amount fields stay ASCII regardless of keyboard language.
+ * Money fields always store English digits only (0-9) and at most one `.`.
+ * Pashto/Dari keyboards are converted automatically:
+ *   ۱۲۲۳۲   → 12232
+ *   ۲۵٬۰۰۰  → 25000
+ *   25,000  → 25000
+ *   ۱۲٫۵۰   → 12.50
  */
+
+/** Map Eastern digit characters to ASCII 0-9; map Arabic decimal to `.`. */
 export function toWesternDigits(value: string): string {
   return value
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/\u066b/g, "."); // Arabic decimal separator
+}
+
+/**
+ * Strict amount normalize for inputs + save paths.
+ * Keeps only ASCII digits and a single decimal point.
+ */
+export function normalizeAmountInput(value: string): string {
+  const western = toWesternDigits(value);
+  let out = "";
+  let seenDot = false;
+  for (const ch of western) {
+    if (ch >= "0" && ch <= "9") {
+      out += ch;
+      continue;
+    }
+    if (ch === "." && !seenDot) {
+      out += ".";
+      seenDot = true;
+    }
+    // Drop commas, spaces, Pashto letters, and any other junk.
+  }
+  return out;
 }
 
 export function isNumericTextInput(el: EventTarget | null): el is HTMLInputElement {
@@ -21,26 +50,37 @@ export function isNumericTextInput(el: EventTarget | null): el is HTMLInputEleme
   return false;
 }
 
+type TrackedInput = HTMLInputElement & {
+  _valueTracker?: { setValue: (value: string) => void };
+};
+
 /**
- * Capture-phase listener: convert Eastern digits to Western before React reads the value.
- * Keeps caret position so Backspace/Delete work from where the user is typing.
+ * Global safety net for amount fields that still use plain <input>.
+ * Prefer AmountInput / normalizeAmountInput in onChange for React state.
  */
 export function installWesternDigitsGuard(): () => void {
   const onInput = (event: Event) => {
     const el = event.target;
     if (!isNumericTextInput(el)) return;
+
     const before = el.value;
-    const after = toWesternDigits(before);
+    const after = normalizeAmountInput(before);
     if (after === before) return;
+
     const start = el.selectionStart;
     const end = el.selectionEnd;
+    const tracker = (el as TrackedInput)._valueTracker;
+    tracker?.setValue(before);
     el.value = after;
+
     if (start != null && end != null) {
-      // Digit mapping is 1:1, so caret stays at the same index.
+      const delta = after.length - before.length;
+      const nextStart = Math.max(0, Math.min(after.length, start + delta));
+      const nextEnd = Math.max(0, Math.min(after.length, end + delta));
       try {
-        el.setSelectionRange(start, end);
+        el.setSelectionRange(nextStart, nextEnd);
       } catch {
-        /* some input types ignore selection */
+        /* ignore */
       }
     }
   };

@@ -16,6 +16,7 @@ import {
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import {
   emptyOpeningLine,
@@ -179,19 +180,17 @@ export function CreatePartnerFromCustomerModal({
         <div className="exchange-fields-grid">
           <label>
             {t.partner.forEveryAmount}
-            <input
-              inputMode="decimal"
+            <AmountInput
               value={commissionPerAmount}
-              onChange={(e) => setCommissionPerAmount(e.target.value)}
+              onValueChange={setCommissionPerAmount}
               placeholder="100"
             />
           </label>
           <label>
             {t.partner.commissionIs}
-            <input
-              inputMode="decimal"
+            <AmountInput
               value={commissionFeeAmount}
-              onChange={(e) => setCommissionFeeAmount(e.target.value)}
+              onValueChange={setCommissionFeeAmount}
               placeholder="200"
             />
           </label>

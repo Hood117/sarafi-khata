@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import type { CurrencyListItem } from "@desktop/api";
 import type { MovementRateBase } from "@desktop/lib/movement-fx";
 import { currenciesDiffer } from "@desktop/lib/movement-fx";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 
 type Labels = {
@@ -76,13 +77,11 @@ export function MovementFxAmountFields({
             <div className="money-ccy-row">
               <label className="money-ccy-amount">
                 {labels.leftAmount} *
-                <input
+                <AmountInput
                   ref={amountRef}
-                  className="deposit-amount-input"
-                  inputMode="decimal"
                   value={leftAmount}
                   placeholder={labels.amountPlaceholder}
-                  onChange={(e) => onLeftAmount(e.target.value)}
+                  onValueChange={onLeftAmount}
                 />
               </label>
               <CurrencyPicker
@@ -99,12 +98,10 @@ export function MovementFxAmountFields({
             <div className="money-ccy-row">
               <label className="money-ccy-amount">
                 {resultLabel} *
-                <input
-                  className="deposit-amount-input"
-                  inputMode="decimal"
+                <AmountInput
                   value={rightAmount}
                   placeholder={labels.amountPlaceholder}
-                  onChange={(e) => onRightAmount(e.target.value)}
+                  onValueChange={onRightAmount}
                 />
               </label>
               <CurrencyPicker
@@ -148,21 +145,19 @@ export function MovementFxAmountFields({
             </div>
             <label>
               <span>{labels.exchangeRate}</span>
-              <input
-                inputMode="decimal"
+              <AmountInput
                 value={rate}
                 placeholder="0"
-                onChange={(e) => onRate(e.target.value)}
+                onValueChange={onRate}
               />
             </label>
             {onBoardRate && labels.marketCost ? (
               <label>
                 <span>{labels.marketCost}</span>
-                <input
-                  inputMode="decimal"
+                <AmountInput
                   value={boardRate}
                   placeholder="0"
-                  onChange={(e) => onBoardRate(e.target.value)}
+                  onValueChange={onBoardRate}
                 />
               </label>
             ) : null}
@@ -173,13 +168,11 @@ export function MovementFxAmountFields({
           <div className="money-ccy-row">
             <label className="money-ccy-amount">
               {labels.leftAmount} *
-              <input
+              <AmountInput
                 ref={amountRef}
-                className="deposit-amount-input"
-                inputMode="decimal"
                 value={leftAmount}
                 placeholder={labels.amountPlaceholder}
-                onChange={(e) => onLeftAmount(e.target.value)}
+                onValueChange={onLeftAmount}
               />
             </label>
             <CurrencyPicker
@@ -197,12 +190,10 @@ export function MovementFxAmountFields({
           <div className="money-ccy-row">
             <label className="money-ccy-amount">
               {labels.rightAmount} *
-              <input
-                className="deposit-amount-input"
-                inputMode="decimal"
+              <AmountInput
                 value={rightAmount}
                 placeholder={labels.amountPlaceholder}
-                onChange={(e) => onRightAmount(e.target.value)}
+                onValueChange={onRightAmount}
               />
             </label>
             <CurrencyPicker
