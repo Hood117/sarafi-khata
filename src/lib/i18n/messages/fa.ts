@@ -275,6 +275,12 @@ export const fa: Dictionary = {
     hidePassword: "پنهان کردن رمز",
     showPassword: "نشان دادن رمز",
     unableToSignIn: "ورود ممکن نشد. لطفاً دوباره کوشش کنید.",
+    modePassword: "نام کاربری و رمز",
+    modeFingerprint: "اثر انگشت",
+    fingerprintHint: "انگشت ثبت‌شده را روی دستگاه بگذارید تا وارد شوید.",
+    fingerprintScan: "اسکن اثر انگشت",
+    fingerprintScanning: "در انتظار اثر انگشت…",
+    fingerprintFailed: "ورود با اثر انگشت نشد. دوباره بکوشید یا از رمز استفاده کنید.",
   },
   license: {
     title: "فعال‌سازی ASMS",
@@ -1349,6 +1355,17 @@ export const fa: Dictionary = {
     authPinRecoverySetNewPinHint: "پین تأیید جدید ۶ رقمی انتخاب کنید.",
     authPinRecoverySuccessReturnToPin:
       "پین تأیید بازنشانی شد. پین جدید را برای ادامه وارد کنید.",
+    fingerprintTitle: "ورود با اثر انگشت",
+    fingerprintHint:
+      "اثر انگشت این کاربر را ثبت کنید تا بتواند با دستگاه یا با نام کاربری و رمز وارد شود.",
+    fingerprintEnroll: "ثبت اثر انگشت",
+    fingerprintEdit: "ویرایش اثر انگشت",
+    fingerprintEnrolled: "اثر انگشت ثبت شده",
+    fingerprintNotEnrolled: "اثر انگشتی ثبت نشده",
+    fingerprintBusy: "در حال اسکن…",
+    fingerprintClear: "حذف اثر انگشت",
+    fingerprintClearConfirm: "اثر انگشت این کاربر برای ورود حذف شود؟",
+    fingerprintSaveFirst: "ابتدا کاربر را ذخیره کنید، سپس اثر انگشت را ثبت کنید.",
   },
   audit: {
     emptyTitle: "هنوز ثبتی نیست",

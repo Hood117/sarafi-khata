@@ -30,6 +30,8 @@ model User {
   isActive            Boolean       @default(true)
   /// JSON string array of AppScreen ids. Null = use role default screens.
   allowedScreens      Json?
+  /// Optional ZKTeco enrollment template (Base64) for desk sign-in.
+  fingerprintTemplate String?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
   sessions                       Session[]

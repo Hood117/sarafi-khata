@@ -314,6 +314,12 @@ pub fn ensure_schema_compat(conn: &Connection) -> Result<(), AppError> {
   )?;
   ensure_column(
     conn,
+    "User",
+    "fingerprintTemplate",
+    r#"ALTER TABLE "User" ADD COLUMN "fingerprintTemplate" TEXT;"#,
+  )?;
+  ensure_column(
+    conn,
     "Wallet",
     "userId",
     r#"ALTER TABLE "Wallet" ADD COLUMN "userId" TEXT REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

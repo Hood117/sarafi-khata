@@ -275,6 +275,12 @@ export const ps: Dictionary = {
     hidePassword: "پټنوم پټ کړئ",
     showPassword: "پټنوم وښایئ",
     unableToSignIn: "ننوتل ونشول. مهرباني وکړئ بیا هڅه وکړئ.",
+    modePassword: "کارن نوم او پټنوم",
+    modeFingerprint: "د ګوتې نښه",
+    fingerprintHint: "د ننوتلو لپاره خپله ثبت شوې ګوته په لوستونکي کېږدئ.",
+    fingerprintScan: "د ګوتې نښه سکین کړئ",
+    fingerprintScanning: "د ګوتې نښې ته انتظار…",
+    fingerprintFailed: "د ګوتې نښې سره ننوتل ونشول. بیا هڅه وکړئ یا پټنوم وکاروئ.",
   },
   license: {
     title: "د ASMS فعالول",
@@ -1349,6 +1355,17 @@ export const ps: Dictionary = {
     authPinRecoverySetNewPinHint: "نوی ۶ عددي تایید پین وټاکئ.",
     authPinRecoverySuccessReturnToPin:
       "تایید پین بیا ټاکل شو. د دوام لپاره نوی پین ولیکئ.",
+    fingerprintTitle: "د ګوتې نښې سره ننوتل",
+    fingerprintHint:
+      "د دې کارن ګوته ثبت کړئ ترڅو د لوستونکي یا کارن نوم او پټنوم سره ننوځي.",
+    fingerprintEnroll: "د ګوتې نښه ثبت کړئ",
+    fingerprintEdit: "د ګوتې نښه سمون",
+    fingerprintEnrolled: "د ګوتې نښه ثبت شوې",
+    fingerprintNotEnrolled: "د ګوتې نښه نه ده ثبت شوې",
+    fingerprintBusy: "سکین کېږي…",
+    fingerprintClear: "د ګوتې نښه لرې کړئ",
+    fingerprintClearConfirm: "د دې کارن د ننوتلو ګوته لرې شي؟",
+    fingerprintSaveFirst: "لومړی کارن خوندي کړئ، بیا ګوته ثبت کړئ.",
   },
   audit: {
     emptyTitle: "تر اوسه ثبت نشته",

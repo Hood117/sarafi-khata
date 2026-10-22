@@ -275,6 +275,12 @@ export const en: Dictionary = {
     hidePassword: "Hide password",
     showPassword: "Show password",
     unableToSignIn: "Unable to sign in. Please try again.",
+    modePassword: "Username & password",
+    modeFingerprint: "Fingerprint",
+    fingerprintHint: "Place your enrolled finger on the reader to sign in.",
+    fingerprintScan: "Scan fingerprint",
+    fingerprintScanning: "Waiting for fingerprint…",
+    fingerprintFailed: "Fingerprint sign-in failed. Try again or use your password.",
   },
   license: {
     title: "Activate ASMS",
@@ -1352,6 +1358,17 @@ export const en: Dictionary = {
     authPinRecoverySetNewPinHint: "Choose a new 6-digit authorization PIN.",
     authPinRecoverySuccessReturnToPin:
       "Authorization PIN reset. Enter your new PIN to continue.",
+    fingerprintTitle: "Fingerprint sign-in",
+    fingerprintHint:
+      "Enroll this user’s fingerprint so they can sign in with the reader or with username and password.",
+    fingerprintEnroll: "Enroll fingerprint",
+    fingerprintEdit: "Edit fingerprint",
+    fingerprintEnrolled: "Fingerprint enrolled",
+    fingerprintNotEnrolled: "No fingerprint enrolled",
+    fingerprintBusy: "Scanning…",
+    fingerprintClear: "Remove fingerprint",
+    fingerprintClearConfirm: "Remove this user’s fingerprint for sign-in?",
+    fingerprintSaveFirst: "Save the user first, then enroll a fingerprint.",
   },
   audit: {
     emptyTitle: "No customers yet",

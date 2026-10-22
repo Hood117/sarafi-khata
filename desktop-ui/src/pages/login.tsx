@@ -41,6 +41,8 @@ type ScatterGlyph = {
   rotate: number;
 };
 
+type LoginMode = "password" | "fingerprint";
+
 /** Deterministic PRNG so glyphs don't jump on re-render. */
 function mulberry32(seed: number) {
   let t = seed >>> 0;
@@ -77,7 +79,7 @@ function buildScatterGlyphs(count: number, seed = 0x5a2af): ScatterGlyph[] {
 }
 
 export function LoginPage() {
-  const { session, bootstrapping, login } = useAuth();
+  const { session, bootstrapping, login, loginWithFingerprint } = useAuth();
   const t = useT();
   const localeLabels: Record<AppLocale, string> = {
     en: t.settings.languageEnglish,
@@ -85,6 +87,7 @@ export function LoginPage() {
     ps: t.settings.languagePashto,
   };
   const { locale, setLocale } = useLocale();
+  const [mode, setMode] = useState<LoginMode>("password");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +111,6 @@ export function LoginPage() {
     if (event.key !== "Enter" && event.code !== "Enter" && event.code !== "NumpadEnter") {
       return;
     }
-    // Stop the form from submitting before the password is filled.
     event.preventDefault();
     event.stopPropagation();
     focusPassword();
@@ -160,7 +162,6 @@ export function LoginPage() {
       return;
     }
     if (!pass) {
-      // Enter from username (or empty password) → move to password, don't sign in yet.
       setError(null);
       focusPassword();
       return;
@@ -171,6 +172,19 @@ export function LoginPage() {
       await login(user, pass);
     } catch (err: unknown) {
       setError(errorMessage(err, t.login.unableToSignIn));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFingerprintSignIn() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await loginWithFingerprint();
+    } catch (err: unknown) {
+      setError(errorMessage(err, t.login.fingerprintFailed));
     } finally {
       setBusy(false);
     }
@@ -226,39 +240,86 @@ export function LoginPage() {
             ))}
           </select>
         </label>
-        <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
-          <label>
-            {t.login.username}
-            <input
-              ref={usernameRef}
-              className="ltr-text"
-              dir="ltr"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={onUsernameKeyDown}
-              placeholder={t.login.usernamePlaceholder}
-            />
-          </label>
-          <label>
-            {t.login.password}
-            <input
-              ref={passwordRef}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder={t.login.passwordPlaceholder}
-            />
-          </label>
-          {error ? <p className="error">{error}</p> : null}
-          <button type="submit" className="btn primary" disabled={busy}>
-            {busy ? t.login.signingIn : t.login.signIn}
+
+        <div className="login-mode-tabs" role="tablist" aria-label={t.login.signIn}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "password"}
+            className={mode === "password" ? "login-mode-tab is-active" : "login-mode-tab"}
+            onClick={() => {
+              setMode("password");
+              setError(null);
+            }}
+          >
+            {t.login.modePassword}
           </button>
-        </form>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "fingerprint"}
+            className={
+              mode === "fingerprint" ? "login-mode-tab is-active" : "login-mode-tab"
+            }
+            onClick={() => {
+              setMode("fingerprint");
+              setError(null);
+            }}
+          >
+            {t.login.modeFingerprint}
+          </button>
+        </div>
+
+        {mode === "password" ? (
+          <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
+            <label>
+              {t.login.username}
+              <input
+                ref={usernameRef}
+                className="ltr-text"
+                dir="ltr"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={onUsernameKeyDown}
+                placeholder={t.login.usernamePlaceholder}
+              />
+            </label>
+            <label>
+              {t.login.password}
+              <input
+                ref={passwordRef}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={t.login.passwordPlaceholder}
+              />
+            </label>
+            {error ? <p className="error">{error}</p> : null}
+            <button type="submit" className="btn primary" disabled={busy}>
+              {busy ? t.login.signingIn : t.login.signIn}
+            </button>
+          </form>
+        ) : (
+          <div className="stack login-fingerprint-panel">
+            <p className="muted" style={{ margin: 0 }}>
+              {t.login.fingerprintHint}
+            </p>
+            {error ? <p className="error">{error}</p> : null}
+            <button
+              type="button"
+              className="btn primary"
+              disabled={busy}
+              onClick={() => void handleFingerprintSignIn()}
+            >
+              {busy ? t.login.fingerprintScanning : t.login.fingerprintScan}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

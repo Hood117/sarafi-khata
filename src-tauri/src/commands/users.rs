@@ -136,6 +136,8 @@ pub struct UserAccount {
   pub screen_rights: std::collections::HashMap<String, String>,
   /// True when this user holds a configured authorization PIN (hash never exposed).
   pub auth_pin_configured: bool,
+  /// True when a fingerprint template is enrolled for desk sign-in.
+  pub fingerprint_enrolled: bool,
   pub created_at: String,
   pub updated_at: String,
 }
@@ -143,6 +145,7 @@ pub struct UserAccount {
 fn map_user(row: &rusqlite::Row<'_>) -> rusqlite::Result<UserAccount> {
   let screens_raw: Option<String> = row.get(5)?;
   let pin_hash: Option<String> = row.get(8)?;
+  let fingerprint_flag: i64 = row.get(9).unwrap_or(0);
   let rights = authorize::parse_screen_rights(screens_raw);
   let allowed_screens = rights
     .as_ref()
@@ -164,16 +167,24 @@ fn map_user(row: &rusqlite::Row<'_>) -> rusqlite::Result<UserAccount> {
       .as_ref()
       .map(|h| !h.trim().is_empty())
       .unwrap_or(false),
+    fingerprint_enrolled: fingerprint_flag != 0,
     created_at: row.get(6)?,
     updated_at: row.get(7)?,
   })
 }
 
+const USER_SELECT: &str = r#"SELECT id, fullName, username, role, isActive, allowedScreens,
+       createdAt, updatedAt, authPinHash,
+       CASE
+         WHEN fingerprintTemplate IS NOT NULL AND TRIM(fingerprintTemplate) != '' THEN 1
+         ELSE 0
+       END AS fingerprintEnrolled
+       FROM User"#;
+
 fn load_user(conn: &rusqlite::Connection, id: &str) -> Result<UserAccount, AppError> {
   conn
     .query_row(
-      r#"SELECT id, fullName, username, role, isActive, allowedScreens, createdAt, updatedAt, authPinHash
-         FROM User WHERE id = ?1"#,
+      &format!("{USER_SELECT} WHERE id = ?1"),
       [id],
       map_user,
     )
@@ -197,11 +208,10 @@ pub fn list_desk_screens() -> Result<Vec<DeskScreenOption>, AppError> {
 pub fn list_users(state: State<'_, AppState>) -> Result<Vec<UserAccount>, AppError> {
   let conn = state.db.lock();
   let _actor = authorize::require_user_admin(&state, &conn)?;
-  let mut stmt = conn.prepare(
-    r#"SELECT id, fullName, username, role, isActive, allowedScreens, createdAt, updatedAt, authPinHash
-       FROM User
-       ORDER BY fullName COLLATE NOCASE, username COLLATE NOCASE"#,
-  )?;
+  let mut stmt = conn.prepare(&format!(
+    "{USER_SELECT}
+     ORDER BY fullName COLLATE NOCASE, username COLLATE NOCASE"
+  ))?;
   let items = stmt
     .query_map([], map_user)?
     .collect::<Result<Vec<_>, _>>()?;

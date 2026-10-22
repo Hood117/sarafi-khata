@@ -9,6 +9,7 @@ const SESSION_KEY = "saraf.native.session";
 const SKIP_SESSION_BIND = new Set([
   "bind_session",
   "login",
+  "login_with_fingerprint",
   "logout",
   "current_user",
   "ping",
@@ -17,6 +18,7 @@ const SKIP_SESSION_BIND = new Set([
   "activate_license",
   "clear_license_dev",
   "open_external_url",
+  "get_fingerprint_device_status",
 ]);
 
 function storedSessionToken(): string | null {
@@ -362,6 +364,11 @@ export function login(username: string, password: string) {
   return invoke<AuthSession>("login", { input: { username, password } });
 }
 
+/** Sign in by matching a finger against enrolled desk-user templates. */
+export function loginWithFingerprint() {
+  return invoke<AuthSession>("login_with_fingerprint");
+}
+
 export function logout(token: string) {
   return invoke<void>("logout", { input: { token } });
 }
@@ -456,6 +463,18 @@ export function enrollFingerprint(customerId: string) {
   return invoke<FingerprintEnrollResult>("enroll_fingerprint", {
     customerId,
   });
+}
+
+/** Three-press enroll for a desk user (fingerprint sign-in). */
+export function enrollUserFingerprint(userId: string) {
+  return invoke<FingerprintEnrollResult>("enroll_user_fingerprint", {
+    userId,
+  });
+}
+
+/** Remove a desk user's enrolled fingerprint. */
+export function clearUserFingerprint(userId: string) {
+  return invoke<void>("clear_user_fingerprint", { userId });
 }
 
 export type FingerprintIdentifyResult = {
@@ -573,6 +592,8 @@ export type UserAccount = {
   /** Per-screen access: read | write */
   screenRights: Record<string, "read" | "write" | string>;
   authPinConfigured?: boolean;
+  /** True when a fingerprint is enrolled for desk sign-in. */
+  fingerprintEnrolled?: boolean;
   createdAt: string;
   updatedAt: string;
 };

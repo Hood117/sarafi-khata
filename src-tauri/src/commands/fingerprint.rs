@@ -6,7 +6,9 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use rusqlite::OptionalExtension;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::commands::authorize::{require_any_screen, require_screen, require_screen_write};
+use crate::commands::authorize::{
+  require_any_screen, require_screen, require_screen_write, require_user_admin,
+};
 use crate::error::AppError;
 use crate::fingerprint::{
   EnrolledFingerprint, FingerprintCaptureResult, FingerprintDeviceStatus,
@@ -442,4 +444,104 @@ fn find_enrolled_collector_template(
     return Ok(None);
   }
   Ok(Some(bytes))
+}
+
+/// Three-press enrollment for an existing desk user; saves template for fingerprint sign-in.
+#[tauri::command]
+pub async fn enroll_user_fingerprint(
+  app: AppHandle,
+  fingerprint: State<'_, FingerprintService>,
+  state: State<'_, AppState>,
+  user_id: String,
+) -> Result<FingerprintEnrollResult, AppError> {
+  let user_id = user_id.trim().to_string();
+  if user_id.is_empty() {
+    return Err(AppError::Validation("User id is required.".into()));
+  }
+
+  {
+    let conn = state.db.lock();
+    let _actor = require_user_admin(&state, &conn)?;
+    let exists: Option<String> = conn
+      .query_row(
+        r#"SELECT id FROM User WHERE id = ?1 LIMIT 1"#,
+        [&user_id],
+        |row| row.get(0),
+      )
+      .optional()?;
+    if exists.is_none() {
+      return Err(AppError::NotFound("User not found.".into()));
+    }
+  }
+
+  let (progress_tx, progress_rx) = mpsc::channel::<FingerprintEnrollProgress>();
+  let app_for_progress = app.clone();
+  thread::spawn(move || {
+    while let Ok(ev) = progress_rx.recv() {
+      let _ = app_for_progress.emit("fingerprint-enroll-progress", &ev);
+    }
+  });
+
+  let fingerprint = fingerprint.inner().clone();
+  let mut result = tauri::async_runtime::spawn_blocking(move || {
+    fingerprint.enroll_three_with_progress(Some(progress_tx))
+  })
+  .await
+  .map_err(|e| AppError::Internal(format!("Enrollment task failed: {e}")))??;
+  if !result.ok {
+    return Ok(result);
+  }
+
+  let Some(template) = result.template_base64.clone() else {
+    return Ok(FingerprintEnrollResult {
+      ok: false,
+      template_base64: None,
+      template_len: None,
+      scans_completed: result.scans_completed,
+      sdk_error_code: None,
+      message: "Enrollment succeeded but no template was returned; nothing was saved.".into(),
+    });
+  };
+
+  let conn = state.db.lock();
+  let now = now_sqlite();
+  let updated = conn.execute(
+    r#"UPDATE User
+       SET fingerprintTemplate = ?1, updatedAt = ?2
+       WHERE id = ?3"#,
+    rusqlite::params![template, now, user_id],
+  )?;
+  if updated != 1 {
+    return Err(AppError::NotFound(
+      "User not found; fingerprint was not saved.".into(),
+    ));
+  }
+
+  result.message = format!("{} Saved for desk sign-in.", result.message.trim_end_matches('.'));
+  Ok(result)
+}
+
+/// Remove an enrolled desk-user fingerprint (admin only).
+#[tauri::command]
+pub fn clear_user_fingerprint(
+  state: State<'_, AppState>,
+  user_id: String,
+) -> Result<(), AppError> {
+  let user_id = user_id.trim().to_string();
+  if user_id.is_empty() {
+    return Err(AppError::Validation("User id is required.".into()));
+  }
+  let conn = state.db.lock();
+  let _actor = require_user_admin(&state, &conn)?;
+  let now = now_sqlite();
+  let updated = conn.execute(
+    r#"UPDATE User
+       SET fingerprintTemplate = NULL, updatedAt = ?1
+       WHERE id = ?2"#,
+    rusqlite::params![now, user_id],
+  )?;
+  if updated != 1 {
+    return Err(AppError::NotFound("User not found.".into()));
+  }
+  Ok(())
 }

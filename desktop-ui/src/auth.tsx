@@ -11,6 +11,7 @@ import {
 import {
   currentUser,
   login as apiLogin,
+  loginWithFingerprint as apiLoginWithFingerprint,
   logout as apiLogout,
   bindSession,
   type AuthSession,
@@ -61,6 +62,7 @@ type AuthContextValue = {
   session: AuthSession | null;
   bootstrapping: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithFingerprint: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -122,12 +124,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const next = await apiLogin(username, password);
+  const applySession = useCallback((next: AuthSession) => {
     saveSession(next);
     setSession(next);
     void bindSession(next.token);
   }, []);
+
+  const login = useCallback(
+    async (username: string, password: string) => {
+      applySession(await apiLogin(username, password));
+    },
+    [applySession],
+  );
+
+  const loginWithFingerprint = useCallback(async () => {
+    applySession(await apiLoginWithFingerprint());
+  }, [applySession]);
 
   const logout = useCallback(async () => {
     const token = session?.token;
@@ -145,8 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session?.token]);
 
   const value = useMemo(
-    () => ({ session, bootstrapping, login, logout }),
-    [session, bootstrapping, login, logout],
+    () => ({ session, bootstrapping, login, loginWithFingerprint, logout }),
+    [session, bootstrapping, login, loginWithFingerprint, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3950,6 +3950,39 @@ tr.hawala-row-pending td {
   color: var(--brand-deep);
 }
 
+.login-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+.login-mode-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 650;
+  font-size: var(--text-xs);
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.login-mode-tab.is-active {
+  background: var(--surface-solid);
+  color: var(--brand-deep);
+  box-shadow: 0 1px 3px rgba(12, 40, 28, 0.1);
+}
+
+.login-fingerprint-panel {
+  gap: 0.75rem;
+}
+
 @media print {
   :root {
     background: #fff;

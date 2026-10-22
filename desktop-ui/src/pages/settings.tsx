@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { useSearchParams } from "react-router-dom";
+import { listen } from "@tauri-apps/api/event";
 
 import {
+  clearUserFingerprint,
   createCurrency,
   createDbBackup,
   createUser,
   deleteUser,
+  enrollUserFingerprint,
   getAdminAuthPinStatus,
   getBusinessName,
   listCurrenciesPage,
@@ -25,8 +29,18 @@ import {
   type BackupListItem,
   type CurrencyListItem,
   type DeskScreenOption,
+  type FingerprintEnrollProgress,
   type UserAccount,
 } from "@desktop/api";
+import {
+  pauseFingerprintIdentify,
+  resumeFingerprintIdentify,
+} from "@desktop/lib/fingerprint-identify-gate";
+import {
+  isUnmatchedFingerprint,
+  notifyWrongFingerprint,
+  playFingerprintSound,
+} from "@desktop/lib/fingerprint-sounds";
 import {
   AdminPasswordConfirmModal,
   AuthPinSetupModal,
@@ -208,6 +222,7 @@ export function SettingsPage() {
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [passwordUser, setPasswordUser] = useState<UserAccount | null>(null);
+  const [fingerprintUser, setFingerprintUser] = useState<UserAccount | null>(null);
 
   const canManageUsers = isAdminRole(session) && canAccessScreen(session, "settings");
   const canManageBackup = canManageUsers;
@@ -908,7 +923,7 @@ export function SettingsPage() {
             </button>
           </div>
 
-          {userError && !showUserForm && !passwordUser ? (
+          {userError && !showUserForm && !passwordUser && !fingerprintUser ? (
             <ModalErrorBanner message={userError} />
           ) : null}
 
@@ -920,13 +935,14 @@ export function SettingsPage() {
                 <th>{t.users.role}</th>
                 <th>{t.users.screenRights}</th>
                 <th>{t.common.status}</th>
+                <th>{t.users.fingerprintTitle}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={7} className="muted">
                     {t.users.emptyTitle}
                   </td>
                 </tr>
@@ -961,6 +977,13 @@ export function SettingsPage() {
                       )}
                     </td>
                     <td>
+                      {user.fingerprintEnrolled ? (
+                        <span className="badge badge-ok">{t.users.fingerprintEnrolled}</span>
+                      ) : (
+                        <span className="muted">{t.users.fingerprintNotEnrolled}</span>
+                      )}
+                    </td>
+                    <td>
                       <div className="row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
                         <button
                           type="button"
@@ -984,6 +1007,19 @@ export function SettingsPage() {
                           }}
                         >
                           {t.users.password}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={userBusy}
+                          onClick={() => {
+                            setFingerprintUser(user);
+                            setUserError(null);
+                          }}
+                        >
+                          {user.fingerprintEnrolled
+                            ? t.users.fingerprintEdit
+                            : t.users.fingerprintEnroll}
                         </button>
                         {!isSystemAdminUsername(user.username) &&
                         user.id !== session?.userId ? (
@@ -1138,8 +1174,11 @@ export function SettingsPage() {
           }}
           onBusy={setUserBusy}
           onError={setUserError}
-          onOk={(msg) => {
+          onSaved={(msg) => {
             showSuccess(msg);
+            refreshUsers();
+          }}
+          onDone={() => {
             setShowUserForm(false);
             setEditingUser(null);
             refreshUsers();
@@ -1158,6 +1197,20 @@ export function SettingsPage() {
           onOk={(msg) => {
             showSuccess(msg);
             setPasswordUser(null);
+          }}
+        />
+      ) : null}
+
+      {fingerprintUser ? (
+        <UserFingerprintModal
+          user={fingerprintUser}
+          onClose={() => {
+            setFingerprintUser(null);
+            refreshUsers();
+          }}
+          onChanged={() => {
+            showSuccess(t.common.success);
+            refreshUsers();
           }}
         />
       ) : null}
@@ -1246,7 +1299,8 @@ function UserFormModal({
   onClose,
   onBusy,
   onError,
-  onOk,
+  onSaved,
+  onDone,
 }: {
   screens: DeskScreenOption[];
   initial: UserAccount | null;
@@ -1256,10 +1310,13 @@ function UserFormModal({
   onClose: () => void;
   onBusy: (v: boolean) => void;
   onError: (msg: string | null) => void;
-  onOk: (msg: string) => void;
+  onSaved: (msg: string) => void;
+  onDone: () => void;
 }) {
   const t = useT();
-  const isEdit = Boolean(initial);
+  const [createdUser, setCreatedUser] = useState<UserAccount | null>(null);
+  const activeUser = createdUser ?? initial;
+  const isEdit = Boolean(initial) || Boolean(createdUser);
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
   const [password, setPassword] = useState("");
@@ -1274,13 +1331,16 @@ function UserFormModal({
   const [pinConfigured, setPinConfigured] = useState(
     Boolean(initial?.authPinConfigured),
   );
+  const [fingerprintEnrolled, setFingerprintEnrolled] = useState(
+    Boolean(initial?.fingerprintEnrolled),
+  );
   const [passwordPromptOpen, setPasswordPromptOpen] = useState(false);
   const [passwordPromptBusy, setPasswordPromptBusy] = useState(false);
   const [passwordPromptError, setPasswordPromptError] = useState<string | null>(null);
   const [passwordPending, setPasswordPending] = useState<"user-save" | null>(null);
 
   const isSystemAdmin =
-    isEdit && isSystemAdminUsername(initial?.username);
+    Boolean(activeUser) && isSystemAdminUsername(activeUser?.username);
 
   useEffect(() => {
     if (!isSystemAdmin) return;
@@ -1311,9 +1371,9 @@ function UserFormModal({
     onBusy(true);
     onError(null);
     try {
-      if (isEdit && initial) {
+      if (activeUser) {
         await updateUser({
-          id: initial.id,
+          id: activeUser.id,
           fullName: fullName.trim(),
           role: isSystemAdmin ? "ADMIN" : role,
           isActive: isSystemAdmin ? true : isActive,
@@ -1322,9 +1382,10 @@ function UserFormModal({
           actorUserId: actorUserId ?? null,
           confirmPassword: isSystemAdmin ? adminPassword : null,
         });
-        onOk(t.common.success);
+        onSaved(t.common.success);
+        if (initial) onDone();
       } else {
-        await createUser({
+        const created = await createUser({
           fullName: fullName.trim(),
           username: username.trim(),
           password,
@@ -1332,7 +1393,10 @@ function UserFormModal({
           isActive,
           screenRights,
         });
-        onOk(t.common.success);
+        setCreatedUser(created);
+        setFingerprintEnrolled(Boolean(created.fingerprintEnrolled));
+        setPassword("");
+        onSaved(t.common.success);
       }
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : String(err));
@@ -1345,7 +1409,7 @@ function UserFormModal({
   async function submit(event: FormEvent) {
     event.preventDefault();
     onError(null);
-    if (isEdit && initial && isSystemAdmin) {
+    if (activeUser && isSystemAdmin) {
       setPasswordPending("user-save");
       setPasswordPromptError(null);
       setPasswordPromptOpen(true);
@@ -1516,14 +1580,36 @@ function UserFormModal({
           </div>
         ) : null}
 
+        <UserFingerprintEnrollBlock
+          userId={activeUser?.id ?? ""}
+          enrolled={fingerprintEnrolled}
+          disabled={busy}
+          hint={
+            activeUser
+              ? t.users.fingerprintHint
+              : t.users.fingerprintSaveFirst
+          }
+          onEnrolled={() => setFingerprintEnrolled(true)}
+          onCleared={() => setFingerprintEnrolled(false)}
+        />
+
         <div className="modal-form-footer">
           <ModalErrorBanner message={error} />
           <div className="modal-actions">
-            <button type="button" className="secondary" onClick={onClose} disabled={busy}>
-              {t.common.cancel}
+            <button
+              type="button"
+              className="secondary"
+              onClick={createdUser ? onDone : onClose}
+              disabled={busy}
+            >
+              {createdUser ? t.common.close : t.common.cancel}
             </button>
             <button type="submit" className="btn primary" disabled={busy}>
-              {busy ? t.common.saving : isEdit ? t.users.saveUser : t.common.create}
+              {busy
+                ? t.common.saving
+                : activeUser
+                  ? t.users.saveUser
+                  : t.common.create}
             </button>
           </div>
         </div>
@@ -1562,7 +1648,7 @@ function UserFormModal({
               setPinConfigured(status.configured);
               clearVaultUnlockSession();
               setPinSetupOpen(false);
-              onOk(t.users.authPinConfiguredOk);
+              onSaved(t.users.authPinConfiguredOk);
             })
             .catch((err: unknown) => {
               setPinError(errorMessage(err));
@@ -1570,6 +1656,300 @@ function UserFormModal({
             .finally(() => setPinBusy(false));
         }}
       />
+    </Modal>
+  );
+}
+
+type UserEnrollUiPhase =
+  | "ready"
+  | "scan1"
+  | "captured1"
+  | "remove1"
+  | "scan2"
+  | "captured2"
+  | "remove2"
+  | "scan3"
+  | "captured3"
+  | "success"
+  | "failure";
+
+function userEnrollPhaseFromProgress(
+  ev: FingerprintEnrollProgress,
+): UserEnrollUiPhase | null {
+  const scan = Number(ev.scan);
+  if (ev.phase === "scan") {
+    if (scan === 1) return "scan1";
+    if (scan === 2) return "scan2";
+    if (scan === 3) return "scan3";
+  }
+  if (ev.phase === "captured") {
+    if (scan === 1) return "captured1";
+    if (scan === 2) return "captured2";
+    if (scan === 3) return "captured3";
+  }
+  if (ev.phase === "remove") {
+    if (scan === 1) return "remove1";
+    if (scan === 2) return "remove2";
+  }
+  return null;
+}
+
+function userEnrollDoneCount(phase: UserEnrollUiPhase): number {
+  switch (phase) {
+    case "captured1":
+    case "remove1":
+    case "scan2":
+      return 1;
+    case "captured2":
+    case "remove2":
+    case "scan3":
+      return 2;
+    case "captured3":
+    case "success":
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+function userEnrollScanState(
+  phase: UserEnrollUiPhase,
+  scan: 1 | 2 | 3,
+): "idle" | "active" | "lift" | "done" {
+  if (phase === "failure" || phase === "ready") return "idle";
+  const doneCount = userEnrollDoneCount(phase);
+  if (scan <= doneCount) return "done";
+  if (phase === "scan1" && scan === 1) return "active";
+  if (phase === "scan2" && scan === 2) return "active";
+  if (phase === "scan3" && scan === 3) return "active";
+  if (phase === "remove1" && scan === 2) return "lift";
+  if (phase === "remove2" && scan === 3) return "lift";
+  return "idle";
+}
+
+/** Enroll / clear fingerprint for desk-user sign-in (create stays open after save). */
+function UserFingerprintEnrollBlock({
+  userId,
+  enrolled,
+  disabled,
+  hint,
+  onEnrolled,
+  onCleared,
+}: {
+  userId: string;
+  enrolled: boolean;
+  disabled?: boolean;
+  hint?: string;
+  onEnrolled: () => void;
+  onCleared: () => void;
+}) {
+  const t = useT();
+  const [enrollPhase, setEnrollPhase] = useState<UserEnrollUiPhase>("ready");
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [clearBusy, setClearBusy] = useState(false);
+  const [enrollMessage, setEnrollMessage] = useState<string | null>(null);
+  const canEnroll = !disabled && Boolean(userId.trim()) && !enrollBusy && !clearBusy;
+
+  async function handleEnrollFingerprint() {
+    if (!canEnroll) return;
+    const id = userId.trim();
+    if (!id) return;
+    setEnrollBusy(true);
+    pauseFingerprintIdentify();
+    setEnrollMessage(null);
+    setEnrollPhase("ready");
+
+    let unlisten: (() => void) | undefined;
+    try {
+      unlisten = await listen<FingerprintEnrollProgress>(
+        "fingerprint-enroll-progress",
+        (event) => {
+          const next = userEnrollPhaseFromProgress(event.payload);
+          if (!next) return;
+          if (
+            next === "captured1" ||
+            next === "captured2" ||
+            next === "captured3"
+          ) {
+            playFingerprintSound("register");
+          }
+          flushSync(() => setEnrollPhase(next));
+        },
+      );
+
+      flushSync(() => setEnrollPhase("scan1"));
+      const result = await enrollUserFingerprint(id);
+      if (result.ok) {
+        flushSync(() => {
+          setEnrollPhase("success");
+          setEnrollMessage(result.message || t.customers.enrollSuccess);
+        });
+        onEnrolled();
+      } else {
+        const message = result.message || t.customers.enrollFailure;
+        if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
+        setEnrollPhase("failure");
+        setEnrollMessage(message);
+      }
+    } catch (err: unknown) {
+      const message = errorMessage(err, t.customers.enrollFailure);
+      if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
+      setEnrollPhase("failure");
+      setEnrollMessage(message);
+    } finally {
+      unlisten?.();
+      resumeFingerprintIdentify();
+      setEnrollBusy(false);
+    }
+  }
+
+  async function handleClearFingerprint() {
+    if (!userId.trim() || clearBusy || enrollBusy || disabled) return;
+    if (!window.confirm(t.users.fingerprintClearConfirm)) return;
+    setClearBusy(true);
+    setEnrollMessage(null);
+    try {
+      await clearUserFingerprint(userId.trim());
+      setEnrollPhase("ready");
+      onCleared();
+    } catch (err: unknown) {
+      setEnrollPhase("failure");
+      setEnrollMessage(errorMessage(err, t.customers.enrollFailure));
+    } finally {
+      setClearBusy(false);
+    }
+  }
+
+  const statusLine =
+    enrollPhase === "success" || enrollPhase === "captured3"
+      ? enrollMessage ?? t.customers.enrollSuccess
+      : enrollPhase === "failure"
+        ? enrollMessage ?? t.customers.enrollFailure
+        : enrollPhase === "scan1" ||
+            enrollPhase === "scan2" ||
+            enrollPhase === "scan3"
+          ? t.customers.enrollScanShort
+          : enrollPhase === "captured1" ||
+              enrollPhase === "captured2" ||
+              enrollPhase === "remove1" ||
+              enrollPhase === "remove2"
+            ? t.customers.enrollLiftShort
+            : enrolled
+              ? t.users.fingerprintEnrolled
+              : (hint ?? t.users.fingerprintHint);
+
+  return (
+    <section
+      className={[
+        "fp-enroll-panel",
+        enrollPhase === "success" || enrolled ? "fp-enroll-panel--ok" : "",
+        enrollPhase === "failure" ? "fp-enroll-panel--fail" : "",
+        enrollBusy ? "fp-enroll-panel--busy" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      aria-label={t.users.fingerprintTitle}
+    >
+      <div className="fp-enroll-head">
+        <div>
+          <h3 className="fp-enroll-title">{t.users.fingerprintTitle}</h3>
+          {statusLine ? <p className="fp-enroll-hint muted">{statusLine}</p> : null}
+        </div>
+        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+          {enrolled ? (
+            <button
+              type="button"
+              className="secondary"
+              disabled={disabled || enrollBusy || clearBusy}
+              onClick={() => void handleClearFingerprint()}
+            >
+              {clearBusy ? t.users.fingerprintBusy : t.users.fingerprintClear}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn primary fp-enroll-cta"
+            disabled={!canEnroll}
+            onClick={() => void handleEnrollFingerprint()}
+          >
+            {enrollBusy ? t.users.fingerprintBusy : t.users.fingerprintEnroll}
+          </button>
+        </div>
+      </div>
+
+      <div className="fp-enroll-steps" aria-live="polite">
+        {([1, 2, 3] as const).map((scan) => {
+          const state = userEnrollScanState(enrollPhase, scan);
+          return (
+            <div
+              key={scan}
+              className={`fp-enroll-step fp-enroll-step--${state}`}
+              data-scan={scan}
+            >
+              <div className="fp-enroll-finger">
+                <span className="fp-enroll-finger-ring" />
+                <span className="fp-enroll-finger-core">
+                  {state === "done" ? "✓" : scan}
+                </span>
+              </div>
+              <span className="fp-enroll-step-label">
+                {state === "lift"
+                  ? t.customers.enrollLiftShort
+                  : state === "active"
+                    ? t.customers.enrollScanShort
+                    : state === "done"
+                      ? t.customers.enrollDone
+                      : `${t.customers.enrollReady} ${scan}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {enrollPhase === "failure" ? (
+        <ModalErrorBanner message={enrollMessage ?? t.customers.enrollFailure} />
+      ) : null}
+    </section>
+  );
+}
+
+function UserFingerprintModal({
+  user,
+  onClose,
+  onChanged,
+}: {
+  user: UserAccount;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const t = useT();
+  const [enrolled, setEnrolled] = useState(Boolean(user.fingerprintEnrolled));
+
+  return (
+    <Modal
+      title={`${t.users.fingerprintTitle} · ${user.fullName || user.username}`}
+      onClose={onClose}
+    >
+      <div className="stack">
+        <UserFingerprintEnrollBlock
+          userId={user.id}
+          enrolled={enrolled}
+          hint={t.users.fingerprintHint}
+          onEnrolled={() => {
+            setEnrolled(true);
+            onChanged();
+          }}
+          onCleared={() => {
+            setEnrolled(false);
+            onChanged();
+          }}
+        />
+        <div className="modal-actions">
+          <button type="button" className="secondary" onClick={onClose}>
+            {t.common.close}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

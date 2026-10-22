@@ -273,6 +273,12 @@ export type Dictionary = {
     hidePassword: string;
     showPassword: string;
     unableToSignIn: string;
+    modePassword: string;
+    modeFingerprint: string;
+    fingerprintHint: string;
+    fingerprintScan: string;
+    fingerprintScanning: string;
+    fingerprintFailed: string;
   };
   license: {
     title: string;
@@ -1307,6 +1313,16 @@ export type Dictionary = {
     authPinRecoveryPasswordHint: string;
     authPinRecoverySetNewPinHint: string;
     authPinRecoverySuccessReturnToPin: string;
+    fingerprintTitle: string;
+    fingerprintHint: string;
+    fingerprintEnroll: string;
+    fingerprintEdit: string;
+    fingerprintEnrolled: string;
+    fingerprintNotEnrolled: string;
+    fingerprintBusy: string;
+    fingerprintClear: string;
+    fingerprintClearConfirm: string;
+    fingerprintSaveFirst: string;
   };
   audit: {
     emptyTitle: string;

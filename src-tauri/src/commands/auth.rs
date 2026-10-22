@@ -1,5 +1,6 @@
 //! Auth commands — bcrypt verify + Session rows (SHA-256 token hash).
 
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use chrono::{Duration, Utc};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ use std::path::Path;
 use tauri::State;
 
 use crate::error::AppError;
+use crate::fingerprint::{EnrolledFingerprint, FingerprintService};
 use crate::state::AppState;
 use crate::util::now_sqlite;
 
@@ -194,6 +196,101 @@ pub fn apply_restore_session_bridge(conn: &Connection, db_path: &Path) -> Result
   Ok(())
 }
 
+fn issue_session(
+  state: &AppState,
+  user_id: &str,
+  username: &str,
+  full_name: &str,
+  role: &str,
+  allowed_screens: Option<String>,
+) -> Result<AuthSession, AppError> {
+  let token = hex::encode(uuid::Uuid::new_v4().as_bytes())
+    + &hex::encode(uuid::Uuid::new_v4().as_bytes());
+  let token_hash = hash_session_token(&token);
+  let expires_at = (Utc::now() + Duration::hours(SESSION_TTL_HOURS))
+    .format("%Y-%m-%d %H:%M:%S%.3f")
+    .to_string();
+  let now = now_sqlite();
+  let session_id = uuid::Uuid::new_v4().to_string();
+
+  let conn = state.db.lock();
+  conn.execute_batch("BEGIN IMMEDIATE;")?;
+  let persist = (|| -> Result<(), AppError> {
+    conn.execute(
+      "UPDATE Session SET revokedAt = ?1, updatedAt = ?1
+       WHERE userId = ?2 AND revokedAt IS NULL",
+      rusqlite::params![now, user_id],
+    )?;
+    conn.execute(
+      "INSERT INTO Session (id, userId, tokenHash, expiresAt, revokedAt, createdAt, updatedAt)
+       VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?5)",
+      rusqlite::params![session_id, user_id, token_hash, expires_at, now],
+    )?;
+    Ok(())
+  })();
+
+  match persist {
+    Ok(()) => conn.execute_batch("COMMIT;")?,
+    Err(e) => {
+      let _ = conn.execute_batch("ROLLBACK;");
+      return Err(e);
+    }
+  }
+  drop(conn);
+  crate::commands::authorize::set_session_token(state, &token);
+
+  Ok(AuthSession {
+    user_id: user_id.to_string(),
+    username: username.to_string(),
+    full_name: full_name.to_string(),
+    role: role.to_string(),
+    token,
+    allowed_screens,
+  })
+}
+
+fn load_user_fingerprint_templates(
+  conn: &Connection,
+) -> Result<(String, Vec<EnrolledFingerprint>), AppError> {
+  let mut stmt = conn.prepare(
+    r#"SELECT id, fingerprintTemplate, updatedAt FROM User
+       WHERE isActive = 1
+         AND fingerprintTemplate IS NOT NULL
+         AND TRIM(fingerprintTemplate) != ''"#,
+  )?;
+  let rows = stmt.query_map([], |row| {
+    Ok((
+      row.get::<_, String>(0)?,
+      row.get::<_, String>(1)?,
+      row.get::<_, Option<String>>(2)?,
+    ))
+  })?;
+
+  let mut enrolled = Vec::new();
+  let mut max_updated = String::new();
+  for row in rows {
+    let (user_id, template_b64, updated_at) = row?;
+    let Ok(template) = B64.decode(template_b64.trim()) else {
+      continue;
+    };
+    if template.is_empty() {
+      continue;
+    }
+    if let Some(updated) = updated_at {
+      if updated > max_updated {
+        max_updated = updated;
+      }
+    }
+    enrolled.push(EnrolledFingerprint {
+      // Reuse match-key field; identify returns this as customer_id.
+      customer_id: user_id,
+      template,
+    });
+  }
+  let version = format!("{}|{}", enrolled.len(), max_updated);
+  Ok((version, enrolled))
+}
+
 #[tauri::command]
 pub fn login(
   state: State<'_, AppState>,
@@ -244,49 +341,93 @@ pub fn login(
   if !valid {
     return Err(AppError::Auth("Invalid username or password.".into()));
   }
+  drop(conn);
 
-  let token = hex::encode(uuid::Uuid::new_v4().as_bytes())
-    + &hex::encode(uuid::Uuid::new_v4().as_bytes());
-  let token_hash = hash_session_token(&token);
-  let expires_at = (Utc::now() + Duration::hours(SESSION_TTL_HOURS))
-    .format("%Y-%m-%d %H:%M:%S%.3f")
-    .to_string();
-  let now = now_sqlite();
-  let session_id = uuid::Uuid::new_v4().to_string();
+  issue_session(
+    &state,
+    &id,
+    &uname,
+    &full_name,
+    &role,
+    allowed_screens,
+  )
+}
 
-  conn.execute_batch("BEGIN IMMEDIATE;")?;
-  let persist = (|| -> Result<(), AppError> {
-    conn.execute(
-      "UPDATE Session SET revokedAt = ?1, updatedAt = ?1
-       WHERE userId = ?2 AND revokedAt IS NULL",
-      rusqlite::params![now, id],
-    )?;
-    conn.execute(
-      "INSERT INTO Session (id, userId, tokenHash, expiresAt, revokedAt, createdAt, updatedAt)
-       VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?5)",
-      rusqlite::params![session_id, id, token_hash, expires_at, now],
-    )?;
-    Ok(())
-  })();
+/// Capture one fingerprint and sign in the matching active desk user (1:N).
+/// Unauthenticated — used on the login screen only. Never matches Customer templates.
+#[tauri::command]
+pub async fn login_with_fingerprint(
+  fingerprint: State<'_, FingerprintService>,
+  state: State<'_, AppState>,
+) -> Result<AuthSession, AppError> {
+  let (version, enrolled) = {
+    let conn = state.db.lock();
+    load_user_fingerprint_templates(&conn)?
+  };
+  if enrolled.is_empty() {
+    return Err(AppError::Auth(
+      "No desk users have a fingerprint enrolled yet.".into(),
+    ));
+  }
 
-  match persist {
-    Ok(()) => conn.execute_batch("COMMIT;")?,
-    Err(e) => {
-      let _ = conn.execute_batch("ROLLBACK;");
-      return Err(e);
+  let fingerprint = fingerprint.inner().clone();
+  let identified = tauri::async_runtime::spawn_blocking(move || {
+    fingerprint.identify_one(Some((version, enrolled)))
+  })
+  .await
+  .map_err(|e| AppError::Internal(format!("Fingerprint login task failed: {e}")))??;
+
+  if !identified.ok {
+    return Err(AppError::Auth(
+      "Fingerprint not recognized. Try again or sign in with username and password.".into(),
+    ));
+  }
+  let Some(user_id) = identified.customer_id.filter(|id| !id.trim().is_empty()) else {
+    return Err(AppError::Auth(
+      "Fingerprint not recognized. Try again or sign in with username and password.".into(),
+    ));
+  };
+
+  let conn = state.db.lock();
+  let row = conn.query_row(
+    "SELECT id, username, fullName, role, isActive, allowedScreens
+     FROM User
+     WHERE id = ?1
+     LIMIT 1",
+    [&user_id],
+    |row| {
+      Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?,
+        row.get::<_, String>(3)?,
+        row.get::<_, i64>(4)?,
+        row.get::<_, Option<String>>(5)?,
+      ))
+    },
+  );
+  let (id, uname, full_name, role, is_active, allowed_screens) = match row {
+    Ok(v) => v,
+    Err(rusqlite::Error::QueryReturnedNoRows) => {
+      return Err(AppError::Auth(
+        "Fingerprint not recognized. Try again or sign in with username and password.".into(),
+      ));
     }
+    Err(e) => return Err(e.into()),
+  };
+  if is_active == 0 {
+    return Err(AppError::Auth("This account is inactive.".into()));
   }
   drop(conn);
-  crate::commands::authorize::set_session_token(&state, &token);
 
-  Ok(AuthSession {
-    user_id: id,
-    username: uname,
-    full_name,
-    role,
-    token,
+  issue_session(
+    &state,
+    &id,
+    &uname,
+    &full_name,
+    &role,
     allowed_screens,
-  })
+  )
 }
 
 #[tauri::command]
