@@ -1323,6 +1323,7 @@ export type Dictionary = {
     fingerprintClear: string;
     fingerprintClearConfirm: string;
     fingerprintSaveFirst: string;
+    fingerprintPasswordHint: string;
   };
   audit: {
     emptyTitle: string;

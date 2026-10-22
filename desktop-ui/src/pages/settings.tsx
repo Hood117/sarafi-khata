@@ -26,6 +26,7 @@ import {
   updateCurrency,
   updateUser,
   validateBackupFile,
+  verifyAdminPassword,
   type BackupListItem,
   type CurrencyListItem,
   type DeskScreenOption,
@@ -1924,32 +1925,101 @@ function UserFingerprintModal({
 }) {
   const t = useT();
   const [enrolled, setEnrolled] = useState(Boolean(user.fingerprintEnrolled));
+  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  async function submitPassword(event: FormEvent) {
+    event.preventDefault();
+    if (passwordBusy) return;
+    const value = adminPassword.trim();
+    if (!value) {
+      setPasswordError(t.users.adminPasswordRequired);
+      return;
+    }
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      await verifyAdminPassword(value);
+      setPasswordVerified(true);
+      setAdminPassword("");
+    } catch (err: unknown) {
+      setPasswordError(errorMessage(err, t.users.adminPasswordRequired));
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
 
   return (
     <Modal
       title={`${t.users.fingerprintTitle} · ${user.fullName || user.username}`}
-      onClose={onClose}
+      onClose={() => {
+        if (passwordBusy) return;
+        onClose();
+      }}
     >
-      <div className="stack">
-        <UserFingerprintEnrollBlock
-          userId={user.id}
-          enrolled={enrolled}
-          hint={t.users.fingerprintHint}
-          onEnrolled={() => {
-            setEnrolled(true);
-            onChanged();
-          }}
-          onCleared={() => {
-            setEnrolled(false);
-            onChanged();
-          }}
-        />
-        <div className="modal-actions">
-          <button type="button" className="secondary" onClick={onClose}>
-            {t.common.close}
-          </button>
+      {!passwordVerified ? (
+        <form className="stack" onSubmit={(e) => void submitPassword(e)}>
+          <p className="muted" style={{ margin: 0 }}>
+            {t.users.fingerprintPasswordHint}
+          </p>
+          <label>
+            {t.users.password}
+            <input
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              value={adminPassword}
+              disabled={passwordBusy}
+              required
+              onChange={(e) => {
+                setAdminPassword(e.target.value);
+                if (passwordError) setPasswordError(null);
+              }}
+            />
+          </label>
+          <ModalErrorBanner message={passwordError} />
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={passwordBusy}
+              onClick={onClose}
+            >
+              {t.common.cancel}
+            </button>
+            <button
+              type="submit"
+              className="btn primary"
+              disabled={passwordBusy || !adminPassword.trim()}
+            >
+              {passwordBusy ? t.common.saving : t.common.confirm}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="stack">
+          <UserFingerprintEnrollBlock
+            userId={user.id}
+            enrolled={enrolled}
+            hint={t.users.fingerprintHint}
+            onEnrolled={() => {
+              setEnrolled(true);
+              onChanged();
+            }}
+            onCleared={() => {
+              setEnrolled(false);
+              onChanged();
+            }}
+          />
+          <div className="modal-actions">
+            <button type="button" className="secondary" onClick={onClose}>
+              {t.common.close}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </Modal>
   );
 }

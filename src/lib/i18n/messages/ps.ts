@@ -1366,6 +1366,8 @@ export const ps: Dictionary = {
     fingerprintClear: "د ګوتې نښه لرې کړئ",
     fingerprintClearConfirm: "د دې کارن د ننوتلو ګوته لرې شي؟",
     fingerprintSaveFirst: "لومړی کارن خوندي کړئ، بیا ګوته ثبت کړئ.",
+    fingerprintPasswordHint:
+      "د ګوتې نښې ثبت یا بدلون مخکې د سیسټم مدیر ننوتلو پټنوم ولیکئ.",
   },
   audit: {
     emptyTitle: "تر اوسه ثبت نشته",

@@ -1366,6 +1366,8 @@ export const fa: Dictionary = {
     fingerprintClear: "حذف اثر انگشت",
     fingerprintClearConfirm: "اثر انگشت این کاربر برای ورود حذف شود؟",
     fingerprintSaveFirst: "ابتدا کاربر را ذخیره کنید، سپس اثر انگشت را ثبت کنید.",
+    fingerprintPasswordHint:
+      "قبل از ثبت یا تغییر اثر انگشت، رمز ورود مدیر سیستم را وارد کنید.",
   },
   audit: {
     emptyTitle: "هنوز ثبتی نیست",

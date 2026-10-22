@@ -1369,6 +1369,8 @@ export const en: Dictionary = {
     fingerprintClear: "Remove fingerprint",
     fingerprintClearConfirm: "Remove this user’s fingerprint for sign-in?",
     fingerprintSaveFirst: "Save the user first, then enroll a fingerprint.",
+    fingerprintPasswordHint:
+      "Enter the System Administrator login password before enrolling or changing this fingerprint.",
   },
   audit: {
     emptyTitle: "No customers yet",
