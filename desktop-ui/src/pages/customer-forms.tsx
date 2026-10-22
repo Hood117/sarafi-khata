@@ -80,6 +80,7 @@ type CustomerFormFieldsProps = {
   disabled?: boolean;
   nameAutoFocus?: boolean;
   nameFocusKey?: number;
+  showNotes?: boolean;
   onChange: (
     field: "fullName" | "phone" | "nationalId" | "notes" | "customerType",
     value: string,
@@ -95,6 +96,7 @@ function CustomerFormFields({
   disabled,
   nameAutoFocus,
   nameFocusKey = 0,
+  showNotes = true,
   onChange,
 }: CustomerFormFieldsProps) {
   const t = useT();
@@ -150,15 +152,17 @@ function CustomerFormFields({
           onChange={(e) => onChange("nationalId", e.target.value)}
         />
       </label>
-      <label className="customer-form-span">
-        {t.common.notes}
-        <textarea
-          rows={2}
-          value={notes}
-          disabled={disabled}
-          onChange={(e) => onChange("notes", e.target.value)}
-        />
-      </label>
+      {showNotes ? (
+        <label className="customer-form-span">
+          {t.common.notes}
+          <textarea
+            rows={2}
+            value={notes}
+            disabled={disabled}
+            onChange={(e) => onChange("notes", e.target.value)}
+          />
+        </label>
+      ) : null}
     </div>
   );
 }
@@ -450,6 +454,7 @@ export function CustomerCreateForm({
           disabled={formLocked}
           nameAutoFocus={!editing && !awaitingEnroll}
           nameFocusKey={nameFocusKey}
+          showNotes={false}
           onChange={onChange}
         />
         <OpeningKataFields
@@ -464,6 +469,7 @@ export function CustomerCreateForm({
             ])
           }
           onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
+          showLineNotes={false}
         />
         <CustomerFingerprintEnrollBlock
           customerId={awaitingEnroll?.id ?? ""}

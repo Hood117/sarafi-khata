@@ -40,6 +40,7 @@ export function OpeningKataFields({
   takeLabel,
   onCurrenciesChange,
   allowAdd = true,
+  showLineNotes = true,
 }: {
   currencies: CurrencyListItem[];
   lines: OpeningLine[];
@@ -52,6 +53,8 @@ export function OpeningKataFields({
   onCurrenciesChange?: (items: CurrencyListItem[]) => void;
   /** When false, hide “Add currency” (single-line journal edit). */
   allowAdd?: boolean;
+  /** When false, hide the line notes field. Description still covers the memo. */
+  showLineNotes?: boolean;
 }) {
   const t = useT();
   const helperText =
@@ -113,13 +116,15 @@ export function OpeningKataFields({
                 onChange={(e) => onChange(index, { description: e.target.value })}
               />
             </label>
-            <label className="customer-form-span">
-              {t.openingKata.notes}
-              <input
-                value={line.notes}
-                onChange={(e) => onChange(index, { notes: e.target.value })}
-              />
-            </label>
+            {showLineNotes ? (
+              <label className="customer-form-span">
+                {t.openingKata.notes}
+                <input
+                  value={line.notes}
+                  onChange={(e) => onChange(index, { notes: e.target.value })}
+                />
+              </label>
+            ) : null}
           </div>
           {lines.length > 1 ? (
             <button type="button" className="secondary" onClick={() => onRemove(index)}>
