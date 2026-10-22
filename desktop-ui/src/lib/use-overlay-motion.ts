@@ -8,7 +8,10 @@ export function useOverlayMotion(onClose: () => void) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   const closing = useRef(false);
-  onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useLayoutEffect(() => {
     const backdrop = backdropRef.current;

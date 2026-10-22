@@ -473,11 +473,7 @@ export function CustomerCreateForm({
         />
         <CustomerFingerprintEnrollBlock
           customerId={awaitingEnroll?.id ?? ""}
-          hint={
-            awaitingEnroll
-              ? t.customers.enrollAfterCreateHint
-              : t.customers.enrollSaveFirstHint
-          }
+          hint={awaitingEnroll ? t.customers.enrollAfterCreateHint : ""}
           ensureCustomerId={async () => {
             if (awaitingEnroll?.id) return awaitingEnroll.id;
             const wasCreating = !editing;
@@ -716,7 +712,7 @@ function CustomerFingerprintEnrollBlock({
       <div className="fp-enroll-head">
         <div>
           <h3 className="fp-enroll-title">{t.customers.enrollTitle}</h3>
-          <p className="fp-enroll-hint muted">{statusLine}</p>
+          {statusLine ? <p className="fp-enroll-hint muted">{statusLine}</p> : null}
         </div>
         <button
           type="button"

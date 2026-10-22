@@ -623,6 +623,27 @@ a {
   --brand-soft: #eddfe6;
   --accent: #0d7377;
   --accent-soft: rgba(13, 115, 119, 0.14);
+  /* Keep tabs + Quick Actions fixed; the report scrolls under the chrome. */
+  overflow: hidden;
+}
+
+.app-shell[data-screen="reports"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="reports"] > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="reports"] > .app-main > .report-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-shell[data-screen="transactions"] {
@@ -647,6 +668,27 @@ a {
   --brand-soft: #dde5e2;
   --accent: #0f6b4c;
   --accent-soft: rgba(15, 107, 76, 0.12);
+  /* Keep tabs + Quick Actions fixed; Currencies and Backup scroll under the chrome. */
+  overflow: hidden;
+}
+
+.app-shell[data-screen="settings"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="settings"] > .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="settings"] > .app-main > .page-column {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-shell[data-screen="calculator"] {
@@ -7309,6 +7351,12 @@ html[data-bold-text="true"] .ledger-amount .amount-emphasis {
     max-height: none !important;
     overflow: visible !important;
     border: none !important;
+  }
+
+  .report-page {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .report-filters,
