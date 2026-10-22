@@ -455,6 +455,7 @@ export type Dictionary = {
     identifyVerified: string;
     identifyRecentTransactions: string;
     identifyNoTransactions: string;
+    wrongFingerToast: string;
   };
   cash: {
     title: string;

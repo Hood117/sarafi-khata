@@ -352,7 +352,7 @@ export const fa: Dictionary = {
     copyright: "© {year} ASMS. تمامی حقوق محفوظ است.",
     rightsReserved: "تمامی حقوق محفوظ است.",
     companyCredits: "اعتبار شرکت و توسعه",
-    developedBy: "این برنامه توسط ساخته شده است",
+    developedBy: "ساخته‌شده توسط",
     whatsapp: "واتساپ",
   },
   customers: {
@@ -465,6 +465,7 @@ export const fa: Dictionary = {
     identifyVerified: "تأیید شد",
     identifyRecentTransactions: "تراکنش‌های اخیر",
     identifyNoTransactions: "تراکنش اخیری نیست",
+    wrongFingerToast: "انگشت اشتباه اسکن شد.",
   },
   cash: {
     title: "ASMS",

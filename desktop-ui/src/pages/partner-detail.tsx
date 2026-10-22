@@ -521,11 +521,8 @@ export function PartnerDetailPage() {
   }
 
   return (
-    <div className="stack partner-detail-page">
-      <div
-        className="row"
-        style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}
-      >
+    <div className="stack partner-detail-page page-column">
+      <div className="detail-toolbar">
         <div>
           <h1 style={{ margin: "0 0 0.2rem" }}>
             {partner?.name ?? t.pages.partnerProfile}
@@ -544,7 +541,7 @@ export function PartnerDetailPage() {
             </p>
           ) : null}
         </div>
-        <div className="row" style={{ gap: "0.4rem" }}>
+        <div className="detail-toolbar-actions">
           <button
             type="button"
             className="secondary"

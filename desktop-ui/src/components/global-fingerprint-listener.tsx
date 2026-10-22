@@ -21,7 +21,11 @@ import {
   pauseFingerprintIdentify,
   resumeFingerprintIdentify,
 } from "@desktop/lib/fingerprint-identify-gate";
-import { playFingerprintSound } from "@desktop/lib/fingerprint-sounds";
+import {
+  isUnmatchedFingerprint,
+  notifyWrongFingerprint,
+  playFingerprintSound,
+} from "@desktop/lib/fingerprint-sounds";
 import { amountPartsFromDebitCredit } from "@desktop/lib/format-transaction-line";
 import { transactionTypeLabel } from "@desktop/lib/i18n-labels";
 import { canAccessPath } from "@desktop/lib/permissions";
@@ -218,12 +222,8 @@ export function GlobalFingerprintListener() {
             await sleep(IDLE_RETRY_MS, signal);
           } else {
             // Finger captured but unidentified / no match — not idle timeout.
-            if (
-              msg.includes("no match") ||
-              msg.includes("unknown finger") ||
-              msg.includes("did not match")
-            ) {
-              playFingerprintSound("wrong");
+            if (isUnmatchedFingerprint(result.message)) {
+              notifyWrongFingerprint();
             }
             await sleep(RETRY_MS, signal);
           }

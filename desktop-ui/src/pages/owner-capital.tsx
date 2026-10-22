@@ -153,7 +153,7 @@ export function OwnerCapitalPage() {
   }, [snap, snapNow, comparing]);
 
   return (
-    <div className="stack">
+    <div className="stack page-column">
       {error ? <PageLoadError message={error} onRetry={() => void load()} /> : null}
       {busy && !snap ? <p className="muted">{t.common.loading}</p> : null}
 

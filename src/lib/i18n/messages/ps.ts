@@ -352,7 +352,7 @@ export const ps: Dictionary = {
     copyright: "© {year} ASMS. ټول حقوق خوندي دي.",
     rightsReserved: "ټول حقوق خوندي دي.",
     companyCredits: "د شرکت او پراختیا اعتبار",
-    developedBy: "دا اپلیکیشن د دې لخوا جوړ شوی",
+    developedBy: "جوړ شوی لخوا",
     whatsapp: "واټساپ",
   },
   customers: {
@@ -465,6 +465,7 @@ export const ps: Dictionary = {
     identifyVerified: "تایید شو",
     identifyRecentTransactions: "وروستي معاملات",
     identifyNoTransactions: "وروستي معاملات نشته",
+    wrongFingerToast: "ناسمه ګوته سکین شوه.",
   },
   cash: {
     title: "ASMS",

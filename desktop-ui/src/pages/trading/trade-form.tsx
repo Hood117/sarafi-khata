@@ -126,7 +126,7 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   }
 
   return (
-    <div className="card stack">
+    <div className="card stack page-column">
       <h2 className="section-title">
         {mode === "buy" ? t.desk.newPurchase : t.desk.newSale}
       </h2>

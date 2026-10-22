@@ -11,6 +11,38 @@ html[data-theme="dark"] .app-shell[data-screen="dashboard"] {
   --brand-soft: rgba(66, 212, 160, 0.12);
 }
 
+html[data-theme="dark"] .dash-kpi-hero {
+  background: color-mix(in srgb, var(--brand) 22%, var(--surface-solid));
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+html[data-theme="dark"] .dash-kpi-hero strong,
+html[data-theme="dark"] .dash-kpi-hero span,
+html[data-theme="dark"] .dash-kpi-hero em {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .dash-customer-stats li {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface-solid));
+}
+
+html[data-theme="dark"] .dash-customer-stats li:first-child {
+  background: color-mix(in srgb, var(--brand) 34%, var(--surface-solid));
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .dash-customer-stats span,
+html[data-theme="dark"] .dash-customer-stats em {
+  color: var(--ink-soft);
+}
+
+html[data-theme="dark"] .dash-pill {
+  background: color-mix(in srgb, var(--brand) 28%, transparent);
+  color: var(--ink);
+}
+
 html[data-theme="dark"] .dashboard-footer-company {
   color: var(--brand);
 }

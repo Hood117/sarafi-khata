@@ -14,7 +14,11 @@ import {
   pauseFingerprintIdentify,
   resumeFingerprintIdentify,
 } from "@desktop/lib/fingerprint-identify-gate";
-import { playFingerprintSound } from "@desktop/lib/fingerprint-sounds";
+import {
+  isUnmatchedFingerprint,
+  notifyWrongFingerprint,
+  playFingerprintSound,
+} from "@desktop/lib/fingerprint-sounds";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import {
   buildHawalaReceiptText,
@@ -198,18 +202,19 @@ export function CompleteReceiveHawalaModal({
           result.message?.trim() || t.hawala.verifyFingerprintVerified,
         );
       } else {
-        playFingerprintSound("wrong");
+        const message =
+          result.message?.trim() || t.hawala.verifyFingerprintFailed;
+        if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
         setFpState("failed");
         setFpScore(result.matchScore);
-        setFpMessage(
-          result.message?.trim() || t.hawala.verifyFingerprintFailed,
-        );
+        setFpMessage(message);
       }
     } catch (err: unknown) {
-      playFingerprintSound("wrong");
+      const message = errorMessage(err, t.hawala.verifyFingerprintFailed);
+      if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
       setFpState("failed");
       setFpScore(null);
-      setFpMessage(errorMessage(err, t.hawala.verifyFingerprintFailed));
+      setFpMessage(message);
     } finally {
       resumeFingerprintIdentify();
     }

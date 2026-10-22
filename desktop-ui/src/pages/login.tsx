@@ -13,6 +13,7 @@ import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
+import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 const FINANCE_SYMBOLS = [
   "$",
@@ -91,6 +92,8 @@ export function LoginPage() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const passwordRef = useRef<HTMLInputElement | null>(null);
   const usernameRef = useRef<HTMLInputElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  useAuthShellMotion(shellRef, bootstrapping || Boolean(session));
 
   const scatter = useMemo(() => buildScatterGlyphs(52), []);
 
@@ -119,12 +122,13 @@ export function LoginPage() {
 
   if (bootstrapping) {
     return (
-      <div className="login-shell">
+      <div ref={shellRef} className="login-shell">
         <div className="login-scatter" aria-hidden="true">
           {scatter.map((g) => (
             <span
               key={g.id}
               className="login-scatter-glyph"
+              data-rotate={g.rotate}
               style={{
                 top: `${g.top}%`,
                 left: `${g.left}%`,
@@ -173,12 +177,13 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-shell">
+    <div ref={shellRef} className="login-shell">
       <div className="login-scatter" aria-hidden="true">
         {scatter.map((g) => (
           <span
             key={g.id}
             className="login-scatter-glyph"
+            data-rotate={g.rotate}
             style={{
               top: `${g.top}%`,
               left: `${g.left}%`,

@@ -347,7 +347,9 @@ html[data-ui="liquid-glass"]
     .report-period-preset
   ):not(.app-menu-btn):not(.nav-curtain-backdrop):not(.settings-menu-btn):not(.settings-menu-item):not(
     .app-chrome-refresh
-  ):not(.daybook-wa-icon-btn):not(.settings-tab):not(.dashboard-footer-link) {
+  ):not(.daybook-wa-icon-btn):not(.settings-tab):not(.dashboard-footer-link):not(
+    .dashboard-footer-company
+  ) {
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--brand) 35%, white);
   box-shadow:

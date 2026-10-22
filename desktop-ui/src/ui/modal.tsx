@@ -2,6 +2,7 @@ import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import { registerOverlayClose } from "@desktop/lib/overlay-stack";
+import { useOverlayMotion } from "@desktop/lib/use-overlay-motion";
 
 type ModalSize = "md" | "lg" | "wide" | "xl";
 
@@ -16,7 +17,8 @@ export function Modal({
   onClose: () => void;
   size?: ModalSize;
 }) {
-  useEffect(() => registerOverlayClose(onClose), [onClose]);
+  const { backdropRef, panelRef, requestClose } = useOverlayMotion(onClose);
+  useEffect(() => registerOverlayClose(requestClose), [requestClose]);
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -37,13 +39,15 @@ export function Modal({
 
   return createPortal(
     <div
+      ref={backdropRef}
       className="modal-backdrop"
       role="presentation"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) requestClose();
       }}
     >
       <div
+        ref={panelRef}
         className={`modal-panel card${sizeClass}`}
         role="dialog"
         aria-modal="true"
@@ -52,7 +56,7 @@ export function Modal({
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button type="button" className="btn" onClick={onClose} aria-label="Close">
+          <button type="button" className="btn" onClick={requestClose} aria-label="Close">
             ✕
           </button>
         </div>

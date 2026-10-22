@@ -585,7 +585,7 @@ export function SettingsPage() {
   }, [worldRows, worldPage, worldPageSize]);
 
   return (
-    <div className="stack">
+    <div className="stack page-column">
       {tab === "general" ? (
         <div className="stack settings-general-compact">
           {error ? <p className="error">{error}</p> : null}

@@ -145,7 +145,7 @@ export function TradingDashboardPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack page-column">
       {error ? <p className="error">{error}</p> : null}
       {busy && !data ? <p className="muted">{t.common.loading}</p> : null}
       {data ? (

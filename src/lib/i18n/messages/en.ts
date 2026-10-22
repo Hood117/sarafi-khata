@@ -352,7 +352,7 @@ export const en: Dictionary = {
     copyright: "© {year} ASMS. All rights reserved.",
     rightsReserved: "All rights reserved.",
     companyCredits: "Company & development credits",
-    developedBy: "This app was developed by",
+    developedBy: "Developed by",
     whatsapp: "WhatsApp",
   },
   customers: {
@@ -465,6 +465,7 @@ export const en: Dictionary = {
     identifyVerified: "Verified",
     identifyRecentTransactions: "Recent transactions",
     identifyNoTransactions: "No recent transactions",
+    wrongFingerToast: "Wrong finger scanned.",
   },
   cash: {
     title: "ASMS",

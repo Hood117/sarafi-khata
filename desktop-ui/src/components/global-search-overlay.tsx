@@ -20,6 +20,7 @@ import { useT } from "@desktop/i18n";
 import { transactionTypeLabel } from "@desktop/lib/i18n-labels";
 import { registerOverlayClose } from "@desktop/lib/overlay-stack";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { useOverlayMotion } from "@desktop/lib/use-overlay-motion";
 
 type ResultKind = "customer" | "account" | "transaction";
 
@@ -48,6 +49,7 @@ export function GlobalSearchOverlay({
   const navigate = useNavigate();
   const listId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { backdropRef, panelRef, requestClose } = useOverlayMotion(onClose);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [busy, setBusy] = useState(false);
@@ -185,7 +187,7 @@ export function GlobalSearchOverlay({
     [navigate, onClose, onOpenTransaction],
   );
 
-  useEffect(() => registerOverlayClose(onClose), [onClose]);
+  useEffect(() => registerOverlayClose(requestClose), [requestClose]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -237,13 +239,15 @@ export function GlobalSearchOverlay({
 
   return createPortal(
     <div
+      ref={backdropRef}
       className="global-search-backdrop"
       role="presentation"
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) requestClose();
       }}
     >
       <div
+        ref={panelRef}
         className="global-search-panel card"
         role="dialog"
         aria-modal="true"
@@ -263,7 +267,7 @@ export function GlobalSearchOverlay({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
           />
-          <button type="button" className="btn secondary" onClick={onClose}>
+          <button type="button" className="btn secondary" onClick={requestClose}>
             {t.common.close}
           </button>
         </div>

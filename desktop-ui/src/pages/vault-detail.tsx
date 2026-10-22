@@ -51,7 +51,7 @@ function VaultDetailPageInner() {
   const v = detail?.vault;
 
   return (
-    <div className="stack">
+    <div className="stack page-column">
       <div>
         <Link className="nav-link" to="/vaults" style={{ padding: 0 }}>
           ← {t.nav.vaults}

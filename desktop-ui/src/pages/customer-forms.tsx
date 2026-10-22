@@ -26,7 +26,11 @@ import {
   pauseFingerprintIdentify,
   resumeFingerprintIdentify,
 } from "@desktop/lib/fingerprint-identify-gate";
-import { playFingerprintSound } from "@desktop/lib/fingerprint-sounds";
+import {
+  isUnmatchedFingerprint,
+  notifyWrongFingerprint,
+  playFingerprintSound,
+} from "@desktop/lib/fingerprint-sounds";
 import {
   focusFirstIncompleteDeskField,
   handleDeskFormKeyDown,
@@ -429,73 +433,78 @@ export function CustomerCreateForm({
         })
       }
     >
-      {editing ? (
-        <p className="muted" style={{ margin: 0 }}>
-          {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
-          {editing.fullName}
-          {editing.code ? ` · ${editing.code}` : ""}
-        </p>
-      ) : null}
-      <CustomerFormFields
-        fullName={fullName}
-        phone={phone}
-        nationalId={nationalId}
-        notes={notes}
-        customerType={customerType}
-        disabled={formLocked}
-        nameAutoFocus={!editing && !awaitingEnroll}
-        nameFocusKey={nameFocusKey}
-        onChange={onChange}
-      />
-      <OpeningKataFields
-        currencies={currencies}
-        lines={openingLines}
-        onChange={updateLine}
-        onCurrenciesChange={setCurrencies}
-        onAdd={() =>
-          setOpeningLines((rows) => [
-            ...rows,
-            emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
-          ])
-        }
-        onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
-      />
-      <CustomerFingerprintEnrollBlock
-        customerId={awaitingEnroll?.id ?? ""}
-        hint={
-          awaitingEnroll
-            ? t.customers.enrollAfterCreateHint
-            : t.customers.enrollSaveFirstHint
-        }
-        ensureCustomerId={async () => {
-          if (awaitingEnroll?.id) return awaitingEnroll.id;
-          const wasCreating = !editing;
-          const saved = await persist();
-          if (!saved) return null;
-          if (wasCreating) {
-            setEditing(saved);
-            setAwaitingEnroll(saved);
-            setSaveAndNewAfterEnroll(false);
-            onEditingChange?.(true, saved.fullName);
+      <div className="customer-desk-scroll">
+        {editing ? (
+          <p className="muted" style={{ margin: 0 }}>
+            {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
+            {editing.fullName}
+            {editing.code ? ` · ${editing.code}` : ""}
+          </p>
+        ) : null}
+        <CustomerFormFields
+          fullName={fullName}
+          phone={phone}
+          nationalId={nationalId}
+          notes={notes}
+          customerType={customerType}
+          disabled={formLocked}
+          nameAutoFocus={!editing && !awaitingEnroll}
+          nameFocusKey={nameFocusKey}
+          onChange={onChange}
+        />
+        <OpeningKataFields
+          currencies={currencies}
+          lines={openingLines}
+          onChange={updateLine}
+          onCurrenciesChange={setCurrencies}
+          onAdd={() =>
+            setOpeningLines((rows) => [
+              ...rows,
+              emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
+            ])
           }
-          return saved.id;
-        }}
-        onBusyChange={setBusy}
-      />
+          onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
+        />
+        <CustomerFingerprintEnrollBlock
+          customerId={awaitingEnroll?.id ?? ""}
+          hint={
+            awaitingEnroll
+              ? t.customers.enrollAfterCreateHint
+              : t.customers.enrollSaveFirstHint
+          }
+          ensureCustomerId={async () => {
+            if (awaitingEnroll?.id) return awaitingEnroll.id;
+            const wasCreating = !editing;
+            const saved = await persist();
+            if (!saved) return null;
+            if (wasCreating) {
+              setEditing(saved);
+              setAwaitingEnroll(saved);
+              setSaveAndNewAfterEnroll(false);
+              onEditingChange?.(true, saved.fullName);
+            }
+            return saved.id;
+          }}
+          onBusyChange={setBusy}
+        />
+      </div>
       {awaitingEnroll ? (
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="btn primary"
-            data-desk-action="save"
-            disabled={busy}
-            onClick={() => finishAfterEnroll()}
-          >
-            {t.customers.enrollDone}
-          </button>
+        <div className="customer-desk-footer">
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn primary"
+              data-desk-action="save"
+              disabled={busy}
+              onClick={() => finishAfterEnroll()}
+            >
+              {t.customers.enrollDone}
+            </button>
+          </div>
         </div>
       ) : (
         <ModalFormActions
+          inline
           busy={busy}
           error={error}
           previousLabel={t.common.previous}
@@ -616,10 +625,11 @@ function CustomerFingerprintEnrollBlock({
         (event) => {
           const next = enrollPhaseFromProgress(event.payload);
           if (!next) return;
-          if (next === "captured1" || next === "captured2") {
-            playFingerprintSound("success");
-          }
-          if (next === "captured3") {
+          if (
+            next === "captured1" ||
+            next === "captured2" ||
+            next === "captured3"
+          ) {
             playFingerprintSound("register");
           }
           // Force paint so step 1/2/3 flip to ✓ as each finger is accepted.
@@ -645,20 +655,22 @@ function CustomerFingerprintEnrollBlock({
       flushSync(() => setEnrollPhase("scan1"));
       const result = await enrollFingerprint(id);
       if (result.ok) {
-        // Register tone already played on captured3; keep final success state.
+        // Register tone already played on each accepted press.
         flushSync(() => {
           setEnrollPhase("success");
           setEnrollMessage(result.message || t.customers.enrollSuccess);
         });
       } else {
-        playFingerprintSound("wrong");
+        const message = result.message || t.customers.enrollFailure;
+        if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
         setEnrollPhase("failure");
-        setEnrollMessage(result.message || t.customers.enrollFailure);
+        setEnrollMessage(message);
       }
     } catch (err: unknown) {
-      playFingerprintSound("wrong");
+      const message = errorMessage(err, t.customers.enrollFailure);
+      if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
       setEnrollPhase("failure");
-      setEnrollMessage(errorMessage(err, t.customers.enrollFailure));
+      setEnrollMessage(message);
     } finally {
       unlisten?.();
       resumeFingerprintIdentify();
@@ -860,63 +872,67 @@ export function CustomerEditForm({
 
   return (
     <form className="stack customer-desk-form" onSubmit={(e) => void handleSubmit(e)}>
-      {customer.isArchived ? (
-        <p className="muted" style={{ margin: 0 }}>
-          {t.customers.archivedEditHint}
-        </p>
-      ) : null}
-      <CustomerFormFields
-        fullName={fullName}
-        phone={phone}
-        nationalId={nationalId}
-        notes={notes}
-        customerType={customerType}
-        disabled={customer.isArchived || enrollBusy || busy}
-        onChange={onChange}
-      />
-      {!customer.isArchived ? (
-        <OpeningKataFields
-          currencies={currencies}
-          lines={openingLines}
-          onChange={updateLine}
-          onCurrenciesChange={setCurrencies}
-          onAdd={() =>
-            setOpeningLines((rows) => [
-              ...rows,
-              emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
-            ])
-          }
-          onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
+      <div className="customer-desk-scroll">
+        {customer.isArchived ? (
+          <p className="muted" style={{ margin: 0 }}>
+            {t.customers.archivedEditHint}
+          </p>
+        ) : null}
+        <CustomerFormFields
+          fullName={fullName}
+          phone={phone}
+          nationalId={nationalId}
+          notes={notes}
+          customerType={customerType}
+          disabled={customer.isArchived || enrollBusy || busy}
+          onChange={onChange}
         />
-      ) : null}
-      {!customer.isArchived ? (
-        <CustomerFingerprintEnrollBlock
-          customerId={customer.id}
-          disabled={busy}
-          hint={t.customers.enrollFingerprintHint}
-          onBusyChange={setEnrollBusy}
-        />
-      ) : null}
-      <ModalErrorBanner message={error} />
-      <div className="modal-actions">
-        <button
-          type="button"
-          className="secondary"
-          onClick={onCancel}
-          disabled={busy || enrollBusy}
-        >
-          {t.common.cancel}
-        </button>
         {!customer.isArchived ? (
+          <OpeningKataFields
+            currencies={currencies}
+            lines={openingLines}
+            onChange={updateLine}
+            onCurrenciesChange={setCurrencies}
+            onAdd={() =>
+              setOpeningLines((rows) => [
+                ...rows,
+                emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
+              ])
+            }
+            onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
+          />
+        ) : null}
+        {!customer.isArchived ? (
+          <CustomerFingerprintEnrollBlock
+            customerId={customer.id}
+            disabled={busy}
+            hint={t.customers.enrollFingerprintHint}
+            onBusyChange={setEnrollBusy}
+          />
+        ) : null}
+      </div>
+      <div className="customer-desk-footer">
+        <ModalErrorBanner message={error} />
+        <div className="modal-actions">
           <button
-            type="submit"
-            className="btn primary"
-            data-desk-action="save"
+            type="button"
+            className="secondary"
+            onClick={onCancel}
             disabled={busy || enrollBusy}
           >
-            {busy ? t.common.saving : t.common.saveChanges}
+            {t.common.cancel}
           </button>
-        ) : null}
+          {!customer.isArchived ? (
+            <button
+              type="submit"
+              className="btn primary"
+              data-desk-action="save"
+              disabled={busy || enrollBusy}
+            >
+              {busy ? t.common.saving : t.common.saveChanges}
+            </button>
+          ) : null}
+        </div>
       </div>
     </form>
   );

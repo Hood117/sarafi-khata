@@ -240,18 +240,12 @@ export function CustomerDetailPage() {
   const statusLabel = customer ? customerStatusLabel(customer, t) : null;
 
   return (
-    <div className="stack customer-detail-page">
-      <div
-        className="row"
-        style={{
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-        }}
-      >
+    <div className="stack customer-detail-page page-column">
+      <div className="detail-toolbar">
         <Link className="nav-link" to="/customers" style={{ padding: 0 }}>
           ← {t.nav.customers}
         </Link>
-        <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+        <div className="detail-toolbar-actions">
           {customer?.isArchived ? (
             <button type="button" className="btn primary" onClick={() => void onRestore()}>
               {t.common.restore}
@@ -566,7 +560,7 @@ export function CustomerDetailPage() {
       {showEdit && customer ? (
         <Modal
           title={t.customers.editCustomerTitle.replace("{name}", customer.fullName)}
-          size="lg"
+          size="wide"
           onClose={() => setShowEdit(false)}
         >
           <CustomerEditForm

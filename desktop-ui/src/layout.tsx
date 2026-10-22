@@ -1,8 +1,9 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "@desktop/auth";
 import { GlobalFingerprintListener } from "@desktop/components/global-fingerprint-listener";
+import { WrongFingerprintToast } from "@desktop/components/wrong-fingerprint-toast";
 import { GlobalSearchOverlay } from "@desktop/components/global-search-overlay";
 import { SettingsMenu } from "@desktop/components/settings-menu";
 import { QuickActionsBar } from "@desktop/components/quick-actions-bar";
@@ -30,6 +31,7 @@ import { canAccessPath, pathToScreenId } from "@desktop/lib/permissions";
 import { useBackspaceNavigate } from "@desktop/lib/use-backspace-navigate";
 import { useDeskAction } from "@desktop/lib/use-desk-action";
 import { useGlobalShortcuts } from "@desktop/lib/use-global-shortcuts";
+import { useChromeIntro, usePageMotion } from "@desktop/lib/use-page-motion";
 
 export function AppLayout() {
   const { session } = useAuth();
@@ -63,6 +65,9 @@ export function AppLayout() {
 
   useBackspaceNavigate();
   useGlobalShortcuts({ onOpenSearch: openSearch });
+
+  const mainRef = useRef<HTMLElement>(null);
+  usePageMotion(mainRef, `${location.pathname}:${refreshKey}`);
 
   const canSee = (to: string) => canAccessPath(session, to);
 
@@ -132,6 +137,8 @@ export function AppLayout() {
     },
   ].filter((link) => canSee(link.to));
 
+  useChromeIntro(links.length);
+
   return (
     <div className="app-frame">
       <div className="app-shell stack" data-screen={screenId}>
@@ -181,7 +188,11 @@ export function AppLayout() {
             <SettingsMenu />
           </div>
         </div>
-        <main className="app-main stack" key={`${screenId}-${refreshKey}`}>
+        <main
+          ref={mainRef}
+          className="app-main stack"
+          key={`${screenId}-${refreshKey}`}
+        >
           <RequireScreen>
             <Outlet />
           </RequireScreen>
@@ -200,6 +211,7 @@ export function AppLayout() {
         onClose={txModal.close}
       />
       <GlobalFingerprintListener />
+      <WrongFingerprintToast />
     </div>
   );
 }

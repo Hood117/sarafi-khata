@@ -172,7 +172,7 @@ export function CalculatorPage() {
   }
 
   return (
-    <div className="stack calculator-page">
+    <div className="stack calculator-page page-column">
       {error && lines.length === 0 ? <p className="error">{error}</p> : null}
       {busy && lines.length === 0 ? <p className="muted">{t.common.loading}</p> : null}
 

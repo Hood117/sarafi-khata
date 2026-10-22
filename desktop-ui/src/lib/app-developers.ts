@@ -2,6 +2,7 @@
 export const APP_COMPANY = {
   name: "Radefy Systems",
   url: "https://www.radefysystems.com/",
+  websiteLabel: "www.radefysystems.com",
   email: "hello@radefysystems.com",
 } as const;
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -11,6 +11,7 @@ import { useT } from "@desktop/i18n";
 import { APP_DEVELOPERS, formatWhatsAppDisplay } from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/app-error";
 import { openWhatsApp } from "@desktop/lib/whatsapp";
+import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 export function LicenseActivatePage() {
   const t = useT();
@@ -20,6 +21,9 @@ export function LicenseActivatePage() {
   const [licenseKey, setLicenseKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const showForm = !bootstrapping && !status?.licensed;
+  useAuthShellMotion(shellRef, showForm);
 
   const reload = useMemo(
     () => async () => {
@@ -71,7 +75,7 @@ export function LicenseActivatePage() {
 
   if (bootstrapping) {
     return (
-      <div className="login-shell">
+      <div ref={shellRef} className="login-shell">
         <p className="muted">{t.license.checking}</p>
       </div>
     );
@@ -87,7 +91,7 @@ export function LicenseActivatePage() {
   }
 
   return (
-    <div className="login-shell">
+    <div ref={shellRef} className="login-shell">
       <div className="card login-card stack">
         <div className="brand-block">
           <div className="brand-mark" aria-hidden>

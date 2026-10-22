@@ -15,6 +15,7 @@ import {
   IconUsers,
 } from "@desktop/icons";
 import { useT } from "@desktop/i18n";
+import { gsap, lockMotion, motionOk, unlockMotion, useGSAP } from "@desktop/lib/motion";
 import { registerOverlayClose } from "@desktop/lib/overlay-stack";
 import { canAccessPath, canAccessScreen, isAdminRole } from "@desktop/lib/permissions";
 
@@ -94,6 +95,30 @@ export function SettingsMenu() {
   useEffect(() => {
     close();
   }, [location.pathname, location.search, close]);
+
+  useGSAP(
+    () => {
+      const panel = panelRef.current;
+      if (!open || !panel || !motionOk()) return;
+      lockMotion([panel]);
+      gsap.set(panel, { transformOrigin: "top center" });
+      gsap.fromTo(
+        panel,
+        { opacity: 0, y: -8, scale: 0.98 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.28,
+          ease: "power3.out",
+          overwrite: "auto",
+          clearProps: "transform",
+          onComplete: () => unlockMotion([panel]),
+        },
+      );
+    },
+    { dependencies: [open] },
+  );
 
   const go = useCallback(
     (to: string) => {
