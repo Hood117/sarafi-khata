@@ -1779,7 +1779,7 @@ export function ReportsPage() {
   }, [buildExportPayload, locale, rtl, t.reports.noDataPeriod]);
 
   return (
-    <div className="stack report-page">
+    <div className="stack report-page page-column">
       <nav className="report-tabs no-print" aria-label={t.nav.reports}>
         {catalog.map((tab) => {
           const TabIcon = tab.Icon;

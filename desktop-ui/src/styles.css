@@ -5752,12 +5752,13 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.4rem 0.65rem;
+  gap: 0.4rem 0.55rem;
   padding: 0;
   margin: 0;
   background: none;
   border: none;
   box-shadow: none;
+  max-width: 100%;
 }
 
 .report-topbar .report-toolbar {
@@ -5885,8 +5886,8 @@ button.report-period-preset.active:hover:not(:disabled) {
 .report-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0.25rem;
+  gap: 0.3rem;
+  padding: 0.2rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
@@ -6041,6 +6042,7 @@ button.report-period-preset.active:hover:not(:disabled) {
 
 .report-totals-primary {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: none;
 }
 
 @media (max-width: 720px) {
@@ -6071,11 +6073,12 @@ button.report-period-preset.active:hover:not(:disabled) {
 }
 
 .report-page {
-  gap: 0.85rem;
+  gap: var(--space-md);
+  width: min(100%, 72rem);
 }
 
 .report-page > .stack {
-  gap: 0.85rem;
+  gap: var(--space-md);
 }
 
 .report-page-bar {
@@ -6102,9 +6105,11 @@ button.report-period-preset.active:hover:not(:disabled) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr));
   gap: 0.55rem;
+  max-width: 48rem;
 }
 
 .report-summary-list {
+  width: min(100%, 36rem);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -6113,10 +6118,10 @@ button.report-period-preset.active:hover:not(:disabled) {
 
 .report-summary-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(7rem, 0.85fr);
+  gap: 0.55rem 0.85rem;
   align-items: center;
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.75rem;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
 }
 
