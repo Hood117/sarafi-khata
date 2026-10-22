@@ -42,7 +42,6 @@ import {
   type ExportRow,
 } from "@desktop/lib/export-table";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
-import { CreatePartnerFromCustomerModal } from "@desktop/components/create-partner-from-customer-modal";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
@@ -100,7 +99,6 @@ export function CustomerDetailPage() {
   const rtl = dir === "rtl";
 
   const [showEdit, setShowEdit] = useState(false);
-  const [showAddPartner, setShowAddPartner] = useState(false);
   const [view, setView] = useState<CustomerDetailView>("money");
 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
@@ -374,21 +372,6 @@ export function CustomerDetailPage() {
             </button>
           ) : customer ? (
             <>
-              {!customer.linkedPartnerSarafiId && !customer.isArchived ? (
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={() => {
-                    if (!customer.phone?.trim()) {
-                      window.alert(t.customers.addAsPartnerNeedPhone);
-                      return;
-                    }
-                    setShowAddPartner(true);
-                  }}
-                >
-                  {t.customers.addAsPartner}
-                </button>
-              ) : null}
               <button type="button" className="btn" onClick={() => setShowEdit(true)}>
                 {t.customers.edit}
               </button>
@@ -712,32 +695,6 @@ export function CustomerDetailPage() {
               setShowEdit(false);
               setSuccessMessage(t.customers.customerUpdated.replace("{name}", updated.fullName));
               await load();
-            }}
-          />
-        </Modal>
-      ) : null}
-
-      {showAddPartner && customer ? (
-        <Modal
-          title={t.customers.addAsPartnerTitle}
-          size="lg"
-          onClose={() => setShowAddPartner(false)}
-        >
-          <CreatePartnerFromCustomerModal
-            customer={customer}
-            onCancel={() => setShowAddPartner(false)}
-            onCreated={(partner) => {
-              setShowAddPartner(false);
-              setSuccessMessage(t.customers.addAsPartnerSuccess);
-              setCustomer((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      linkedPartnerSarafiId: partner.id,
-                      linkedPartnerName: partner.name,
-                    }
-                  : prev,
-              );
             }}
           />
         </Modal>
