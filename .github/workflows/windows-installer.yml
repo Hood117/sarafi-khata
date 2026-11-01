@@ -1,0 +1,88 @@
+name: Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build NSIS installer
+        run: npm run build:desktop
+        env:
+          # CI runners are cleaner than AV-heavy local PCs; 2 is a good balance.
+          CARGO_BUILD_JOBS: "2"
+
+      - name: Stage downloadable installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $asms = Get-ChildItem -Path dist -Filter "ASMS_*_x64-setup.exe" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $asms) {
+            $asms = Get-ChildItem -Path dist -Filter "Saraf_*_x64-setup.exe" -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          }
+          if (-not $asms) {
+            Write-Error "No NSIS installer found under dist/"
+            exit 1
+          }
+          Copy-Item $asms.FullName "dist/ASMS-setup.exe" -Force
+          Write-Host "Staged $($asms.Name) as dist/ASMS-setup.exe ($([math]::Round($asms.Length / 1MB, 1)) MiB)"
+
+      - name: Upload Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASMS-windows-installer
+          path: |
+            dist/ASMS-setup.exe
+            dist/ASMS_*_x64-setup.exe
+            dist/Saraf_*_x64-setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release (download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'windows-latest' }}
+          name: ${{ github.ref_type == 'tag' && format('ASMS {0}', github.ref_name) || 'ASMS Windows Installer (latest)' }}
+          body: |
+            Offline Windows NSIS installer for ASMS.
+
+            Download **ASMS-setup.exe**, run it on Windows 10/11 x64, then activate with your license key.
+          files: |
+            dist/ASMS-setup.exe
+            dist/ASMS_*_x64-setup.exe
+          fail_on_unmatched_files: false
+          make_latest: ${{ github.ref_type == 'tag' && 'true' || 'false' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
