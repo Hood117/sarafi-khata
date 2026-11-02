@@ -6,7 +6,7 @@ import {
   type CurrencyDenominationRow,
   type CurrencyListItem,
 } from "@desktop/api";
-import { IconCash } from "@desktop/icons";
+import { Banknote } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
@@ -178,7 +178,7 @@ export function CalculatorPage() {
 
       <div className="calculator-result card">
         <div className="calculator-result-icon" aria-hidden>
-          <IconCash />
+          <Banknote className="nav-icon" size={18} />
         </div>
         <div className="calculator-result-body">
           <div className="muted calculator-result-label">{t.calculator.total}</div>

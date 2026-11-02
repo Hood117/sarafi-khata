@@ -123,6 +123,14 @@ fn local_ok(app: &AppHandle, fingerprint: &str) -> Result<Option<LicenseRecord>,
   Ok(None)
 }
 
+/// TEMP for local desk testing — set to `false` before client shipping so
+/// activation is required again (and remove the Enter skip button path).
+const ALLOW_DEV_LICENSE_SKIP: bool = true;
+
+fn allow_dev_license_skip() -> bool {
+  ALLOW_DEV_LICENSE_SKIP || cfg!(debug_assertions)
+}
+
 fn status_from_parts(
   licensed: bool,
   reason: &str,
@@ -136,7 +144,7 @@ fn status_from_parts(
     license_key,
     customer_name,
     machine_fingerprint: fingerprint,
-    allow_dev_bypass: cfg!(debug_assertions),
+    allow_dev_bypass: allow_dev_license_skip(),
   }
 }
 
@@ -497,12 +505,35 @@ pub fn activate_license(
   get_license_status(app)
 }
 
+/// Dev helper: write a local active license so the desk can be used without
+/// a real activation key. Gated by `ALLOW_DEV_LICENSE_SKIP` / debug builds.
+#[tauri::command]
+pub fn bypass_license_dev(app: AppHandle) -> Result<LicenseStatus, AppError> {
+  if !allow_dev_license_skip() {
+    return Err(AppError::Validation(
+      "Dev license skip is disabled. Activate with a real license key.".into(),
+    ));
+  }
+  let fingerprint = machine_fingerprint();
+  write_license(
+    &app,
+    &LicenseRecord {
+      license_key: "DEV-SKIP".into(),
+      machine_fingerprint: fingerprint,
+      customer_name: Some("Development".into()),
+      status: "active".into(),
+      activated_at: Some(chrono::Utc::now().to_rfc3339()),
+    },
+  )?;
+  get_license_status(app)
+}
+
 /// Debug helper: delete local license file so activation can be retested.
 #[tauri::command]
 pub fn clear_license_dev(app: AppHandle) -> Result<(), AppError> {
-  if !cfg!(debug_assertions) {
+  if !allow_dev_license_skip() {
     return Err(AppError::Validation(
-      "clear_license_dev is only available in debug builds.".into(),
+      "clear_license_dev is only available when dev license skip is enabled.".into(),
     ));
   }
   let path = license_path(&app)?;

@@ -251,217 +251,249 @@ export function CustomersPage() {
     : 1;
 
   return (
-    <div className="stack customers-page">
-      <div className="card stack">
-        <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
-          <label ref={searchWrapRef} className="customer-search-wrap" style={{ flex: 1, minWidth: 220 }}>
-            {t.common.search}
-            <input
-              type="search"
-              className="desk-search"
-              value={searchDraft}
-              placeholder={t.customers.searchPlaceholder}
-              autoComplete="off"
-              aria-autocomplete="list"
-              aria-expanded={showSuggestions && suggestions.length > 0}
-              onChange={(e) => {
-                setSearchDraft(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onKeyDown={onSearchKeyDown}
-            />
-            {showSuggestions && searchDraft.trim().length > 0 ? (
-              <ul className="customer-suggest" role="listbox">
-                {suggestBusy && suggestions.length === 0 ? (
-                  <li className="customer-suggest-empty muted">{t.common.loading}</li>
-                ) : null}
-                {!suggestBusy && suggestions.length === 0 ? (
-                  <li className="customer-suggest-empty muted">{t.customers.emptyFiltered}</li>
-                ) : null}
-                {suggestions.map((c, idx) => (
-                  <li key={c.id} role="option" aria-selected={idx === highlight}>
-                    <button
-                      type="button"
-                      className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
-                      onMouseEnter={() => setHighlight(idx)}
-                      onClick={() => pickSuggestion(c)}
-                    >
-                      <span className="customer-suggest-name">
-                        {c.fullName}
-                        {c.fatherName ? ` · ${c.fatherName}` : ""}
-                      </span>
-                      <span className="customer-suggest-meta muted">
-                        {c.code ? (
-                          <strong className="customer-list-code">{c.code}</strong>
-                        ) : null}
-                        {c.code && c.phone ? " · " : null}
-                        {c.phone ? (
-                          <span className="ltr-text phone-ltr" dir="ltr">
-                            {c.phone}
+    <div className="stack customers-page workspace-page is-customers">
+      {error ? <PageLoadError message={error} onRetry={reload} /> : null}
+      {editLoading ? <p className="muted">{t.customers.loadingCustomer}</p> : null}
+      {busy && !customers ? <p className="muted">{t.common.loading}</p> : null}
+
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title customers-records-head">
+            <div>
+              <h2>{t.nav.customers}</h2>
+              <span className="count-badge">{customers?.total ?? 0}</span>
+            </div>
+            <div className="table-toolbar customers-records-tools">
+              <label
+                ref={searchWrapRef}
+                className="search-field search-field-emphasized customer-search-wrap"
+              >
+                <input
+                  type="search"
+                  className="desk-search"
+                  value={searchDraft}
+                  placeholder={t.customers.searchPlaceholder}
+                  autoComplete="off"
+                  aria-label={t.common.search}
+                  aria-autocomplete="list"
+                  aria-expanded={showSuggestions && suggestions.length > 0}
+                  onChange={(e) => {
+                    setSearchDraft(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={onSearchKeyDown}
+                />
+                {showSuggestions && searchDraft.trim().length > 0 ? (
+                  <ul className="customer-suggest" role="listbox">
+                    {suggestBusy && suggestions.length === 0 ? (
+                      <li className="customer-suggest-empty muted">{t.common.loading}</li>
+                    ) : null}
+                    {!suggestBusy && suggestions.length === 0 ? (
+                      <li className="customer-suggest-empty muted">{t.customers.emptyFiltered}</li>
+                    ) : null}
+                    {suggestions.map((c, idx) => (
+                      <li key={c.id} role="option" aria-selected={idx === highlight}>
+                        <button
+                          type="button"
+                          className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
+                          onMouseEnter={() => setHighlight(idx)}
+                          onClick={() => pickSuggestion(c)}
+                        >
+                          <span className="customer-suggest-name">
+                            {c.fullName}
+                            {c.fatherName ? ` · ${c.fatherName}` : ""}
                           </span>
-                        ) : !c.code ? (
-                          "—"
-                        ) : null}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </label>
-          <label style={{ minWidth: 140 }}>
-            {t.common.status}
-            <select
-              value={archiveFilter}
-              onChange={(e) => {
-                setPage(1);
-                setArchiveFilter(e.target.value as ArchiveFilter);
-              }}
-            >
-              <option value="active">{t.common.active}</option>
-              <option value="archived">{t.common.archived}</option>
-              <option value="all">{t.common.all}</option>
-            </select>
-          </label>
-          <div
-            className="settings-tabs currency-panel-tabs customer-type-tabs"
-            role="tablist"
-            aria-label={t.customers.customerType}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={typeFilter === "permanent"}
-              className={`settings-tab${typeFilter === "permanent" ? " active" : ""}`}
-              onClick={() => {
-                setPage(1);
-                setTypeFilter("permanent");
-              }}
-            >
-              {t.customers.permanent}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={typeFilter === "temporary"}
-              className={`settings-tab${typeFilter === "temporary" ? " active" : ""}`}
-              onClick={() => {
-                setPage(1);
-                setTypeFilter("temporary");
-              }}
-            >
-              {t.customers.temporary}
-            </button>
+                          <span className="customer-suggest-meta muted">
+                            {c.code ? (
+                              <strong className="customer-list-code">{c.code}</strong>
+                            ) : null}
+                            {c.code && c.phone ? " · " : null}
+                            {c.phone ? (
+                              <span className="ltr-text phone-ltr" dir="ltr">
+                                {c.phone}
+                              </span>
+                            ) : !c.code ? (
+                              "—"
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </label>
+              <div className="table-filters">
+                <label className="customers-status-filter">
+                  <span className="muted">{t.common.status}</span>
+                  <select
+                    value={archiveFilter}
+                    aria-label={t.common.status}
+                    onChange={(e) => {
+                      setPage(1);
+                      setArchiveFilter(e.target.value as ArchiveFilter);
+                    }}
+                  >
+                    <option value="active">{t.common.active}</option>
+                    <option value="archived">{t.common.archived}</option>
+                    <option value="all">{t.common.all}</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div className="records-title-actions">
+              <div
+                className="settings-tabs currency-panel-tabs customer-type-tabs"
+                role="tablist"
+                aria-label={t.customers.customerType}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={typeFilter === "permanent"}
+                  className={`settings-tab${typeFilter === "permanent" ? " active" : ""}`}
+                  onClick={() => {
+                    setPage(1);
+                    setTypeFilter("permanent");
+                  }}
+                >
+                  {t.customers.permanent}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={typeFilter === "temporary"}
+                  className={`settings-tab${typeFilter === "temporary" ? " active" : ""}`}
+                  onClick={() => {
+                    setPage(1);
+                    setTypeFilter("temporary");
+                  }}
+                >
+                  {t.customers.temporary}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-        {error ? <PageLoadError message={error} onRetry={reload} /> : null}
-        {editLoading ? <p className="muted">{t.customers.loadingCustomer}</p> : null}
-        {busy && !customers ? <p className="muted">{t.common.loading}</p> : null}
         {customers ? (
           <>
-            <p className="muted">
-              {t.common.showing} {customers.items.length} {t.common.of} {customers.total} (
-              {customers.page}/{totalPages})
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  <th className="customer-list-code-col">{t.customers.code}</th>
-                  <th>{t.common.name}</th>
-                  <th>{t.common.phone}</th>
-                  <th>{t.customers.balances}</th>
-                  <th>{t.common.status}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.items.length === 0 ? (
+            <div className="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={5} className="muted">
-                      {archiveFilter === "archived"
-                        ? t.customers.emptyArchived
-                        : search
-                          ? t.customers.emptyFiltered
-                          : t.customers.emptyTitle}
-                    </td>
+                    <th className="customer-list-code-col customers-th-code">{t.customers.code}</th>
+                    <th className="customers-th-name">{t.common.name}</th>
+                    <th className="customers-th-phone">{t.common.phone}</th>
+                    <th className="customers-th-balances">{t.customers.balances}</th>
+                    <th className="customers-th-status">{t.common.status}</th>
                   </tr>
-                ) : (
-                  customers.items.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      className="customer-row-clickable"
-                      onClick={() => navigate(`/customers/${customer.id}`)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setRowMenu({ x: e.clientX, y: e.clientY, customer });
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/customers/${customer.id}`);
-                        }
-                      }}
-                      tabIndex={0}
-                      role="link"
-                      aria-label={`${t.common.view} ${customer.fullName}`}
-                    >
-                      <td className="customer-list-code-col">
-                        {customer.code ? (
-                          <strong className="customer-list-code">
-                            {customer.code.replace(/^#+/, "")}
-                          </strong>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td>
-                        <span className="customer-list-name">{customer.fullName}</span>
-                      </td>
-                      <td>
-                        {customer.phone ? (
-                          <span className="ltr-text phone-ltr" dir="ltr">
-                            {customer.phone}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={{ fontSize: "0.9rem" }}>
-                        <BalanceChips rows={balancesById[customer.id]} />
-                      </td>
-                      <td>
-                        {customer.isArchived ? (
-                          <span className="badge">{t.common.archived}</span>
-                        ) : (
-                          <span className="badge badge-ok">{t.common.active}</span>
-                        )}
+                </thead>
+                <tbody>
+                  {customers.items.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        {archiveFilter === "archived"
+                          ? t.customers.emptyArchived
+                          : search
+                            ? t.customers.emptyFiltered
+                            : t.customers.emptyTitle}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            <div className="row">
-              <button
-                type="button"
-                className="secondary"
-                disabled={page <= 1 || busy}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                {t.common.previous}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={page >= totalPages || busy}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t.common.next}
-              </button>
+                  ) : (
+                    customers.items.map((customer) => (
+                      <tr
+                        key={customer.id}
+                        className="customer-row-clickable"
+                        onClick={() => navigate(`/customers/${customer.id}`)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setRowMenu({ x: e.clientX, y: e.clientY, customer });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            navigate(`/customers/${customer.id}`);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="link"
+                        aria-label={`${t.common.view} ${customer.fullName}`}
+                      >
+                        <td className="customer-list-code-col">
+                          {customer.code ? (
+                            <strong className="customer-list-code">
+                              {customer.code.replace(/^#+/, "")}
+                            </strong>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>
+                          <span className="customer-list-person">
+                            {customer.photo ? (
+                              <img
+                                className="customer-list-photo"
+                                src={customer.photo}
+                                alt=""
+                              />
+                            ) : (
+                              <span className="customer-list-photo is-empty" aria-hidden="true" />
+                            )}
+                            <span className="customer-list-name">{customer.fullName}</span>
+                          </span>
+                        </td>
+                        <td>
+                          {customer.phone ? (
+                            <span className="ltr-text phone-ltr" dir="ltr">
+                              {customer.phone}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ fontSize: "0.9rem" }}>
+                          <BalanceChips rows={balancesById[customer.id]} />
+                        </td>
+                        <td>
+                          {customer.isArchived ? (
+                            <span className="badge">{t.common.archived}</span>
+                          ) : (
+                            <span className="badge badge-ok">{t.common.active}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="records-pagination">
+              <span>
+                {t.common.showing} {customers.items.length} {t.common.of} {customers.total} (
+                {customers.page}/{totalPages})
+              </span>
+              <div className="row" style={{ gap: 8 }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={page <= 1 || busy}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  {t.common.previous}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={page >= totalPages || busy}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  {t.common.next}
+                </button>
+              </div>
             </div>
           </>
         ) : null}
-      </div>
+      </section>
 
       {rowMenu ? (
         <DeskContextMenu

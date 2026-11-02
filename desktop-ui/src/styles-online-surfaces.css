@@ -1,0 +1,752 @@
+/* Sarafi Online design language for the desktop web skin.
+   Tokens live in styles-web.css. This file locks shared surfaces,
+   type, controls, and tables so every screen uses one language. */
+
+html[data-ui="web"] {
+  --font-ui: "DM Sans", "Noto Sans Arabic", "Segoe UI", sans-serif;
+  --font-display: var(--font-ui);
+  --money-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --radius: 10px;
+  --radius-sm: 8px;
+  font-family: var(--font-ui);
+  background: var(--bg);
+  background-image: none;
+  color: var(--fg);
+}
+
+html[data-ui="web"] .app-shell[data-screen] {
+  --brand: var(--primary);
+  --brand-deep: var(--primary-hover);
+  --brand-soft: var(--primary-soft);
+  --accent: var(--accent-blue);
+  --accent-soft: var(--primary-soft);
+}
+
+html[data-ui="web"] .workspace-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  color: var(--fg);
+}
+
+html[data-ui="web"] .app-main.stack.main-content {
+  padding: 18px 34px 24px;
+  gap: 14px;
+}
+
+html[data-ui="web"] .workspace-page > h1,
+html[data-ui="web"] .workspace-page .section-title {
+  font-family: var(--font-ui);
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  color: var(--fg);
+}
+
+/* Panels */
+html[data-ui="web"] .card,
+html[data-ui="web"] .section-card,
+html[data-ui="web"] .stat-card,
+html[data-ui="web"] .panel {
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  backdrop-filter: none;
+}
+
+html[data-ui="web"] .card:hover,
+html[data-ui="web"] .section-card:hover {
+  border-color: var(--border);
+  transform: none;
+  box-shadow: var(--shadow-md);
+}
+
+html[data-ui="web"] .stat-card {
+  min-height: 0;
+  padding: 16px 16px 14px;
+}
+
+html[data-ui="web"] .stat-card::after {
+  display: none;
+}
+
+html[data-ui="web"] .stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+html[data-ui="web"] .stat-value {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  color: var(--fg);
+}
+
+html[data-ui="web"] .stat-grid {
+  gap: 12px;
+}
+
+/* Tables — Online records density */
+html[data-ui="web"] table,
+html[data-ui="web"] .report-ledger {
+  color: var(--fg);
+  background: var(--surface);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-ui="web"] table th,
+html[data-ui="web"] .report-ledger th {
+  background: var(--table-header);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+}
+
+html[data-ui="web"] table td,
+html[data-ui="web"] .report-ledger td {
+  border-bottom: 1px solid var(--table-border);
+  color: var(--fg);
+  padding: 13px 16px;
+}
+
+html[data-ui="web"] table tbody tr:hover,
+html[data-ui="web"] .report-ledger tbody tr:hover {
+  background: var(--table-row-hover);
+}
+
+html[data-ui="web"] .card,
+html[data-ui="web"] .section-card {
+  padding: 18px 20px;
+}
+
+html[data-ui="web"] .section-card:has(> table),
+html[data-ui="web"] .card:has(> table),
+html[data-ui="web"] .section-card:has(.table-scroll),
+html[data-ui="web"] .card:has(.table-scroll),
+html[data-ui="web"] .daybook-journal-section,
+html[data-ui="web"] .records-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+html[data-ui="web"] .section-card:has(table) > .row,
+html[data-ui="web"] .card:has(table) > .row,
+html[data-ui="web"] .daybook-journal-section > .row,
+html[data-ui="web"] .records-title {
+  padding: 16px 18px;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Controls */
+html[data-ui="web"] input,
+html[data-ui="web"] select,
+html[data-ui="web"] textarea {
+  background: var(--input);
+  color: var(--input-fg);
+  border: 1px solid var(--input-border);
+  border-radius: 7px;
+  min-height: 36px;
+  font-size: 13px;
+}
+
+html[data-ui="web"] input:focus,
+html[data-ui="web"] select:focus,
+html[data-ui="web"] textarea:focus,
+html[data-ui="web"] input.desk-search:focus {
+  border-color: var(--focus-outline);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  outline: none;
+}
+
+html[data-ui="web"] .app-main .btn,
+html[data-ui="web"] .modal-panel .btn,
+html[data-ui="web"] dialog .btn,
+html[data-ui="web"] .app-main .button-link,
+html[data-ui="web"] .modal-panel .button-link,
+html[data-ui="web"] .app-main button.secondary,
+html[data-ui="web"] .modal-panel button.secondary,
+html[data-ui="web"] .app-main .btn:not(.primary):not(.danger),
+html[data-ui="web"] .modal-panel .btn:not(.primary):not(.danger) {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 7px !important;
+  box-shadow: var(--shadow-sm) !important;
+  font-weight: 600;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 8px 14px;
+  transform: none !important;
+  filter: none !important;
+}
+
+html[data-ui="web"] .app-main .btn:hover,
+html[data-ui="web"] .modal-panel .btn:hover,
+html[data-ui="web"] .app-main .button-link:hover,
+html[data-ui="web"] .app-main button.secondary:hover {
+  background: var(--surface-hover) !important;
+  border-color: var(--border-strong) !important;
+}
+
+html[data-ui="web"] .app-main .btn.primary,
+html[data-ui="web"] .modal-panel .btn.primary,
+html[data-ui="web"] .app-main button.primary,
+html[data-ui="web"] .modal-panel button.primary {
+  background: var(--primary) !important;
+  color: var(--primary-fg) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 2px 3px #0526590b !important;
+}
+
+html[data-ui="web"] .app-main .btn.primary:hover,
+html[data-ui="web"] .modal-panel .btn.primary:hover,
+html[data-ui="web"] .app-main button.primary:hover {
+  background: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+html[data-ui="web"] .app-main .btn.danger,
+html[data-ui="web"] .modal-panel .btn.danger,
+html[data-ui="web"] .app-main button.danger {
+  background: var(--danger-bg) !important;
+  color: var(--danger-fg) !important;
+  border-color: var(--danger-border) !important;
+}
+
+html[data-ui="web"] .text-link,
+html[data-ui="web"] .text-button {
+  color: var(--link);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Status */
+html[data-ui="web"] .badge {
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+}
+
+html[data-ui="web"] .badge-ok,
+html[data-ui="web"] .badge-completed,
+html[data-ui="web"] .badge-received {
+  color: var(--success-fg);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+
+html[data-ui="web"] .badge-pending,
+html[data-ui="web"] .badge-warn {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+html[data-ui="web"] .badge-cancelled {
+  color: var(--danger-fg);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+html[data-ui="web"] .muted {
+  color: var(--fg-muted);
+}
+
+html[data-ui="web"] .empty-state,
+html[data-ui="web"] .page-load-error {
+  color: var(--fg-muted);
+}
+
+/* Screen-specific Online rhythm */
+html[data-ui="web"] .daybook-filters,
+html[data-ui="web"] .hawala-filters,
+html[data-ui="web"] .customers-page > .card,
+html[data-ui="web"] .expenses-page > .section-card,
+html[data-ui="web"] .commission-tracking-page > .section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-ui="web"] .daybook-journal-table .col-amount,
+html[data-ui="web"] .cash-overview-table .col-amount {
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-ui="web"] .cash-page .cash-card-grid,
+html[data-ui="web"] .vaults-page .card {
+  gap: 12px;
+}
+
+html[data-ui="web"] .tx-detail-table {
+  border-color: var(--border);
+}
+
+html[data-ui="web"] .tx-detail-table th,
+html[data-ui="web"] .tx-detail-table td {
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[data-ui="web"] .tx-detail-table th {
+  color: var(--fg-muted);
+  background: var(--surface-muted, var(--table-header));
+}
+
+html[data-ui="web"] .tx-detail-table th:last-child,
+html[data-ui="web"] .tx-detail-table td:last-child {
+  border-inline-end: 0;
+}
+
+html[data-ui="web"] .tx-detail-table tr:last-child th,
+html[data-ui="web"] .tx-detail-table tr:last-child td {
+  border-bottom: 0;
+}
+
+html[data-ui="web"] .tx-detail-table td.money-in,
+html[data-ui="web"] .tx-detail-table .tx-amt-in {
+  color: var(--money-in);
+}
+
+html[data-ui="web"] .tx-detail-table td.money-out,
+html[data-ui="web"] .tx-detail-table .tx-amt-out {
+  color: var(--money-out);
+}
+
+html[data-ui="web"] .customer-info-table {
+  border-color: var(--border);
+  border-radius: 6px;
+}
+
+html[data-ui="web"] .customer-info-table th,
+html[data-ui="web"] .customer-info-table td {
+  height: 26px;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-inline-end: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+html[data-ui="web"] .customer-info-table th {
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+html[data-ui="web"] .customer-info-table th:last-child,
+html[data-ui="web"] .customer-info-table td:last-child {
+  border-inline-end: 0;
+}
+
+html[data-ui="web"] .customer-info-table tr:last-child th,
+html[data-ui="web"] .customer-info-table tr:last-child td {
+  border-bottom: 0;
+}
+
+html[data-ui="web"] .customer-detail-page .customer-detail-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-ui="web"] .customer-detail-actions .btn,
+html[data-ui="web"] .customer-history-toolbar .btn,
+html[data-ui="web"] .customer-history-toolbar button.secondary,
+html[data-ui="web"] .customer-money-add {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  line-height: 1.2 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="web"] .customer-history-toolbar input,
+html[data-ui="web"] .customer-history-toolbar select,
+html[data-ui="web"] .customer-history-toolbar .currency-picker-input {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+html[data-ui="web"] dialog,
+html[data-ui="web"] .modal-panel {
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--shadow-dialog);
+}
+
+/* Remaining desks — same rhythm, more air */
+html[data-ui="web"] .workspace-page > h1,
+html[data-ui="web"] .page-header h1,
+html[data-ui="web"] .settings-general-head h2,
+html[data-ui="web"] .rates-page h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+
+html[data-ui="web"] .page-header {
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+}
+
+html[data-ui="web"] .report-tabs,
+html[data-ui="web"] .nav-row,
+html[data-ui="web"] .settings-tabs {
+  gap: 6px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+html[data-ui="web"] .report-tab,
+html[data-ui="web"] .nav-row .nav-link,
+html[data-ui="web"] .settings-tab {
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  min-height: 34px;
+  background: transparent !important;
+  color: var(--fg-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="web"] .report-tab.is-active,
+html[data-ui="web"] .nav-row .nav-link.active,
+html[data-ui="web"] .settings-tab.active {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html[data-ui="web"] .settings-general-card,
+html[data-ui="web"] .settings-page .card,
+html[data-ui="web"] .rates-page > .card,
+html[data-ui="web"] .partner-page > .section-card,
+html[data-ui="web"] .capital-page .section-card,
+html[data-ui="web"] .capital-page .card,
+html[data-ui="web"] .dc-page .section-card,
+html[data-ui="web"] .employees-page .section-card,
+html[data-ui="web"] .employees-page .card,
+html[data-ui="web"] .page-account-orders .section-card,
+html[data-ui="web"] .page-account-orders .card,
+html[data-ui="web"] .trading-page .section-card,
+html[data-ui="web"] .trading-page .card,
+html[data-ui="web"] .partner-detail-page .section-card,
+html[data-ui="web"] .partner-detail-page .card {
+  padding: 18px 20px;
+}
+
+html[data-ui="web"] .settings-general-compact {
+  gap: 16px;
+}
+
+html[data-ui="web"] .settings-general-head {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  gap: 4px 12px;
+}
+
+html[data-ui="web"] .report-page .section-card,
+html[data-ui="web"] .report-page .card {
+  padding: 18px 20px;
+}
+
+html[data-ui="web"] .report-page .section-card:has(.table-scroll),
+html[data-ui="web"] .report-page .section-card:has(.report-ledger) {
+  padding: 0;
+}
+
+html[data-ui="web"] .report-page .section-card:has(.table-scroll) > .row,
+html[data-ui="web"] .report-page .section-card:has(.report-ledger) > .row {
+  padding: 16px 18px;
+}
+
+html[data-ui="web"] .dc-toolbar,
+html[data-ui="web"] .partner-toolbar,
+html[data-ui="web"] .daybook-filters,
+html[data-ui="web"] .hawala-filters {
+  gap: 12px;
+  align-items: flex-end;
+}
+
+html[data-ui="web"] .modal-panel {
+  padding: 8px 4px 16px;
+}
+
+html[data-ui="web"] .modal-header,
+html[data-ui="web"] .modal-body {
+  padding-inline: 18px;
+}
+
+/* Login + license — same split as Sarafi Online */
+html[data-ui="web"] .auth-page.login-shell {
+  display: grid;
+  grid-template-columns: 42% 58%;
+  place-items: stretch;
+  min-height: 100%;
+  height: 100%;
+  padding: 0;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+html[data-ui="web"] .auth-aside {
+  background: var(--primary);
+  color: #fff;
+  padding: 48px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  min-width: 0;
+}
+
+html[data-ui="web"] .auth-aside .brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.6px;
+  line-height: 1.05;
+}
+
+html[data-ui="web"] .auth-aside .brand-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #163d6d;
+  color: var(--accent-ice);
+  box-shadow: none;
+}
+
+html[data-ui="web"] .auth-aside .brand-mark svg {
+  width: 22px;
+  height: 22px;
+}
+
+html[data-ui="web"] .auth-aside .brand-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  font-weight: 600;
+  color: #7590b0;
+  text-transform: uppercase;
+}
+
+html[data-ui="web"] .auth-aside .eyebrow {
+  color: #8eb4dc;
+}
+
+html[data-ui="web"] .auth-aside h2 {
+  margin: 0 0 16px;
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -1.2px;
+  line-height: 1.2;
+  color: #fff;
+  font-family: var(--font-ui);
+}
+
+html[data-ui="web"] .auth-aside p {
+  margin: 0;
+  max-width: 34ch;
+  color: #9eb8d9;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+html[data-ui="web"] .auth-aside small {
+  color: #779cc7;
+  font-size: 12px;
+}
+
+html[data-ui="web"] .auth-main {
+  display: grid;
+  place-items: center;
+  padding: 36px 28px;
+  background: var(--surface);
+  overflow: auto;
+}
+
+html[data-ui="web"] .auth-form {
+  width: min(100%, 380px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+html[data-ui="web"] .auth-form.login-card::before {
+  display: none;
+}
+
+html[data-ui="web"] .auth-form .eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+html[data-ui="web"] .auth-form h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 650;
+  letter-spacing: -0.7px;
+  color: var(--fg);
+}
+
+html[data-ui="web"] .auth-form > p {
+  margin: 0 0 6px;
+  color: var(--fg-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+html[data-ui="web"] .auth-form form,
+html[data-ui="web"] .auth-form .login-fingerprint-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+html[data-ui="web"] .auth-form label {
+  gap: 7px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+html[data-ui="web"] .auth-form input,
+html[data-ui="web"] .auth-form select {
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+html[data-ui="web"] .auth-lang {
+  align-self: flex-end;
+  min-width: 140px;
+}
+
+html[data-ui="web"] .auth-form .login-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+html[data-ui="web"] .auth-form .login-mode-tab {
+  min-height: 36px;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: var(--fg-muted) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="web"] .auth-form .login-mode-tab.is-active {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html[data-ui="web"] .auth-form .btn {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 8px !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+html[data-ui="web"] .auth-form .btn.primary {
+  background: var(--primary) !important;
+  color: var(--primary-fg) !important;
+  border: 1px solid var(--primary) !important;
+  box-shadow: 0 2px 3px #0526590b !important;
+}
+
+html[data-ui="web"] .auth-form .btn.primary:hover {
+  background: var(--primary-hover) !important;
+}
+
+html[data-ui="web"] .auth-form .btn:not(.primary) {
+  background: var(--surface) !important;
+  color: var(--fg) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+@media (max-width: 860px) {
+  html[data-ui="web"] .auth-page.login-shell {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  html[data-ui="web"] .auth-aside {
+    min-height: 220px;
+    padding: 28px 24px;
+  }
+  html[data-ui="web"] .auth-aside h2 {
+    font-size: 26px;
+  }
+}
+
+html[data-ui="web"] .modal-body {
+  gap: 14px;
+}

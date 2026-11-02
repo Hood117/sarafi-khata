@@ -11,6 +11,7 @@ type Props = {
   /** Label for the “all currencies” option. Defaults to common.all. */
   allLabel?: string;
   label?: string;
+  hideLabel?: boolean;
   className?: string;
 };
 
@@ -23,6 +24,7 @@ export function CurrencyFilter({
   onChange,
   allLabel,
   label,
+  hideLabel = false,
   className,
 }: Props) {
   const t = useT();
@@ -45,6 +47,7 @@ export function CurrencyFilter({
     <CurrencyPicker
       className={className}
       label={label ?? t.common.currency}
+      hideLabel={hideLabel}
       currencies={items}
       value={code}
       onChange={(next) => onChange(next === "ALL" ? "" : next)}

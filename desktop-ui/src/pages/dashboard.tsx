@@ -1,29 +1,40 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { getDashboardSnapshot, openExternalUrl, type DashboardSnapshot } from "@desktop/api";
+import {
+  getDashboardSnapshot,
+  getDaybookSnapshot,
+  listHawalaDesk,
+  type DashboardSnapshot,
+} from "@desktop/api";
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
-import {
-  APP_COMPANY,
-  APP_DEVELOPERS,
-  formatWhatsAppDisplay,
-} from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/datetime";
-import { openWhatsApp } from "@desktop/lib/whatsapp";
 import { DashboardBoard } from "@desktop/pages/dashboard-board";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 
 export function DashboardPage() {
   const t = useT();
   const [data, setData] = useState<DashboardSnapshot | null>(null);
+  const [pendingHawala, setPendingHawala] = useState(0);
+  const [todayCashIn, setTodayCashIn] = useState("0.00");
+  const [todayCashOut, setTodayCashOut] = useState("0.00");
+  const [baseCurrency, setBaseCurrency] = useState("AFN");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
-  const copyrightYear = 2026;
 
   const reloadDashboard = useCallback(() => {
-    void getDashboardSnapshot()
-      .then((snap) => {
+    void Promise.all([
+      getDashboardSnapshot(),
+      getDaybookSnapshot({}),
+      listHawalaDesk({ page: 1, pageSize: 1 }),
+    ])
+      .then(([snap, daybook, hawala]) => {
         setData(snap);
+        setPendingHawala(hawala.pending ?? 0);
+        setTodayCashIn(daybook.dailySummary.cashIn || "0.00");
+        setTodayCashOut(daybook.dailySummary.cashOut || "0.00");
+        const firstCash = daybook.cashPosition[0]?.currencyCode;
+        if (firstCash) setBaseCurrency(firstCash);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -34,12 +45,20 @@ export function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
     setBusy(true);
-    void getDashboardSnapshot()
-      .then((snap) => {
-        if (!cancelled) {
-          setData(snap);
-          setError(null);
-        }
+    void Promise.all([
+      getDashboardSnapshot(),
+      getDaybookSnapshot({}),
+      listHawalaDesk({ page: 1, pageSize: 1 }),
+    ])
+      .then(([snap, daybook, hawala]) => {
+        if (cancelled) return;
+        setData(snap);
+        setPendingHawala(hawala.pending ?? 0);
+        setTodayCashIn(daybook.dailySummary.cashIn || "0.00");
+        setTodayCashOut(daybook.dailySummary.cashOut || "0.00");
+        const firstCash = daybook.cashPosition[0]?.currencyCode;
+        if (firstCash) setBaseCurrency(firstCash);
+        setError(null);
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -61,66 +80,24 @@ export function DashboardPage() {
   }, [reloadDashboard]);
 
   return (
-    <div className="dashboard-page page-column">
+    <div className="dashboard-page page-column workspace-page is-dashboard">
       <div className="stack dashboard-page-body">
         {error ? (
           <PageLoadError message={error} onRetry={reloadDashboard} />
         ) : null}
         {busy && !data ? <p className="muted">{t.common.loading}</p> : null}
 
-        {data ? <DashboardBoard data={data} /> : null}
+        {data ? (
+          <DashboardBoard
+            data={data}
+            pendingHawala={pendingHawala}
+            todayCashIn={todayCashIn}
+            todayCashOut={todayCashOut}
+            baseCurrency={baseCurrency}
+            loading={busy}
+          />
+        ) : null}
       </div>
-
-      <footer className="dashboard-footer" aria-label={t.dashboard.companyCredits}>
-        <div className="dashboard-footer-inner">
-          <div className="dashboard-footer-credit">
-            <span className="dashboard-footer-developed">
-              {t.dashboard.developedBy}{" "}
-              <span className="ltr-text" dir="ltr">
-                {APP_COMPANY.name}
-              </span>
-            </span>
-            <button
-              type="button"
-              className="dashboard-footer-link ltr-text"
-              dir="ltr"
-              onClick={() => void openExternalUrl(APP_COMPANY.url)}
-              title={APP_COMPANY.url}
-            >
-              {APP_COMPANY.websiteLabel}
-            </button>
-            {APP_DEVELOPERS.map((dev) => (
-              <span key={dev.email} className="dashboard-footer-dev">
-                <span className="dashboard-footer-dev-name">{dev.name}</span>
-                <button
-                  type="button"
-                  className="dashboard-footer-link ltr-text"
-                  dir="ltr"
-                  onClick={() => void openExternalUrl(`mailto:${dev.email}`)}
-                  title={t.common.email}
-                >
-                  {dev.email}
-                </button>
-                <button
-                  type="button"
-                  className="dashboard-footer-link ltr-text"
-                  dir="ltr"
-                  onClick={() => void openWhatsApp(dev.whatsapp, "")}
-                  title={t.dashboard.whatsapp}
-                >
-                  {formatWhatsAppDisplay(dev.whatsapp)}
-                </button>
-              </span>
-            ))}
-          </div>
-          <p className="dashboard-footer-copy">
-            <span className="dashboard-footer-legal" dir="ltr">
-              © {copyrightYear} ASMS.
-            </span>
-            <span className="dashboard-footer-rights">{t.dashboard.rightsReserved}</span>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

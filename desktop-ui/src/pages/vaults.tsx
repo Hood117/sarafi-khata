@@ -14,7 +14,7 @@ import {
 } from "@desktop/components/vault-cash-form-modal";
 import { VaultUnlockGate } from "@desktop/components/vault-unlock-gate";
 import { useAuth } from "@desktop/auth";
-import { IconCash } from "@desktop/icons";
+import { Landmark } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import {
   endSubmit,
@@ -149,47 +149,54 @@ function VaultsPageInner() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack vaults-page workspace-page is-cash">
       {error ? <PageLoadError message={error} onRetry={() => void refreshAll()} /> : null}
       {busy && !main ? <p className="muted">{t.common.loading}</p> : null}
 
       {main ? (
-        <article className="card stack">
-          <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-            <div className="row" style={{ gap: "0.75rem", alignItems: "center" }}>
-              <IconCash />
+        <section className="panel records-panel">
+          <div className="records-chrome">
+            <div className="records-title">
               <div>
-                <h2 style={{ margin: 0 }}>{main.name}</h2>
-                <p className="muted" style={{ margin: 0 }}>
-                  {main.currencyCount} {t.common.currencies}
-                </p>
+                <Landmark className="nav-icon" size={18} />
+                <div>
+                  <h2>{main.name}</h2>
+                  <p className="muted">
+                    {main.currencyCount} {t.common.currencies}
+                  </p>
+                </div>
+              </div>
+              <div className="records-title-actions">
+                <button type="button" className="btn primary" onClick={() => openCash("CASH_IN")}>
+                  {t.desk.cashIn}
+                </button>
+                <button type="button" className="btn" onClick={() => openCash("CASH_OUT")}>
+                  {t.desk.cashOut}
+                </button>
+                <Link className="btn" to={`/vaults/${main.id}`}>
+                  {t.desk.viewVault}
+                </Link>
               </div>
             </div>
-            <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-              <button type="button" className="btn primary" onClick={() => openCash("CASH_IN")}>
-                {t.desk.cashIn}
-              </button>
-              <button type="button" className="btn" onClick={() => openCash("CASH_OUT")}>
-                {t.desk.cashOut}
-              </button>
-              <Link className="btn" to={`/vaults/${main.id}`}>
-                {t.desk.viewVault}
-              </Link>
-            </div>
           </div>
-        </article>
+        </section>
       ) : null}
 
       {!busy && !main && !error ? (
         <p className="muted">{t.exchange.mainVaultMissing}</p>
       ) : null}
 
-      <section className="card stack">
-        <h2 className="section-title" style={{ margin: 0 }}>
-          {t.desk.cashHistory}
-        </h2>
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.desk.cashHistory}</h2>
+              <span className="count-badge">{historyTotal}</span>
+            </div>
+          </div>
+        </div>
         {history.length === 0 ? (
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted" style={{ margin: 0, padding: "18px" }}>
             {t.desk.noCashHistory}
           </p>
         ) : (
@@ -237,13 +244,15 @@ function VaultsPageInner() {
             </table>
           </div>
         )}
-        <Pagination
-          page={historyPage}
-          pageSize={historyPageSize}
-          total={historyTotal}
-          busy={busy}
-          onPageChange={setHistoryPage}
-        />
+        <div className="records-pagination">
+          <Pagination
+            page={historyPage}
+            pageSize={historyPageSize}
+            total={historyTotal}
+            busy={busy}
+            onPageChange={setHistoryPage}
+          />
+        </div>
       </section>
 
       {rowMenu ? (

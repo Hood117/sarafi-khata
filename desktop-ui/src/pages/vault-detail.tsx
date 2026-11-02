@@ -7,7 +7,7 @@ import {
   type VaultDetail,
 } from "@desktop/api";
 import { VaultUnlockGate } from "@desktop/components/vault-unlock-gate";
-import { IconCash, IconDashboard } from "@desktop/icons";
+import { Banknote, LayoutDashboard } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 
@@ -74,7 +74,7 @@ function VaultDetailPageInner() {
           onClick={() => setTab("overview")}
         >
           <span className="nav-link-icon">
-            <IconDashboard />
+            <LayoutDashboard className="nav-icon" size={18} />
           </span>
           <span className="nav-link-label">{t.dashboard.overview}</span>
         </button>
@@ -84,7 +84,7 @@ function VaultDetailPageInner() {
           onClick={() => setTab("balances")}
         >
           <span className="nav-link-icon">
-            <IconCash />
+            <Banknote className="nav-icon" size={18} />
           </span>
           <span className="nav-link-label">{t.customers.balances}</span>
         </button>

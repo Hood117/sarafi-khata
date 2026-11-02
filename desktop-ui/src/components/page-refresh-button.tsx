@@ -1,4 +1,4 @@
-import { IconRefresh } from "@desktop/icons";
+import { RefreshCw } from "lucide-react";
 import { useT } from "@desktop/i18n";
 
 type Props = {
@@ -30,7 +30,7 @@ export function PageRefreshButton({
       aria-label={t.desk.refresh}
       onClick={onClick}
     >
-      <IconRefresh />
+      <RefreshCw className="nav-icon" size={18} />
       <span>{t.desk.refresh}</span>
     </button>
   );

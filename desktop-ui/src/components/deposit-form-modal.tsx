@@ -12,7 +12,6 @@ import {
   getPreviousMovement,
   listCurrenciesPage,
   listCustomersPage,
-  previewDisplayRef,
   type CurrencyListItem,
   type CustomerListItem,
   type MovementEditSnapshot,
@@ -43,11 +42,7 @@ import {
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
-import {
-  loadDeskVoucher,
-  newInternalRef,
-  txDisplayRef,
-} from "@desktop/lib/tx-ref";
+import { newInternalRef } from "@desktop/lib/tx-ref";
 
 type PayerType = "self" | "other";
 
@@ -57,6 +52,8 @@ type Props = {
   onSaved?: () => void;
   /** Open in edit mode for this transaction id */
   editTransactionId?: string | null;
+  /** Pre-fill the customer when opening a new deposit. */
+  initialCustomer?: { id: string; name: string } | null;
 };
 
 function emptyForm(defaultCurrency = "") {
@@ -89,6 +86,7 @@ export function DepositFormModal({
   onClose,
   onSaved,
   editTransactionId = null,
+  initialCustomer = null,
 }: Props) {
   const t = useT();
   const { session } = useAuth();
@@ -100,7 +98,6 @@ export function DepositFormModal({
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [form, setForm] = useState(() => emptyForm());
-  const [voucherNo, setVoucherNo] = useState("");
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [editTimeSuffix, setEditTimeSuffix] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<CustomerListItem[]>([]);
@@ -153,12 +150,6 @@ export function DepositFormModal({
       valueDate: mode === "template" ? todayIso() : String(snap.valueDate).slice(0, 10),
       description: mode === "template" ? "" : snap.description?.trim() || "",
     });
-    if (mode === "edit") {
-      setVoucherNo(txDisplayRef(snap));
-    } else {
-      setVoucherNo("");
-      void loadDeskVoucher(() => previewDisplayRef("DEPOSIT")).then(setVoucherNo);
-    }
     setDescriptionDirty(mode !== "template");
     setResultDirty(true);
     setEmployeeId("");
@@ -185,18 +176,18 @@ export function DepositFormModal({
           templateCursorRef.current = null;
           setReplaceId(null);
           setEditTimeSuffix(null);
-          setForm(emptyForm(defaultCcy));
-          setVoucherNo("");
+          const blank = emptyForm(defaultCcy);
+          if (initialCustomer?.id) {
+            blank.customerId = initialCustomer.id;
+            blank.customerLabel = initialCustomer.name;
+          }
+          setForm(blank);
           setDescriptionDirty(false);
           setResultDirty(false);
           setEmployeeId("");
           setEmployeeName("");
           clearSuggestState();
           setError(null);
-          const voucher = await loadDeskVoucher(() =>
-            previewDisplayRef("DEPOSIT"),
-          );
-          if (!cancelled) setVoucherNo(voucher);
         }
       } catch (err: unknown) {
         if (!cancelled) setError(errorMessage(err));
@@ -205,7 +196,7 @@ export function DepositFormModal({
     return () => {
       cancelled = true;
     };
-  }, [open, editTransactionId]);
+  }, [open, editTransactionId, initialCustomer?.id, initialCustomer?.name]);
 
   useEffect(() => {
     if (!open) return;
@@ -351,10 +342,6 @@ export function DepositFormModal({
     setReplaceId(null);
     setEditTimeSuffix(null);
     setForm(emptyForm(defaultCcy));
-    setVoucherNo("");
-    if (keepOpen) {
-      void loadDeskVoucher(() => previewDisplayRef("DEPOSIT")).then(setVoucherNo);
-    }
     setDescriptionDirty(false);
     setResultDirty(false);
     setBalanceByCurrency({});
@@ -531,15 +518,6 @@ export function DepositFormModal({
           </p>
 
           <div className="fx-simple-top">
-            <label className="desk-ref-field">
-              <span>{t.desk.voucherNumber}</span>
-              <input
-                className="desk-ref-input"
-                value={voucherNo}
-                readOnly
-                tabIndex={-1}
-              />
-            </label>
             <label>
               <span>{t.common.date}</span>
               <input

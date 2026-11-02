@@ -16,10 +16,14 @@ export function sanitizeVoucher(value: string | null | undefined): string {
   return n;
 }
 
+/** Manual deposits / withdrawals (DEP-0001, WD-0001) carry no user-facing number. */
+function isManualMovementRef(value: string): boolean {
+  return /^(DEP|WD)-/i.test(value);
+}
+
 export function txDisplayRef(row: TxRefFields): string {
-  const friendly = sanitizeVoucher(row.displayRef);
-  if (friendly) return friendly;
-  return sanitizeVoucher(row.reference);
+  const ref = sanitizeVoucher(row.displayRef) || sanitizeVoucher(row.reference);
+  return isManualMovementRef(ref) ? "" : ref;
 }
 
 /** Operator-facing Hawala number — prefers the manual `reference` over auto displayRef. */

@@ -13,7 +13,7 @@ import {
   type WalletListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
-import { IconCash, IconTransfers } from "@desktop/icons";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
@@ -97,7 +97,7 @@ export function MovementsPage() {
     setError(null);
     try {
       if (tab === "deposit") {
-        const posted = await depositFunds({
+        await depositFunds({
           reference,
           customerWalletId,
           currencyCode,
@@ -106,9 +106,9 @@ export function MovementsPage() {
           description: description || undefined,
           createdById: session.userId,
         });
-        showSuccess(`${t.txLine.typeDeposit}: ${txDisplayRef(posted)}`);
+        showSuccess(t.txLine.typeDeposit);
       } else if (tab === "withdraw") {
-        const posted = await withdrawFunds({
+        await withdrawFunds({
           reference,
           customerWalletId,
           currencyCode,
@@ -117,7 +117,7 @@ export function MovementsPage() {
           description: description || undefined,
           createdById: session.userId,
         });
-        showSuccess(`${t.txLine.typeWithdrawal}: ${txDisplayRef(posted)}`);
+        showSuccess(t.txLine.typeWithdrawal);
       } else {
         const posted = await transferFunds({
           reference,
@@ -145,9 +145,9 @@ export function MovementsPage() {
       <div className="nav-row">
         {(
           [
-            ["deposit", t.txLine.typeDeposit, <IconCash key="d" />],
-            ["withdraw", t.txLine.typeWithdrawal, <IconTransfers key="w" />],
-            ["transfer", t.txLine.typeTransfer, <IconTransfers key="t" />],
+            ["deposit", t.txLine.typeDeposit, <ArrowDownLeft key="d" className="nav-icon" size={18} />],
+            ["withdraw", t.txLine.typeWithdrawal, <ArrowUpRight key="w" className="nav-icon" size={18} />],
+            ["transfer", t.txLine.typeTransfer, <ArrowLeftRight key="t" className="nav-icon" size={18} />],
           ] as const
         ).map(([id, label, icon]) => (
           <button

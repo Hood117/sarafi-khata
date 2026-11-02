@@ -292,6 +292,8 @@ export type Dictionary = {
     contactForActivation: string;
     contactForKey: string;
     developerPhones: string;
+    /** TEMP: skip activation during local development. */
+    devEnter: string;
   };
   session: {
     signOut: string;
@@ -303,6 +305,7 @@ export type Dictionary = {
     overview: string;
     quickActions: string;
     recentActivity: string;
+    cashBalance: string;
     cashPosition: string;
     todaysSummary: string;
     openCash: string;
@@ -324,6 +327,9 @@ export type Dictionary = {
     thisMonthHawala: string;
     monthlyActivity: string;
     mixByType: string;
+    activityCounts: string;
+    activityShare: string;
+    awaitingAction: string;
     businessCash: string;
     viewCash: string;
     loadingDashboard: string;
@@ -462,6 +468,17 @@ export type Dictionary = {
     identifyRecentTransactions: string;
     identifyNoTransactions: string;
     wrongFingerToast: string;
+    photo: string;
+    photoOptional: string;
+    takePhoto: string;
+    choosePhoto: string;
+    removePhoto: string;
+    capturePhoto: string;
+    photoCameraError: string;
+    photoReadError: string;
+    addLedgerEntry: string;
+    ledgerNotesPlaceholder: string;
+    ledgerRateToAfn: string;
   };
   cash: {
     title: string;

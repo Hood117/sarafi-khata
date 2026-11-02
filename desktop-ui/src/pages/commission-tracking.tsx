@@ -138,7 +138,7 @@ export function CommissionTrackingPage() {
   const transactionCount = totals.reduce((sum, row) => sum + row.count, 0);
 
   return (
-    <div className="stack commission-tracking-page">
+    <div className="stack commission-tracking-page workspace-page">
       {error ? (
         <PageLoadError
           message={error}

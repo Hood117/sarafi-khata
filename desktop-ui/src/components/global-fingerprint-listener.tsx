@@ -12,7 +12,7 @@ import {
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { LedgerAmount } from "@desktop/components/ledger-amount";
-import { IconCustomers, IconOk } from "@desktop/icons";
+import { Check, Users } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { technicalErrorText } from "@desktop/lib/app-error";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
@@ -402,7 +402,7 @@ export function GlobalFingerprintListener() {
             navigate(`/customers/${id}`);
           }}
         >
-          <IconCustomers />
+          <Users className="nav-icon" size={18} />
           <span>{t.customers.identifyOpenCustomer}</span>
         </button>
         <button
@@ -412,7 +412,7 @@ export function GlobalFingerprintListener() {
           data-desk-action="ok"
           onClick={closeMatch}
         >
-          <IconOk />
+          <Check className="nav-icon" size={18} />
           <span>{t.customers.identifyDismiss}</span>
         </button>
       </div>

@@ -18,6 +18,33 @@ use super::trading::util::soft_delete_transaction;
 
 const OPENING_EQUITY_WALLET_NAME: &str = "Opening Equity";
 
+const PHOTO_MAX_CHARS: usize = 400_000;
+
+/// Empty clears. A data URL is stored as-is after a size and type check.
+fn normalize_photo(value: Option<String>) -> Result<Option<String>, AppError> {
+  let Some(raw) = value else {
+    return Ok(None);
+  };
+  let trimmed = raw.trim();
+  if trimmed.is_empty() {
+    return Ok(None);
+  }
+  if trimmed.len() > PHOTO_MAX_CHARS {
+    return Err(AppError::Validation("Photo is too large.".into()));
+  }
+  let head = trimmed.get(..40).unwrap_or(trimmed).to_ascii_lowercase();
+  let image = head.starts_with("data:image/jpeg")
+    || head.starts_with("data:image/jpg")
+    || head.starts_with("data:image/png")
+    || head.starts_with("data:image/webp");
+  if !image || !trimmed.contains(";base64,") {
+    return Err(AppError::Validation(
+      "Photo must be a JPEG, PNG, or WebP image.".into(),
+    ));
+  }
+  Ok(Some(trimmed.to_string()))
+}
+
 fn trim_opt(value: Option<String>, max: usize) -> Result<Option<String>, AppError> {
   let Some(raw) = value else {
     return Ok(None);
@@ -38,7 +65,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
   let detail = conn
     .query_row(
       "SELECT id, code, fullName, fatherName, phone, address, nationalId, notes,
-              IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt
+              IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt, photo
        FROM Customer WHERE id = ?1 LIMIT 1",
       [id],
       |row| {
@@ -57,6 +84,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
           deleted_at.is_some(),
           row.get(11)?,
           row.get(12)?,
+          row.get(13)?,
         ))
       },
     )
@@ -79,6 +107,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
     is_archived,
     created_at,
     updated_at,
+    photo,
   ) = detail;
   let opening_kata = load_customer_opening_kata(conn, &id)?;
   let linked_partner: Option<(String, String)> = conn
@@ -107,6 +136,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
     opening_kata,
     linked_partner_sarafi_id: linked_partner.as_ref().map(|(pid, _)| pid.clone()),
     linked_partner_name: linked_partner.map(|(_, name)| name),
+    photo,
   })
 }
 
@@ -164,6 +194,9 @@ pub struct CreateCustomerInput {
   pub opening_balance_amount: Option<String>,
   pub opening_balance_currency_code: Option<String>,
   pub actor_user_id: String,
+  /// Data URL. Omit or leave empty for no photo.
+  #[serde(default)]
+  pub photo: Option<String>,
 }
 
 /// Opening Kata = starting customer claim against cash already in Main Vault.
@@ -395,6 +428,7 @@ pub fn create_customer(
   let national_id = trim_opt(input.national_id, 100)?;
   let notes = trim_opt(input.notes, 2000)?;
   let customer_type = crate::ledger::parse_customer_type(input.customer_type.as_deref());
+  let photo = normalize_photo(input.photo)?;
   let _ = input.actor_user_id.trim();
 
   let opening_amount = input
@@ -461,8 +495,8 @@ pub fn create_customer(
     match conn.execute(
       "INSERT INTO Customer (
          id, code, fullName, fatherName, phone, address, nationalId, notes, customerType,
-         isActive, deletedAt, createdAt, updatedAt
-       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, NULL, ?10, ?10)",
+         isActive, deletedAt, createdAt, updatedAt, photo
+       ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, NULL, ?10, ?10, ?11)",
       params![
         id,
         code,
@@ -473,7 +507,8 @@ pub fn create_customer(
         national_id,
         notes,
         customer_type,
-        now
+        now,
+        photo
       ],
     ) {
       Ok(_) => {
@@ -553,6 +588,9 @@ pub struct UpdateCustomerInput {
   pub actor_user_id: Option<String>,
   /// Opening Kata lines to sync on save (replaces removed/changed rows via ledger).
   pub opening_kata: Option<Vec<OpeningKataLineInput>>,
+  /// Omit to keep the current photo. Empty string clears it.
+  #[serde(default)]
+  pub photo: Option<String>,
 }
 
 fn write_customer_audit(
@@ -629,6 +667,11 @@ pub fn update_customer(
       .as_deref()
       .or(Some(existing.customer_type.as_str())),
   );
+  // Missing photo keeps the saved one. Empty string removes it.
+  let photo = match input.photo {
+    None => existing.photo.clone(),
+    Some(raw) => normalize_photo(Some(raw))?,
+  };
 
   if let Some(ref phone_val) = phone {
     let phone_taken: bool = conn.query_row(
@@ -671,8 +714,8 @@ pub fn update_customer(
   conn.execute(
     "UPDATE Customer SET
        fullName = ?1, fatherName = ?2, phone = ?3, address = ?4,
-       nationalId = ?5, notes = ?6, customerType = ?7, updatedAt = ?8
-     WHERE id = ?9 AND deletedAt IS NULL",
+       nationalId = ?5, notes = ?6, customerType = ?7, photo = ?8, updatedAt = ?9
+     WHERE id = ?10 AND deletedAt IS NULL",
     params![
       full_name,
       father_name,
@@ -681,6 +724,7 @@ pub fn update_customer(
       national_id,
       notes,
       customer_type,
+      photo,
       now,
       id
     ],

@@ -1,9 +1,9 @@
-# Link against vendored static SQLite (avoids flaky MSVC compile of
-# sqlite3.c inside cargo build scripts on some Windows setups — exit 259).
-# Rebuild with: scripts\build-sqlite-msvc.bat (from repo root) or
+# Windows MSVC: SQLITE3_* is set by scripts/run-tauri-msvc.bat so the
+# prebuilt vendor/sqlite/sqlite3.lib is linked (avoids flaky sqlite3.c
+# compile with exit 259). Do not set those env vars here — they break
+# macOS/Linux builds (MSVC .lib is not a Mach-O/ELF archive).
+#
+# Non-Windows: rusqlite `bundled` feature compiles SQLite from source.
+#
+# Rebuild Windows lib: scripts\build-sqlite-msvc.bat or
 # src-tauri\vendor\sqlite\build.bat
-
-[env]
-SQLITE3_LIB_DIR = { value = "vendor/sqlite", relative = true }
-SQLITE3_INCLUDE_DIR = { value = "vendor/sqlite", relative = true }
-SQLITE3_STATIC = "1"

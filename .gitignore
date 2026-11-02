@@ -57,6 +57,7 @@ next-env.d.ts
 /src/generated
 
 # tauri
+/.cargo-home
 /src-tauri/target
 /src-tauri/target-check
 /src-tauri/target-*

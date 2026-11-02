@@ -11,6 +11,10 @@ import { DESKTOP_UI_SKIN } from "@desktop/ui-skin";
 import "@desktop/styles.css";
 import "@desktop/styles-liquid-glass.css";
 import "@desktop/styles-dark.css";
+import "@desktop/styles-web.css";
+import "@desktop/styles-online-dashboard.css";
+import "@desktop/styles-online-surfaces.css";
+import "@desktop/styles-online-records.css";
 
 try {
   const storedTheme = localStorage.getItem("saraf.ui.theme");

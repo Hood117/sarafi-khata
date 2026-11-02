@@ -74,27 +74,66 @@ pub fn get_app_info(state: State<'_, AppState>) -> Result<AppInfo, AppError> {
   })
 }
 
+/// Open the OS print dialog for the current page (WKWebView ignores `window.print()`).
+#[tauri::command]
+pub fn print_webview(webview: tauri::Webview) -> Result<(), AppError> {
+  webview
+    .print()
+    .map_err(|e| AppError::Internal(format!("Cannot open print dialog: {e}")))
+}
+
+fn unique_export_path(dir: &std::path::Path, filename: &str) -> PathBuf {
+  let mut path = dir.join(filename);
+  if !path.exists() {
+    return path;
+  }
+  let stem = path
+    .file_stem()
+    .and_then(|s| s.to_str())
+    .unwrap_or("export");
+  let ext = path
+    .extension()
+    .and_then(|s| s.to_str())
+    .unwrap_or("bin");
+  let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+  path = dir.join(format!("{stem}-{stamp}.{ext}"));
+  path
+}
+
 /// Write a text export (CSV, etc.) into the user's Downloads folder.
 #[tauri::command]
 pub fn save_text_export(input: SaveTextExportInput) -> Result<SaveTextExportResult, AppError> {
   let filename = sanitize_export_filename(&input.filename);
   let dir = downloads_dir();
   fs::create_dir_all(&dir).map_err(|e| AppError::Io(format!("Cannot create export folder: {e}")))?;
-  let mut path = dir.join(&filename);
-  if path.exists() {
-    let stem = path
-      .file_stem()
-      .and_then(|s| s.to_str())
-      .unwrap_or("export");
-    let ext = path
-      .extension()
-      .and_then(|s| s.to_str())
-      .unwrap_or("csv");
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    path = dir.join(format!("{stem}-{stamp}.{ext}"));
-  }
+  let path = unique_export_path(&dir, &filename);
   fs::write(&path, input.contents.as_bytes())
     .map_err(|e| AppError::Io(format!("Cannot write export file: {e}")))?;
+  Ok(SaveTextExportResult {
+    path: path.display().to_string(),
+  })
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveBytesExportInput {
+  pub filename: String,
+  /// Standard base64 (no data: prefix).
+  pub contents_base64: String,
+}
+
+/// Write a binary export (PDF, etc.) into the user's Downloads folder.
+#[tauri::command]
+pub fn save_bytes_export(input: SaveBytesExportInput) -> Result<SaveTextExportResult, AppError> {
+  use base64::Engine;
+  let filename = sanitize_export_filename(&input.filename);
+  let bytes = base64::engine::general_purpose::STANDARD
+    .decode(input.contents_base64.trim())
+    .map_err(|e| AppError::Validation(format!("Invalid export data: {e}")))?;
+  let dir = downloads_dir();
+  fs::create_dir_all(&dir).map_err(|e| AppError::Io(format!("Cannot create export folder: {e}")))?;
+  let path = unique_export_path(&dir, &filename);
+  fs::write(&path, bytes).map_err(|e| AppError::Io(format!("Cannot write export file: {e}")))?;
   Ok(SaveTextExportResult {
     path: path.display().to_string(),
   })

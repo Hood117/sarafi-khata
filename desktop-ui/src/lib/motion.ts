@@ -157,10 +157,12 @@ export function animateDashboard(root: HTMLElement) {
   const q = (sel: string) => Array.from(root.querySelectorAll<HTMLElement>(sel));
   const rtl = document.documentElement.getAttribute("dir") === "rtl";
 
-  const head = q(".dash-board-head");
-  const kpis = q(".dash-kpi");
-  const panels = q(".dash-panel");
-  const locked = [...head, ...kpis, ...panels];
+  const head = q(".online-dash-head, .dash-board-head");
+  const cards = q(".cash-balance-card, .dash-kpi");
+  const panels = q(
+    ".online-dash-actions-row, .online-dash-activity, .online-dash-section, .dash-panel",
+  );
+  const locked = [...head, ...cards, ...panels];
   lockMotion(locked);
   const release = () => unlockMotion(locked);
 
@@ -171,9 +173,9 @@ export function animateDashboard(root: HTMLElement) {
       { y: 0, duration: 0.4, ease: "power2.out", overwrite: "auto", clearProps: "transform" },
     );
   }
-  if (kpis.length) {
+  if (cards.length) {
     gsap.fromTo(
-      kpis,
+      cards,
       { y: 16, scale: 0.98 },
       {
         y: 0,

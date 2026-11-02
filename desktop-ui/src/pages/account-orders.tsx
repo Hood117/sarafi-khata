@@ -186,7 +186,7 @@ export function AccountOrdersPage() {
   );
 
   return (
-    <div className="stack page-account-orders">
+    <div className="stack page-account-orders workspace-page">
       <header className="page-header row wrap gap">
         <div className="stack tight">
           <h1>{t.accountOrders.title}</h1>

@@ -38,6 +38,8 @@ pub struct CustomerListItem {
   pub is_active: bool,
   pub is_archived: bool,
   pub created_at: String,
+  /// JPEG data URL. Empty when the customer has no photo.
+  pub photo: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -146,7 +148,7 @@ pub fn list_customers_page(
 
   let list_sql = format!(
     "SELECT id, code, fullName, fatherName, phone, address,
-            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt
+            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, photo
      FROM Customer
      {where_sql}
      ORDER BY
@@ -181,6 +183,7 @@ pub fn list_customers_page(
         is_active: row.get::<_, i64>(7)? != 0,
         is_archived: deleted_at.is_some(),
         created_at: row.get(9)?,
+        photo: row.get(10)?,
       })
     })?
     .collect::<Result<Vec<_>, _>>()?;
@@ -232,6 +235,8 @@ pub struct CustomerDetail {
   pub opening_kata: Vec<OpeningKataLineDetail>,
   pub linked_partner_sarafi_id: Option<String>,
   pub linked_partner_name: Option<String>,
+  /// JPEG, PNG, or WebP data URL. Not included on list rows.
+  pub photo: Option<String>,
 }
 
 fn format_opening_amount_display(major: &str) -> String {
@@ -355,7 +360,7 @@ pub fn get_customer(
   let _actor = require_screen(&state, &conn, "customers")?;
   let row = conn.query_row(
     "SELECT id, code, fullName, fatherName, phone, address, nationalId, notes,
-            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt
+            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt, photo
      FROM Customer
      WHERE id = ?1
      LIMIT 1",
@@ -376,6 +381,7 @@ pub fn get_customer(
         deleted_at.is_some(),
         row.get(11)?,
         row.get(12)?,
+        row.get(13)?,
       ))
     },
   );
@@ -395,6 +401,7 @@ pub fn get_customer(
       is_archived,
       created_at,
       updated_at,
+      photo,
     )) => {
       let opening_kata = load_customer_opening_kata(&conn, &id)?;
       let linked_partner: Option<(String, String)> = conn
@@ -423,6 +430,7 @@ pub fn get_customer(
         opening_kata,
         linked_partner_sarafi_id: linked_partner.as_ref().map(|(pid, _)| pid.clone()),
         linked_partner_name: linked_partner.map(|(_, name)| name),
+        photo,
       })
     }
     Err(rusqlite::Error::QueryReturnedNoRows) => {

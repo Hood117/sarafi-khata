@@ -2,11 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
-import {
-  IconDashboard,
-  IconHistory,
-  IconInventory,
-} from "@desktop/icons";
+import { History, LayoutDashboard, Package } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import type { TradingOutletContext } from "@desktop/pages/trading/outlet-context";
 
@@ -21,15 +17,15 @@ export function TradingLayout() {
   }, []);
 
   const links = [
-    { to: "/trading", label: t.dashboard.overview, end: true, icon: <IconDashboard /> },
-    { to: "/trading/inventory", label: t.desk.inventory, icon: <IconInventory /> },
-    { to: "/trading/history", label: t.desk.tradeHistory, icon: <IconHistory /> },
+    { to: "/trading", label: t.dashboard.overview, end: true, icon: <LayoutDashboard className="nav-icon" size={18} /> },
+    { to: "/trading/inventory", label: t.desk.inventory, icon: <Package className="nav-icon" size={18} /> },
+    { to: "/trading/history", label: t.desk.tradeHistory, icon: <History className="nav-icon" size={18} /> },
   ];
 
   const outletContext: TradingOutletContext = { reloadKey };
 
   return (
-    <div className="stack">
+    <div className="stack trading-page workspace-page">
       <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
         <nav className="nav-row" aria-label={t.nav.trading} style={{ flex: 1 }}>
           {links.map((link) => (

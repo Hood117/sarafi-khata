@@ -1,19 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   archiveCustomer,
   getCustomer,
   getCustomerBalances,
-  listCurrenciesPage,
   listCustomerLedger,
+  listCustomersPage,
   restoreCustomer,
-  type CurrencyListItem,
   type CustomerBalanceRow,
   type CustomerDetail,
   type CustomerLedgerRow,
+  type CustomerListItem,
 } from "@desktop/api";
-import { txDisplayRef } from "@desktop/lib/tx-ref";
 import {
   TransactionDetailModal,
   clickableTxRowProps,
@@ -24,25 +29,23 @@ import {
   useExchangeDealDetailModal,
 } from "@desktop/components/exchange-deal-detail-modal";
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
-import { LedgerAmount } from "@desktop/components/ledger-amount";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
+import { moneyToneClass } from "@desktop/lib/currency-labels";
 import {
-  localizedCurrencyName,
-  moneyToneClass,
-} from "@desktop/lib/currency-labels";
+  EMPTY_JOURNAL_FILTER_TOTALS,
+  journalFilterTotals,
+} from "@desktop/lib/daybook-journal-totals";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
 import {
-  amountPartsFromDebitCredit,
-  fmtAmountPart,
-} from "@desktop/lib/format-transaction-line";
-import {
   printReportSheet,
+  savePdfReportSheet,
   type ExportColumn,
   type ExportRow,
 } from "@desktop/lib/export-table";
+import { DepositFormModal } from "@desktop/components/deposit-form-modal";
+import { InlineLedgerEntryRow } from "@desktop/components/inline-ledger-entry-row";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
-import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
 import { PageLoadError } from "@desktop/ui/page-load-error";
@@ -55,32 +58,6 @@ type LedgerTypeFilter =
   | "TRANSFER"
   | "HAWALA"
   | "EXCHANGE";
-type CustomerDetailView = "money" | "history";
-
-function parseBalanceAmount(display: string): number {
-  return Number.parseFloat(
-    String(display)
-      .replace(/,/g, "")
-      .replace(/−/g, "-")
-      .trim(),
-  );
-}
-
-/** Keep existing balance value; ensure Credit shows a clear + and Debit a clear -. */
-function formatSignedBalanceDisplay(display: string): string {
-  const trimmed = String(display).trim();
-  const n = parseBalanceAmount(trimmed);
-  if (!Number.isFinite(n)) return trimmed;
-  if (n > 0) {
-    return trimmed.startsWith("+") ? trimmed : `+${trimmed.replace(/^\+/, "")}`;
-  }
-  if (n < 0) {
-    return trimmed.startsWith("-") || trimmed.startsWith("−")
-      ? trimmed.replace(/^−/, "-")
-      : `-${trimmed}`;
-  }
-  return trimmed.startsWith("+") || trimmed.startsWith("-") ? trimmed : `+${trimmed}`;
-}
 
 function customerStatusLabel(
   customer: CustomerDetail,
@@ -91,27 +68,162 @@ function customerStatusLabel(
   return t.common.inactive;
 }
 
+function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<CustomerListItem[]>([]);
+  const [highlight, setHighlight] = useState(0);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setSearching(true);
+      void listCustomersPage({
+        search: query.trim() || undefined,
+        archiveFilter: "active",
+        page: 1,
+        pageSize: 10,
+      })
+        .then((result) => {
+          if (cancelled) return;
+          setItems(result.items.filter((c) => c.id !== customer.id));
+          setHighlight(0);
+        })
+        .catch(() => {
+          if (!cancelled) setItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, query, customer.id]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  function close() {
+    setOpen(false);
+    setQuery("");
+    setItems([]);
+  }
+
+  function pick(id: string) {
+    close();
+    navigate(`/customers/${id}`);
+  }
+
+  function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, Math.max(0, items.length - 1)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const row = items[highlight];
+      if (row) pick(row.id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      close();
+    }
+  }
+
+  return (
+    <div ref={wrapRef} className="customer-search-wrap customer-name-switcher">
+      <h1
+        className="customer-detail-name"
+        style={open ? { visibility: "hidden" } : undefined}
+      >
+        <button
+          type="button"
+          className="customer-name-switcher-trigger"
+          aria-haspopup="listbox"
+          title={t.customers.searchPlaceholder}
+          onClick={() => setOpen(true)}
+        >
+          {customer.fullName}
+          <span className="customer-name-switcher-caret" aria-hidden="true">▾</span>
+        </button>
+      </h1>
+      {open ? (
+        <input
+          autoFocus
+          value={query}
+          placeholder={customer.fullName}
+          aria-label={t.customers.searchPlaceholder}
+          autoComplete="off"
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+      ) : null}
+      {open ? (
+        <ul className="customer-suggest" role="listbox">
+          {items.length === 0 ? (
+            <li className="customer-suggest-empty muted">
+              {searching ? t.common.loading : t.customers.emptyFiltered}
+            </li>
+          ) : (
+            items.map((c, idx) => (
+              <li key={c.id} role="option" aria-selected={idx === highlight}>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
+                  onMouseEnter={() => setHighlight(idx)}
+                  onClick={() => pick(c.id)}
+                >
+                  <span className="customer-suggest-name">{c.fullName}</span>
+                  <span className="customer-suggest-meta muted">
+                    {[c.code, c.fatherName, c.phone].filter(Boolean).join(" · ")}
+                  </span>
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 export function CustomerDetailPage() {
   const { id = "" } = useParams();
-  const navigate = useNavigate();
   const t = useT();
   const { locale, dir } = useLocale();
   const rtl = dir === "rtl";
 
   const [showEdit, setShowEdit] = useState(false);
-  const [view, setView] = useState<CustomerDetailView>("money");
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [balances, setBalances] = useState<CustomerBalanceRow[]>([]);
   const [history, setHistory] = useState<CustomerLedgerRow[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyTotals, setHistoryTotals] = useState(EMPTY_JOURNAL_FILTER_TOTALS);
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 25;
   const [ledgerDateFrom, setLedgerDateFrom] = useState("");
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [ledgerType, setLedgerType] = useState<LedgerTypeFilter>("ALL");
   const [ledgerCurrency, setLedgerCurrency] = useState("ALL");
-  const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [printBusy, setPrintBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +231,8 @@ export function CustomerDetailPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const txModal = useTransactionDetailModal();
   const dealModal = useExchangeDealDetailModal();
+  const currentId = useRef(id);
+  currentId.current = id;
 
   function openTxOrDeal(txId: string, type: string) {
     if (type.toUpperCase() === "EXCHANGE") void dealModal.open(txId);
@@ -138,6 +252,7 @@ export function CustomerDetailPage() {
         txType: ledgerType === "ALL" ? undefined : ledgerType,
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
       });
+      if (currentId.current !== id) return;
       setHistory(hist.items);
       setHistoryTotal(hist.total);
     } catch (err) {
@@ -163,6 +278,7 @@ export function CustomerDetailPage() {
         getCustomer(id),
         getCustomerBalances(id),
       ]);
+      if (currentId.current !== id) return;
       setCustomer(c);
       setBalances(bals);
       setError(null);
@@ -174,12 +290,13 @@ export function CustomerDetailPage() {
   }, [id, t.errors.loadCustomerHistory]);
 
   useEffect(() => {
-    setView("money");
     setHistoryPage(1);
     setLedgerDateFrom("");
     setLedgerDateTo("");
     setLedgerType("ALL");
     setLedgerCurrency("ALL");
+    setDraftOpen(false);
+    setDepositOpen(false);
   }, [id]);
 
   useEffect(() => {
@@ -187,24 +304,17 @@ export function CustomerDetailPage() {
   }, [load]);
 
   useEffect(() => {
-    void listCurrenciesPage({ activeOnly: true, pageSize: 100 })
-      .then((page) => setCurrencies(page.items))
-      .catch(() => setCurrencies([]));
-  }, []);
-
-  useEffect(() => {
-    if (view !== "history") return;
     void loadLedger();
-  }, [view, loadLedger]);
+  }, [loadLedger]);
 
   useEffect(() => {
     const onSaved = () => {
       void load();
-      if (view === "history") void loadLedger();
+      void loadLedger();
     };
     window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [load, loadLedger, view]);
+  }, [load, loadLedger]);
 
   useEffect(() => {
     setHistoryPage(1);
@@ -239,7 +349,7 @@ export function CustomerDetailPage() {
     return parts.length ? parts.join(" · ") : t.customers.customerHistory;
   }
 
-  async function fetchAllFilteredHistory(): Promise<CustomerLedgerRow[]> {
+  const fetchAllFilteredHistory = useCallback(async (): Promise<CustomerLedgerRow[]> => {
     if (!id) return [];
     const pageSize = 100;
     const all: CustomerLedgerRow[] = [];
@@ -260,9 +370,31 @@ export function CustomerDetailPage() {
       if (page > 200) break;
     }
     return all;
-  }
+  }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
 
-  async function printCustomerHistory() {
+  const loadHistoryTotals = useCallback(async () => {
+    try {
+      const rows = await fetchAllFilteredHistory();
+      if (currentId.current !== id) return;
+      setHistoryTotals(journalFilterTotals(rows));
+    } catch {
+      setHistoryTotals(EMPTY_JOURNAL_FILTER_TOTALS);
+    }
+  }, [fetchAllFilteredHistory, id]);
+
+  useEffect(() => {
+    void loadHistoryTotals();
+  }, [loadHistoryTotals]);
+
+  useEffect(() => {
+    const onSaved = () => {
+      void loadHistoryTotals();
+    };
+    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
+  }, [loadHistoryTotals]);
+
+  async function exportCustomerHistory(mode: "print" | "pdf") {
     if (!customer || printBusy) return;
     setPrintBusy(true);
     setError(null);
@@ -271,50 +403,51 @@ export function CustomerDetailPage() {
       const columns: ExportColumn[] = [
         { key: "date", header: t.common.date, kind: "date" },
         { key: "description", header: t.common.description, kind: "description" },
-        { key: "amount", header: t.common.amount, kind: "amount" },
+        { key: "credit", header: t.common.credit, kind: "amount" },
+        { key: "debit", header: t.common.debit, kind: "amount" },
         { key: "currency", header: t.common.currency, kind: "text" },
         { key: "balance", header: t.common.balance, kind: "amount" },
-        { key: "reference", header: t.common.reference, kind: "ref" },
       ];
       const rows: ExportRow[] = rowsSource.map((row) => {
-        const parts = amountPartsFromDebitCredit(row);
-        const amountText = parts.length
-          ? parts.map(fmtAmountPart).join(" · ")
-          : "—";
-        const tone =
-          parts.some((p) => p.sign === "+") && parts.every((p) => p.sign === "+")
-            ? "in"
-            : parts.some((p) => p.sign === "−") &&
-                parts.every((p) => p.sign === "−")
-              ? "out"
-              : "";
         const description =
           (row.description ?? "").trim() || row.activity || "—";
         return {
-          date: row.valueDate,
+          date: String(row.valueDate).slice(0, 10),
           description,
-          amount: amountText,
-          _amountTone: tone,
+          debit: row.debit || "—",
+          _debitTone: "out",
+          credit: row.credit || "—",
+          _creditTone: "in",
           currency: row.currencyCode,
           balance: `${row.balanceAfter} ${row.currencyCode}`,
-          reference: txDisplayRef(row),
         };
       });
       const codeBit = customer.code ? ` · #${customer.code}` : "";
-      printReportSheet({
-        columns,
-        rows,
-        meta: {
-          title: `${t.customers.customerHistory} — ${customer.fullName}${codeBit}`,
-          businessName: "ASMS",
-          periodLabel: historyPeriodLabel(),
-          generatedAt: new Date().toLocaleString(
-            locale === "en" ? "en" : locale,
-          ),
-          rtl,
-        },
-        emptyLabel: t.common.noEntries,
-      });
+      const meta = {
+        title: `${t.customers.customerHistory} — ${customer.fullName}${codeBit}`,
+        businessName: "ASMS",
+        periodLabel: historyPeriodLabel(),
+        generatedAt: new Date().toLocaleString(
+          locale === "en" ? "en" : locale,
+        ),
+        rtl,
+      };
+      if (mode === "pdf") {
+        const path = await savePdfReportSheet({
+          columns,
+          rows,
+          meta,
+          emptyLabel: t.common.noEntries,
+        });
+        setSuccessMessage(path ? `PDF · ${path}` : t.common.success);
+      } else {
+        printReportSheet({
+          columns,
+          rows,
+          meta,
+          emptyLabel: t.common.noEntries,
+        });
+      }
     } catch (err) {
       setError(errorMessage(err, t.errors.loadCustomerHistory));
     } finally {
@@ -322,11 +455,11 @@ export function CustomerDetailPage() {
     }
   }
 
-  async function onArchive() {
+  async function confirmArchive() {
     if (!customer) return;
-    if (!window.confirm(`${t.customers.archiveCustomer} “${customer.fullName}”?`)) return;
     try {
       await archiveCustomer(customer.id);
+      setArchiveConfirmOpen(false);
       await load();
       setSuccessMessage(t.common.success);
     } catch (err) {
@@ -360,38 +493,16 @@ export function CustomerDetailPage() {
   const statusLabel = customer ? customerStatusLabel(customer, t) : null;
 
   return (
-    <div className="stack customer-detail-page page-column">
-      <div className="detail-toolbar">
-        <Link className="nav-link" to="/customers" style={{ padding: 0 }}>
-          ← {t.nav.customers}
-        </Link>
-        <div className="detail-toolbar-actions">
-          {customer?.isArchived ? (
-            <button type="button" className="btn primary" onClick={() => void onRestore()}>
-              {t.common.restore}
-            </button>
-          ) : customer ? (
-            <>
-              <button type="button" className="btn" onClick={() => setShowEdit(true)}>
-                {t.customers.edit}
-              </button>
-              <button type="button" className="btn" data-desk-action="delete" onClick={() => void onArchive()}>
-                {t.common.archive}
-              </button>
-            </>
-          ) : null}
-          <button type="button" className="btn" onClick={() => navigate("/customers")}>
-            {t.common.back}
-          </button>
-        </div>
-      </div>
-
+    <div className="stack customer-detail-page page-column workspace-page">
+      <Link className="customer-detail-back" to="/customers">
+        ← {t.nav.customers}
+      </Link>
       {error ? (
         <PageLoadError
           message={error}
           onRetry={() => {
             void load();
-            if (view === "history") void loadLedger();
+            void loadLedger();
           }}
         />
       ) : null}
@@ -399,273 +510,329 @@ export function CustomerDetailPage() {
 
       {customer ? (
         <>
-          <header className="customer-detail-identity">
-            <h1 className="customer-detail-name">{customer.fullName}</h1>
-            <p className="customer-detail-meta muted">
-              <span className="customer-detail-code">{codeLabel}</span>
-              <span aria-hidden> · </span>
-              <span>
-                {customer.customerType?.toUpperCase() === "TEMPORARY"
-                  ? t.customers.temporary
-                  : t.customers.permanent}
-              </span>
-              {phoneLabel ? (
-                <>
-                  <span aria-hidden> · </span>
-                  <span className="ltr-text phone-ltr" dir="ltr">
-                    {phoneLabel}
-                  </span>
-                </>
-              ) : null}
-              {statusLabel ? (
-                <>
-                  <span aria-hidden> · </span>
-                  <strong
+          <div className="customer-detail-head">
+            <div className="customer-photo-slot" aria-label={t.customers.photo}>
+              {customer.photo ? (
+                <img src={customer.photo} alt={customer.fullName} />
+              ) : (
+                <span className="muted">{t.customers.photo}</span>
+              )}
+            </div>
+            <div className="customer-detail-title-row">
+                <CustomerNameSwitcher customer={customer} />
+                <p className="customer-detail-meta">
+                  <span
                     className={
-                      customer.isArchived
-                        ? "customer-detail-status is-archived"
-                        : customer.isActive
-                          ? "customer-detail-status is-active"
-                          : "customer-detail-status is-inactive"
+                      customer.customerType?.toUpperCase() === "TEMPORARY"
+                        ? "customer-detail-type is-temporary"
+                        : "customer-detail-type"
                     }
                   >
-                    {statusLabel}
-                  </strong>
-                </>
-              ) : null}
-            </p>
-            {customer.linkedPartnerSarafiId ? (
-              <p className="customer-detail-meta" style={{ marginTop: "0.35rem" }}>
-                <span className="muted">{t.customers.linkedPartner}: </span>
-                <Link to={`/partners/${customer.linkedPartnerSarafiId}`}>
-                  {customer.linkedPartnerName ?? t.customers.viewPartnerProfile}
-                </Link>
-              </p>
-            ) : null}
-          </header>
-
-          <div
-            className="nav-row customer-detail-tabs"
-            role="tablist"
-            aria-label={t.customers.customerInfo}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "money"}
-              className={view === "money" ? "nav-link active" : "nav-link"}
-              onClick={() => setView("money")}
-            >
-              <span className="nav-link-label">{t.customers.money}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "history"}
-              className={view === "history" ? "nav-link active" : "nav-link"}
-              onClick={() => setView("history")}
-            >
-              <span className="nav-link-label">{t.customers.history}</span>
-            </button>
+                    {customer.customerType?.toUpperCase() === "TEMPORARY"
+                      ? t.customers.temporary
+                      : t.customers.permanent}
+                  </span>
+                  {statusLabel ? (
+                    <strong
+                      className={
+                        customer.isArchived
+                          ? "customer-detail-status is-archived"
+                          : customer.isActive
+                            ? "customer-detail-status is-active"
+                            : "customer-detail-status is-inactive"
+                      }
+                    >
+                      {statusLabel}
+                    </strong>
+                  ) : null}
+                </p>
+                <div className="customer-detail-actions">
+                  {customer.isArchived ? (
+                    <button type="button" className="btn" onClick={() => void onRestore()}>
+                      {t.common.restore}
+                    </button>
+                  ) : (
+                    <>
+                      <button type="button" className="btn customer-edit-btn" onClick={() => setShowEdit(true)}>
+                        <svg
+                          className="customer-edit-icon"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                        {locale === "en" ? "Edit" : t.customers.edit}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn danger"
+                        data-desk-action="delete"
+                        onClick={() => setArchiveConfirmOpen(true)}
+                      >
+                        {t.common.archive}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <table className="customer-info-table" aria-label={t.customers.customerInfo}>
+                <tbody>
+                  <tr>
+                    <th>{t.customers.fatherName}</th>
+                    <td>{customer.fatherName?.trim() || "—"}</td>
+                    <th>{t.common.phone}</th>
+                    <td className="ltr-text phone-ltr" dir="ltr">
+                      {phoneLabel || "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>{t.common.address}</th>
+                    <td>{customer.address?.trim() || "—"}</td>
+                    <th>{t.customers.code}</th>
+                    <td className="customer-detail-code">{codeLabel}</td>
+                  </tr>
+                  <tr>
+                    <th>{t.common.notes}</th>
+                    <td colSpan={3}>{customer.notes?.trim() || "—"}</td>
+                  </tr>
+                  {customer.linkedPartnerSarafiId ? (
+                    <tr>
+                      <th>{t.customers.linkedPartner}</th>
+                      <td colSpan={3}>
+                        <Link to={`/partners/${customer.linkedPartnerSarafiId}`}>
+                          {customer.linkedPartnerName ?? t.customers.viewPartnerProfile}
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            <div className="customer-detail-tools customer-history-toolbar no-print">
+              <div className="customer-history-filters">
+                <label>
+                  <span className="visually-hidden">{t.common.from}</span>
+                  <input
+                    type="date"
+                    aria-label={t.common.from}
+                    value={ledgerDateFrom}
+                    max={ledgerDateTo || undefined}
+                    onChange={(e) => setLedgerDateFrom(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span className="visually-hidden">{t.common.to}</span>
+                  <input
+                    type="date"
+                    aria-label={t.common.to}
+                    value={ledgerDateTo}
+                    min={ledgerDateFrom || undefined}
+                    onChange={(e) => setLedgerDateTo(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span className="visually-hidden">{t.common.filter}</span>
+                  <select
+                    aria-label={t.common.filter}
+                    value={ledgerType}
+                    onChange={(e) => setLedgerType(e.target.value as LedgerTypeFilter)}
+                  >
+                    <option value="ALL">{t.common.allTypes}</option>
+                    <option value="DEPOSIT">{t.transactions.deposit}</option>
+                    <option value="WITHDRAWAL">{t.transactions.withdrawal}</option>
+                    <option value="TRANSFER">{t.reports.transfer}</option>
+                    <option value="HAWALA">{t.nav.hawala}</option>
+                    <option value="EXCHANGE">{t.nav.exchange}</option>
+                  </select>
+                </label>
+              </div>
+              <div className="report-toolbar customer-history-print">
+                {ledgerDateFrom ||
+                ledgerDateTo ||
+                ledgerType !== "ALL" ||
+                ledgerCurrency !== "ALL" ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      setLedgerDateFrom("");
+                      setLedgerDateTo("");
+                      setLedgerType("ALL");
+                      setLedgerCurrency("ALL");
+                    }}
+                  >
+                    {t.common.clear}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={printBusy || ledgerBusy}
+                  onClick={() => void exportCustomerHistory("print")}
+                >
+                  {printBusy ? t.common.loading : t.common.print}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={printBusy || ledgerBusy}
+                  onClick={() => void exportCustomerHistory("pdf")}
+                >
+                  PDF
+                </button>
+              </div>
+            </div>
           </div>
 
-          {view === "money" ? (
-            <section className="stack customer-detail-panel" aria-label={t.customers.currentBalances}>
-              {balances.length === 0 ? (
-                <p className="muted">{t.common.noData}</p>
-              ) : (
-                <table className="report-ledger daybook-journal-table customer-balance-table">
-                  <thead>
-                    <tr>
-                      <th>{t.cash.currencyName}</th>
-                      <th>{t.cash.currencyCode}</th>
-                      <th className="col-amount">{t.cash.amount}</th>
-                      <th>{t.customers.condition}</th>
-                      <th>{t.cash.flag}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {balances.map((b) => {
-                      const n = parseBalanceAmount(b.balanceDisplay);
-                      const isDebit = Number.isFinite(n) && n < 0;
-                      const isCredit = Number.isFinite(n) && n > 0;
-                      const conditionLabel = isDebit
-                        ? t.common.debit
-                        : isCredit
-                          ? t.common.credit
-                          : t.customers.settled;
-                      const amountText = formatSignedBalanceDisplay(b.balanceDisplay);
-                      return (
-                        <tr key={b.currencyCode}>
-                          <td>{localizedCurrencyName(b.currencyCode, locale)}</td>
-                          <td>{b.currencyCode}</td>
-                          <td
-                            className={`col-amount customer-balance-amount ${moneyToneClass(b.balanceDisplay)}`}
-                          >
-                            {amountText}
-                          </td>
-                          <td>
-                            <span
-                              className={
-                                isDebit
-                                  ? "customer-balance-condition money-out"
-                                  : isCredit
-                                    ? "customer-balance-condition money-in"
-                                    : "customer-balance-condition muted"
-                              }
-                            >
-                              {conditionLabel}
-                            </span>
-                          </td>
-                          <td className="cash-flag-cell">
-                            <CurrencyFlag
-                              code={b.currencyCode}
-                              className="cash-currency-flag"
-                              size="md"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          ) : (
-            <section className="stack customer-detail-panel" aria-label={t.common.ledgerEntries}>
-              <div className="customer-history-toolbar no-print">
-                <div className="row customer-history-filters" style={{ flexWrap: "wrap", alignItems: "end" }}>
-                  <label className="stack" style={{ gap: "0.25rem" }}>
-                    <span className="muted">{t.common.from}</span>
-                    <input
-                      type="date"
-                      value={ledgerDateFrom}
-                      max={ledgerDateTo || undefined}
-                      onChange={(e) => setLedgerDateFrom(e.target.value)}
-                    />
-                  </label>
-                  <label className="stack" style={{ gap: "0.25rem" }}>
-                    <span className="muted">{t.common.to}</span>
-                    <input
-                      type="date"
-                      value={ledgerDateTo}
-                      min={ledgerDateFrom || undefined}
-                      onChange={(e) => setLedgerDateTo(e.target.value)}
-                    />
-                  </label>
-                  <label className="stack" style={{ gap: "0.25rem", minWidth: "11rem" }}>
-                    <span className="muted">{t.common.filter}</span>
-                    <select
-                      value={ledgerType}
-                      onChange={(e) => setLedgerType(e.target.value as LedgerTypeFilter)}
-                    >
-                      <option value="ALL">{t.common.allTypes}</option>
-                      <option value="DEPOSIT">{t.transactions.deposit}</option>
-                      <option value="WITHDRAWAL">{t.transactions.withdrawal}</option>
-                      <option value="TRANSFER">{t.reports.transfer}</option>
-                      <option value="HAWALA">{t.nav.hawala}</option>
-                      <option value="EXCHANGE">{t.nav.exchange}</option>
-                    </select>
-                  </label>
-                  <div style={{ minWidth: "11rem" }}>
-                    <CurrencyFilter
-                      currencies={currencies}
-                      value={ledgerCurrency === "ALL" ? "" : ledgerCurrency}
-                      onChange={(code) => setLedgerCurrency(code || "ALL")}
-                      allLabel={t.dailyBook.allCurrencies}
-                    />
-                  </div>
-                  {ledgerDateFrom ||
-                  ledgerDateTo ||
-                  ledgerType !== "ALL" ||
-                  ledgerCurrency !== "ALL" ? (
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => {
-                        setLedgerDateFrom("");
-                        setLedgerDateTo("");
-                        setLedgerType("ALL");
-                        setLedgerCurrency("ALL");
-                      }}
-                    >
-                      {t.common.clear}
-                    </button>
-                  ) : null}
+            <section className="stack customer-detail-panel customer-detail-history" aria-label={t.common.ledgerEntries}>
+              <div className="customer-money-row" aria-label={t.customers.currentBalances}>
+                <div className="customer-money-currencies">
+                  {balances.length === 0 ? (
+                    <p className="muted" style={{ margin: 0 }}>{t.common.noData}</p>
+                  ) : (
+                    balances.map((b) => (
+                        <button
+                          type="button"
+                          key={b.currencyCode}
+                          className={
+                            ledgerCurrency === b.currencyCode
+                              ? "customer-money-cell is-selected"
+                              : "customer-money-cell"
+                          }
+                          aria-pressed={ledgerCurrency === b.currencyCode}
+                          onClick={() =>
+                            setLedgerCurrency((current) =>
+                              current === b.currencyCode ? "ALL" : b.currencyCode,
+                            )
+                          }
+                        >
+                          <CurrencyFlag
+                            code={b.currencyCode}
+                            className="cash-currency-flag"
+                            size="sm"
+                          />
+                          <span className="customer-money-code">{b.currencyCode}</span>
+                        </button>
+                      ))
+                  )}
                 </div>
-                <div className="report-toolbar customer-history-print">
+                {customer.isArchived ? null : (
                   <button
                     type="button"
-                    className="btn"
-                    disabled={printBusy || ledgerBusy}
-                    onClick={() => void printCustomerHistory()}
+                    className="btn customer-money-add"
+                    onClick={() => setDepositOpen(true)}
                   >
-                    {printBusy ? t.common.loading : t.common.print}
+                    {t.openingKata.addCurrency}
                   </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={printBusy || ledgerBusy}
-                    onClick={() => void printCustomerHistory()}
-                  >
-                    PDF
-                  </button>
-                </div>
+                )}
               </div>
               {ledgerBusy && history.length === 0 ? (
                 <p className="muted">{t.common.loading}</p>
-              ) : history.length === 0 ? (
+              ) : history.length === 0 && !draftOpen ? (
                 <p className="muted">{t.common.noEntries}</p>
               ) : (
-                <table className="report-ledger daybook-journal-table">
-                  <thead>
-                    <tr>
-                      <th>{t.common.date}</th>
-                      <th className="col-description">{t.common.description}</th>
-                      <th className="col-amount">{t.common.amount}</th>
-                      <th>{t.common.currency}</th>
-                      <th className="col-amount">{t.common.balance}</th>
-                      <th>{t.common.reference}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.map((row) => {
-                      const description =
-                        (row.description ?? "").trim() || row.activity || "—";
-                      return (
-                        <tr
-                          key={`${row.id}-${row.currencyCode}`}
-                          {...clickableTxRowProps(() => void openTxOrDeal(row.id, row.type))}
-                          aria-label={txDisplayRef(row)}
-                        >
-                          <td className="col-when">{row.valueDate}</td>
-                          <td className="col-description">{description}</td>
-                          <td className="col-amount">
-                            <LedgerAmount parts={amountPartsFromDebitCredit(row)} />
-                          </td>
-                          <td>{row.currencyCode}</td>
-                          <td className={`col-amount ${moneyToneClass(row.balanceAfter)}`}>
-                            <span className="amount-emphasis">
-                              {row.balanceAfter} {row.currencyCode}
-                            </span>
-                          </td>
-                          <td className="col-ref">{txDisplayRef(row)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="customer-history-scroll">
+                  <table className="report-ledger daybook-journal-table">
+                    <thead>
+                      <tr>
+                        <th>{t.common.date}</th>
+                        <th className="col-description">{t.common.description}</th>
+                        <th className="col-amount col-credit">{t.common.credit}</th>
+                        <th className="col-amount col-debit">{t.common.debit}</th>
+                        <th className="col-currency">{t.common.currency}</th>
+                        <th className="col-amount col-balance">{t.common.balance}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {history.map((row) => {
+                        const description =
+                          (row.description ?? "").trim() || row.activity || "—";
+                        return (
+                          <tr
+                            key={`${row.id}-${row.currencyCode}`}
+                            {...clickableTxRowProps(() => void openTxOrDeal(row.id, row.type))}
+                            aria-label={description}
+                          >
+                            <td className="col-when">{String(row.valueDate).slice(0, 10)}</td>
+                            <td className="col-description">{description}</td>
+                            <td className={`col-amount col-credit ${row.credit ? "money-in" : ""}`}>
+                              {row.credit || "—"}
+                            </td>
+                            <td className={`col-amount col-debit ${row.debit ? "money-out" : ""}`}>
+                              {row.debit || "—"}
+                            </td>
+                            <td className="col-currency">
+                              <span className="ledger-currency-cell">
+                                <CurrencyFlag code={row.currencyCode} size="sm" />
+                                {row.currencyCode}
+                              </span>
+                            </td>
+                            <td className={`col-amount col-balance ${moneyToneClass(row.balanceAfter)}`}>
+                              <span className="amount-emphasis">
+                                {row.balanceAfter} {row.currencyCode}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {draftOpen ? (
+                        <InlineLedgerEntryRow
+                          customerId={customer.id}
+                          customerName={customer.fullName}
+                          balances={balances}
+                          onCancel={() => setDraftOpen(false)}
+                          onSaved={() => {
+                            setDraftOpen(false);
+                            setHistoryPage(1);
+                            window.dispatchEvent(new CustomEvent(DESK_MOVEMENT_SAVED_EVENT));
+                          }}
+                        />
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
               )}
-              <Pagination
-                page={historyPage}
-                pageSize={historyPageSize}
-                total={historyTotal}
-                busy={ledgerBusy}
-                onPageChange={setHistoryPage}
-                label={t.customers.ledgerRecords.replace("{count}", String(historyTotal))}
-              />
+              <div className="customer-history-pager">
+                <Pagination
+                  page={historyPage}
+                  pageSize={historyPageSize}
+                  total={historyTotal}
+                  busy={ledgerBusy}
+                  onPageChange={setHistoryPage}
+                  label={
+                    historyTotals.closing.length > 0 ? (
+                      <div className="customer-history-closing-list">
+                        {historyTotals.closing.map((row) => (
+                          <span
+                            key={row.code}
+                            className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
+                          >
+                            <CurrencyFlag code={row.code} size="sm" />
+                            <span className="customer-history-closing-amount">{row.amount}</span>
+                            <span className="customer-history-closing-code">{row.code}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : null
+                  }
+                />
+                {!customer.isArchived ? (
+                  <button
+                    type="button"
+                    className="btn primary customer-ledger-fab"
+                    disabled={draftOpen}
+                    onClick={() => setDraftOpen(true)}
+                  >
+                    {t.customers.addLedgerEntry}
+                  </button>
+                ) : null}
+              </div>
             </section>
-          )}
+          <DepositFormModal
+            open={depositOpen}
+            onClose={() => setDepositOpen(false)}
+            initialCustomer={{ id: customer.id, name: customer.fullName }}
+          />
         </>
       ) : null}
 
@@ -681,6 +848,25 @@ export function CustomerDetailPage() {
         error={dealModal.error}
         onClose={dealModal.close}
       />
+
+      {archiveConfirmOpen && customer ? (
+        <Modal
+          title={t.customers.archiveCustomer}
+          onClose={() => setArchiveConfirmOpen(false)}
+        >
+          <p>
+            {t.customers.archiveCustomer} — {customer.fullName}
+          </p>
+          <div className="customer-archive-confirm-actions">
+            <button type="button" className="btn" onClick={() => setArchiveConfirmOpen(false)}>
+              {t.common.cancel}
+            </button>
+            <button type="button" className="btn danger" onClick={() => void confirmArchive()}>
+              {t.common.confirm}
+            </button>
+          </div>
+        </Modal>
+      ) : null}
 
       {showEdit && customer ? (
         <Modal

@@ -341,7 +341,7 @@ export function AccountOrderDetailPage() {
   const totals = detail.totals;
 
   return (
-    <div className="stack account-order-desk">
+    <div className="stack account-order-desk workspace-page">
       <header className="page-header row wrap gap">
         <div className="stack tight">
           <p className="muted">

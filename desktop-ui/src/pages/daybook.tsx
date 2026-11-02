@@ -69,11 +69,25 @@ import {
   type AmountPart,
 } from "@desktop/lib/format-transaction-line";
 import { printDaybookLedger } from "@desktop/lib/print-daybook";
-import { IconWhatsApp } from "@desktop/icons";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Pagination } from "@desktop/ui/pagination";
+
+function IconWhatsApp({ className }: { className?: string }) {
+  return (
+    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        fill="#25D366"
+        d="M12.04 2C6.58 2 2.15 6.4 2.15 11.84c0 2.08.62 4.02 1.7 5.66L2 22l4.68-1.77a9.9 9.9 0 0 0 5.36 1.56h.01c5.46 0 9.89-4.4 9.89-9.84C21.94 6.4 17.5 2 12.04 2z"
+      />
+      <path
+        fill="#fff"
+        d="M17.47 14.38c-.27-.14-1.6-.79-1.85-.88-.25-.09-.43-.14-.61.14-.18.27-.7.88-.86 1.06-.16.18-.32.2-.59.07-.27-.14-1.14-.42-2.17-1.34-.8-.71-1.34-1.6-1.5-1.87-.16-.27-.02-.41.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.61-.47h-.52c-.18 0-.48.07-.73.34-.25.27-.96.94-.96 2.29s.98 2.65 1.12 2.83c.14.18 1.93 2.95 4.68 4.14.65.28 1.16.45 1.56.57.65.21 1.25.18 1.72.11.52-.08 1.6-.65 1.83-1.28.23-.63.23-1.17.16-1.28-.07-.11-.25-.18-.52-.32z"
+      />
+    </svg>
+  );
+}
 
 function isEditableMovement(type: string, reference?: string | null) {
   const t = type.toUpperCase();
@@ -674,112 +688,91 @@ export function DaybookPage() {
   const journalTotals = dayTotals;
 
   return (
-    <div className="stack daybook-page">
-      <div
-        className="section-card row daybook-filters no-print"
-        style={{ flexWrap: "wrap", alignItems: "end" }}
-      >
-        <label className="daybook-journal-date" style={{ margin: 0 }}>
-          <span className="muted">{t.common.date}</span>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => {
-              const next = e.target.value;
-              if (next) setDate(next);
-            }}
-            aria-label={t.common.date}
-          />
-        </label>
-        <div style={{ margin: 0, minWidth: 160 }}>
-          <CurrencyFilter
-            currencies={currencies}
-            value={currencyFilter === "ALL" ? "" : currencyFilter}
-            onChange={(code) => setCurrencyFilter(code || "ALL")}
-            allLabel={t.dailyBook.allCurrencies}
-          />
-        </div>
-        <label style={{ margin: 0, minWidth: 200, flex: 1 }}>
-          {t.common.search}
-          <input
-            type="search"
-            className="desk-search"
-            value={searchDraft}
-            placeholder={t.common.search}
-            onChange={(e) => setSearchDraft(e.target.value)}
-          />
-        </label>
-        <div className="row" style={{ gap: "0.4rem", flexWrap: "wrap", marginInlineStart: "auto" }}>
-          <button
-            type="button"
-            className="btn"
-            data-desk-action="print"
-            data-desk-primary
-            disabled={exportBusy}
-            onClick={() => void handlePrintPdf()}
-          >
-            {exportBusy ? t.common.loading : t.desk.printPdf}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            disabled={exportBusy}
-            onClick={() => void handleExportCsv()}
-          >
-            {t.desk.exportCsv}
-          </button>
-        </div>
-      </div>
-
+    <div className="stack daybook-page workspace-page is-daybook">
       {error ? <PageLoadError message={error} onRetry={refreshJournal} /> : null}
       {busy && !hasLoaded ? <p className="muted">{t.common.loading}</p> : null}
 
       {hasLoaded ? (
         <>
-          <section className="section-card stack daybook-journal-section">
-              <div
-                className="row no-print"
-                style={{
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                }}
-              >
-              <div>
-                <h2 className="section-title" style={{ margin: 0 }}>
-                  {t.dailyBook.journal}
-                </h2>
-                <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-                  {t.dailyBook.activityRecordsHint}
-                </p>
+          <section className="panel records-panel daybook-journal-section">
+            <div className="records-chrome no-print">
+              <div className="records-title">
+                <div>
+                  <h2>{t.dailyBook.journal}</h2>
+                  <span className="count-badge">{journalTotal}</span>
+                </div>
+                <div className="records-title-actions">
+                  <label style={{ margin: 0, minWidth: 120 }}>
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      {t.dailyBook.activityRecords}
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      inputMode="numeric"
+                      placeholder={t.dailyBook.activityAllDay}
+                      value={journalLimitDraft}
+                      onChange={(e) => setJournalLimitDraft(e.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn"
+                    data-desk-action="print"
+                    data-desk-primary
+                    disabled={exportBusy}
+                    onClick={() => void handlePrintPdf()}
+                  >
+                    {exportBusy ? t.common.loading : t.desk.printPdf}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={exportBusy}
+                    onClick={() => void handleExportCsv()}
+                  >
+                    {t.desk.exportCsv}
+                  </button>
+                </div>
               </div>
-              <div
-                className="row no-print"
-                style={{ flexWrap: "wrap", alignItems: "end" }}
-              >
-                <label style={{ margin: 0, minWidth: 140 }}>
-                  {t.dailyBook.activityRecords}
+              <div className="table-toolbar">
+                <div className="search-field">
                   <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    inputMode="numeric"
-                    placeholder={t.dailyBook.activityAllDay}
-                    value={journalLimitDraft}
-                    onChange={(e) => setJournalLimitDraft(e.target.value)}
+                    type="search"
+                    className="desk-search"
+                    value={searchDraft}
+                    placeholder={t.common.search}
+                    aria-label={t.common.search}
+                    onChange={(e) => setSearchDraft(e.target.value)}
                   />
-                </label>
-                {journalTotal > 0 ? (
-                  <p className="muted" style={{ margin: 0, paddingBottom: "0.35rem" }}>
-                    {t.dailyBook.activityShowing
-                      .replace("{shown}", String(journal.length))
-                      .replace("{total}", String(journalTotal))}
-                  </p>
-                ) : null}
+                </div>
+                <div className="table-filters">
+                  <label className="daybook-journal-date" style={{ margin: 0 }}>
+                    <span className="muted">{t.common.date}</span>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (next) setDate(next);
+                      }}
+                      aria-label={t.common.date}
+                    />
+                  </label>
+                  <div style={{ margin: 0, minWidth: 140 }}>
+                    <CurrencyFilter
+                      currencies={currencies}
+                      value={currencyFilter === "ALL" ? "" : currencyFilter}
+                      onChange={(code) => setCurrencyFilter(code || "ALL")}
+                      allLabel={t.dailyBook.allCurrencies}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
             {journal.length === 0 && !busy ? (
-              <p className="muted" style={{ margin: 0 }}>
+              <p className="muted" style={{ margin: 0, padding: "18px" }}>
                 {t.dailyBook.noJournalLines}
               </p>
             ) : (
@@ -924,23 +917,25 @@ export function DaybookPage() {
                 </table>
               </div>
             )}
-            <Pagination
-              page={journalPage}
-              pageSize={journalPageSize}
-              total={journalTotal}
-              busy={busy}
-              onPageChange={(p) => {
-                preferLatestPageRef.current = false;
-                const lastPage = Math.max(
-                  1,
-                  Math.ceil(journalTotal / journalPageSize) || 1,
-                );
-                stickJournalBottomRef.current = p >= lastPage;
-                const el = journalScrollRef.current;
-                if (el && p < lastPage) el.scrollTop = 0;
-                setJournalPage(p);
-              }}
-            />
+            <div className="records-pagination">
+              <Pagination
+                page={journalPage}
+                pageSize={journalPageSize}
+                total={journalTotal}
+                busy={busy}
+                onPageChange={(p) => {
+                  preferLatestPageRef.current = false;
+                  const lastPage = Math.max(
+                    1,
+                    Math.ceil(journalTotal / journalPageSize) || 1,
+                  );
+                  stickJournalBottomRef.current = p >= lastPage;
+                  const el = journalScrollRef.current;
+                  if (el && p < lastPage) el.scrollTop = 0;
+                  setJournalPage(p);
+                }}
+              />
+            </div>
           </section>
 
           {journalMenu ? (

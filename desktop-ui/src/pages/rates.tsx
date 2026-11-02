@@ -199,7 +199,7 @@ export function RatesPage() {
   }, [t, showSuccess]);
 
   return (
-    <div className="stack rates-page">
+    <div className="stack rates-page workspace-page">
       <div className="card stack">
         <div
           className="row"

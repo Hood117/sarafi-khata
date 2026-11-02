@@ -637,6 +637,8 @@ pub fn list_customer_ledger(
       balance_after,
     });
   }
+  // Running balances above require chrono ASC. Present newest-first so page 1
+  // shows the latest entry (filters still apply; only the page order flips).
   display.sort_by(|a, b| {
     (
       a.value_date.as_str(),
@@ -650,6 +652,7 @@ pub fn list_customer_ledger(
         b.id.as_str(),
         b.currency_code.as_str(),
       ))
+      .reverse()
   });
 
   let total = display.len() as i64;

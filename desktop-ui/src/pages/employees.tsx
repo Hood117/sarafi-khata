@@ -360,7 +360,7 @@ export function EmployeesPage() {
           .join(" · ");
 
   return (
-    <div className="stack employees-page">
+    <div className="stack employees-page workspace-page">
       <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
         <div className="hawala-mode-toggle" role="tablist" aria-label={t.pages.employees}>
           <button

@@ -4,6 +4,7 @@ import { isTauri } from "@tauri-apps/api/core";
 
 import {
   activateLicense,
+  bypassLicenseDev,
   getLicenseStatus,
   type LicenseStatus,
 } from "@desktop/api";
@@ -11,6 +12,7 @@ import { useT } from "@desktop/i18n";
 import { APP_DEVELOPERS, formatWhatsAppDisplay } from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/app-error";
 import { openWhatsApp } from "@desktop/lib/whatsapp";
+import { ArrowLeftRight } from "lucide-react";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 export function LicenseActivatePage() {
@@ -73,10 +75,30 @@ export function LicenseActivatePage() {
     }
   }
 
+  async function handleDevEnter() {
+    if (!inDesktop) {
+      setError(t.license.desktopOnly);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await bypassLicenseDev();
+      await reload();
+    } catch (err: unknown) {
+      setError(errorMessage(err, t.license.contactForKey));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (bootstrapping) {
     return (
-      <div ref={shellRef} className="login-shell">
-        <p className="muted">{t.license.checking}</p>
+      <div ref={shellRef} className="auth-page login-shell">
+        <aside className="auth-aside" />
+        <section className="auth-main">
+          <p className="muted">{t.license.checking}</p>
+        </section>
       </div>
     );
   }
@@ -91,20 +113,29 @@ export function LicenseActivatePage() {
   }
 
   return (
-    <div ref={shellRef} className="login-shell">
-      <div className="card login-card stack">
-        <div className="brand-block">
-          <div className="brand-mark" aria-hidden>
-            <span className="brand-mark-inner">S</span>
-          </div>
-          <div>
-            <h1 style={{ margin: 0 }}>{t.license.title}</h1>
-            <p className="muted" style={{ margin: "0.25rem 0 0" }}>
-              {t.license.subtitle}
-            </p>
-          </div>
+    <div ref={shellRef} className="auth-page login-shell">
+      <aside className="auth-aside">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden>
+            <ArrowLeftRight className="nav-icon" size={23} />
+          </span>
+          <span>
+            {t.brand.name}
+            <span className="brand-sub">{t.license.title}</span>
+          </span>
         </div>
-
+        <div>
+          <span className="eyebrow">{t.license.title}</span>
+          <h2>{t.license.subtitle}</h2>
+          <p>{t.license.onlineRequired}</p>
+        </div>
+        <small>{t.license.contactForActivation}</small>
+      </aside>
+      <section className="auth-main">
+      <div className="auth-form login-card stack">
+        <span className="eyebrow">{t.license.title}</span>
+        <h1>{t.license.activate}</h1>
+        <p>{t.license.subtitle}</p>
         <p className="muted" style={{ margin: 0 }}>
           {t.license.onlineRequired}
         </p>
@@ -137,6 +168,17 @@ export function LicenseActivatePage() {
           </button>
         </form>
 
+        {status?.allowDevBypass ? (
+          <button
+            type="button"
+            className="btn"
+            disabled={!inDesktop || busy}
+            onClick={() => void handleDevEnter()}
+          >
+            {t.license.devEnter}
+          </button>
+        ) : null}
+
         <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
           {t.license.contactForActivation}
         </p>
@@ -162,6 +204,7 @@ export function LicenseActivatePage() {
           </ul>
         </div>
       </div>
+      </section>
     </div>
   );
 }

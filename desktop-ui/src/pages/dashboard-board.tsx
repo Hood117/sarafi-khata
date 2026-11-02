@@ -1,164 +1,88 @@
-import { useRef } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Banknote,
+  ChartNoAxesCombined,
+  Repeat2,
+  Send,
+  UserPlus,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 import type { CashBalanceRow, DashboardSnapshot } from "@desktop/api";
-import { useLocale } from "@desktop/i18n";
-import { animateDashboard, useGSAP } from "@desktop/lib/motion";
+import { useT } from "@desktop/i18n";
+import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 
-type Tone = {
-  key: string;
-  label: string;
-  value: number;
-  color: string;
+type Tone = "blue" | "green" | "rose" | "amber" | "slate" | "teal" | "violet";
+
+const TONE_COLOR: Record<Tone, string> = {
+  blue: "var(--accent-blue, #5483b3)",
+  green: "var(--money-in)",
+  rose: "var(--money-out)",
+  amber: "var(--warning, #9b8050)",
+  slate: "var(--fg-muted, var(--ink-soft))",
+  teal: "var(--success, #237f69)",
+  violet: "#6b7fd7",
 };
 
-const TONE = {
-  deposit: "var(--brand)",
-  withdraw: "var(--money-out)",
-  transfer: "var(--money-in)",
-  exchange: "var(--accent)",
-  hawala: "var(--brand-deep)",
-  buy: "color-mix(in srgb, var(--brand) 62%, white)",
-  sell: "color-mix(in srgb, var(--accent) 70%, var(--brand-deep))",
-  cash: "var(--brand)",
+const CURRENCY_ACCENT: Record<string, string> = {
+  USD: "#052659",
+  AFN: "#5483b3",
+  EUR: "#3c679d",
+  PKR: "#237f69",
+  AED: "#163d6d",
+  GBP: "#bc4a51",
+  SAR: "#237f69",
+  QAR: "#7a879b",
+  IRR: "#021024",
+  TRY: "#bc4a51",
 };
 
-function monthTitle(monthKey: string, fallback: string, intlLocale: string): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(monthKey);
-  if (!match) return fallback;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, 1);
-  try {
-    return new Intl.DateTimeFormat(intlLocale, {
-      month: "long",
-      year: "numeric",
-    }).format(date);
-  } catch {
-    return fallback;
-  }
+type Props = {
+  data: DashboardSnapshot;
+  pendingHawala: number;
+  todayCashIn: string;
+  todayCashOut: string;
+  baseCurrency: string;
+  loading?: boolean;
+};
+
+function currencyAccent(code: string): string {
+  return CURRENCY_ACCENT[code.toUpperCase()] ?? "#052659";
 }
 
-function percentShares(values: number[]): number[] {
-  const total = values.reduce((sum, value) => sum + value, 0);
-  if (total <= 0) return values.map(() => 0);
-  const exact = values.map((value) => (value / total) * 100);
-  const floors = exact.map((value) => Math.floor(value));
-  let left = 100 - floors.reduce((sum, value) => sum + value, 0);
-  const order = exact
-    .map((value, index) => ({ index, fraction: value - floors[index] }))
-    .sort((a, b) => b.fraction - a.fraction);
-  for (let i = 0; i < left; i += 1) {
-    floors[order[i % order.length].index] += 1;
-  }
-  return floors;
+function cashNumber(balance: string): number {
+  const n = Number.parseFloat(String(balance).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
 }
 
-function minorAbs(row: CashBalanceRow): number {
-  const minor = Number(row.amountMinor);
-  if (Number.isFinite(minor)) return Math.abs(minor);
-  const parsed = Number.parseFloat(String(row.balanceDisplay).replace(/,/g, ""));
-  return Number.isFinite(parsed) ? Math.abs(parsed) : 0;
-}
-
-function MovementBars({ rows }: { rows: Tone[] }) {
-  const max = Math.max(...rows.map((row) => row.value), 1);
+function ActivityBars({
+  items,
+}: {
+  items: { label: string; value: number; tone: Tone }[];
+}) {
+  const max = Math.max(...items.map((item) => item.value), 1);
   return (
-    <div className="dash-vbars" role="list">
-      {rows.map((row) => (
-        <div className="dash-vbar" role="listitem" key={row.key}>
-          <span className="dash-vbar-value">{row.value}</span>
-          <span className="dash-vbar-plot" aria-hidden>
-            <span
-              className="dash-vbar-fill"
-              style={{
-                height: row.value === 0 ? "4px" : `${Math.max(8, (row.value / max) * 100)}%`,
-                background: row.color,
-              }}
-            />
-          </span>
-          <span className="dash-vbar-label">{row.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function piePath(start: number, sweep: number): string {
-  const radius = 38;
-  const cx = 50;
-  const cy = 50;
-  const end = start + sweep;
-  const x1 = cx + radius * Math.cos(start);
-  const y1 = cy + radius * Math.sin(start);
-  const x2 = cx + radius * Math.cos(end);
-  const y2 = cy + radius * Math.sin(end);
-  const large = sweep > Math.PI ? 1 : 0;
-  return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
-}
-
-function MixPie({ rows }: { rows: Tone[] }) {
-  const shown = rows.filter((row) => row.value > 0);
-  const total = shown.reduce((sum, row) => sum + row.value, 0);
-  const shares = percentShares(shown.map((row) => row.value));
-  let angle = -Math.PI / 2;
-
-  return (
-    <div className="dash-mix">
-      <div className="dash-pie" aria-hidden>
-        <svg viewBox="0 0 100 100">
-          {shown.length === 1 ? (
-            <circle cx="50" cy="50" r="38" fill={shown[0].color} />
-          ) : (
-            shown.map((row) => {
-              const sweep = (row.value / total) * Math.PI * 2;
-              const d = piePath(angle, Math.max(sweep - 0.02, 0.01));
-              angle += sweep;
-              return <path key={row.key} d={d} fill={row.color} />;
-            })
-          )}
-        </svg>
-      </div>
-      <ul className="dash-legend">
-        {shown.map((row, index) => (
-          <li key={row.key}>
-            <span className="dash-swatch" style={{ background: row.color }} />
-            <span className="dash-legend-label">{row.label}</span>
-            <span className="dash-legend-count">{row.value}</span>
-            <span className="dash-pill">{shares[index]}%</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function CashBars({ rows }: { rows: CashBalanceRow[] }) {
-  const ranked = [...rows].sort((a, b) => minorAbs(b) - minorAbs(a)).slice(0, 8);
-  const max = Math.max(...ranked.map(minorAbs), 1);
-  return (
-    <div className="dash-bars" role="list">
-      {ranked.map((row) => {
-        const magnitude = minorAbs(row);
-        const negative = Number(row.amountMinor) < 0;
-        const low = row.condition === "LOW";
-        const color = negative ? TONE.withdraw : low ? TONE.exchange : TONE.cash;
+    <div className="dashboard-bars" role="img" aria-label="Monthly activity chart">
+      {items.map((item) => {
+        const height = Math.max(8, Math.round((item.value / max) * 100));
         return (
-          <div className="dash-bar" role="listitem" key={row.currencyCode}>
-            <span className="dash-bar-label dash-bar-code">
-              <CurrencyCodeWithFlag code={row.currencyCode} />
-            </span>
-            <span className="dash-bar-track" aria-hidden>
-              <span
-                className="dash-bar-fill"
+          <div className="dashboard-bar-col" key={item.label}>
+            <span className="dashboard-bar-value">{item.value}</span>
+            <div className="dashboard-bar-track">
+              <div
+                className="dashboard-bar-fill"
                 style={{
-                  width: `${Math.max(magnitude === 0 ? 2 : 4, (magnitude / max) * 100)}%`,
-                  background: color,
+                  height: `${height}%`,
+                  background: TONE_COLOR[item.tone],
                 }}
               />
-            </span>
-            <span className="dash-bar-value" dir="ltr">
-              {row.balanceDisplay}
-            </span>
+            </div>
+            <span className="dashboard-bar-label">{item.label}</span>
           </div>
         );
       })}
@@ -166,201 +90,387 @@ function CashBars({ rows }: { rows: CashBalanceRow[] }) {
   );
 }
 
-function shareOf(part: number, total: number): number {
-  if (total <= 0) return 0;
-  return Math.round((part / total) * 100);
-}
+function ActivityDonut({
+  items,
+  emptyLabel,
+  centerLabel,
+}: {
+  items: { label: string; value: number; tone: Tone }[];
+  emptyLabel: string;
+  centerLabel: string;
+}) {
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+  const size = 180;
+  const stroke = 18;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
 
-export function DashboardBoard({ data }: { data: DashboardSnapshot }) {
-  const { t, intlLocale } = useLocale();
-  const series: Tone[] = [
-    {
-      key: "deposit",
-      label: t.dashboard.deposits,
-      value: data.month.deposits,
-      color: TONE.deposit,
-    },
-    {
-      key: "withdraw",
-      label: t.dashboard.withdrawals,
-      value: data.month.withdrawals,
-      color: TONE.withdraw,
-    },
-    {
-      key: "transfer",
-      label: t.nav.transfers,
-      value: data.month.transfers,
-      color: TONE.transfer,
-    },
-    {
-      key: "exchange",
-      label: t.dashboard.exchanges,
-      value: data.month.exchanges,
-      color: TONE.exchange,
-    },
-    {
-      key: "hawala",
-      label: t.nav.hawala,
-      value: data.month.hawala,
-      color: TONE.hawala,
-    },
-    ...(data.month.tradeBuys > 0
-      ? [
-          {
-            key: "buy",
-            label: t.txLine.typeTradeBuy,
-            value: data.month.tradeBuys,
-            color: TONE.buy,
-          },
-        ]
-      : []),
-    ...(data.month.tradeSells > 0
-      ? [
-          {
-            key: "sell",
-            label: t.txLine.typeTradeSell,
-            value: data.month.tradeSells,
-            color: TONE.sell,
-          },
-        ]
-      : []),
-  ];
-  const movementTotal = series.reduce((sum, row) => sum + row.value, 0);
-  const month = monthTitle(data.monthKey, data.asOfMonth, intlLocale);
-  const cashRows = data.cash.filter((row) => minorAbs(row) > 0);
-  const customerTotal = data.customers.total;
-  const activeShare = shareOf(data.customers.active, customerTotal);
-  const newShare = shareOf(data.customers.newThisMonth, customerTotal);
-  const inactiveCount = Math.max(customerTotal - data.customers.active, 0);
-  const inactiveShare = shareOf(inactiveCount, customerTotal);
-  const boardRef = useRef<HTMLElement>(null);
-  useGSAP(
-    () => {
-      if (boardRef.current) animateDashboard(boardRef.current);
-    },
-    { scope: boardRef },
-  );
+  const segments = items
+    .filter((item) => item.value > 0)
+    .reduce<{ label: string; value: number; tone: Tone; length: number; offset: number }[]>(
+      (acc, item) => {
+        const length = total ? (item.value / total) * circumference : 0;
+        const offset = acc.length ? acc[acc.length - 1].offset + acc[acc.length - 1].length : 0;
+        acc.push({ ...item, length, offset });
+        return acc;
+      },
+      [],
+    );
 
   return (
-    <section ref={boardRef} className="dash-board" aria-label={t.dashboard.overview}>
-      <header className="dash-board-head">
-        <div>
-          <h2 className="dash-board-title">{t.dashboard.overview}</h2>
-          <p className="dash-board-sub">
-            {month}
-            <span aria-hidden> · </span>
-            {t.dashboard.postedCount.replace("{count}", String(data.month.transactions))}
-          </p>
+    <div className="dashboard-donut-wrap">
+      <div className="dashboard-donut-visual">
+        <svg viewBox={`0 0 ${size} ${size}`} className="dashboard-donut" aria-hidden>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="var(--border-subtle, var(--line))"
+            strokeWidth={stroke}
+          />
+          {segments.map((seg) => (
+            <circle
+              key={seg.label}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={TONE_COLOR[seg.tone]}
+              strokeWidth={stroke}
+              strokeLinecap="butt"
+              strokeDasharray={`${seg.length} ${circumference - seg.length}`}
+              strokeDashoffset={-seg.offset}
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          ))}
+        </svg>
+        <div className="dashboard-donut-center">
+          <strong>{total.toLocaleString("en-US")}</strong>
+          <span>{centerLabel}</span>
         </div>
-      </header>
-
-      <div className="dash-top">
-        <div className="dash-kpis">
-          <article className="dash-kpi dash-kpi-hero">
-            <span>{t.dashboard.thisMonthTransactions}</span>
-            <strong data-count={data.month.transactions}>{data.month.transactions}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-          <article className="dash-kpi">
-            <span>{t.dashboard.deposits}</span>
-            <strong data-count={data.month.deposits}>{data.month.deposits}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-          <article className="dash-kpi">
-            <span>{t.dashboard.withdrawals}</span>
-            <strong data-count={data.month.withdrawals}>{data.month.withdrawals}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-          <article className="dash-kpi">
-            <span>{t.nav.transfers}</span>
-            <strong data-count={data.month.transfers}>{data.month.transfers}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-          <article className="dash-kpi">
-            <span>{t.dashboard.exchanges}</span>
-            <strong data-count={data.month.exchanges}>{data.month.exchanges}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-          <article className="dash-kpi">
-            <span>{t.nav.hawala}</span>
-            <strong data-count={data.month.hawala}>{data.month.hawala}</strong>
-            <em>{t.common.thisMonth}</em>
-          </article>
-        </div>
-
-        <article className="dash-panel dash-panel-mix">
-          <div className="dash-panel-head">
-            <h3>{t.dashboard.mixByType}</h3>
-            <span>{t.common.thisMonth}</span>
-          </div>
-          {movementTotal === 0 ? (
-            <p className="dash-empty">{t.dashboard.noTypeMix}</p>
-          ) : (
-            <MixPie rows={series} />
-          )}
-        </article>
       </div>
+      <ul className="dashboard-donut-legend">
+        {items.every((item) => item.value === 0) ? (
+          <li className="muted">{emptyLabel}</li>
+        ) : (
+          items.map((item) => {
+            const pct = total ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <li key={item.label}>
+                <span
+                  className="dashboard-legend-swatch"
+                  style={{ background: TONE_COLOR[item.tone] }}
+                />
+                <span className="dashboard-legend-label">{item.label}</span>
+                <span className="dashboard-legend-meta">
+                  {item.value} · {pct}%
+                </span>
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </div>
+  );
+}
 
-      <div className="dash-board-grid">
-        <article className="dash-panel">
-          <div className="dash-panel-head">
-            <h3>{t.dashboard.monthlyActivity}</h3>
-            <span>{t.common.thisMonth}</span>
-          </div>
-          {movementTotal === 0 ? (
-            <p className="dash-empty">{t.dashboard.noMovementsThisMonth}</p>
-          ) : (
-            <MovementBars rows={series} />
-          )}
-        </article>
+function BusinessCashSection({ cash }: { cash: CashBalanceRow[] }) {
+  const t = useT();
+  const rows = cash
+    .map((row) => ({
+      code: row.currencyCode,
+      balance: row.balanceDisplay,
+      abs: Math.abs(cashNumber(row.balanceDisplay)),
+      symbol: row.currencySymbol,
+    }))
+    .filter((row) => row.abs !== 0)
+    .sort((a, b) => b.abs - a.abs);
+  const max = Math.max(...rows.map((row) => row.abs), 1);
 
-        <article className="dash-panel dash-growth-card">
-          <div className="dash-panel-head">
-            <h3>{t.dashboard.activeCustomers}</h3>
-            <Link className="dash-more" to="/customers">
-              {t.common.view}
-            </Link>
-          </div>
-          <div className="dash-growth">
-            <ul className="dash-customer-stats" aria-label={t.dashboard.activeCustomers}>
-              <li>
-                <strong data-count={activeShare} data-suffix="%">
-                  {activeShare}%
-                </strong>
-                <span>{t.dashboard.activeCustomers}</span>
-                <em data-count={data.customers.active}>{data.customers.active}</em>
-              </li>
-              <li>
-                <strong data-count={newShare} data-suffix="%">
-                  {newShare}%
-                </strong>
-                <span>{t.dashboard.newCustomers}</span>
-                <em data-count={data.customers.newThisMonth}>{data.customers.newThisMonth}</em>
-              </li>
-              <li>
-                <strong data-count={inactiveShare} data-suffix="%">
-                  {inactiveShare}%
-                </strong>
-                <span>{t.common.inactive}</span>
-                <em data-count={inactiveCount}>{inactiveCount}</em>
-              </li>
-            </ul>
-            <div className="dash-growth-side">
-              <div className="dash-panel-head">
-                <h3>{t.dashboard.businessCash}</h3>
-                <Link className="dash-more" to="/cash">
-                  {t.dashboard.viewCash}
-                </Link>
-              </div>
-              {cashRows.length === 0 ? (
-                <p className="dash-empty">{t.cash.noBalances}</p>
-              ) : (
-                <CashBars rows={cashRows} />
-              )}
-            </div>
-          </div>
-        </article>
+  return (
+    <section className="dashboard-cash-panel">
+      <div className="dashboard-cash-head">
+        <h2>{t.dashboard.businessCash}</h2>
+        <Link className="text-link" to="/cash">
+          {t.dashboard.viewCash}
+        </Link>
       </div>
+      {rows.length === 0 ? (
+        <p className="muted">{t.cash.noBalances}</p>
+      ) : (
+        <>
+          <div className="dashboard-cash-rank">
+            {rows.slice(0, 6).map((row) => {
+              const accent = currencyAccent(row.code);
+              const width = Math.max(6, Math.round((row.abs / max) * 100));
+              return (
+                <div className="dashboard-cash-rank-row" key={row.code}>
+                  <CurrencyCodeWithFlag code={row.code} />
+                  <div className="dashboard-cash-rank-track">
+                    <div
+                      className="dashboard-cash-rank-fill"
+                      style={{ width: `${width}%`, background: accent }}
+                    />
+                  </div>
+                  <span
+                    className={`dashboard-cash-rank-amount ${moneyToneClass(row.balance)}`}
+                  >
+                    {row.balance}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="cash-card-grid">
+            {rows.map((row) => {
+              const accent = currencyAccent(row.code);
+              return (
+                <article
+                  key={row.code}
+                  className="cash-balance-card"
+                  style={{ ["--cash-accent" as string]: accent }}
+                >
+                  <div className="cash-balance-card-top">
+                    <CurrencyCodeWithFlag code={row.code} />
+                    <span className="cash-balance-icon" aria-hidden>
+                      <Banknote size={15} />
+                    </span>
+                  </div>
+                  <div className="cash-balance-amount-block">
+                    {row.symbol ? (
+                      <span className="cash-balance-symbol">{row.symbol}</span>
+                    ) : null}
+                    <div className={`cash-balance-amount ${moneyToneClass(row.balance)}`}>
+                      {row.balance}
+                    </div>
+                  </div>
+                  <div className="cash-balance-meta">{t.cash.shopCash}</div>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      )}
     </section>
+  );
+}
+
+export function DashboardBoard({
+  data,
+  pendingHawala,
+  todayCashIn,
+  todayCashOut,
+  baseCurrency,
+}: Props) {
+  const t = useT();
+
+  const deposits = data.month.deposits;
+  const withdrawals = data.month.withdrawals;
+  const transfers = data.month.transfers;
+  const exchanges = data.month.exchanges;
+  const hawala = data.month.hawala;
+  const newCustomers = data.customers.newThisMonth;
+  const activeCustomers = data.customers.active;
+  const totalOps = deposits + withdrawals + transfers + exchanges + hawala;
+
+  const activityItems = [
+    { label: t.dashboard.deposits, value: deposits, tone: "green" as const },
+    { label: t.dashboard.withdrawals, value: withdrawals, tone: "rose" as const },
+    { label: t.nav.transfers, value: transfers, tone: "blue" as const },
+    { label: t.dashboard.exchanges, value: exchanges, tone: "teal" as const },
+    { label: t.nav.hawala, value: hawala, tone: "amber" as const },
+  ];
+
+  const hero: {
+    label: string;
+    value: number;
+    hint: string;
+    tone: Tone;
+    Icon: LucideIcon;
+  }[] = [
+    {
+      label: t.dashboard.thisMonthTransactions,
+      value: totalOps,
+      hint: t.common.thisMonth,
+      tone: "blue",
+      Icon: ChartNoAxesCombined,
+    },
+    {
+      label: t.reports.pendingHawala,
+      value: pendingHawala,
+      hint: t.dashboard.awaitingAction,
+      tone: "amber",
+      Icon: Send,
+    },
+    {
+      label: t.dashboard.activeCustomers,
+      value: activeCustomers,
+      hint: t.dashboard.currentlyActive,
+      tone: "teal",
+      Icon: Users,
+    },
+    {
+      label: t.dashboard.newCustomers,
+      value: newCustomers,
+      hint: t.common.thisMonth,
+      tone: "violet",
+      Icon: UserPlus,
+    },
+  ];
+
+  const stats: {
+    label: string;
+    value: number;
+    hint: string;
+    tone: Tone;
+    Icon: LucideIcon;
+  }[] = [
+    {
+      label: t.dashboard.deposits,
+      value: deposits,
+      hint: t.common.thisMonth,
+      tone: "green",
+      Icon: ArrowDownLeft,
+    },
+    {
+      label: t.dashboard.withdrawals,
+      value: withdrawals,
+      hint: t.common.thisMonth,
+      tone: "rose",
+      Icon: ArrowUpRight,
+    },
+    {
+      label: t.nav.transfers,
+      value: transfers,
+      hint: t.common.thisMonth,
+      tone: "blue",
+      Icon: ArrowLeftRight,
+    },
+    {
+      label: t.dashboard.exchanges,
+      value: exchanges,
+      hint: t.common.thisMonth,
+      tone: "teal",
+      Icon: Repeat2,
+    },
+    {
+      label: t.dashboard.newCustomers,
+      value: newCustomers,
+      hint: t.common.thisMonth,
+      tone: "violet",
+      Icon: UserPlus,
+    },
+    {
+      label: t.dashboard.activeCustomers,
+      value: activeCustomers,
+      hint: t.dashboard.currentlyActive,
+      tone: "slate",
+      Icon: Users,
+    },
+    {
+      label: t.nav.hawala,
+      value: hawala,
+      hint: t.common.thisMonth,
+      tone: "amber",
+      Icon: Send,
+    },
+  ];
+
+  return (
+    <div className="dashboard-home">
+      <div className="dashboard-hero-grid">
+        {hero.map((card) => {
+          const Icon = card.Icon;
+          return (
+            <article
+              className="dashboard-hero-card"
+              key={card.label}
+              style={{ ["--kpi-accent" as string]: TONE_COLOR[card.tone] }}
+            >
+              <div className="dashboard-hero-top">
+                <span className="dashboard-hero-label">{card.label}</span>
+                <span className="dashboard-hero-icon" aria-hidden>
+                  <Icon size={16} />
+                </span>
+              </div>
+              <strong className="dashboard-hero-value" data-count={card.value}>
+                {card.value.toLocaleString("en-US")}
+              </strong>
+              <span className="dashboard-hero-hint">{card.hint}</span>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="dashboard-day-strip">
+        <div className="dashboard-day-item">
+          <span>{t.common.today}</span>
+          <strong className="money-in">
+            {todayCashIn} <small>{baseCurrency}</small>
+          </strong>
+          <em>{t.dailyBook.totalDebit}</em>
+        </div>
+        <div className="dashboard-day-item">
+          <span>{t.common.today}</span>
+          <strong className="money-out">
+            {todayCashOut} <small>{baseCurrency}</small>
+          </strong>
+          <em>{t.dailyBook.totalCredit}</em>
+        </div>
+        <div className="dashboard-day-item">
+          <span>{t.common.thisMonth}</span>
+          <strong data-count={totalOps}>{totalOps.toLocaleString("en-US")}</strong>
+          <em>{t.dashboard.thisMonthTransactions}</em>
+        </div>
+      </div>
+
+      <div className="dashboard-charts">
+        <section className="dashboard-chart-panel">
+          <div className="dashboard-cash-head">
+            <h2>{t.dashboard.monthlyActivity}</h2>
+            <span className="dashboard-chart-sub">{t.dashboard.activityCounts}</span>
+          </div>
+          <ActivityBars items={activityItems} />
+        </section>
+        <section className="dashboard-chart-panel">
+          <div className="dashboard-cash-head">
+            <h2>{t.dashboard.mixByType}</h2>
+            <span className="dashboard-chart-sub">{t.dashboard.activityShare}</span>
+          </div>
+          <ActivityDonut
+            items={activityItems}
+            emptyLabel={t.dashboard.noTypeMix}
+            centerLabel={t.dashboard.thisMonthTransactions}
+          />
+        </section>
+      </div>
+
+      <div className="dashboard-stat-grid">
+        {stats.map((stat) => {
+          const Icon = stat.Icon;
+          return (
+            <article
+              className="dashboard-stat-card"
+              key={stat.label}
+              style={{ ["--kpi-accent" as string]: TONE_COLOR[stat.tone] }}
+            >
+              <div className="dashboard-stat-top">
+                <span className="dashboard-stat-label">{stat.label}</span>
+                <span className="dashboard-stat-icon" aria-hidden>
+                  <Icon size={14} />
+                </span>
+              </div>
+              <strong className="dashboard-stat-value" data-count={stat.value}>
+                {stat.value.toLocaleString("en-US")}
+              </strong>
+              <span className="dashboard-stat-hint">{stat.hint}</span>
+            </article>
+          );
+        })}
+      </div>
+
+      <BusinessCashSection cash={data.cash} />
+    </div>
   );
 }

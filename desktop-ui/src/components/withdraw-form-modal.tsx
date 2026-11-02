@@ -11,7 +11,6 @@ import {
   getPreviousMovement,
   listCurrenciesPage,
   listCustomersPage,
-  previewDisplayRef,
   type CurrencyListItem,
   type CustomerListItem,
   type MovementEditSnapshot,
@@ -42,11 +41,7 @@ import {
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
-import {
-  loadDeskVoucher,
-  newInternalRef,
-  txDisplayRef,
-} from "@desktop/lib/tx-ref";
+import { newInternalRef } from "@desktop/lib/tx-ref";
 
 type ReceiverType = "self" | "other";
 
@@ -56,6 +51,8 @@ type Props = {
   onSaved?: () => void;
   /** Open in edit mode for this transaction id */
   editTransactionId?: string | null;
+  /** Pre-fill the customer when opening a new withdrawal. */
+  initialCustomer?: { id: string; name: string } | null;
 };
 
 function emptyForm(defaultCurrency = "") {
@@ -88,6 +85,7 @@ export function WithdrawFormModal({
   onClose,
   onSaved,
   editTransactionId = null,
+  initialCustomer = null,
 }: Props) {
   const t = useT();
   const { session } = useAuth();
@@ -99,7 +97,6 @@ export function WithdrawFormModal({
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [form, setForm] = useState(() => emptyForm());
-  const [voucherNo, setVoucherNo] = useState("");
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [editTimeSuffix, setEditTimeSuffix] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<CustomerListItem[]>([]);
@@ -148,14 +145,6 @@ export function WithdrawFormModal({
       valueDate: mode === "template" ? todayIso() : String(snap.valueDate).slice(0, 10),
       description: mode === "template" ? "" : snap.description?.trim() || "",
     });
-    if (mode === "edit") {
-      setVoucherNo(txDisplayRef(snap));
-    } else {
-      setVoucherNo("");
-      void loadDeskVoucher(() => previewDisplayRef("WITHDRAWAL")).then(
-        setVoucherNo,
-      );
-    }
     setDescriptionDirty(mode !== "template");
     setResultDirty(true);
     setEmployeeId("");
@@ -182,18 +171,18 @@ export function WithdrawFormModal({
           templateCursorRef.current = null;
           setReplaceId(null);
           setEditTimeSuffix(null);
-          setForm(emptyForm(defaultCcy));
-          setVoucherNo("");
+          const blank = emptyForm(defaultCcy);
+          if (initialCustomer?.id) {
+            blank.customerId = initialCustomer.id;
+            blank.customerLabel = initialCustomer.name;
+          }
+          setForm(blank);
           setDescriptionDirty(false);
           setResultDirty(false);
           setEmployeeId("");
           setEmployeeName("");
           clearSuggestState();
           setError(null);
-          const voucher = await loadDeskVoucher(() =>
-            previewDisplayRef("WITHDRAWAL"),
-          );
-          if (!cancelled) setVoucherNo(voucher);
         }
       } catch (err: unknown) {
         if (!cancelled) setError(errorMessage(err));
@@ -202,7 +191,7 @@ export function WithdrawFormModal({
     return () => {
       cancelled = true;
     };
-  }, [open, editTransactionId]);
+  }, [open, editTransactionId, initialCustomer?.id, initialCustomer?.name]);
 
   useEffect(() => {
     if (!open) return;
@@ -323,12 +312,6 @@ export function WithdrawFormModal({
     setReplaceId(null);
     setEditTimeSuffix(null);
     setForm(emptyForm(defaultCcy));
-    setVoucherNo("");
-    if (keepOpen) {
-      void loadDeskVoucher(() => previewDisplayRef("WITHDRAWAL")).then(
-        setVoucherNo,
-      );
-    }
     setDescriptionDirty(false);
     setResultDirty(false);
     setEmployeeId("");
@@ -507,15 +490,6 @@ export function WithdrawFormModal({
           </p>
 
           <div className="fx-simple-top">
-            <label className="desk-ref-field">
-              <span>{t.desk.voucherNumber}</span>
-              <input
-                className="desk-ref-input"
-                value={voucherNo}
-                readOnly
-                tabIndex={-1}
-              />
-            </label>
             <label>
               <span>{t.common.date}</span>
               <input

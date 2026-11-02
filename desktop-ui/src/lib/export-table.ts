@@ -4,7 +4,16 @@
  * CSV kept as a simple UTF-8 BOM fallback.
  */
 
-import { saveTextExport } from "@desktop/api";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
+import { printPage, saveBytesExport, saveTextExport } from "@desktop/api";
+import {
+  ensurePdfArabicFont,
+  hasArabicScript,
+  PDF_ARABIC_FONT,
+  shapePdfText,
+} from "@desktop/lib/pdf-arabic";
 
 export type ExportColumn = {
   key: string;
@@ -353,114 +362,102 @@ export function printReportSheet(input: {
   <meta charset="utf-8" />
   <title>${escapeHtml(meta.title)}</title>
   <style>
-    .report-print-root .sheet {
+    #report-print-root .sheet {
       padding: 0;
-      color: #122018;
+      color: #0f1b2d;
       font-family: "Segoe UI", Tahoma, Arial, sans-serif;
       direction: ${dir};
     }
-    .report-print-root .brand {
+    #report-print-root .brand {
       display: flex;
       justify-content: space-between;
       gap: 16px;
       align-items: flex-start;
-      border-bottom: 2.5px solid #183a31;
+      border-bottom: 3px solid #021024;
       padding-bottom: 10px;
       margin-bottom: 14px;
     }
-    .report-print-root .brand h1 {
+    #report-print-root .brand h1 {
       margin: 0;
       font-size: 20px;
-      color: #183a31;
+      color: #021024;
+      letter-spacing: 0.5px;
       text-transform: uppercase;
     }
-    .report-print-root .brand .title {
+    #report-print-root .brand .title {
       margin: 4px 0 0;
       font-size: 15px;
       font-weight: 700;
+      color: #0b6e99;
     }
-    .report-print-root .meta {
+    #report-print-root .meta {
       text-align: ${meta.rtl ? "left" : "right"};
       font-size: 11px;
-      color: #4b5c55;
+      color: #4a5b72;
       line-height: 1.55;
     }
-    .report-print-root table {
+    #report-print-root table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
       font-size: 10.5px;
     }
-    .report-print-root thead { display: table-header-group; }
-    .report-print-root th,
-    .report-print-root td {
-      border: 1px solid #2a4038;
+    #report-print-root thead { display: table-header-group; }
+    #report-print-root th,
+    #report-print-root td {
+      border: 1px solid #c3cfdf !important;
       padding: 5px 6px;
       vertical-align: top;
       word-wrap: break-word;
+      color: #0f1b2d !important;
     }
-    .report-print-root th {
-      background: #e8ece9;
-      color: #122018;
+    #report-print-root th {
+      background: #021024 !important;
+      color: #ffffff !important;
+      border-color: #021024 !important;
       font-weight: 700;
       text-align: start;
     }
-    .report-print-root tbody tr {
+    #report-print-root tbody tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .report-print-root tbody tr:nth-child(even) td { background: #f3f7f5; }
-    .report-print-root td.num,
-    .report-print-root th.num {
+    #report-print-root tbody tr:nth-child(even) td { background: #f2f6fb; }
+    #report-print-root td.num,
+    #report-print-root th.num {
       text-align: ${meta.rtl ? "left" : "right"};
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
-    .report-print-root td.money-in {
+    #report-print-root td.money-in {
       color: #1a7a45 !important;
       font-weight: 700;
     }
-    .report-print-root td.money-out {
+    #report-print-root td.money-out {
       color: #b42318 !important;
       font-weight: 700;
     }
-    .report-print-root td.desc { font-size: 10px; }
-    .report-print-root .empty {
-      border: 1px dashed #9aafa6;
+    #report-print-root td.desc { font-size: 10px; }
+    #report-print-root .empty {
+      border: 1px dashed #9fb0c6;
       padding: 28px;
       text-align: center;
-      color: #6b7a74;
+      color: #5d7697;
     }
-    .report-print-root .footer {
+    #report-print-root .footer {
       margin-top: 12px;
       padding-top: 8px;
-      border-top: 1px solid #c5d2cc;
+      border-top: 1px solid #c3cfdf;
       display: flex;
       justify-content: space-between;
       font-size: 10px;
-      color: #6b7a74;
+      color: #5d7697;
     }
     @page { size: A4 landscape; margin: 8mm; }
-    @media print {
-      .report-print-root thead {
-        display: table-header-group !important;
-      }
-      .report-print-root th {
-        background: #e8ece9 !important;
-        color: #122018 !important;
-        border: 1px solid #2a4038 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .report-print-root tbody tr:nth-child(even) td {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .report-print-root td.money-in,
-      .report-print-root td.money-out {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
+    #report-print-root,
+    #report-print-root * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
   </style>
 </head>
@@ -511,17 +508,233 @@ export function printReportSheet(input: {
   document.body.appendChild(root);
   document.body.classList.add("daybook-printing");
 
-  let cleaned = false;
+  // The print dialog is non-blocking on Windows and macOS, so the sheet stays
+  // until afterprint (or the next print) instead of on a timer.
   const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
     document.body.classList.remove("daybook-printing");
     root.remove();
-    window.removeEventListener("afterprint", cleanup);
   };
-  window.addEventListener("afterprint", cleanup);
-  window.setTimeout(() => {
-    window.print();
-    window.setTimeout(cleanup, 2500);
-  }, 60);
+  window.addEventListener("afterprint", cleanup, { once: true });
+  window.setTimeout(() => void printPage(), 60);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunk = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function safePdfFilename(title: string): string {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const base = title
+    .trim()
+    .replace(/[^\w\u0600-\u06FF\- .]+/g, "")
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
+  return `${base || "report"}-${stamp}.pdf`;
+}
+
+function amountTone(
+  row: ExportRow,
+  column: ExportColumn,
+): "in" | "out" | null {
+  if (column.kind !== "amount") return null;
+  const explicit = String(row[`_${column.key}Tone`] ?? "");
+  if (explicit === "in") return "in";
+  if (explicit === "out") return "out";
+  const raw = String(row[column.key] ?? "")
+    .replace(/,/g, "")
+    .replace(/−/g, "-")
+    .trim();
+  const n = Number.parseFloat(raw);
+  if (!Number.isFinite(n) || n === 0) return null;
+  return n > 0 ? "in" : "out";
+}
+
+/**
+ * Build a landscape A4 PDF (navy theme) and save it to Downloads.
+ * Returns the absolute path when saved via Tauri, otherwise null (browser download).
+ */
+export async function savePdfReportSheet(input: {
+  columns: ExportColumn[];
+  rows: ExportRow[];
+  meta: ExportMeta;
+  emptyLabel?: string;
+  filename?: string;
+}): Promise<string | null> {
+  const { rows, meta } = input;
+  const emptyLabel = input.emptyLabel ?? "No rows.";
+  const generatedAt = meta.generatedAt ?? new Date().toLocaleString();
+  const filename = input.filename ?? safePdfFilename(meta.title);
+  const rtl = Boolean(meta.rtl);
+  // In RTL, reverse columns so the table reads the same way as the on-screen ledger.
+  const columns = rtl ? [...input.columns].reverse() : input.columns;
+
+  const doc = new jsPDF({
+    orientation: "landscape",
+    unit: "mm",
+    format: "a4",
+  });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  const navy = "#021024";
+  const titleBlue = "#0b6e99";
+  const muted = "#4a5b72";
+  const ink = "#0f1b2d";
+  const moneyIn = "#1a7a45";
+  const moneyOut = "#b42318";
+
+  const sampleText = [
+    meta.title,
+    meta.periodLabel ?? "",
+    emptyLabel,
+    ...columns.map((c) => c.header),
+    ...rows.flatMap((row) => columns.map((c) => cellValue(row[c.key]))),
+  ].join(" ");
+  const needsArabic =
+    rtl || hasArabicScript(sampleText);
+  let bodyFont = "helvetica";
+  if (needsArabic) {
+    try {
+      if (await ensurePdfArabicFont(doc)) bodyFont = PDF_ARABIC_FONT;
+    } catch {
+      bodyFont = "helvetica";
+    }
+  }
+  const t = (value: string) =>
+    bodyFont === PDF_ARABIC_FONT ? shapePdfText(value) : value;
+
+  doc.setTextColor(navy);
+  doc.setFont(bodyFont, "bold");
+  doc.setFontSize(16);
+  const brand = (meta.businessName ?? "ASMS").toUpperCase();
+  doc.text(t(brand), rtl ? pageW - margin : margin, 14, {
+    align: rtl ? "right" : "left",
+  });
+
+  doc.setTextColor(titleBlue);
+  doc.setFontSize(12);
+  doc.text(t(meta.title), rtl ? pageW - margin : margin, 21, {
+    align: rtl ? "right" : "left",
+  });
+
+  doc.setDrawColor(navy);
+  doc.setLineWidth(0.6);
+  doc.line(margin, 24, pageW - margin, 24);
+
+  doc.setFont(bodyFont, "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(muted);
+  const metaLines = [
+    meta.periodLabel,
+    generatedAt,
+    meta.generatedBy,
+    `Rows: ${rows.length}`,
+  ].filter(Boolean) as string[];
+  metaLines.forEach((line, i) => {
+    doc.text(t(line), rtl ? margin : pageW - margin, 12 + i * 4.2, {
+      align: rtl ? "left" : "right",
+    });
+  });
+
+  if (rows.length === 0) {
+    doc.setTextColor(muted);
+    doc.setFontSize(11);
+    doc.text(t(emptyLabel), pageW / 2, 50, { align: "center" });
+  } else {
+    const head = [columns.map((c) => t(c.header))];
+    const body = rows.map((row) =>
+      columns.map((c) => t(cellValue(row[c.key]))),
+    );
+    autoTable(doc, {
+      startY: 28,
+      head,
+      body,
+      theme: "grid",
+      styles: {
+        font: bodyFont,
+        fontStyle: "normal",
+        fontSize: 8,
+        cellPadding: 1.6,
+        textColor: ink,
+        lineColor: [195, 207, 223],
+        lineWidth: 0.2,
+        overflow: "linebreak",
+        valign: "top",
+        halign: rtl ? "right" : "left",
+      },
+      headStyles: {
+        fillColor: [2, 16, 36],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+        font: bodyFont,
+        lineColor: [2, 16, 36],
+        halign: rtl ? "right" : "left",
+      },
+      alternateRowStyles: { fillColor: [242, 246, 251] },
+      margin: { left: margin, right: margin },
+      didParseCell: (data) => {
+        data.cell.styles.font = bodyFont;
+        if (data.section !== "body") return;
+        const col = columns[data.column.index];
+        if (!col) return;
+        if (col.kind === "amount" || col.kind === "count") {
+          // Keep amounts LTR-aligned for readability in both locales.
+          data.cell.styles.halign = rtl ? "left" : "right";
+          data.cell.styles.fontStyle = "bold";
+        }
+        const row = rows[data.row.index];
+        if (!row) return;
+        const tone = amountTone(row, col);
+        if (tone === "in") data.cell.styles.textColor = moneyIn;
+        if (tone === "out") data.cell.styles.textColor = moneyOut;
+      },
+    });
+  }
+
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i += 1) {
+    doc.setPage(i);
+    const y = doc.internal.pageSize.getHeight() - 7;
+    doc.setDrawColor(195, 207, 223);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y - 3, pageW - margin, y - 3);
+    doc.setFont(bodyFont, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(muted);
+    doc.text(t("ASMS · Reports"), rtl ? pageW - margin : margin, y, {
+      align: rtl ? "right" : "left",
+    });
+    doc.text(
+      t(`Confidential · ${i}/${pageCount}`),
+      rtl ? margin : pageW - margin,
+      y,
+      { align: rtl ? "left" : "right" },
+    );
+  }
+
+  const bytes = new Uint8Array(doc.output("arraybuffer"));
+  try {
+    const saved = await saveBytesExport({
+      filename,
+      contentsBase64: bytesToBase64(bytes),
+    });
+    return saved.path;
+  } catch {
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return null;
+  }
 }

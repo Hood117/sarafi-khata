@@ -181,7 +181,7 @@ export function ExpensesPage() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack expenses-page workspace-page">
       {error ? (
         <PageLoadError message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : null}

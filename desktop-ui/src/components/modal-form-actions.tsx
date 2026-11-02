@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 
-import {
-  IconCancel,
-  IconPrevious,
-  IconSave,
-  IconSaveAndNew,
-} from "@desktop/icons";
+import { ChevronLeft, Plus, Save, X } from "lucide-react";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 
 type Props = {
@@ -54,7 +49,7 @@ export function ModalFormActions({
             disabled={busy}
             onClick={onPrevious}
           >
-            <IconPrevious />
+            <ChevronLeft className="nav-icon" size={18} />
             <span>{previousLabel}</span>
           </button>
         ) : null}
@@ -66,7 +61,7 @@ export function ModalFormActions({
           disabled={busy}
           onClick={onSave}
         >
-          <IconSave />
+          <Save className="nav-icon" size={18} />
           <span>{saveLabel}</span>
         </button>
 
@@ -76,7 +71,7 @@ export function ModalFormActions({
           disabled={busy}
           onClick={onSaveAndNew}
         >
-          <IconSaveAndNew />
+          <Plus className="nav-icon" size={18} />
           <span>{saveAndNewLabel}</span>
         </button>
 
@@ -88,7 +83,7 @@ export function ModalFormActions({
           disabled={busy}
           onClick={onCancel}
         >
-          <IconCancel />
+          <X className="nav-icon" size={18} />
           <span>{cancelLabel}</span>
         </button>
       </div>

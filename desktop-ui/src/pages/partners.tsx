@@ -103,7 +103,7 @@ export function PartnersPage() {
   }
 
   return (
-    <div className="stack partner-page">
+    <div className="stack partner-page workspace-page">
       <div className="section-card stack">
         <div className="row partner-toolbar">
           <label className="partner-search">

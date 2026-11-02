@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { IconOk } from "@desktop/icons";
+import { Check } from "lucide-react";
 import { Modal } from "@desktop/ui/modal";
 
 export function SuccessModal({
@@ -55,7 +55,7 @@ export function SuccessModal({
           data-desk-action="ok"
           onClick={onClose}
         >
-          <IconOk />
+          <Check className="nav-icon" size={18} />
           <span>{primaryLabel}</span>
         </button>
       </div>

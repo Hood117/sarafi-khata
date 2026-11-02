@@ -5,7 +5,6 @@ import {
   getTransactionDetail,
   type TransactionDetail,
 } from "@desktop/api";
-import { TransactionLine } from "@desktop/components/transaction-line";
 import { useT } from "@desktop/i18n";
 import {
   fmtAmountPart,
@@ -20,6 +19,13 @@ import { Modal } from "@desktop/ui/modal";
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
   return value.length >= 19 ? value.slice(0, 19).replace("T", " ") : value.slice(0, 10);
+}
+
+function statusTone(status: string): string {
+  const s = status.toUpperCase();
+  if (s === "POSTED" || s === "COMPLETED" || s === "RECEIVED") return "money-in";
+  if (s === "VOID" || s === "CANCELLED" || s === "CANCELED" || s === "FAILED") return "money-out";
+  return "";
 }
 
 function amountPartsFromDetail(detail: TransactionDetail): AmountPart[] {
@@ -181,126 +187,86 @@ export function TransactionDetailModal({
           <>
             {/* Screen view */}
             <div className="tx-detail-screen no-print stack">
-              <p style={{ margin: 0 }}>
-                <TransactionLine
-                  strong
-                  style={{ fontSize: "var(--text-lg)" }}
-                  input={{
-                    type: detail.type,
-                    reference: detail.reference,
-                    status: detail.status === "POSTED" ? null : detail.status,
-                    customerName: detail.customerName,
-                    walkInName: detail.walkInName,
-                    description: detail.description,
-                    amountSummary: amounts
-                      .map((a) => `${a.sign} ${a.currency} ${a.amount}`)
-                      .join(" · "),
-                    senderName: detail.senderName,
-                    receiverName: detail.receiverName,
-                  }}
-                />
-              </p>
-
-              <div className="customer-form-grid">
-                <div>
-                  <span className="muted">{t.common.customer}</span>
-                  <div>{detail.customerName ?? detail.walkInName ?? "—"}</div>
-                </div>
-                {detail.type.toUpperCase() === "TRANSFER" ? (
-                  <>
-                    <div>
-                      <span className="muted">{t.common.sender}</span>
-                      <div>{detail.senderName ?? detail.customerName ?? "—"}</div>
-                    </div>
-                    <div>
-                      <span className="muted">{t.common.receiver}</span>
-                      <div>{detail.receiverName ?? "—"}</div>
-                    </div>
-                  </>
-                ) : null}
-                <div>
-                  <span className="muted">{t.common.type}</span>
-                  <div>{transactionTypeLabel(t, detail.type)}</div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.amount}</span>
-                  <div className="tx-detail-amounts">
-                    {transferAmount ? (
-                      <span className="tx-amt tx-amt-out">{transferAmount}</span>
-                    ) : amounts.length === 0 ? (
-                      "—"
-                    ) : (
-                      amounts.map((a, i) => (
-                        <span key={`${a.sign}-${a.currency}-${a.amount}-${i}`}>
-                          {i > 0 ? <span className="tx-line-sep"> · </span> : null}
-                          <span
-                            className={
-                              a.sign === "+" ? "tx-amt tx-amt-in" : "tx-amt tx-amt-out"
-                            }
-                          >
-                            {fmtAmountPart(a)}
+              <table className="tx-detail-table">
+                <tbody>
+                  <tr>
+                    <th>{t.common.customer}</th>
+                    <td>{detail.customerName ?? detail.walkInName ?? "—"}</td>
+                    <th>{t.common.type}</th>
+                    <td>{transactionTypeLabel(t, detail.type)}</td>
+                  </tr>
+                  {isTransfer ? (
+                    <tr>
+                      <th>{t.common.sender}</th>
+                      <td>{detail.senderName ?? detail.customerName ?? "—"}</td>
+                      <th>{t.common.receiver}</th>
+                      <td>{detail.receiverName ?? "—"}</td>
+                    </tr>
+                  ) : null}
+                  <tr>
+                    <th>{t.common.amount}</th>
+                    <td className="tx-detail-amounts">
+                      {transferAmount ? (
+                        <span className="tx-amt tx-amt-out">{transferAmount}</span>
+                      ) : amounts.length === 0 ? (
+                        "—"
+                      ) : (
+                        amounts.map((a, i) => (
+                          <span key={`${a.sign}-${a.currency}-${a.amount}-${i}`}>
+                            {i > 0 ? <span className="tx-line-sep"> · </span> : null}
+                            <span className={a.sign === "+" ? "tx-amt tx-amt-in" : "tx-amt tx-amt-out"}>
+                              {fmtAmountPart(a)}
+                            </span>
                           </span>
-                        </span>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.currency}</span>
-                  <div>{primaryCurrency}</div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.reference}</span>
-                  <div className="col-ref">{journalTxRef(detail)}</div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.date}</span>
-                  <div>{formatWhen(detail.valueDate)}</div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.time}</span>
-                  <div>{formatWhen(detail.postedAt ?? detail.createdAt)}</div>
-                </div>
-                <div>
-                  <span className="muted">{t.common.status}</span>
-                  <div>{statusLabel(t, detail.status)}</div>
-                </div>
-              </div>
+                        ))
+                      )}
+                    </td>
+                    <th>{t.common.currency}</th>
+                    <td>{primaryCurrency}</td>
+                  </tr>
+                  <tr>
+                    <th>{t.common.reference}</th>
+                    <td className="col-ref">{journalTxRef(detail)}</td>
+                    <th>{t.common.date}</th>
+                    <td>{formatWhen(detail.valueDate)}</td>
+                  </tr>
+                  <tr>
+                    <th>{t.common.time}</th>
+                    <td>{formatWhen(detail.postedAt ?? detail.createdAt)}</td>
+                    <th>{t.common.status}</th>
+                    <td className={statusTone(detail.status)}>{statusLabel(t, detail.status)}</td>
+                  </tr>
+                  {detail.description ? (
+                    <tr>
+                      <th>{t.common.description}</th>
+                      <td colSpan={3}>{detail.description}</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
 
-              {detail.description ? (
-                <p className="ledger-description-block" style={{ margin: 0 }}>
-                  <span className="muted">{t.common.description}: </span>
-                  <span className="ledger-description">{detail.description}</span>
-                </p>
-              ) : null}
-
-              <h3 style={{ margin: "0.5rem 0 0", fontSize: "var(--text-lg)" }}>
-                {t.common.ledgerEntries}
-              </h3>
+              <h3 className="tx-detail-lines-title">{t.common.ledgerEntries}</h3>
               {lines.length === 0 ? (
                 <p className="muted">{t.common.noEntries}</p>
               ) : (
-                <ul className="tx-detail-ledger">
-                  {lines.map((line) => {
-                    const inn = line.direction === "DEBIT";
-                    const part: AmountPart = {
-                      sign: inn ? "+" : "−",
-                      currency: line.currencyCode,
-                      amount: line.amount,
-                    };
-                    return (
-                      <li key={line.id} className={inn ? "tx-line-in" : "tx-line-out"}>
-                        <span className="tx-line-dot" aria-hidden="true" />
-                        <span className={`amount-emphasis ${inn ? "money-in" : "money-out"}`}>
-                          {fmtAmountPart(part)}
-                        </span>
-                        {line.memo ? (
-                          <span className="muted tx-detail-memo"> · {line.memo}</span>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
+                <table className="tx-detail-table tx-detail-lines">
+                  <tbody>
+                    {lines.map((line) => {
+                      const inn = line.direction === "DEBIT";
+                      const part: AmountPart = {
+                        sign: inn ? "+" : "−",
+                        currency: line.currencyCode,
+                        amount: line.amount,
+                      };
+                      return (
+                        <tr key={line.id}>
+                          <td className={inn ? "money-in" : "money-out"}>{fmtAmountPart(part)}</td>
+                          <td>{line.memo || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               )}
             </div>
 

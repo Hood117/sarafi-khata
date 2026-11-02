@@ -17,7 +17,7 @@ import {
   type PartnerSettlementRow,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
-import { IconCash, IconDashboard, IconHawala } from "@desktop/icons";
+import { Banknote, LayoutDashboard, Send } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import {
   endSubmit,
@@ -522,7 +522,7 @@ export function PartnerDetailPage() {
   }
 
   return (
-    <div className="stack partner-detail-page page-column">
+    <div className="stack partner-detail-page page-column workspace-page">
       <div className="detail-toolbar">
         <div>
           <h1 style={{ margin: "0 0 0.2rem" }}>
@@ -617,7 +617,7 @@ export function PartnerDetailPage() {
           onClick={() => setTab("overview")}
         >
           <span className="nav-link-icon">
-            <IconDashboard />
+            <LayoutDashboard className="nav-icon" size={18} />
           </span>
           <span className="nav-link-label">{t.dashboard.overview}</span>
         </button>
@@ -627,7 +627,7 @@ export function PartnerDetailPage() {
           onClick={() => setTab("settlements")}
         >
           <span className="nav-link-icon">
-            <IconCash />
+            <Banknote className="nav-icon" size={18} />
           </span>
           <span className="nav-link-label">{t.partner.settlements}</span>
         </button>
@@ -637,7 +637,7 @@ export function PartnerDetailPage() {
           onClick={() => setTab("hawala")}
         >
           <span className="nav-link-icon">
-            <IconHawala />
+            <Send className="nav-icon" size={18} />
           </span>
           <span className="nav-link-label">{t.partner.hawalaTab}</span>
         </button>

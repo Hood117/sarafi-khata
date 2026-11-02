@@ -27,6 +27,11 @@ set "CARGO_TARGET_DIR="
 set "CARGO_TARGET_DIR=%CD%\src-tauri\target"
 echo CARGO_TARGET_DIR=[%CARGO_TARGET_DIR%]
 
+REM Prefer prebuilt static SQLite over compiling amalgamation (exit 259).
+set "SQLITE3_LIB_DIR=%CD%\src-tauri\vendor\sqlite"
+set "SQLITE3_INCLUDE_DIR=%CD%\src-tauri\vendor\sqlite"
+set "SQLITE3_STATIC=1"
+
 REM Release file locks from a previous desk session before compile.
 taskkill /F /IM saraf.exe /T >nul 2>&1
 taskkill /F /IM build-script-build.exe /T >nul 2>&1

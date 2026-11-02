@@ -8,15 +8,15 @@ import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal"
 import { TransferFormModal } from "@desktop/components/transfer-form-modal";
 import { WithdrawFormModal } from "@desktop/components/withdraw-form-modal";
 import {
-  IconCalculator,
-  IconCustomers,
-  IconDeposit,
-  IconExchange,
-  IconHawala,
-  IconReceiveHawala,
-  IconTransfers,
-  IconWithdraw,
-} from "@desktop/icons";
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Calculator,
+  Download,
+  Repeat2,
+  Send,
+  UserPlus,
+} from "lucide-react";
 import { useT } from "@desktop/i18n";
 import {
   DESK_OPEN_QUICK_ACTION_EVENT,
@@ -100,43 +100,43 @@ export function QuickActionsBar() {
       {
         id: "deposit",
         label: t.transactions.deposit,
-        icon: <IconDeposit />,
+        icon: <ArrowDownLeft className="nav-icon" size={18} />,
         tone: "deposit",
       },
       {
         id: "withdraw",
         label: t.customers.withdraw,
-        icon: <IconWithdraw />,
+        icon: <ArrowUpRight className="nav-icon" size={18} />,
         tone: "withdraw",
       },
       {
         id: "transfer",
         label: t.txLine.typeTransfer,
-        icon: <IconTransfers />,
+        icon: <ArrowLeftRight className="nav-icon" size={18} />,
         tone: "transfer",
       },
       {
         id: "exchange",
         label: t.dashboard.exchangeBuySell,
-        icon: <IconExchange />,
+        icon: <Repeat2 className="nav-icon" size={18} />,
         tone: "exchange",
       },
       {
         id: "sendHawala",
         label: t.dashboard.sendHawala,
-        icon: <IconHawala />,
+        icon: <Send className="nav-icon" size={18} />,
         tone: "send-hawala",
       },
       {
         id: "receiveHawala",
         label: t.dashboard.receiveHawala,
-        icon: <IconReceiveHawala />,
+        icon: <Download className="nav-icon" size={18} />,
         tone: "receive-hawala",
       },
       {
         id: "newCustomer",
         label: t.dashboard.addCustomer,
-        icon: <IconCustomers />,
+        icon: <UserPlus className="nav-icon" size={18} />,
         tone: "customer",
       },
     ] as const
@@ -196,7 +196,7 @@ export function QuickActionsBar() {
           {
             id: "calculator",
             label: t.nav.calculator,
-            icon: <IconCalculator />,
+            icon: <Calculator className="nav-icon" size={18} />,
             tone: "calculator",
             selected: calculatorActive,
             iconOnly: true,

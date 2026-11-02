@@ -4,16 +4,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@desktop/auth";
 import {
-  IconBackup,
-  IconChevronDown,
-  IconEmployees,
-  IconExchange,
-  IconLogout,
-  IconRates,
-  IconReports,
-  IconSettings,
-  IconUsers,
-} from "@desktop/icons";
+  BriefcaseBusiness,
+  ChartNoAxesCombined,
+  ChevronDown,
+  Coins,
+  Database,
+  DatabaseBackup,
+  LogOut,
+  Repeat2,
+  Settings,
+  Users,
+} from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { gsap, lockMotion, motionOk, unlockMotion, useGSAP } from "@desktop/lib/motion";
 import { registerOverlayClose } from "@desktop/lib/overlay-stack";
@@ -27,7 +28,12 @@ type MenuItem = {
   onSelect: () => void;
 };
 
-export function SettingsMenu() {
+type SettingsMenuProps = {
+  /** Sidebar gear opens the menu upward; header opens downward. */
+  variant?: "header" | "sidebar";
+};
+
+export function SettingsMenu({ variant = "header" }: SettingsMenuProps) {
   const t = useT();
   const { session, logout } = useAuth();
   const navigate = useNavigate();
@@ -37,6 +43,7 @@ export function SettingsMenu() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const opensUp = variant === "sidebar";
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -46,8 +53,9 @@ export function SettingsMenu() {
     const rect = btn.getBoundingClientRect();
     const panel = panelRef.current;
     const panelWidth = Math.max(panel?.offsetWidth ?? 0, 216);
+    const panelHeight = Math.max(panel?.offsetHeight ?? 0, 120);
     const pad = 8;
-    // Prefer aligning under the button; clamp so the panel never clips off-screen (RTL/LTR).
+    // Prefer aligning to the button; clamp so the panel never clips off-screen (RTL/LTR).
     let left = Math.round(rect.left);
     if (left + panelWidth > window.innerWidth - pad) {
       left = Math.round(rect.right - panelWidth);
@@ -56,11 +64,20 @@ export function SettingsMenu() {
     if (left + panelWidth > window.innerWidth - pad) {
       left = Math.max(pad, window.innerWidth - panelWidth - pad);
     }
-    setCoords({
-      top: Math.round(rect.bottom + 8),
-      left,
-    });
-  }, []);
+    let top = opensUp
+      ? Math.round(rect.top - panelHeight - 8)
+      : Math.round(rect.bottom + 8);
+    if (opensUp && top < pad) {
+      top = Math.min(
+        Math.round(rect.bottom + 8),
+        Math.max(pad, window.innerHeight - panelHeight - pad),
+      );
+    }
+    if (!opensUp && top + panelHeight > window.innerHeight - pad) {
+      top = Math.max(pad, Math.round(rect.top - panelHeight - 8));
+    }
+    setCoords({ top, left });
+  }, [opensUp]);
 
   const toggle = useCallback(() => {
     setOpen((prev) => {
@@ -101,10 +118,12 @@ export function SettingsMenu() {
       const panel = panelRef.current;
       if (!open || !panel || !motionOk()) return;
       lockMotion([panel]);
-      gsap.set(panel, { transformOrigin: "top center" });
+      gsap.set(panel, {
+        transformOrigin: opensUp ? "bottom center" : "top center",
+      });
       gsap.fromTo(
         panel,
-        { opacity: 0, y: -8, scale: 0.98 },
+        { opacity: 0, y: opensUp ? 8 : -8, scale: 0.98 },
         {
           opacity: 1,
           y: 0,
@@ -117,7 +136,7 @@ export function SettingsMenu() {
         },
       );
     },
-    { dependencies: [open] },
+    { dependencies: [open, opensUp] },
   );
 
   const go = useCallback(
@@ -134,7 +153,7 @@ export function SettingsMenu() {
       next.push({
         id: "general",
         label: t.settings.general,
-        icon: <IconSettings />,
+        icon: <Settings className="nav-icon" size={18} />,
         onSelect: () => go("/settings"),
       });
     }
@@ -142,7 +161,7 @@ export function SettingsMenu() {
       next.push({
         id: "reports",
         label: t.nav.reports,
-        icon: <IconReports />,
+        icon: <ChartNoAxesCombined className="nav-icon" size={18} />,
         onSelect: () => go("/reports"),
       });
     }
@@ -150,7 +169,7 @@ export function SettingsMenu() {
       next.push({
         id: "employees",
         label: t.nav.employees,
-        icon: <IconEmployees />,
+        icon: <BriefcaseBusiness className="nav-icon" size={18} />,
         onSelect: () => go("/employees"),
       });
     }
@@ -158,7 +177,7 @@ export function SettingsMenu() {
       next.push({
         id: "rates",
         label: t.pages.exchangeRates,
-        icon: <IconExchange />,
+        icon: <Repeat2 className="nav-icon" size={18} />,
         onSelect: () => go("/rates"),
       });
     }
@@ -166,7 +185,7 @@ export function SettingsMenu() {
       next.push({
         id: "currency",
         label: t.pages.currencies,
-        icon: <IconRates />,
+        icon: <Coins className="nav-icon" size={18} />,
         onSelect: () => go("/settings?tab=currencies"),
       });
     }
@@ -174,26 +193,26 @@ export function SettingsMenu() {
       next.push({
         id: "users",
         label: t.settings.users,
-        icon: <IconUsers />,
+        icon: <Users className="nav-icon" size={18} />,
         onSelect: () => go("/settings?tab=users"),
       });
       next.push({
         id: "backup",
         label: t.settings.backup,
-        icon: <IconBackup />,
+        icon: <DatabaseBackup className="nav-icon" size={18} />,
         onSelect: () => go("/settings?tab=backup"),
       });
       next.push({
         id: "database",
         label: t.settings.database,
-        icon: <IconBackup />,
+        icon: <Database className="nav-icon" size={18} />,
         onSelect: () => go("/settings?tab=database"),
       });
     }
     next.push({
       id: "signout",
       label: t.session.signOut,
-      icon: <IconLogout />,
+      icon: <LogOut className="nav-icon" size={18} />,
       danger: true,
       onSelect: () => {
         close();
@@ -248,22 +267,35 @@ export function SettingsMenu() {
     : null;
 
   return (
-    <div className="settings-menu" ref={wrapRef}>
+    <div
+      className={
+        opensUp ? "settings-menu settings-menu--sidebar" : "settings-menu"
+      }
+      ref={wrapRef}
+    >
       <button
         ref={btnRef}
         type="button"
-        className="settings-menu-btn"
+        className={
+          opensUp
+            ? "sidebar-footer-link settings-menu-btn settings-menu-btn--sidebar"
+            : "settings-menu-btn"
+        }
         title={t.nav.settings}
         aria-label={t.nav.settings}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={toggle}
       >
-        <IconSettings />
-        <span className="app-chrome-label">{t.nav.settings}</span>
-        <span className={`settings-menu-chevron${open ? " is-open" : ""}`}>
-          <IconChevronDown />
-        </span>
+        <Settings className="nav-icon" size={18} />
+        {opensUp ? null : (
+          <>
+            <span className="app-chrome-label">{t.nav.settings}</span>
+            <span className={`settings-menu-chevron${open ? " is-open" : ""}`}>
+              <ChevronDown className="nav-icon" size={16} />
+            </span>
+          </>
+        )}
       </button>
       {menu}
     </div>

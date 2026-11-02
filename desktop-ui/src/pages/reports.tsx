@@ -48,25 +48,28 @@ import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import {
-  IconCapital,
-  IconCash,
-  IconCustomers,
-  IconDaybook,
-  IconDebtorsCreditors,
-  IconEmployees,
-  IconExchange,
-  IconHawala,
-  IconHistory,
-  IconPartners,
-  IconReports,
-  IconTransactions,
-} from "@desktop/icons";
+  Banknote,
+  BookOpen,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChartNoAxesCombined,
+  Handshake,
+  Landmark,
+  Receipt,
+  Repeat2,
+  Scale,
+  Send,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
 import { addCalendarDays, todayIso } from "@desktop/lib/datetime";
 import {
   exportTable,
   printReportSheet,
+  savePdfReportSheet,
   type ExportColumn,
   type ExportRow,
 } from "@desktop/lib/export-table";
@@ -105,14 +108,12 @@ type ProfitPeriodPreset =
   | "year"
   | "custom";
 
-type ReportIcon = (props: { className?: string; title?: string }) => ReactNode;
-
 type ReportMeta = {
   id: Exclude<ReportId, "hub">;
   title: string;
   blurb: string;
   tone: string;
-  Icon: ReportIcon;
+  Icon: LucideIcon;
 };
 
 type ExportPayload = {
@@ -710,91 +711,91 @@ export function ReportsPage() {
         title: t.desk.reportsOverview,
         blurb: t.dashboard.monthlyActivity,
         tone: "teal",
-        Icon: IconReports,
+        Icon: ChartNoAxesCombined,
       },
       {
         id: "daily",
         title: t.desk.dailyReport,
         blurb: t.desk.dailySummary,
         tone: "green",
-        Icon: IconDaybook,
+        Icon: BookOpen,
       },
       {
         id: "monthly",
         title: t.desk.monthlyReport,
         blurb: t.pages.monthlyReport,
         tone: "slate",
-        Icon: IconHistory,
+        Icon: CalendarDays,
       },
       {
         id: "cash-flow",
         title: t.desk.cashFlowReport,
         blurb: t.desk.moneyComingIn,
         tone: "cyan",
-        Icon: IconCash,
+        Icon: Landmark,
       },
       {
         id: "profit-loss",
         title: t.desk.profitAndLossReport,
         blurb: t.reports.profitAndLossHint,
         tone: "amber",
-        Icon: IconCapital,
+        Icon: Wallet,
       },
       {
         id: "hawala",
         title: t.reports.hawalaReport,
         blurb: t.reports.hawala,
         tone: "rose",
-        Icon: IconHawala,
+        Icon: Send,
       },
       {
         id: "movement-sums",
         title: t.reports.movementSumsReport,
         blurb: t.reports.movementSumsHint,
         tone: "cyan",
-        Icon: IconCash,
+        Icon: Banknote,
       },
       {
         id: "exchange",
         title: t.desk.exchangeReport,
         blurb: t.reports.exchange,
         tone: "orange",
-        Icon: IconExchange,
+        Icon: Repeat2,
       },
       {
         id: "customer-statement",
         title: t.desk.customerStatementReport,
         blurb: t.reports.customerStatement,
         tone: "blue",
-        Icon: IconCustomers,
+        Icon: Users,
       },
       {
         id: "transactions",
         title: t.desk.transactionsReport,
         blurb: t.reports.transactions,
         tone: "violet",
-        Icon: IconTransactions,
+        Icon: Receipt,
       },
       {
         id: "partners",
         title: t.reports.partnerSarafiReport,
         blurb: t.reports.partnerSarafiHint,
         tone: "green",
-        Icon: IconPartners,
+        Icon: Handshake,
       },
       {
         id: "debtors",
         title: t.nav.debtorsCreditors,
         blurb: t.debtorsCreditors.overview,
         tone: "amber",
-        Icon: IconDebtorsCreditors,
+        Icon: Scale,
       },
       {
         id: "employees",
         title: t.reports.employeeReport,
         blurb: t.reports.employeeReportHint,
         tone: "teal",
-        Icon: IconEmployees,
+        Icon: BriefcaseBusiness,
       },
     ],
     [t],
@@ -1779,8 +1780,29 @@ export function ReportsPage() {
     });
   }, [buildExportPayload, locale, rtl, t.reports.noDataPeriod]);
 
+  const runPdfSheet = useCallback(async () => {
+    const payload = buildExportPayload();
+    if (!payload) return;
+    const path = await savePdfReportSheet({
+      columns: payload.columns,
+      rows: payload.rows,
+      meta: {
+        title: payload.title,
+        businessName: "ASMS",
+        periodLabel: payload.period,
+        generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
+        rtl,
+      },
+      emptyLabel: t.reports.noDataPeriod,
+      filename: payload.filename.endsWith(".pdf")
+        ? payload.filename
+        : `${payload.filename.replace(/\.(csv|xls)$/i, "")}.pdf`,
+    });
+    if (path) window.alert(`PDF\n${path}`);
+  }, [buildExportPayload, locale, rtl, t.reports.noDataPeriod]);
+
   return (
-    <div className="stack report-page page-column">
+    <div className="stack report-page page-column workspace-page">
       <nav className="report-tabs no-print" aria-label={t.nav.reports}>
         {catalog.map((tab) => {
           const TabIcon = tab.Icon;
@@ -1792,7 +1814,7 @@ export function ReportsPage() {
               className={`report-tab${reportId === tab.id ? " is-active" : ""}`}
               onClick={() => openReport(tab.id)}
             >
-              <TabIcon className="report-tab-icon" />
+              <TabIcon className="report-tab-icon" size={18} />
               <span className="report-tab-label">{tab.title}</span>
             </button>
           );
@@ -2149,7 +2171,7 @@ export function ReportsPage() {
         <ReportToolbar
           onPrint={exportPayload ? runPrintSheet : undefined}
           onCsv={exportPayload ? () => void runExport(exportPayload) : undefined}
-          onPdf={exportPayload ? runPrintSheet : undefined}
+          onPdf={exportPayload ? () => void runPdfSheet() : undefined}
         />
       </div>
 

@@ -16,6 +16,7 @@ const SKIP_SESSION_BIND = new Set([
   "get_app_info",
   "get_license_status",
   "activate_license",
+  "bypass_license_dev",
   "clear_license_dev",
   "open_external_url",
   "get_fingerprint_device_status",
@@ -97,6 +98,11 @@ export async function activateLicense(licenseKey: string) {
   });
 }
 
+/** TEMP: local skip without a real key (see ALLOW_DEV_LICENSE_SKIP in Rust). */
+export function bypassLicenseDev() {
+  return invoke<LicenseStatus>("bypass_license_dev");
+}
+
 export function clearLicenseDev() {
   return invoke<void>("clear_license_dev");
 }
@@ -122,6 +128,8 @@ export type CustomerListItem = {
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
+  /** JPEG data URL. Empty when the customer has no photo. */
+  photo?: string | null;
 };
 
 export type CustomerListPage = {
@@ -159,6 +167,8 @@ export type CustomerDetail = {
   openingKata: OpeningKataLineDetail[];
   linkedPartnerSarafiId?: string | null;
   linkedPartnerName?: string | null;
+  /** JPEG data URL. Empty when the customer has no photo. */
+  photo?: string | null;
 };
 
 export type CurrencyListItem = {
@@ -356,6 +366,23 @@ export function saveTextExport(input: { filename: string; contents: string }) {
   return invoke<{ path: string }>("save_text_export", { input });
 }
 
+/** Save a binary file (PDF, …) to Downloads. `contentsBase64` is standard base64. */
+export function saveBytesExport(input: {
+  filename: string;
+  contentsBase64: string;
+}) {
+  return invoke<{ path: string }>("save_bytes_export", { input });
+}
+
+/** Native print dialog; falls back to `window.print()` outside Tauri. */
+export async function printPage() {
+  try {
+    await tauriInvoke<void>("print_webview");
+  } catch {
+    window.print();
+  }
+}
+
 export function openExternalUrl(url: string) {
   return invoke<void>("open_external_url", { input: { url } });
 }
@@ -440,6 +467,7 @@ export function createCustomer(input: {
   openingBalanceAmount?: string | null;
   openingBalanceCurrencyCode?: string | null;
   actorUserId: string;
+  photo?: string | null;
 }) {
   return invoke<CustomerDetail>("create_customer", { input });
 }
@@ -531,6 +559,8 @@ export function updateCustomer(input: {
     notes?: string | null;
     valueDate?: string | null;
   }> | null;
+  /** Omit to keep the saved photo. Empty string removes it. */
+  photo?: string | null;
 }) {
   return invoke<CustomerDetail>("update_customer", { input });
 }

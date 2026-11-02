@@ -103,7 +103,7 @@ export function DebtorsCreditorsPage() {
     tab === "debtors" ? t.debtorsCreditors.amountOwed : t.debtorsCreditors.amountHeld;
 
   return (
-    <div className="stack">
+    <div className="stack dc-page workspace-page">
       <div className="row dc-toolbar">
         <div className="nav-row" role="tablist" aria-label={t.nav.debtorsCreditors}>
           <button

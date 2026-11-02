@@ -1,0 +1,576 @@
+/* Online records / directory chrome for desk pages. */
+
+html[data-ui="web"] .workspace-page {
+  gap: 10px;
+}
+
+html[data-ui="web"] .panel.records-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  padding: 0;
+}
+
+html[data-ui="web"] .records-chrome {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-ui="web"] .records-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  flex-wrap: wrap;
+  background: var(--primary-soft);
+}
+
+html[data-ui="web"] .records-title > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+html[data-ui="web"] .records-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+
+html[data-ui="web"] .records-title .muted {
+  margin: 0;
+  font-size: 12px;
+}
+
+html[data-ui="web"] .count-badge {
+  font-size: 10px;
+  background: var(--surface-muted);
+  color: var(--fg-muted);
+  min-width: 25px;
+  padding: 3px 7px;
+  text-align: center;
+  border-radius: 5px;
+  font-weight: 650;
+}
+
+html[data-ui="web"] .records-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+html[data-ui="web"] .table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-subtle, var(--border));
+}
+
+html[data-ui="web"] .search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--fg-muted);
+  max-width: 320px;
+  flex: 1;
+  min-width: 180px;
+}
+
+html[data-ui="web"] .search-field-emphasized {
+  max-width: 420px;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  background: var(--surface-sunken, var(--surface-muted));
+  padding: 6px 12px;
+}
+
+html[data-ui="web"] .search-field input,
+html[data-ui="web"] .search-field-emphasized input {
+  border: 0;
+  min-height: 28px;
+  padding: 3px 0;
+  background: transparent;
+  font-size: 13px;
+  width: 100%;
+  box-shadow: none;
+}
+
+html[data-ui="web"] .search-field input:focus,
+html[data-ui="web"] .search-field-emphasized input:focus {
+  outline: none;
+  box-shadow: none;
+  border: 0;
+}
+
+html[data-ui="web"] .table-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+html[data-ui="web"] .table-filters label {
+  margin: 0;
+  min-width: 0;
+}
+
+html[data-ui="web"] .table-filters select,
+html[data-ui="web"] .table-filters input {
+  font-size: 12px;
+  min-height: 34px;
+  padding: 6px 9px;
+}
+
+html[data-ui="web"] .records-panel .table-scroll {
+  overflow-x: auto;
+}
+
+html[data-ui="web"] .records-panel > table,
+html[data-ui="web"] .records-panel .table-scroll > table,
+html[data-ui="web"] .records-panel .report-ledger {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+}
+
+html[data-ui="web"] .records-panel th {
+  text-align: start;
+  background: var(--table-header);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-ui="web"] .records-panel td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--table-border);
+  color: var(--fg);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+html[data-ui="web"] .records-panel tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+html[data-ui="web"] .records-panel tbody tr:hover {
+  background: var(--table-row-hover);
+}
+
+html[data-ui="web"] .records-pagination,
+html[data-ui="web"] .records-panel > .pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--fg-muted);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+html[data-ui="web"] .day-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--primary-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--border));
+  border-radius: 9px;
+  padding: 18px 20px;
+  gap: 12px;
+}
+
+html[data-ui="web"] .day-totals > div {
+  border-inline-end: 1px solid color-mix(in srgb, var(--primary) 12%, var(--border));
+  padding-inline: 12px;
+}
+
+html[data-ui="web"] .day-totals > div:last-child {
+  border: 0;
+}
+
+html[data-ui="web"] .day-totals span {
+  display: block;
+  font-size: 11px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+
+html[data-ui="web"] .day-totals strong {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-ui="web"] .hawala-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+html[data-ui="web"] .hawala-kpi-strip .stat-card {
+  min-height: 96px;
+}
+
+/* Customers: title, search, and status share one short row. */
+html[data-ui="web"] .customers-page .customers-records-head {
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 0;
+}
+
+html[data-ui="web"] .customers-page .customers-records-tools.table-toolbar {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+html[data-ui="web"] .customers-page .customers-records-tools .search-field-emphasized {
+  flex: 1 1 auto;
+  max-width: none;
+  min-width: 140px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 12px;
+}
+
+html[data-ui="web"] .customers-page .customers-records-tools .search-field input {
+  min-height: 0;
+  height: 32px;
+  padding: 0;
+}
+
+html[data-ui="web"] .customers-page .customers-status-filter {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+html[data-ui="web"] .customers-page .customers-status-filter select {
+  box-sizing: border-box;
+  width: auto;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+}
+
+html[data-ui="web"] .customers-page .customers-records-head .records-title-actions {
+  flex: 0 0 auto;
+}
+
+html[data-ui="web"] .customers-page .customers-records-head .settings-tabs {
+  padding: 2px;
+}
+
+html[data-ui="web"] .customers-page .customers-records-head .settings-tab {
+  min-height: 28px;
+  padding: 4px 12px !important;
+}
+
+html[data-ui="web"] .customers-page .customer-type-tabs {
+  align-self: center;
+}
+
+html[data-ui="web"] .customers-page .customers-records-head {
+  background: var(--primary-soft);
+}
+
+html[data-ui="web"] .customers-page thead th {
+  font-weight: 700;
+}
+
+html[data-ui="web"] .customers-page thead th.customers-th-code {
+  background: linear-gradient(rgba(100, 116, 139, 0.14), rgba(100, 116, 139, 0.14)), var(--surface);
+  color: #475569;
+}
+
+html[data-ui="web"] .customers-page thead th.customers-th-name {
+  background: linear-gradient(rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.1)), var(--surface);
+  color: #2563eb;
+}
+
+html[data-ui="web"] .customers-page thead th.customers-th-phone {
+  background: linear-gradient(rgba(13, 148, 136, 0.1), rgba(13, 148, 136, 0.1)), var(--surface);
+  color: #0d9488;
+}
+
+html[data-ui="web"] .customers-page thead th.customers-th-balances {
+  background: linear-gradient(rgba(22, 163, 74, 0.1), rgba(22, 163, 74, 0.1)), var(--surface);
+  color: #15803d;
+}
+
+html[data-ui="web"] .customers-page thead th.customers-th-status {
+  background: linear-gradient(rgba(217, 119, 6, 0.1), rgba(217, 119, 6, 0.1)), var(--surface);
+  color: #b45309;
+}
+
+html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-code { color: #cbd5e1; }
+html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-name { color: #93c5fd; }
+html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-phone { color: #5eead4; }
+html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-balances { color: #86efac; }
+html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-status { color: #fcd34d; }
+
+/* Customer detail: separate identity, labels, and money so the eye can land. */
+html[data-ui="web"] .customer-detail-head {
+  background: linear-gradient(180deg, var(--primary-soft) 0, var(--surface) 46px);
+}
+
+html[data-ui="web"] .customer-detail-name {
+  color: var(--customer-name);
+}
+
+html[data-ui="web"] .customer-detail-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+html[data-ui="web"] .customer-detail-type,
+html[data-ui="web"] .customer-detail-status {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+html[data-ui="web"] .customer-detail-type.is-temporary {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+
+html[data-ui="web"] .customer-detail-status.is-active {
+  color: var(--success-fg);
+  background: var(--success-bg);
+  border-color: var(--success-border);
+}
+
+html[data-ui="web"] .customer-detail-status.is-archived,
+html[data-ui="web"] .customer-detail-status.is-inactive {
+  color: var(--danger-fg);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+html[data-ui="web"] .customer-info-table th {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+html[data-ui="web"] .customer-info-table td {
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 650;
+}
+
+html[data-ui="web"] .customer-info-table td.phone-ltr {
+  color: var(--link);
+}
+
+html[data-ui="web"] .customer-info-table td.customer-detail-code {
+  color: var(--customer-name);
+  background: color-mix(in srgb, var(--customer-name) 9%, var(--surface));
+}
+
+html[data-ui="web"] .customer-detail-page .customer-money-cell {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+html[data-ui="web"] .customer-detail-page .customer-money-cell:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+html[data-ui="web"] .customer-detail-page .customer-money-cell.is-selected {
+  background: var(--primary-soft);
+  border-color: var(--accent-blue);
+  color: var(--primary);
+  padding: 0 8px;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger tbody tr:nth-child(even) > td:not(.money-in):not(.money-out) {
+  background: var(--surface-muted);
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-when {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger th.col-debit {
+  color: var(--money-out);
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger th.col-credit {
+  color: var(--money-in);
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger th.col-balance {
+  color: var(--customer-name);
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-debit,
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-credit {
+  background: transparent;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-amount:not(.money-in):not(.money-out) {
+  color: var(--fg-subtle);
+  font-weight: 500;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.money-out {
+  color: var(--money-out);
+  background: var(--money-out-bg);
+  font-weight: 700;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.money-in {
+  color: var(--money-in);
+  background: var(--money-in-bg);
+  font-weight: 700;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-balance {
+  font-weight: 800;
+}
+
+html[data-ui="web"] .customer-detail-page .report-ledger td.col-currency {
+  color: var(--accent-blue);
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+html[data-ui="web"] .customer-history-closing-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+}
+
+html[data-ui="web"] .customer-history-closing-chip.money-in {
+  color: var(--money-in);
+  background: var(--money-in-bg);
+  border-color: var(--money-in-line);
+}
+
+html[data-ui="web"] .customer-history-closing-chip.money-out {
+  color: var(--money-out);
+  background: var(--money-out-bg);
+  border-color: var(--money-out-line);
+}
+
+/* Same ledger colors as the customer history, on every report table. */
+html[data-ui="web"] .report-ledger tbody tr:nth-child(even) > td:not(.money-in):not(.money-out) {
+  background: var(--surface-muted);
+}
+
+html[data-ui="web"] .report-ledger th.col-debit { color: var(--money-out); }
+html[data-ui="web"] .report-ledger th.col-credit { color: var(--money-in); }
+html[data-ui="web"] .report-ledger th.col-balance { color: var(--customer-name); }
+
+html[data-ui="web"] .report-ledger td.money-out {
+  color: var(--money-out);
+  background: var(--money-out-bg);
+  font-weight: 700;
+}
+
+html[data-ui="web"] .report-ledger td.money-in {
+  color: var(--money-in);
+  background: var(--money-in-bg);
+  font-weight: 700;
+}
+
+html[data-ui="web"] .report-ledger td.col-balance { font-weight: 800; }
+
+html[data-ui="web"] .report-ledger td.col-currency {
+  color: var(--accent-blue);
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+html[data-ui="web"] .report-ledger td.col-amount:not(.money-in):not(.money-out) {
+  color: var(--fg-subtle);
+  font-weight: 500;
+}
+
+/* Detail pages (partners and the rest): short identity bar, same soft header. */
+html[data-ui="web"] .detail-toolbar {
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 0;
+  background: linear-gradient(180deg, var(--primary-soft) 0, var(--surface) 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+html[data-ui="web"] .detail-toolbar h1 {
+  font-size: 1.05rem;
+  color: var(--customer-name);
+}
+
+html[data-ui="web"] .workspace-page .section-card {
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+html[data-ui="web"] .workspace-page .section-card h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+@media (max-width: 900px) {
+  html[data-ui="web"] .day-totals {
+    grid-template-columns: 1fr;
+  }
+  html[data-ui="web"] .day-totals > div {
+    border-inline-end: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--primary) 12%, var(--border));
+    padding: 10px 0;
+  }
+  html[data-ui="web"] .day-totals > div:last-child {
+    border: 0;
+  }
+  html[data-ui="web"] .hawala-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

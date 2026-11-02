@@ -42,6 +42,7 @@ import {
   type OpeningLine,
 } from "@desktop/ui/opening-kata-fields";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
+import { CustomerPhotoField } from "@desktop/components/customer-photo-field";
 
 function mapOpeningKata(lines: OpeningLine[]) {
   return lines
@@ -74,31 +75,46 @@ function mapApiOpeningToLine(
 
 type CustomerFormFieldsProps = {
   fullName: string;
+  fatherName: string;
   phone: string;
+  address: string;
   nationalId: string;
   notes: string;
   customerType: "PERMANENT" | "TEMPORARY";
+  photo: string | null;
   disabled?: boolean;
   nameAutoFocus?: boolean;
   nameFocusKey?: number;
   showNotes?: boolean;
   onChange: (
-    field: "fullName" | "phone" | "nationalId" | "notes" | "customerType",
+    field:
+      | "fullName"
+      | "fatherName"
+      | "phone"
+      | "address"
+      | "nationalId"
+      | "notes"
+      | "customerType",
     value: string,
   ) => void;
+  onPhotoChange: (photo: string | null) => void;
 };
 
 function CustomerFormFields({
   fullName,
+  fatherName,
   phone,
+  address,
   nationalId,
   notes,
   customerType,
+  photo,
   disabled,
   nameAutoFocus,
   nameFocusKey = 0,
   showNotes = true,
   onChange,
+  onPhotoChange,
 }: CustomerFormFieldsProps) {
   const t = useT();
   const nameRef = useRef<HTMLInputElement>(null);
@@ -123,6 +139,14 @@ function CustomerFormFields({
         />
       </label>
       <label>
+        {t.customers.fatherName}
+        <input
+          value={fatherName}
+          disabled={disabled}
+          onChange={(e) => onChange("fatherName", e.target.value)}
+        />
+      </label>
+      <label>
         {t.common.phone}
         <input
           className="ltr-text phone-ltr"
@@ -132,6 +156,14 @@ function CustomerFormFields({
           value={phone}
           disabled={disabled}
           onChange={(e) => onChange("phone", e.target.value)}
+        />
+      </label>
+      <label className="customer-form-span">
+        {t.common.address}
+        <input
+          value={address}
+          disabled={disabled}
+          onChange={(e) => onChange("address", e.target.value)}
         />
       </label>
       <label>
@@ -164,6 +196,7 @@ function CustomerFormFields({
           />
         </label>
       ) : null}
+      <CustomerPhotoField value={photo} disabled={disabled} onChange={onPhotoChange} />
     </div>
   );
 }
@@ -229,9 +262,12 @@ export function CustomerCreateForm({
   const t = useT();
   const [editing, setEditing] = useState<CustomerDetail | null>(null);
   const [fullName, setFullName] = useState("");
+  const [fatherName, setFatherName] = useState("");
   const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [notes, setNotes] = useState("");
+  const [photo, setPhoto] = useState<string | null>(null);
   const [customerType, setCustomerType] = useState<"PERMANENT" | "TEMPORARY">(
     "PERMANENT",
   );
@@ -255,9 +291,12 @@ export function CustomerCreateForm({
   function resetBlank() {
     setEditing(null);
     setFullName("");
+    setFatherName("");
     setPhone("");
+    setAddress("");
     setNationalId("");
     setNotes("");
+    setPhoto(null);
     setCustomerType("PERMANENT");
     setOpeningLines([emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription)]);
     setError(null);
@@ -270,9 +309,12 @@ export function CustomerCreateForm({
   function applyCustomer(customer: CustomerDetail) {
     setEditing(customer);
     setFullName(customer.fullName);
+    setFatherName(customer.fatherName ?? "");
     setPhone(customer.phone ?? "");
+    setAddress(customer.address ?? "");
     setNationalId(customer.nationalId ?? "");
     setNotes(customer.notes ?? "");
+    setPhoto(customer.photo ?? null);
     setCustomerType(
       customer.customerType?.toUpperCase() === "TEMPORARY"
         ? "TEMPORARY"
@@ -294,7 +336,14 @@ export function CustomerCreateForm({
   }
 
   function onChange(
-    field: "fullName" | "phone" | "nationalId" | "notes" | "customerType",
+    field:
+      | "fullName"
+      | "fatherName"
+      | "phone"
+      | "address"
+      | "nationalId"
+      | "notes"
+      | "customerType",
     value: string,
   ) {
     if (field === "customerType") {
@@ -303,7 +352,9 @@ export function CustomerCreateForm({
     }
     ({
       fullName: setFullName,
+      fatherName: setFatherName,
       phone: setPhone,
+      address: setAddress,
       nationalId: setNationalId,
       notes: setNotes,
     })[field](value);
@@ -328,14 +379,15 @@ export function CustomerCreateForm({
         const updated = await updateCustomer({
           id: editing.id,
           fullName: fullName.trim(),
-          fatherName: editing.fatherName ?? null,
+          fatherName: fatherName.trim() || null,
           phone: phoneValue,
-          address: null,
+          address: address.trim() || null,
           nationalId: nationalId.trim() || null,
           notes: notes.trim() || null,
           customerType,
           actorUserId: session.userId,
           openingKata,
+          photo: photo ?? "",
         });
         setEditing(updated);
         onSaved?.(updated);
@@ -344,14 +396,15 @@ export function CustomerCreateForm({
       }
       const created = await createCustomer({
         fullName: fullName.trim(),
-        fatherName: null,
+        fatherName: fatherName.trim() || null,
         phone: phoneValue,
-        address: null,
+        address: address.trim() || null,
         nationalId: nationalId.trim() || null,
         notes: notes.trim() || null,
         customerType,
         openingKata: openingKata.length ? openingKata : null,
         actorUserId: session.userId,
+        photo,
       });
       onCreated(created);
       return created;
@@ -448,15 +501,19 @@ export function CustomerCreateForm({
         ) : null}
         <CustomerFormFields
           fullName={fullName}
+          fatherName={fatherName}
           phone={phone}
+          address={address}
           nationalId={nationalId}
           notes={notes}
           customerType={customerType}
+          photo={photo}
           disabled={formLocked}
           nameAutoFocus={!editing && !awaitingEnroll}
           nameFocusKey={nameFocusKey}
           showNotes={false}
           onChange={onChange}
+          onPhotoChange={setPhoto}
         />
         <OpeningKataFields
           currencies={currencies}
@@ -782,9 +839,12 @@ export function CustomerEditForm({
     [customer.openingKata, t.openingKata.defaultDescription],
   );
   const [fullName, setFullName] = useState(customer.fullName);
+  const [fatherName, setFatherName] = useState(customer.fatherName ?? "");
   const [phone, setPhone] = useState(customer.phone ?? "");
+  const [address, setAddress] = useState(customer.address ?? "");
   const [nationalId, setNationalId] = useState(customer.nationalId ?? "");
   const [notes, setNotes] = useState(customer.notes ?? "");
+  const [photo, setPhoto] = useState<string | null>(customer.photo ?? null);
   const [customerType, setCustomerType] = useState<"PERMANENT" | "TEMPORARY">(
     customer.customerType?.toUpperCase() === "TEMPORARY" ? "TEMPORARY" : "PERMANENT",
   );
@@ -803,9 +863,12 @@ export function CustomerEditForm({
 
   useEffect(() => {
     setFullName(customer.fullName);
+    setFatherName(customer.fatherName ?? "");
     setPhone(customer.phone ?? "");
+    setAddress(customer.address ?? "");
     setNationalId(customer.nationalId ?? "");
     setNotes(customer.notes ?? "");
+    setPhoto(customer.photo ?? null);
     setCustomerType(
       customer.customerType?.toUpperCase() === "TEMPORARY"
         ? "TEMPORARY"
@@ -825,7 +888,14 @@ export function CustomerEditForm({
   }, [customer, defaultCcy, setOpeningLines, t.openingKata.defaultDescription]);
 
   function onChange(
-    field: "fullName" | "phone" | "nationalId" | "notes" | "customerType",
+    field:
+      | "fullName"
+      | "fatherName"
+      | "phone"
+      | "address"
+      | "nationalId"
+      | "notes"
+      | "customerType",
     value: string,
   ) {
     if (field === "customerType") {
@@ -835,6 +905,8 @@ export function CustomerEditForm({
     ({
       fullName: setFullName,
       phone: setPhone,
+      fatherName: setFatherName,
+      address: setAddress,
       nationalId: setNationalId,
       notes: setNotes,
     })[field](value);
@@ -854,15 +926,15 @@ export function CustomerEditForm({
       const updated = await updateCustomer({
         id: customer.id,
         fullName: fullName.trim(),
-        // Keep existing father name if any — field removed from the form UI.
-        fatherName: customer.fatherName ?? null,
+        fatherName: fatherName.trim() || null,
         phone: phone.trim(),
-        address: null,
+        address: address.trim() || null,
         nationalId: nationalId.trim() || null,
         notes: notes.trim() || null,
         customerType,
         actorUserId: session.userId,
         openingKata: mapOpeningKata(openingLines),
+        photo: photo ?? "",
       });
       onSaved(updated);
     } catch (err: unknown) {
@@ -883,12 +955,16 @@ export function CustomerEditForm({
         ) : null}
         <CustomerFormFields
           fullName={fullName}
+          fatherName={fatherName}
           phone={phone}
+          address={address}
           nationalId={nationalId}
           notes={notes}
           customerType={customerType}
+          photo={photo}
           disabled={customer.isArchived || enrollBusy || busy}
           onChange={onChange}
+          onPhotoChange={setPhoto}
         />
         {!customer.isArchived ? (
           <OpeningKataFields

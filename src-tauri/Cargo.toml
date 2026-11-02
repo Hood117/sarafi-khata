@@ -19,9 +19,10 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
-# SQLite via vendored static lib (src-tauri/vendor/sqlite) — see .cargo/config.toml.
-# Avoids compiling sqlite3.c inside cargo on Windows (MSVC build-script exit 259).
-rusqlite = { version = "0.32", features = ["chrono"] }
+# SQLite: `bundled` for macOS/Linux. On Windows, run-tauri-msvc.bat sets
+# SQLITE3_* to link src-tauri/vendor/sqlite/sqlite3.lib (avoids MSVC
+# build-script exit 259 when compiling sqlite3.c).
+rusqlite = { version = "0.32", features = ["chrono", "bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }

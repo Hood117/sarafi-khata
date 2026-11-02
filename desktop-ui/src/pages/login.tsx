@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -13,70 +12,10 @@ import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
+import { ArrowLeftRight } from "lucide-react";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
-const FINANCE_SYMBOLS = [
-  "$",
-  "€",
-  "£",
-  "¥",
-  "₣",
-  "₨",
-  "₦",
-  "₹",
-  "₩",
-  "฿",
-  "+",
-  "−",
-  "؋",
-] as const;
-
-type ScatterGlyph = {
-  id: number;
-  char: string;
-  top: number;
-  left: number;
-  size: number;
-  opacity: number;
-  rotate: number;
-};
-
 type LoginMode = "password" | "fingerprint";
-
-/** Deterministic PRNG so glyphs don't jump on re-render. */
-function mulberry32(seed: number) {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function buildScatterGlyphs(count: number, seed = 0x5a2af): ScatterGlyph[] {
-  const rand = mulberry32(seed);
-  const glyphs: ScatterGlyph[] = [];
-  for (let i = 0; i < count; i++) {
-    const sizeRoll = rand();
-    const size =
-      sizeRoll < 0.45
-        ? 18 + rand() * 18
-        : sizeRoll < 0.8
-          ? 36 + rand() * 28
-          : 64 + rand() * 48;
-    glyphs.push({
-      id: i,
-      char: FINANCE_SYMBOLS[Math.floor(rand() * FINANCE_SYMBOLS.length)]!,
-      top: rand() * 100,
-      left: rand() * 100,
-      size,
-      opacity: 0.03 + rand() * 0.05,
-      rotate: -35 + rand() * 70,
-    });
-  }
-  return glyphs;
-}
 
 export function LoginPage() {
   const { session, bootstrapping, login, loginWithFingerprint } = useAuth();
@@ -88,8 +27,9 @@ export function LoginPage() {
   };
   const { locale, setLocale } = useLocale();
   const [mode, setMode] = useState<LoginMode>("password");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  /** Desk test / first-run System Administrator credentials. */
+  const [username, setUsername] = useState("Saraf@@");
+  const [password, setPassword] = useState("Saraf@@!!77");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -97,8 +37,6 @@ export function LoginPage() {
   const usernameRef = useRef<HTMLInputElement | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   useAuthShellMotion(shellRef, bootstrapping || Boolean(session));
-
-  const scatter = useMemo(() => buildScatterGlyphs(52), []);
 
   function focusPassword() {
     const el = passwordRef.current;
@@ -124,26 +62,11 @@ export function LoginPage() {
 
   if (bootstrapping) {
     return (
-      <div ref={shellRef} className="login-shell">
-        <div className="login-scatter" aria-hidden="true">
-          {scatter.map((g) => (
-            <span
-              key={g.id}
-              className="login-scatter-glyph"
-              data-rotate={g.rotate}
-              style={{
-                top: `${g.top}%`,
-                left: `${g.left}%`,
-                fontSize: `${g.size}px`,
-                opacity: g.opacity,
-                transform: `translate(-50%, -50%) rotate(${g.rotate}deg)`,
-              }}
-            >
-              {g.char}
-            </span>
-          ))}
-        </div>
-        <p className="muted">…</p>
+      <div ref={shellRef} className="auth-page login-shell">
+        <aside className="auth-aside" />
+        <section className="auth-main">
+          <p className="muted">…</p>
+        </section>
       </div>
     );
   }
@@ -191,43 +114,27 @@ export function LoginPage() {
   }
 
   return (
-    <div ref={shellRef} className="login-shell">
-      <div className="login-scatter" aria-hidden="true">
-        {scatter.map((g) => (
-          <span
-            key={g.id}
-            className="login-scatter-glyph"
-            data-rotate={g.rotate}
-            style={{
-              top: `${g.top}%`,
-              left: `${g.left}%`,
-              fontSize: `${g.size}px`,
-              opacity: g.opacity,
-              transform: `translate(-50%, -50%) rotate(${g.rotate}deg)`,
-            }}
-          >
-            {g.char}
+    <div ref={shellRef} className="auth-page login-shell">
+      <aside className="auth-aside">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden>
+            <ArrowLeftRight className="nav-icon" size={23} />
           </span>
-        ))}
-      </div>
-      <div className="card login-card stack">
-        <div className="brand-block">
-          <div className="brand-mark" aria-hidden>
-            <span className="brand-mark-inner">S</span>
-          </div>
-          <div>
-            <h1 className="login-brand">{t.brand.name}</h1>
-            <p className="muted" style={{ margin: 0 }}>
-              {t.login.subtitle}
-            </p>
-          </div>
+          <span>
+            {t.brand.name}
+            <span className="brand-sub">{t.login.localOnly}</span>
+          </span>
         </div>
-        {info ? (
-          <p className="muted" style={{ margin: 0 }}>
-            {info.backend} · v{info.version}
-          </p>
-        ) : null}
-        <label>
+        <div>
+          <span className="eyebrow">{t.login.localOnly}</span>
+          <h2>{t.brand.tagline}</h2>
+          <p>{t.login.subtitle}</p>
+        </div>
+        <small>{info ? `${info.backend} · v${info.version}` : t.brand.name}</small>
+      </aside>
+      <section className="auth-main">
+      <div className="auth-form login-card stack">
+        <label className="auth-lang">
           {t.settings.language}
           <select
             value={locale}
@@ -240,6 +147,9 @@ export function LoginPage() {
             ))}
           </select>
         </label>
+        <span className="eyebrow">{t.login.localOnly}</span>
+        <h1>{t.login.signIn}</h1>
+        <p>{t.login.subtitle}</p>
 
         <div className="login-mode-tabs" role="tablist" aria-label={t.login.signIn}>
           <button
@@ -321,6 +231,7 @@ export function LoginPage() {
           </div>
         )}
       </div>
+      </section>
     </div>
   );
 }
