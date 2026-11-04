@@ -35,6 +35,14 @@ html[data-ui="web"] .app-main.stack.main-content {
   gap: 14px;
 }
 
+html[data-ui="web"] .app-shell[data-screen="daybook"] .app-main.stack.main-content,
+html[data-ui="web"] .app-shell[data-screen="customers"] .app-main.stack.main-content,
+html[data-ui="web"] .app-shell[data-screen="debtorsCreditors"] .app-main.stack.main-content {
+  padding: 10px 16px 0;
+  gap: 10px;
+  overflow: hidden;
+}
+
 html[data-ui="web"] .workspace-page > h1,
 html[data-ui="web"] .workspace-page .section-title {
   font-family: var(--font-ui);

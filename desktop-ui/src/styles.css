@@ -583,7 +583,7 @@ a {
 .app-shell[data-screen="customers"] .app-main {
   flex: 1 1 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding-bottom: 0;
@@ -597,12 +597,14 @@ a {
 .app-shell[data-screen="customers"] .app-main > .stack {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-shell[data-screen="customers"] .app-main > .customer-detail-page {
-  /* Page scrolls with app-main; do not clip history / balances. */
-  overflow: visible;
+  /* Fill under chrome; history table scrolls inside. */
+  overflow: hidden;
   height: auto;
 }
 
@@ -791,18 +793,20 @@ a {
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-bottom: 1rem;
+  padding-bottom: 0;
   box-sizing: border-box;
 }
 
 .app-shell[data-screen="daybook"] .app-main > .daybook-page {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
   height: auto;
-  overflow: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-shell[data-screen="reports"] {
@@ -849,6 +853,48 @@ a {
   --brand-soft: #dce6ec;
   --accent: #9c4a1a;
   --accent-soft: rgba(156, 74, 26, 0.14);
+}
+
+.app-shell[data-screen="debtorsCreditors"] {
+  --brand: #5c4a7a;
+  --brand-deep: #403356;
+  --brand-soft: #e8e2f0;
+  --accent: #0f6b4c;
+  --accent-soft: rgba(15, 107, 76, 0.12);
+  overflow: hidden;
+}
+
+.app-shell[data-screen="debtorsCreditors"] > .app-topbar {
+  flex: 0 0 auto;
+}
+
+.app-shell[data-screen="debtorsCreditors"] > .app-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell[data-screen="debtorsCreditors"] .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  box-sizing: border-box;
+}
+
+.app-shell[data-screen="debtorsCreditors"] .app-main > .dc-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-shell[data-screen="rates"] {
@@ -4306,6 +4352,8 @@ tr.hawala-row-pending td {
     bottom: auto !important;
     z-index: auto !important;
     box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   .table-scroll,
@@ -6670,6 +6718,53 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 .app-main > .customer-detail-page.stack {
   position: relative;
   gap: 0.4rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-detail-page > .customer-detail-back,
+.customer-detail-page > .customer-detail-head {
+  flex: 0 0 auto;
+}
+
+.customer-detail-page > .customer-detail-history {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.customers-page,
+.dc-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.customers-page > .panel.records-panel,
+.dc-page > .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.customers-page .records-chrome,
+.customers-page .records-pagination,
+.dc-page .records-chrome,
+.dc-page .records-pagination {
+  flex: 0 0 auto;
+}
+
+.customers-page .table-scroll,
+.dc-page .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .detail-toolbar {
@@ -7321,7 +7416,7 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 .customer-history-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(58vh, 36rem);
+  max-height: none;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -8483,17 +8578,52 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
   vertical-align: top;
   font-weight: 700;
   border-top: 2px solid color-mix(in srgb, var(--brand) 40%, var(--line));
-  background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
-  box-shadow: 0 -1px 0 color-mix(in srgb, var(--brand) 40%, var(--line));
+  /* Frosted bar: blur rows scrolling underneath Day Total */
+  background: color-mix(in srgb, var(--brand-soft) 58%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  box-shadow:
+    0 -1px 0 color-mix(in srgb, var(--brand) 40%, var(--line)),
+    0 -8px 16px -10px color-mix(in srgb, var(--ink, #122018) 18%, transparent);
   padding: 0.55rem 0.5rem;
 }
 
 .daybook-journal-scroll tfoot td.col-debit {
-  background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface));
+  background: color-mix(in srgb, var(--money-in-bg) 62%, transparent);
 }
 
 .daybook-journal-scroll tfoot td.col-credit {
-  background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface));
+  background: color-mix(in srgb, var(--money-out-bg) 62%, transparent);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .daybook-journal-scroll tfoot td {
+    background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface));
+  }
+
+  .daybook-journal-scroll tfoot td.col-debit {
+    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface));
+  }
+
+  .daybook-journal-scroll tfoot td.col-credit {
+    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .daybook-journal-scroll tfoot td {
+    background: color-mix(in srgb, var(--brand-soft) 72%, var(--surface-solid, var(--surface)));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .daybook-journal-scroll tfoot td.col-debit {
+    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface-solid, var(--surface)));
+  }
+
+  .daybook-journal-scroll tfoot td.col-credit {
+    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface-solid, var(--surface)));
+  }
 }
 
 .daybook-journal-totals-label {
@@ -8542,6 +8672,20 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 .daybook-journal-section {
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.daybook-page > .daybook-journal-section {
+  flex: 1 1 auto;
+}
+
+.daybook-journal-section > .records-chrome,
+.daybook-journal-section > .records-pagination {
+  flex: 0 0 auto;
 }
 
 .daybook-journal-nav {
@@ -8576,9 +8720,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 
 .daybook-journal-section .table-scroll,
 .daybook-journal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   max-width: 100%;
-  max-height: min(58vh, 36rem);
+  max-height: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }

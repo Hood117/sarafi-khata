@@ -6,9 +6,49 @@ html[data-ui="web"] .workspace-page {
 }
 
 html[data-ui="web"] .customers-page.workspace-page,
-html[data-ui="web"] .customer-detail-page.workspace-page {
+html[data-ui="web"] .customer-detail-page.workspace-page,
+html[data-ui="web"] .dc-page.workspace-page {
   flex: 1 1 auto;
   min-height: 0;
+  gap: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-ui="web"] .customers-page .panel.records-panel,
+html[data-ui="web"] .dc-page .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-ui="web"] .customers-page .table-scroll,
+html[data-ui="web"] .customers-page .records-panel .table-scroll,
+html[data-ui="web"] .dc-page .table-scroll,
+html[data-ui="web"] .dc-page .records-panel .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+html[data-ui="web"] .customers-page .records-pagination,
+html[data-ui="web"] .dc-page .records-pagination {
+  padding-block: 8px;
+}
+
+html[data-ui="web"] .customer-detail-page .customer-detail-history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html[data-ui="web"] .customer-detail-page .customer-history-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 html[data-ui="web"] .panel.records-panel {
@@ -955,19 +995,38 @@ html[data-ui="web"] .daybook-records-chrome .records-title-actions button {
   font-size: 12px;
 }
 
+html[data-ui="web"] .daybook-page.workspace-page {
+  gap: 8px;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
 html[data-ui="web"] .daybook-page .panel.records-panel {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-ui="web"] .daybook-page .daybook-journal-scroll.table-scroll,
+html[data-ui="web"] .daybook-page .records-panel .daybook-journal-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+html[data-ui="web"] .daybook-page .records-pagination {
+  padding-block: 8px;
 }
 
 html[data-ui="web"] .hawala-desk-page .panel.records-panel,
 html[data-ui="web"] .commission-tracking-page .panel.records-panel,
 html[data-ui="web"] .expenses-page .panel.records-panel,
 html[data-ui="web"] .partner-page .panel.records-panel,
-html[data-ui="web"] .dc-page .panel.records-panel,
 html[data-ui="web"] .transactions-page .panel.records-panel,
 html[data-ui="web"] .page-account-orders .panel.records-panel {
   max-width: 100%;
@@ -981,10 +1040,21 @@ html[data-ui="web"] .hawala-desk-page .records-panel .table-scroll,
 html[data-ui="web"] .commission-tracking-page .records-panel .table-scroll,
 html[data-ui="web"] .expenses-page .records-panel .table-scroll,
 html[data-ui="web"] .partner-page .records-panel .table-scroll,
-html[data-ui="web"] .dc-page .records-panel .table-scroll,
 html[data-ui="web"] .transactions-page .records-panel .table-scroll,
 html[data-ui="web"] .page-account-orders .table-scroll {
   max-height: min(58vh, 36rem);
+  border: 0;
+  border-radius: 0;
+}
+
+html[data-ui="web"] .dc-page .panel.records-panel {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+html[data-ui="web"] .dc-page .records-panel .table-scroll {
   border: 0;
   border-radius: 0;
 }

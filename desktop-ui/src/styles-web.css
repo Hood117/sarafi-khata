@@ -470,7 +470,16 @@ html[data-theme="dark"] .app-header-bar .quick-action-chip.is-hot{
 }
 html .app-header-bar .app-header-tools{display:none}
 html .app-main.stack.main-content{min-width:0;flex:1 1 auto;overflow:auto;padding:10px 16px 18px;gap:10px;max-width:1600px;width:100%;margin:0 auto;box-sizing:border-box;-webkit-overflow-scrolling:touch}
-html .app-shell[data-screen="customers"] .app-main.stack.main-content:has(.customer-detail-page){overflow:auto;padding-top:4px;padding-bottom:18px;min-height:0}
+html .app-shell[data-screen="customers"] .app-main.stack.main-content{
+  max-width:none;width:100%;margin:0;padding:10px 16px 0;overflow:hidden;
+}
+html .app-shell[data-screen="customers"] .app-main.stack.main-content:has(.customer-detail-page){
+  overflow:hidden;padding-top:4px;padding-bottom:0;min-height:0;
+}
+html .app-shell[data-screen="customers"] .app-main > .customers-page,
+html .app-shell[data-screen="customers"] .app-main > .customer-detail-page{
+  flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;
+}
 html .customer-history-scroll{background:var(--surface)}
 html .customer-history-scroll thead th{
   position:sticky;top:0;z-index:4;
@@ -490,9 +499,16 @@ html .app-shell[data-screen="partners"] .app-main.stack.main-content,
 html .app-shell[data-screen="capital"] .app-main.stack.main-content,
 html .app-shell[data-screen="trading"] .app-main.stack.main-content,
 html .app-shell[data-screen="accountOrders"] .app-main.stack.main-content,
-html .app-shell[data-screen="debtorsCreditors"] .app-main.stack.main-content,
 html .app-shell[data-screen="transactions"] .app-main.stack.main-content{
   max-width:none;width:100%;margin:0;padding:10px 16px 18px;overflow:auto;
+}
+html .app-shell[data-screen="daybook"] .app-main.stack.main-content,
+html .app-shell[data-screen="debtorsCreditors"] .app-main.stack.main-content{
+  max-width:none;width:100%;margin:0;padding:10px 16px 0;overflow:hidden;
+}
+html .app-shell[data-screen="daybook"] .app-main > .daybook-page,
+html .app-shell[data-screen="debtorsCreditors"] .app-main > .dc-page{
+  flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;
 }
 html .app-shell[data-screen="hawala"] .app-main > .hawala-desk-page,
 html .app-shell[data-screen="hawala"] .app-main > .commission-tracking-page,
@@ -500,7 +516,6 @@ html .app-shell[data-screen="expenses"] .app-main > .expenses-page,
 html .app-shell[data-screen="partners"] .app-main > .partner-page,
 html .app-shell[data-screen="capital"] .app-main > .capital-page,
 html .app-shell[data-screen="accountOrders"] .app-main > .page-account-orders,
-html .app-shell[data-screen="debtorsCreditors"] .app-main > .dc-page,
 html .app-shell[data-screen="transactions"] .app-main > .transactions-page{
   overflow:visible;height:auto;flex:0 0 auto;
 }
