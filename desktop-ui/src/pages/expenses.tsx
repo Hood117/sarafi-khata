@@ -186,94 +186,118 @@ export function ExpensesPage() {
         <PageLoadError message={error} onRetry={() => setReloadKey((k) => k + 1)} />
       ) : null}
 
-      <div className="section-card stack">
-        <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}>
-          <label className="stack" style={{ gap: "0.25rem" }}>
-            <span className="muted">{t.expenses.periodFrom}</span>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </label>
-          <label className="stack" style={{ gap: "0.25rem" }}>
-            <span className="muted">{t.expenses.periodTo}</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </label>
-          <label className="stack" style={{ gap: "0.25rem", minWidth: "10rem" }}>
-            <span className="muted">{t.expenses.expenseType}</span>
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-              <option value="">{t.expenses.allExpenseTypes}</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="stack" style={{ gap: "0.25rem", minWidth: "12rem", flex: "1 1 12rem" }}>
-            <span className="muted">{t.common.search}</span>
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t.expenses.searchPlaceholder}
-            />
-          </label>
-          <div style={{ minWidth: "12rem" }}>
-            <CurrencyFilter
-              currencies={currencies}
-              value={filterCurrency}
-              onChange={setFilterCurrency}
-              allLabel={t.desk.allCurrenciesFilter}
-              label={t.expenses.filterCurrency}
-            />
+      {busy && !summary ? <p className="muted">{t.common.loading}</p> : null}
+
+      {summary ? (
+        <div className="stat-grid hawala-kpi-strip">
+          <Stat label={t.expenses.totalExpenses} value={summary.total} />
+          <Stat label={t.dailyBook.rent} value={summary.rent} />
+          <Stat label={t.desk.salary} value={summary.salary} />
+          <Stat label={t.dailyBook.utilities} value={summary.utilities} />
+          <Stat label={t.dailyBook.transport} value={summary.transport} />
+          <Stat label={t.dailyBook.office} value={summary.office} />
+          <Stat label={t.desk.other} value={summary.other} />
+        </div>
+      ) : null}
+
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.nav.expenses}</h2>
+              <span className="count-badge">{total}</span>
+            </div>
+            <div className="records-title-actions">
+              <button
+                type="button"
+                className="btn primary"
+                data-desk-action="new"
+                data-desk-primary
+                onClick={openAddModal}
+              >
+                {t.expenses.addExpense}
+              </button>
+            </div>
+          </div>
+          <div className="table-toolbar">
+            <label className="search-field search-field-emphasized">
+              <input
+                type="search"
+                className="desk-search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t.expenses.searchPlaceholder}
+                aria-label={t.common.search}
+              />
+            </label>
+            <div className="table-filters">
+              <label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  aria-label={t.expenses.periodFrom}
+                  title={t.expenses.periodFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </label>
+              <label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  aria-label={t.expenses.periodTo}
+                  title={t.expenses.periodTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </label>
+              <label>
+                <select
+                  value={filterCategory}
+                  aria-label={t.expenses.expenseType}
+                  title={t.expenses.expenseType}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                >
+                  <option value="">{t.expenses.allExpenseTypes}</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <CurrencyFilter
+                currencies={currencies}
+                value={filterCurrency}
+                onChange={setFilterCurrency}
+                allLabel={t.desk.allCurrenciesFilter}
+                label={t.expenses.filterCurrency}
+                hideLabel
+              />
+            </div>
           </div>
         </div>
-
-        {busy && !summary ? <p className="muted">{t.common.loading}</p> : null}
-
-        {summary ? (
-          <div className="stat-grid">
-            <Stat label={t.expenses.totalExpenses} value={summary.total} />
-            <Stat label={t.dailyBook.rent} value={summary.rent} />
-            <Stat label={t.desk.salary} value={summary.salary} />
-            <Stat label={t.dailyBook.utilities} value={summary.utilities} />
-            <Stat label={t.dailyBook.transport} value={summary.transport} />
-            <Stat label={t.dailyBook.office} value={summary.office} />
-            <Stat label={t.desk.other} value={summary.other} />
-          </div>
-        ) : null}
-      </div>
-
-      <div className="section-card stack">
-        <div className="row expenses-list-head">
-          <h2 style={{ margin: 0 }}>{t.nav.expenses}</h2>
-          <button
-            type="button"
-            className="btn primary"
-            data-desk-action="new"
-            data-desk-primary
-            onClick={openAddModal}
-          >
-            {t.expenses.addExpense}
-          </button>
-        </div>
-        {items.length === 0 && !busy ? (
-          <p className="muted">{t.expenses.noExpenses}</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t.common.date}</th>
+                <th>{t.expenses.category}</th>
+                <th>{t.common.amount}</th>
+                <th>{t.common.currency}</th>
+                <th>{t.common.reference}</th>
+                <th>{t.expenses.cashWallet}</th>
+                <th>{t.common.user}</th>
+                <th>{t.common.notes}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 && !busy ? (
                 <tr>
-                  <th>{t.common.date}</th>
-                  <th>{t.expenses.category}</th>
-                  <th>{t.common.amount}</th>
-                  <th>{t.common.currency}</th>
-                  <th>{t.common.reference}</th>
-                  <th>{t.expenses.cashWallet}</th>
-                  <th>{t.common.user}</th>
-                  <th>{t.common.notes}</th>
+                  <td colSpan={8} className="muted">
+                    {t.expenses.noExpenses}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {items.map((row) => (
+              ) : (
+                items.map((row) => (
                   <tr
                     key={row.transactionId}
                     {...clickableExpenseRowProps(() => setDetail(row))}
@@ -298,19 +322,21 @@ export function ExpensesPage() {
                     <td>{row.createdByName ?? "—"}</td>
                     <td>{row.notes ?? "—"}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          busy={busy}
-          onPageChange={setPage}
-        />
-      </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="records-pagination">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            busy={busy}
+            onPageChange={setPage}
+          />
+        </div>
+      </section>
 
       {showAdd ? (
         <Modal title={t.expenses.addExpense} onClose={closeAddModal}>

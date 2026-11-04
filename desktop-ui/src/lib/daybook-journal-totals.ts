@@ -37,6 +37,9 @@ function formatAmountDisplay(raw: string): string {
 /**
  * Debit/credit sums of every line in `lines`; closing is the last running cash
  * per currency (never summed across currencies).
+ *
+ * `lines` must be chronological ASC (oldest → newest). Newest-first feeds will
+ * report a stale closing — reverse them first (customer ledger pages do this).
  */
 export function journalFilterTotals(lines: DaybookTotalLine[]): JournalFilterTotals {
   const debit = new Map<string, number>();
@@ -51,7 +54,8 @@ export function journalFilterTotals(lines: DaybookTotalLine[]): JournalFilterTot
     const c = parseMoney(line.credit ?? "");
     if (d) debit.set(code, (debit.get(code) ?? 0) + d);
     if (c) credit.set(code, (credit.get(code) ?? 0) + c);
-    if (line.balanceAfter) closing.set(code, line.balanceAfter);
+    const after = (line.balanceAfter ?? "").trim();
+    if (after) closing.set(code, after);
   }
   const fromSums = (map: Map<string, number>) =>
     order

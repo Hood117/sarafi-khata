@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus, Save, X } from "lucide-react";
 
 import {
   createAccountOrder,
@@ -187,86 +188,6 @@ export function AccountOrdersPage() {
 
   return (
     <div className="stack page-account-orders workspace-page">
-      <header className="page-header row wrap gap">
-        <div className="stack tight">
-          <h1>{t.accountOrders.title}</h1>
-        </div>
-        <div className="row wrap gap">
-          {canWrite ? (
-            <button type="button" className="btn primary" onClick={openCreate}>
-              {t.accountOrders.newOrder}
-            </button>
-          ) : null}
-        </div>
-      </header>
-
-      <div className="filters row wrap gap">
-        <label className="field grow">
-          <span>{t.common.search}</span>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t.accountOrders.searchPlaceholder}
-          />
-        </label>
-        <label className="field">
-          <span>{t.common.status}</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="ALL">{t.common.all}</option>
-            <option value="OPEN">{t.accountOrders.statusOpen}</option>
-            <option value="COMPLETED">{t.accountOrders.statusCompleted}</option>
-            <option value="CANCELLED">{t.accountOrders.statusCancelled}</option>
-          </select>
-        </label>
-        <CurrencyFilter
-          currencies={currencies}
-          value={currencyFilter}
-          onChange={setCurrencyFilter}
-        />
-        <label className="field">
-          <span>{t.common.from}</span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setPeriodPreset("custom");
-              setDateFrom(e.target.value);
-            }}
-          />
-        </label>
-        <label className="field">
-          <span>{t.common.to}</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setPeriodPreset("custom");
-              setDateTo(e.target.value);
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => {
-            const range = datePeriodRange("month", todayIso());
-            setPeriodPreset("month");
-            setDateFrom(range.from);
-            setDateTo(range.to);
-            setStatusFilter("ALL");
-            setCurrencyFilter("");
-            setSearchInput("");
-            setSearch("");
-            setPage(1);
-          }}
-        >
-          {t.accountOrders.clearFilters}
-        </button>
-      </div>
-
       {error ? (
         <PageLoadError
           message={error}
@@ -274,79 +195,174 @@ export function AccountOrdersPage() {
         />
       ) : null}
 
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>{t.accountOrders.orderNumber}</th>
-              <th>{t.accountOrders.orderName}</th>
-              <th>{t.accountOrders.linkedCustomer}</th>
-              <th className="col-date">{t.accountOrders.orderDate}</th>
-              <th className="col-center">{t.common.currency}</th>
-              <th className="num">{t.accountOrders.originalAmount}</th>
-              <th className="num">{t.accountOrders.remainingAmount}</th>
-              <th className="num">{t.accountOrders.netBenefit}</th>
-              <th>{t.common.status}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && !busy ? (
-              <tr>
-                <td colSpan={9} className="muted">
-                  {t.accountOrders.empty}
-                </td>
-              </tr>
-            ) : null}
-            {items.map((row) => (
-              <tr
-                key={row.id}
-                className="customer-row-clickable"
-                onClick={() => navigate(`/account-orders/${row.id}`)}
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.accountOrders.title}</h2>
+              <span className="count-badge">{total}</span>
+            </div>
+            <div className="records-title-actions">
+              {canWrite ? (
+                <button type="button" className="btn primary" onClick={openCreate}>
+                  <Plus className="nav-icon" size={16} aria-hidden />
+                  <span>{t.accountOrders.newOrder}</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <div className="table-toolbar">
+            <label className="search-field search-field-emphasized">
+              <input
+                type="search"
+                className="desk-search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t.accountOrders.searchPlaceholder}
+                aria-label={t.common.search}
+              />
+            </label>
+            <div className="table-filters">
+              <label>
+                <select
+                  value={statusFilter}
+                  aria-label={t.common.status}
+                  title={t.common.status}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="ALL">{t.common.all}</option>
+                  <option value="OPEN">{t.accountOrders.statusOpen}</option>
+                  <option value="COMPLETED">{t.accountOrders.statusCompleted}</option>
+                  <option value="CANCELLED">{t.accountOrders.statusCancelled}</option>
+                </select>
+              </label>
+              <CurrencyFilter
+                currencies={currencies}
+                value={currencyFilter}
+                onChange={setCurrencyFilter}
+                hideLabel
+              />
+              <label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  aria-label={t.common.from}
+                  title={t.common.from}
+                  onChange={(e) => {
+                    setPeriodPreset("custom");
+                    setDateFrom(e.target.value);
+                  }}
+                />
+              </label>
+              <label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  aria-label={t.common.to}
+                  title={t.common.to}
+                  onChange={(e) => {
+                    setPeriodPreset("custom");
+                    setDateTo(e.target.value);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  const range = datePeriodRange("month", todayIso());
+                  setPeriodPreset("month");
+                  setDateFrom(range.from);
+                  setDateTo(range.to);
+                  setStatusFilter("ALL");
+                  setCurrencyFilter("");
+                  setSearchInput("");
+                  setSearch("");
+                  setPage(1);
+                }}
               >
-                <td dir="ltr">{row.orderNumber}</td>
-                <td>{row.name}</td>
-                <td>
-                  {row.customerName
-                    ? row.customerCode
-                      ? `${row.customerName} (${row.customerCode})`
-                      : row.customerName
-                    : t.accountOrders.noCustomer}
-                </td>
-                <td className="col-date" dir="ltr">
-                  {String(row.orderDate).slice(0, 10)}
-                </td>
-                <td className="col-center">
-                  <CurrencyCodeWithFlag code={row.currencyCode} />
-                </td>
-                <td className="num amount-emphasis" dir="ltr">
-                  {formatAmountDisplay(row.originalAmount)}
-                </td>
-                <td className="num amount-emphasis" dir="ltr">
-                  {formatAmountDisplay(row.totals.remainingAmount)}
-                </td>
-                <td className="num amount-emphasis" dir="ltr">
-                  {formatAmountDisplay(
-                    row.totals.netBenefit ?? row.totals.netProfit,
-                  )}
-                </td>
-                <td>
-                  <span className={statusBadgeClass(row.status)}>
-                    {statusLabel(t, row.status)}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                {t.accountOrders.clearFilters}
+              </button>
+            </div>
+          </div>
+        </div>
 
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={setPage}
-        busy={busy}
-      />
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>{t.accountOrders.orderNumber}</th>
+                <th>{t.accountOrders.orderName}</th>
+                <th>{t.accountOrders.linkedCustomer}</th>
+                <th className="col-date">{t.accountOrders.orderDate}</th>
+                <th className="col-center">{t.common.currency}</th>
+                <th className="num">{t.accountOrders.originalAmount}</th>
+                <th className="num">{t.accountOrders.remainingAmount}</th>
+                <th className="num">{t.accountOrders.netBenefit}</th>
+                <th>{t.common.status}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length === 0 && !busy ? (
+                <tr>
+                  <td colSpan={9} className="muted">
+                    {t.accountOrders.empty}
+                  </td>
+                </tr>
+              ) : null}
+              {items.map((row) => (
+                <tr
+                  key={row.id}
+                  className="customer-row-clickable"
+                  onClick={() => navigate(`/account-orders/${row.id}`)}
+                >
+                  <td dir="ltr">{row.orderNumber}</td>
+                  <td>{row.name}</td>
+                  <td>
+                    {row.customerName
+                      ? row.customerCode
+                        ? `${row.customerName} (${row.customerCode})`
+                        : row.customerName
+                      : t.accountOrders.noCustomer}
+                  </td>
+                  <td className="col-date" dir="ltr">
+                    {String(row.orderDate).slice(0, 10)}
+                  </td>
+                  <td className="col-center">
+                    <CurrencyCodeWithFlag code={row.currencyCode} />
+                  </td>
+                  <td className="num amount-emphasis" dir="ltr">
+                    {formatAmountDisplay(row.originalAmount)}
+                  </td>
+                  <td className="num amount-emphasis" dir="ltr">
+                    {formatAmountDisplay(row.totals.remainingAmount)}
+                  </td>
+                  <td className="num amount-emphasis" dir="ltr">
+                    {formatAmountDisplay(
+                      row.totals.netBenefit ?? row.totals.netProfit,
+                    )}
+                  </td>
+                  <td>
+                    <span className={statusBadgeClass(row.status)}>
+                      {statusLabel(t, row.status)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="records-pagination">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            busy={busy}
+          />
+        </div>
+      </section>
 
       {showCreate ? (
         <Modal
@@ -414,10 +430,12 @@ export function AccountOrdersPage() {
                 disabled={saving}
                 onClick={() => setShowCreate(false)}
               >
-                {t.common.cancel}
+                <X className="nav-icon" size={16} aria-hidden />
+                <span>{t.common.cancel}</span>
               </button>
               <button type="submit" className="btn primary" disabled={saving}>
-                {t.accountOrders.saveOrder}
+                <Save className="nav-icon" size={16} aria-hidden />
+                <span>{t.accountOrders.saveOrder}</span>
               </button>
             </div>
           </form>

@@ -2,6 +2,13 @@
 
 html[data-ui="web"] .workspace-page {
   gap: 10px;
+  min-height: 0;
+}
+
+html[data-ui="web"] .customers-page.workspace-page,
+html[data-ui="web"] .customer-detail-page.workspace-page {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 html[data-ui="web"] .panel.records-panel {
@@ -9,7 +16,7 @@ html[data-ui="web"] .panel.records-panel {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
 }
 
@@ -24,10 +31,11 @@ html[data-ui="web"] .records-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   flex-wrap: wrap;
   background: var(--primary-soft);
+  min-width: 0;
 }
 
 html[data-ui="web"] .records-title > div:first-child {
@@ -68,16 +76,19 @@ html[data-ui="web"] .records-title-actions {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 html[data-ui="web"] .table-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   flex-wrap: wrap;
   border-top: 1px solid var(--border-subtle, var(--border));
+  min-width: 0;
 }
 
 html[data-ui="web"] .search-field {
@@ -137,7 +148,27 @@ html[data-ui="web"] .table-filters input {
 }
 
 html[data-ui="web"] .records-panel .table-scroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: min(58vh, 36rem);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Headers stay put; only row data scrolls (Hawala, Commission, Expenses, …). */
+html[data-ui="web"] .records-panel .table-scroll > table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+html[data-ui="web"] .records-panel .table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: linear-gradient(
+      var(--th-tint, transparent),
+      var(--th-tint, transparent)
+    ),
+    var(--surface);
+  box-shadow: 0 1px 0 var(--border);
 }
 
 html[data-ui="web"] .records-panel > table,
@@ -150,13 +181,15 @@ html[data-ui="web"] .records-panel .report-ledger {
 
 html[data-ui="web"] .records-panel th {
   text-align: start;
-  background: var(--table-header);
-  color: var(--fg-muted);
   font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
+  /* Tone comes from shared thead rules below (Customers-style tints). */
+  background: linear-gradient(var(--th-tint, transparent), var(--th-tint, transparent)),
+    var(--surface);
+  color: var(--th-fg, var(--fg-muted));
 }
 
 html[data-ui="web"] .records-panel td {
@@ -284,13 +317,20 @@ html[data-ui="web"] .customers-page .customers-records-head .records-title-actio
   flex: 0 0 auto;
 }
 
+html[data-ui="web"] .records-title .settings-tabs,
 html[data-ui="web"] .customers-page .customers-records-head .settings-tabs {
   padding: 2px;
 }
 
+html[data-ui="web"] .records-title .settings-tab,
 html[data-ui="web"] .customers-page .customers-records-head .settings-tab {
   min-height: 28px;
   padding: 4px 12px !important;
+}
+
+html[data-ui="web"] .records-title .settings-tab .nav-link-icon {
+  width: 14px;
+  height: 14px;
 }
 
 html[data-ui="web"] .customers-page .customer-type-tabs {
@@ -305,36 +345,31 @@ html[data-ui="web"] .customers-page thead th {
   font-weight: 700;
 }
 
+/* Customers keeps its semantic mapping; tones come from shared tokens. */
 html[data-ui="web"] .customers-page thead th.customers-th-code {
-  background: linear-gradient(rgba(100, 116, 139, 0.14), rgba(100, 116, 139, 0.14)), var(--surface);
-  color: #475569;
+  --th-tint: var(--th-slate-tint);
+  --th-fg: var(--th-slate-fg);
 }
 
 html[data-ui="web"] .customers-page thead th.customers-th-name {
-  background: linear-gradient(rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.1)), var(--surface);
-  color: #2563eb;
+  --th-tint: var(--th-blue-tint);
+  --th-fg: var(--th-blue-fg);
 }
 
 html[data-ui="web"] .customers-page thead th.customers-th-phone {
-  background: linear-gradient(rgba(13, 148, 136, 0.1), rgba(13, 148, 136, 0.1)), var(--surface);
-  color: #0d9488;
+  --th-tint: var(--th-teal-tint);
+  --th-fg: var(--th-teal-fg);
 }
 
 html[data-ui="web"] .customers-page thead th.customers-th-balances {
-  background: linear-gradient(rgba(22, 163, 74, 0.1), rgba(22, 163, 74, 0.1)), var(--surface);
-  color: #15803d;
+  --th-tint: var(--th-green-tint);
+  --th-fg: var(--th-green-fg);
 }
 
 html[data-ui="web"] .customers-page thead th.customers-th-status {
-  background: linear-gradient(rgba(217, 119, 6, 0.1), rgba(217, 119, 6, 0.1)), var(--surface);
-  color: #b45309;
+  --th-tint: var(--th-amber-tint);
+  --th-fg: var(--th-amber-fg);
 }
-
-html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-code { color: #cbd5e1; }
-html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-name { color: #93c5fd; }
-html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-phone { color: #5eead4; }
-html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-balances { color: #86efac; }
-html[data-ui="web"][data-theme="dark"] .customers-page thead th.customers-th-status { color: #fcd34d; }
 
 /* Customer detail: separate identity, labels, and money so the eye can land. */
 html[data-ui="web"] .customer-detail-head {
@@ -414,15 +449,24 @@ html[data-ui="web"] .customer-detail-page .customer-money-cell {
   background: var(--surface-muted);
 }
 
+html[data-ui="web"] .customer-detail-page .customer-money-cell.money-in {
+  color: var(--money-in);
+  background: var(--money-in-bg);
+  border-color: var(--money-in-line);
+}
+
+html[data-ui="web"] .customer-detail-page .customer-money-cell.money-out {
+  color: var(--money-out);
+  background: var(--money-out-bg);
+  border-color: var(--money-out-line);
+}
+
 html[data-ui="web"] .customer-detail-page .customer-money-cell:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
+  filter: brightness(0.98);
 }
 
 html[data-ui="web"] .customer-detail-page .customer-money-cell.is-selected {
-  background: var(--primary-soft);
-  border-color: var(--accent-blue);
-  color: var(--primary);
+  box-shadow: 0 0 0 1.5px var(--accent-blue);
   padding: 0 8px;
 }
 
@@ -573,4 +617,493 @@ html[data-ui="web"] .workspace-page .section-card h2 {
   html[data-ui="web"] .hawala-kpi-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* App-wide colored column headers (Customers design language)                */
+/* Soft tinted backgrounds + toned text. Key/value label tables are excluded. */
+/* -------------------------------------------------------------------------- */
+
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th,
+html[data-ui="web"] .report-ledger > thead > tr > th,
+html[data-ui="web"] .data-table > thead > tr > th,
+html[data-ui="web"] .daybook-journal-table > thead > tr > th,
+html[data-ui="web"] .online-dash-table > thead > tr > th,
+html[data-ui="web"] .employee-ledger-table > thead > tr > th {
+  --th-tint: var(--th-slate-tint);
+  --th-fg: var(--th-slate-fg);
+  background: linear-gradient(var(--th-tint), var(--th-tint)), var(--surface);
+  color: var(--th-fg);
+  font-weight: 700;
+}
+
+/* Stable 5-tone cycle (slate → blue → teal → green → amber), same as Customers. */
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th:nth-child(5n + 1),
+html[data-ui="web"] .report-ledger > thead > tr > th:nth-child(5n + 1),
+html[data-ui="web"] .data-table > thead > tr > th:nth-child(5n + 1),
+html[data-ui="web"] .daybook-journal-table > thead > tr > th:nth-child(5n + 1),
+html[data-ui="web"] .online-dash-table > thead > tr > th:nth-child(5n + 1),
+html[data-ui="web"] .employee-ledger-table > thead > tr > th:nth-child(5n + 1) {
+  --th-tint: var(--th-slate-tint);
+  --th-fg: var(--th-slate-fg);
+}
+
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th:nth-child(5n + 2),
+html[data-ui="web"] .report-ledger > thead > tr > th:nth-child(5n + 2),
+html[data-ui="web"] .data-table > thead > tr > th:nth-child(5n + 2),
+html[data-ui="web"] .daybook-journal-table > thead > tr > th:nth-child(5n + 2),
+html[data-ui="web"] .online-dash-table > thead > tr > th:nth-child(5n + 2),
+html[data-ui="web"] .employee-ledger-table > thead > tr > th:nth-child(5n + 2) {
+  --th-tint: var(--th-blue-tint);
+  --th-fg: var(--th-blue-fg);
+}
+
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th:nth-child(5n + 3),
+html[data-ui="web"] .report-ledger > thead > tr > th:nth-child(5n + 3),
+html[data-ui="web"] .data-table > thead > tr > th:nth-child(5n + 3),
+html[data-ui="web"] .daybook-journal-table > thead > tr > th:nth-child(5n + 3),
+html[data-ui="web"] .online-dash-table > thead > tr > th:nth-child(5n + 3),
+html[data-ui="web"] .employee-ledger-table > thead > tr > th:nth-child(5n + 3) {
+  --th-tint: var(--th-teal-tint);
+  --th-fg: var(--th-teal-fg);
+}
+
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th:nth-child(5n + 4),
+html[data-ui="web"] .report-ledger > thead > tr > th:nth-child(5n + 4),
+html[data-ui="web"] .data-table > thead > tr > th:nth-child(5n + 4),
+html[data-ui="web"] .daybook-journal-table > thead > tr > th:nth-child(5n + 4),
+html[data-ui="web"] .online-dash-table > thead > tr > th:nth-child(5n + 4),
+html[data-ui="web"] .employee-ledger-table > thead > tr > th:nth-child(5n + 4) {
+  --th-tint: var(--th-green-tint);
+  --th-fg: var(--th-green-fg);
+}
+
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) > thead > tr > th:nth-child(5n + 5),
+html[data-ui="web"] .report-ledger > thead > tr > th:nth-child(5n + 5),
+html[data-ui="web"] .data-table > thead > tr > th:nth-child(5n + 5),
+html[data-ui="web"] .daybook-journal-table > thead > tr > th:nth-child(5n + 5),
+html[data-ui="web"] .online-dash-table > thead > tr > th:nth-child(5n + 5),
+html[data-ui="web"] .employee-ledger-table > thead > tr > th:nth-child(5n + 5) {
+  --th-tint: var(--th-amber-tint);
+  --th-fg: var(--th-amber-fg);
+}
+
+/* Semantic overrides — meaningful tones by column role (wins over nth-child). */
+html[data-ui="web"] table thead th.col-row,
+html[data-ui="web"] table thead th.col-ref,
+html[data-ui="web"] table thead th.col-date,
+html[data-ui="web"] table thead th.col-when,
+html[data-ui="web"] .report-ledger thead th.col-row,
+html[data-ui="web"] .report-ledger thead th.col-ref,
+html[data-ui="web"] .report-ledger thead th.col-date,
+html[data-ui="web"] .report-ledger thead th.col-when,
+html[data-ui="web"] .daybook-journal-table thead th.col-row,
+html[data-ui="web"] .daybook-journal-table thead th.col-ref,
+html[data-ui="web"] .daybook-journal-table thead th.col-when {
+  --th-tint: var(--th-slate-tint);
+  --th-fg: var(--th-slate-fg);
+}
+
+html[data-ui="web"] table thead th.col-party,
+html[data-ui="web"] table thead th.col-center,
+html[data-ui="web"] .report-ledger thead th.col-party,
+html[data-ui="web"] .report-ledger thead th.col-center,
+html[data-ui="web"] .hawala-desk-table thead th.col-party {
+  --th-tint: var(--th-teal-tint);
+  --th-fg: var(--th-teal-fg);
+}
+
+html[data-ui="web"] table thead th.col-amount,
+html[data-ui="web"] table thead th.num,
+html[data-ui="web"] table thead th.col-debit,
+html[data-ui="web"] table thead th.col-credit,
+html[data-ui="web"] table thead th.col-balance,
+html[data-ui="web"] .report-ledger thead th.col-amount,
+html[data-ui="web"] .report-ledger thead th.num,
+html[data-ui="web"] .daybook-journal-table thead th.col-amount,
+html[data-ui="web"] .daybook-journal-table thead th.col-debit,
+html[data-ui="web"] .daybook-journal-table thead th.col-credit,
+html[data-ui="web"] .daybook-journal-table thead th.col-balance,
+html[data-ui="web"] .cash-overview-table thead th.col-amount,
+html[data-ui="web"] .hawala-desk-table thead th.col-amount {
+  --th-tint: var(--th-green-tint);
+  --th-fg: var(--th-green-fg);
+}
+
+html[data-ui="web"] table thead th.col-actions,
+html[data-ui="web"] .report-ledger thead th.col-actions,
+html[data-ui="web"] .hawala-desk-table thead th.col-actions {
+  --th-tint: var(--th-amber-tint);
+  --th-fg: var(--th-amber-fg);
+}
+
+/* Daybook sticky headers: keep tint (override brand fill) while remaining sticky. */
+html[data-ui="web"] .daybook-journal-table thead th,
+html[data-ui="web"] .daybook-journal-table th.col-debit,
+html[data-ui="web"] .daybook-journal-table th.col-credit,
+html[data-ui="web"] .daybook-journal-table th.col-amount,
+html[data-ui="web"] .daybook-journal-table th.col-balance,
+html[data-ui="web"] .daybook-journal-scroll thead th {
+  background: linear-gradient(var(--th-tint), var(--th-tint)), var(--surface);
+  color: var(--th-fg);
+  box-shadow: 0 1px 0 var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Surfaces baseline used flat --table-header; keep tinted look there too. */
+html[data-ui="web"] table:not(.tx-detail-table):not(.customer-info-table) th,
+html[data-ui="web"] .report-ledger th {
+  background: linear-gradient(var(--th-tint, var(--th-slate-tint)), var(--th-tint, var(--th-slate-tint))),
+    var(--surface);
+  color: var(--th-fg, var(--th-slate-fg));
+}
+
+/* Day Book journal chrome — compact title row + filters row. */
+html[data-ui="web"] .daybook-records-chrome {
+  border-bottom: 1px solid var(--border);
+}
+
+html[data-ui="web"] .daybook-records-chrome .daybook-records-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand, #3a5570) 14%, var(--border));
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--brand, #3a5570) 16%, #fff) 0%,
+      color-mix(in srgb, #2f6fed 10%, #fff) 55%,
+      color-mix(in srgb, #d97706 8%, #fff) 100%
+    );
+}
+
+html[data-ui="web"] .daybook-records-chrome .daybook-records-head > div:first-child {
+  flex: 0 0 auto;
+}
+
+html[data-ui="web"] .daybook-records-chrome .daybook-records-head h2 {
+  color: var(--brand-deep, #283c52);
+  font-weight: 750;
+}
+
+html[data-ui="web"] .daybook-journal-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--brand, #3a5570) 4%, #fff);
+}
+
+html[data-ui="web"] .daybook-journal-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1 1 12rem;
+  max-width: none;
+  min-width: 10rem;
+  box-sizing: border-box;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 0.55rem 0 0.45rem;
+  border: 1px solid var(--input-border, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, #fff 92%, transparent);
+}
+
+html[data-ui="web"] .daybook-journal-search:focus-within {
+  border-color: color-mix(in srgb, var(--brand, #3a5570) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, #3a5570) 16%, transparent);
+}
+
+html[data-ui="web"] .daybook-search-icon {
+  flex: 0 0 auto;
+  opacity: 0.55;
+  color: var(--fg-muted, var(--ink-soft));
+  pointer-events: none;
+}
+
+html[data-ui="web"] .daybook-search-input,
+html[data-ui="web"] input.daybook-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  color: var(--fg, var(--ink));
+}
+
+html[data-ui="web"] .daybook-search-input:focus,
+html[data-ui="web"] input.daybook-search-input:focus {
+  outline: none;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html[data-ui="web"] .daybook-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+html[data-ui="web"] .daybook-search-clear {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-muted, #eef2f7);
+  color: var(--fg-muted, var(--ink-soft));
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+html[data-ui="web"] .daybook-search-clear:hover {
+  background: var(--border, #d5dde8);
+  color: var(--fg, var(--ink));
+  transform: none;
+  filter: none;
+}
+
+html[data-ui="web"] .daybook-journal-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+html[data-ui="web"] .daybook-journal-date,
+html[data-ui="web"] .daybook-journal-limit {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+html[data-ui="web"] .daybook-journal-date input,
+html[data-ui="web"] .daybook-journal-limit input,
+html[data-ui="web"] .daybook-journal-currency select,
+html[data-ui="web"] .daybook-journal-currency .currency-filter select {
+  box-sizing: border-box;
+  height: 34px;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 8px;
+  background: color-mix(in srgb, #fff 92%, transparent);
+}
+
+html[data-ui="web"] .daybook-journal-limit {
+  width: auto;
+}
+
+html[data-ui="web"] .daybook-journal-limit input {
+  width: 7.5rem;
+}
+
+html[data-ui="web"] .daybook-journal-currency {
+  margin: 0;
+  min-width: 8.5rem;
+  display: flex;
+  align-items: center;
+}
+
+html[data-ui="web"] .daybook-journal-currency .currency-picker-wrap {
+  width: 100%;
+  margin: 0;
+}
+
+html[data-ui="web"] .daybook-journal-currency .currency-picker-input {
+  box-sizing: border-box;
+  height: 34px;
+  min-height: 34px;
+  background: color-mix(in srgb, #fff 92%, transparent);
+}
+
+html[data-ui="web"] .daybook-records-chrome .records-title-actions {
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+html[data-ui="web"] .daybook-records-chrome .records-title-actions .btn,
+html[data-ui="web"] .daybook-records-chrome .records-title-actions button {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 0.75rem;
+  font-size: 12px;
+}
+
+html[data-ui="web"] .daybook-page .panel.records-panel {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+html[data-ui="web"] .hawala-desk-page .panel.records-panel,
+html[data-ui="web"] .commission-tracking-page .panel.records-panel,
+html[data-ui="web"] .expenses-page .panel.records-panel,
+html[data-ui="web"] .partner-page .panel.records-panel,
+html[data-ui="web"] .dc-page .panel.records-panel,
+html[data-ui="web"] .transactions-page .panel.records-panel,
+html[data-ui="web"] .page-account-orders .panel.records-panel {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+html[data-ui="web"] .hawala-desk-page .records-panel .table-scroll,
+html[data-ui="web"] .commission-tracking-page .records-panel .table-scroll,
+html[data-ui="web"] .expenses-page .records-panel .table-scroll,
+html[data-ui="web"] .partner-page .records-panel .table-scroll,
+html[data-ui="web"] .dc-page .records-panel .table-scroll,
+html[data-ui="web"] .transactions-page .records-panel .table-scroll,
+html[data-ui="web"] .page-account-orders .table-scroll {
+  max-height: min(58vh, 36rem);
+  border: 0;
+  border-radius: 0;
+}
+
+html[data-ui="web"] .hawala-desk-page .records-title {
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--brand, #1e5f8a) 16%, #fff) 0%,
+      color-mix(in srgb, #2f6fed 10%, #fff) 55%,
+      color-mix(in srgb, #0d7377 8%, #fff) 100%
+    );
+  padding: 6px 12px;
+  align-items: center;
+}
+
+html[data-ui="web"] .hawala-desk-page .records-title h2 {
+  color: var(--brand-deep, #134663);
+  font-weight: 750;
+}
+
+html[data-ui="web"] .hawala-desk-filters.table-toolbar {
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+
+html[data-ui="web"] .hawala-desk-filters .search-field-emphasized {
+  flex: 1 1 14rem;
+  max-width: none;
+  min-width: 12rem;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+html[data-ui="web"] .hawala-desk-filters .table-filters {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+html[data-ui="web"] .hawala-desk-page .hawala-desk-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+html[data-ui="web"] .hawala-desk-page .hawala-desk-table th,
+html[data-ui="web"] .hawala-desk-page .hawala-desk-table td {
+  padding: 8px 12px;
+}
+
+@media (max-width: 1100px) {
+  html[data-ui="web"] .daybook-journal-toolbar {
+    align-items: stretch;
+  }
+
+  html[data-ui="web"] .daybook-journal-search {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  html[data-ui="web"] .daybook-records-chrome .records-title-actions {
+    margin-inline-start: auto;
+  }
+}
+
+/* Dark mode — Day Book / Hawala polish (loads after styles-dark.css) */
+html[data-theme="dark"][data-ui="web"] .daybook-records-chrome .daybook-records-head,
+html[data-theme="dark"][data-ui="web"] .hawala-desk-page .records-title {
+  background: linear-gradient(
+    105deg,
+    color-mix(in srgb, var(--brand) 18%, var(--surface-elevated, #243028)) 0%,
+    color-mix(in srgb, var(--brand) 10%, var(--surface-elevated, #243028)) 55%,
+    color-mix(in srgb, var(--accent, #d4a24a) 10%, var(--surface-elevated, #243028)) 100%
+  );
+  border-bottom-color: var(--border);
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-records-chrome .daybook-records-head h2,
+html[data-theme="dark"][data-ui="web"] .hawala-desk-page .records-title h2 {
+  color: var(--fg, var(--ink));
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-journal-toolbar {
+  background: color-mix(in srgb, var(--brand) 8%, var(--surface-muted, #1a2420));
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-journal-search,
+html[data-theme="dark"][data-ui="web"] .daybook-journal-date input,
+html[data-theme="dark"][data-ui="web"] .daybook-journal-limit input,
+html[data-theme="dark"][data-ui="web"] .daybook-journal-currency .currency-picker-input,
+html[data-theme="dark"][data-ui="web"] .hawala-desk-filters .search-field-emphasized {
+  background: var(--input, var(--control-bg, #1a2420));
+  border-color: var(--input-border, var(--border));
+  color: var(--fg, var(--ink));
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-search-input,
+html[data-theme="dark"][data-ui="web"] input.daybook-search-input {
+  color: var(--fg, var(--ink));
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-search-clear {
+  background: var(--surface-muted, #243028);
+  color: var(--fg-muted, var(--ink-soft));
+}
+
+html[data-theme="dark"][data-ui="web"] .daybook-search-clear:hover {
+  background: var(--border);
+  color: var(--fg, var(--ink));
+}
+
+html[data-theme="dark"][data-ui="web"] .hawala-desk-filters.table-toolbar {
+  border-top-color: var(--border);
+  background: color-mix(in srgb, var(--brand) 6%, var(--surface, transparent));
+}
+
+html[data-theme="dark"][data-ui="web"] .customers-page .customers-records-head {
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface-elevated, #243028));
 }

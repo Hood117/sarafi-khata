@@ -628,8 +628,9 @@ export function TransferFormModal({
       {open ? (
         <Modal title={title} size="xl" onClose={() => resetForm(false)}>
           <div
-            className="stack movement-form-compact hawala-form-compact"
+            className="stack movement-form-compact hawala-form-compact desk-qa-form"
             data-desk-form
+            data-qa-tone="transfer"
             onKeyDown={(e) =>
               handleDeskFormKeyDown(e, {
                 busy: saving,
@@ -637,9 +638,6 @@ export function TransferFormModal({
               })
             }
           >
-          <p className="muted" style={{ margin: 0 }}>
-            {t.dashboard.transferHint}
-          </p>
           <div className="fx-simple-top">
             <label className="desk-ref-field">
               <span>{t.desk.voucherNumber}</span>
@@ -811,7 +809,7 @@ export function TransferFormModal({
           <label>
             {t.desk.movementDescription}
             <textarea
-              rows={2}
+              rows={1}
               value={form.description}
               onChange={(e) => {
                 setDescriptionDirty(true);

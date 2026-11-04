@@ -1,15 +1,31 @@
 import { useRef, type RefObject } from "react";
 
-import { gsap, lockMotion, motionOk, unlockMotion, useGSAP } from "@desktop/lib/motion";
+import {
+  gsap,
+  lockMotion,
+  motionOk,
+  revealSections,
+  ScrollTrigger,
+  unlockMotion,
+  useGSAP,
+} from "@desktop/lib/motion";
+import {
+  getDeskScroller,
+  refreshDeskSmoothScroll,
+} from "@desktop/lib/smooth-scroll";
 
 const APPEAR =
-  ".page-header, .section-card, .stat-card, .cash-balance-card, .card, .dashboard-footer";
+  ".page-header, .section-card, .records-panel, .stat-card, .cash-balance-card, .card, .dashboard-footer, .stat-grid, .hawala-kpi-strip, .customer-detail-panel, .report-panel";
 
 function eligible(el: HTMLElement): boolean {
   if (el.dataset.motion === "in") return false;
+  if (el.closest(".dashboard-home")) return false;
   if (el.closest(".dash-board")) return false;
   if (el.classList.contains("login-card")) return false;
   if (el.classList.contains("modal-panel")) return false;
+  if (el.closest("table, tbody, thead, tr, td, th, input, textarea, select")) {
+    return false;
+  }
   return true;
 }
 
@@ -23,30 +39,7 @@ function collect(root: ParentNode): HTMLElement[] {
   );
 }
 
-function slideIn(els: HTMLElement[], withOpacity: boolean) {
-  if (!els.length || !motionOk()) return;
-  for (const el of els) el.dataset.motion = "in";
-  lockMotion(els);
-  gsap.fromTo(
-    els,
-    withOpacity ? { opacity: 0, y: 12 } : { y: 12 },
-    {
-      ...(withOpacity ? { opacity: 1 } : {}),
-      y: 0,
-      duration: 0.48,
-      stagger: {
-        each: 0.04,
-        amount: Math.min(0.32, Math.max(0, els.length - 1) * 0.04),
-      },
-      ease: "power3.out",
-      overwrite: "auto",
-      clearProps: withOpacity ? "opacity,transform" : "transform",
-      onComplete: () => unlockMotion(els),
-    },
-  );
-}
-
-function addedElements(records: MutationRecord[]): HTMLElement[] {
+function addedSections(records: MutationRecord[]): HTMLElement[] {
   const found: HTMLElement[] = [];
   for (const record of records) {
     for (const node of record.addedNodes) {
@@ -58,7 +51,7 @@ function addedElements(records: MutationRecord[]): HTMLElement[] {
   return outermost(found.filter(eligible));
 }
 
-/** Soft page fade, plus a rise on cards already on screen and cards that load in later. */
+/** Soft page fade + ScrollTrigger section reveals on the native desk scroller. */
 export function usePageMotion(mainRef: RefObject<HTMLElement | null>, routeKey: string) {
   useGSAP(
     (ctx, contextSafe) => {
@@ -66,30 +59,42 @@ export function usePageMotion(mainRef: RefObject<HTMLElement | null>, routeKey: 
       const main = mainRef.current;
       if (!main || !motionOk() || !contextSafe) return;
 
+      refreshDeskSmoothScroll(main);
+      const scroller = getDeskScroller();
+
       gsap.fromTo(
         main,
         { opacity: 0 },
         {
           opacity: 1,
-          duration: 0.32,
+          duration: 0.28,
           ease: "power2.out",
           overwrite: "auto",
           clearProps: "opacity",
         },
       );
 
-      slideIn(collect(main), false);
+      revealSections(collect(main), scroller);
 
-      const animateAdded = contextSafe((records: MutationRecord[]) => {
-        slideIn(addedElements(records), true);
+      const onDomChange = contextSafe((records: MutationRecord[]) => {
+        const next = addedSections(records);
+        if (next.length) revealSections(next, getDeskScroller());
+        window.requestAnimationFrame(() => refreshDeskSmoothScroll(mainRef.current));
       });
-      const obs = new MutationObserver(animateAdded);
+      const obs = new MutationObserver(onDomChange);
       obs.observe(main, { childList: true, subtree: true });
+
       return () => {
         obs.disconnect();
         main.style.removeProperty("opacity");
+        main.querySelectorAll<HTMLElement>("[data-motion='in']").forEach((el) => {
+          delete el.dataset.motion;
+        });
         main.querySelectorAll<HTMLElement>(".is-gsap-in").forEach((el) => {
           el.classList.remove("is-gsap-in");
+        });
+        ScrollTrigger.getAll().forEach((st) => {
+          if (main.contains(st.trigger as Node | null)) st.kill();
         });
       };
     },
@@ -105,7 +110,7 @@ export function useChromeIntro(linkCount: number) {
       if (played.current || !motionOk() || linkCount === 0) return;
       const tabs = gsap.utils.toArray<HTMLElement>(".app-tabbar-link");
       const chrome = gsap.utils.toArray<HTMLElement>(
-        ".quick-actions-bar, .app-chrome-refresh, .settings-menu",
+        ".quick-actions-bar, .app-chrome-refresh, .settings-menu, .app-header-business",
       );
       if (!tabs.length && !chrome.length) return;
       played.current = true;

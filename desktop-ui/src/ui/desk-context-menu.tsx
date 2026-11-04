@@ -1,12 +1,23 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
+export type DeskContextMenuTone = "neutral" | "edit" | "danger" | "print" | "accent";
+
 export type DeskContextMenuItem = {
   id: string;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
+  /** @deprecated Prefer `tone: "danger"` */
   danger?: boolean;
+  tone?: DeskContextMenuTone;
+  icon?: ReactNode;
 };
+
+function itemTone(item: DeskContextMenuItem): DeskContextMenuTone {
+  if (item.tone) return item.tone;
+  if (item.danger) return "danger";
+  return "neutral";
+}
 
 export function DeskContextMenu({
   x,
@@ -61,22 +72,30 @@ export function DeskContextMenu({
       style={{ left: x, top: y }}
       role="menu"
     >
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="menuitem"
-          className={item.danger ? "is-danger" : undefined}
-          disabled={item.disabled}
-          onClick={() => {
-            if (item.disabled) return;
-            onClose();
-            item.onSelect();
-          }}
-        >
-          {item.label}
-        </button>
-      ))}
+      {items.map((item) => {
+        const tone = itemTone(item);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="menuitem"
+            className={`desk-context-menu-item is-${tone}`}
+            disabled={item.disabled}
+            onClick={() => {
+              if (item.disabled) return;
+              onClose();
+              item.onSelect();
+            }}
+          >
+            {item.icon ? (
+              <span className="desk-context-menu-icon" aria-hidden>
+                {item.icon}
+              </span>
+            ) : null}
+            <span className="desk-context-menu-label">{item.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

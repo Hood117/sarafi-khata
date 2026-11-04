@@ -688,6 +688,10 @@ fn ensure_hawala_desk_schema(conn: &Connection) -> Result<(), AppError> {
     ("receivedAt", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "receivedAt" DATETIME;"#),
     ("returnedAt", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "returnedAt" DATETIME;"#),
     ("payoutTransactionId", r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "payoutTransactionId" TEXT;"#),
+    (
+      "collectorFingerprintTemplate",
+      r#"ALTER TABLE "HawalaTransfer" ADD COLUMN "collectorFingerprintTemplate" TEXT;"#,
+    ),
   ];
   for (col, ddl) in desk_cols {
     ensure_column(conn, "HawalaTransfer", col, ddl)?;

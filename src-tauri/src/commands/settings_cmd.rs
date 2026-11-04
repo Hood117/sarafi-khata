@@ -14,9 +14,11 @@ const LOCALE_KEY: &str = "app.locale";
 const BUSINESS_NAME_KEY: &str = "app.name";
 const DEFAULT_BUSINESS_NAME: &str = "ASMS";
 const FONT_SIZE_KEY: &str = "app.ui.fontSize";
+const FONT_FAMILY_KEY: &str = "app.ui.fontFamily";
 const BOLD_TEXT_KEY: &str = "app.ui.boldText";
 const THEME_KEY: &str = "app.ui.theme";
 const DEFAULT_FONT_SIZE: &str = "default";
+const DEFAULT_FONT_FAMILY: &str = "default";
 const DEFAULT_THEME: &str = "light";
 
 #[derive(Debug, Serialize)]
@@ -47,6 +49,7 @@ pub struct SetBusinessNameInput {
 #[serde(rename_all = "camelCase")]
 pub struct UiTextPrefs {
   pub font_size: String,
+  pub font_family: String,
   pub bold_text: bool,
   pub theme: String,
 }
@@ -57,6 +60,7 @@ pub struct SetUiTextPrefsInput {
   pub font_size: String,
   pub bold_text: bool,
   pub theme: Option<String>,
+  pub font_family: Option<String>,
 }
 
 fn normalize_font_size(raw: &str) -> Result<String, AppError> {
@@ -66,6 +70,16 @@ fn normalize_font_size(raw: &str) -> Result<String, AppError> {
     "extralarge" | "xl" | "extra large" => Ok("extra-large".into()),
     _ => Err(AppError::Validation(
       "fontSize must be small, default, large, or extra-large".into(),
+    )),
+  }
+}
+
+fn normalize_font_family(raw: &str) -> Result<String, AppError> {
+  match raw.trim().to_ascii_lowercase().as_str() {
+    "default" | "tajawal" | "cairo" => Ok(raw.trim().to_ascii_lowercase()),
+    "tajawol" => Ok("tajawal".into()),
+    _ => Err(AppError::Validation(
+      "fontFamily must be default, tajawal, or cairo".into(),
     )),
   }
 }
@@ -82,6 +96,10 @@ fn read_ui_text_prefs(conn: &rusqlite::Connection) -> Result<UiTextPrefs, AppErr
     Some(raw) => normalize_font_size(&raw).unwrap_or_else(|_| DEFAULT_FONT_SIZE.into()),
     None => DEFAULT_FONT_SIZE.into(),
   };
+  let font_family = match read_setting(conn, FONT_FAMILY_KEY)? {
+    Some(raw) => normalize_font_family(&raw).unwrap_or_else(|_| DEFAULT_FONT_FAMILY.into()),
+    None => DEFAULT_FONT_FAMILY.into(),
+  };
   let bold_text = match read_setting(conn, BOLD_TEXT_KEY)? {
     Some(raw) => {
       let v = raw.trim().to_ascii_lowercase();
@@ -95,6 +113,7 @@ fn read_ui_text_prefs(conn: &rusqlite::Connection) -> Result<UiTextPrefs, AppErr
   };
   Ok(UiTextPrefs {
     font_size,
+    font_family,
     bold_text,
     theme,
   })
@@ -252,9 +271,16 @@ pub fn set_ui_text_prefs(
       .as_deref()
       .unwrap_or(DEFAULT_THEME),
   )?;
+  let font_family = normalize_font_family(
+    input
+      .font_family
+      .as_deref()
+      .unwrap_or(DEFAULT_FONT_FAMILY),
+  )?;
   let conn = state.db.lock();
   let _actor = require_settings(&state, &conn)?;
   upsert_setting(&conn, FONT_SIZE_KEY, &font_size)?;
+  upsert_setting(&conn, FONT_FAMILY_KEY, &font_family)?;
   upsert_setting(
     &conn,
     BOLD_TEXT_KEY,
@@ -263,6 +289,7 @@ pub fn set_ui_text_prefs(
   upsert_setting(&conn, THEME_KEY, &theme)?;
   Ok(UiTextPrefs {
     font_size,
+    font_family,
     bold_text,
     theme,
   })

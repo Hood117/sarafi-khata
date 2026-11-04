@@ -15,6 +15,7 @@ import "@desktop/styles-web.css";
 import "@desktop/styles-online-dashboard.css";
 import "@desktop/styles-online-surfaces.css";
 import "@desktop/styles-online-records.css";
+import "@desktop/styles-motion.css";
 
 try {
   const storedTheme = localStorage.getItem("saraf.ui.theme");

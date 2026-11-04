@@ -57,26 +57,30 @@ export function TradingInventoryPage() {
   });
 
   return (
-    <div className="card stack">
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-        <h2 className="section-title" style={{ margin: 0 }}>
-          {t.desk.currencyInventory}
-        </h2>
-        <input
-          type="search"
-          className="desk-search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t.common.search}
-          style={{ maxWidth: "14rem" }}
-        />
+    <section className="panel records-panel">
+      <div className="records-chrome">
+        <div className="records-title">
+          <div>
+            <h2>{t.desk.currencyInventory}</h2>
+            <span className="count-badge">{filtered.length}</span>
+          </div>
+        </div>
+        <div className="table-toolbar">
+          <label className="search-field search-field-emphasized">
+            <input
+              type="search"
+              className="desk-search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t.common.search}
+              aria-label={t.common.search}
+            />
+          </label>
+        </div>
       </div>
-      {error ? <p className="error">{error}</p> : null}
-      {busy ? <p className="muted">{t.common.loading}</p> : null}
-      {!busy && filtered.length === 0 ? (
-        <p className="muted">{t.desk.noOpenInventory}</p>
-      ) : null}
-      {filtered.length > 0 ? (
+      {error ? <p className="error" style={{ margin: 0, padding: "10px 12px" }}>{error}</p> : null}
+      {busy ? <p className="muted" style={{ margin: 0, padding: "10px 12px" }}>{t.common.loading}</p> : null}
+      <div className="table-scroll">
         <table>
           <thead>
             <tr>
@@ -90,30 +94,38 @@ export function TradingInventoryPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.currencyId}>
-                <td>
-                  <strong>{money(r.quantity, r.currencyCode)}</strong>
+            {!busy && filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="muted">
+                  {t.desk.noOpenInventory}
                 </td>
-                <td>{ratePerUnit(r.avgCost, r.avgCostCurrencyCode, r.currencyCode)}</td>
-                <td>{money(r.costValue, r.avgCostCurrencyCode)}</td>
-                <td>
-                  {r.marketRate
-                    ? ratePerUnit(r.marketRate, r.avgCostCurrencyCode, r.currencyCode)
-                    : "—"}
-                </td>
-                <td>
-                  {r.unrealizedPnl
-                    ? money(r.unrealizedPnl, r.avgCostCurrencyCode)
-                    : "—"}
-                </td>
-                <td>{r.lastPurchaseAt?.slice(0, 10) ?? "—"}</td>
-                <td>{r.lastSaleAt?.slice(0, 10) ?? "—"}</td>
               </tr>
-            ))}
+            ) : (
+              filtered.map((r) => (
+                <tr key={r.currencyId}>
+                  <td>
+                    <strong>{money(r.quantity, r.currencyCode)}</strong>
+                  </td>
+                  <td>{ratePerUnit(r.avgCost, r.avgCostCurrencyCode, r.currencyCode)}</td>
+                  <td>{money(r.costValue, r.avgCostCurrencyCode)}</td>
+                  <td>
+                    {r.marketRate
+                      ? ratePerUnit(r.marketRate, r.avgCostCurrencyCode, r.currencyCode)
+                      : "—"}
+                  </td>
+                  <td>
+                    {r.unrealizedPnl
+                      ? money(r.unrealizedPnl, r.avgCostCurrencyCode)
+                      : "—"}
+                  </td>
+                  <td>{r.lastPurchaseAt?.slice(0, 10) ?? "—"}</td>
+                  <td>{r.lastSaleAt?.slice(0, 10) ?? "—"}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-      ) : null}
-    </div>
+      </div>
+    </section>
   );
 }

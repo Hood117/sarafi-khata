@@ -53,8 +53,10 @@ import { useLocale, useT } from "@desktop/i18n";
 import { canAccessScreen, isAdminRole, isSystemAdminUsername } from "@desktop/lib/permissions";
 import { useDeskAction } from "@desktop/lib/use-desk-action";
 import {
+  UI_FONT_FAMILIES,
   UI_FONT_SIZES,
   useUiTextPrefs,
+  type UiFontFamily,
   type UiFontSize,
   type UiTheme,
 } from "@desktop/ui-text-prefs";
@@ -164,9 +166,11 @@ export function SettingsPage() {
   const { locale, setLocale } = useLocale();
   const {
     fontSize,
+    fontFamily,
     boldText,
     theme,
     setFontSize,
+    setFontFamily,
     setBoldText,
     setTheme,
   } = useUiTextPrefs();
@@ -352,6 +356,19 @@ export function SettingsPage() {
     setError(null);
     try {
       await setFontSize(next);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTextPrefsBusy(false);
+    }
+  }
+
+  async function handleFontFamilyChange(next: UiFontFamily) {
+    if (next === fontFamily) return;
+    setTextPrefsBusy(true);
+    setError(null);
+    try {
+      await setFontFamily(next);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -646,6 +663,27 @@ export function SettingsPage() {
                           : size === "large"
                             ? t.settings.textSizeLarge
                             : t.settings.textSizeExtraLarge}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="settings-general-field">
+                <span>{t.settings.fontFamily}</span>
+                <select
+                  className="settings-general-select"
+                  value={fontFamily}
+                  disabled={textPrefsBusy}
+                  title={t.settings.fontFamilyHint}
+                  onChange={(e) => void handleFontFamilyChange(e.target.value as UiFontFamily)}
+                >
+                  {UI_FONT_FAMILIES.map((family) => (
+                    <option key={family} value={family}>
+                      {family === "default"
+                        ? t.settings.fontFamilyDefault
+                        : family === "tajawal"
+                          ? t.settings.fontFamilyTajawal
+                          : t.settings.fontFamilyCairo}
                     </option>
                   ))}
                 </select>

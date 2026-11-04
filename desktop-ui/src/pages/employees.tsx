@@ -361,38 +361,6 @@ export function EmployeesPage() {
 
   return (
     <div className="stack employees-page workspace-page">
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div className="hawala-mode-toggle" role="tablist" aria-label={t.pages.employees}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "employees"}
-            className={tab === "employees" ? "hawala-mode active" : "hawala-mode"}
-            onClick={() => setTab("employees")}
-          >
-            {t.employees.employeesTab}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "history"}
-            className={tab === "history" ? "hawala-mode active" : "hawala-mode"}
-            onClick={() => setTab("history")}
-          >
-            {t.employees.historyTab}
-          </button>
-        </div>
-        {tab === "employees" ? (
-          <button type="button" data-desk-action="new" data-desk-primary onClick={openAddEmployee}>
-            {t.employees.add}
-          </button>
-        ) : null}
-      </div>
-
-      <p className="muted" style={{ margin: 0 }}>
-        {t.employees.hint}
-      </p>
-
       {error ? (
         <PageLoadError
           message={error}
@@ -406,24 +374,122 @@ export function EmployeesPage() {
         />
       ) : null}
 
-      {tab === "employees" ? (
-        <div className="section-card stack">
-          <label className="stack" style={{ gap: "0.25rem", maxWidth: "24rem" }}>
-            <span className="muted">{t.common.search}</span>
-            <input
-              type="search"
-              className="desk-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t.employees.searchPlaceholder}
-            />
-          </label>
-
-          {busy && employees.length === 0 ? <p className="muted">{t.common.loading}</p> : null}
-          {!busy && employees.length === 0 ? (
-            <p className="muted">{t.employees.empty}</p>
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.pages.employees}</h2>
+              <span className="count-badge">
+                {tab === "employees" ? empTotal : historyTotal}
+              </span>
+            </div>
+            <div className="records-title-actions">
+              <div
+                className="settings-tabs currency-panel-tabs"
+                role="tablist"
+                aria-label={t.pages.employees}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "employees"}
+                  className={`settings-tab${tab === "employees" ? " active" : ""}`}
+                  onClick={() => setTab("employees")}
+                >
+                  {t.employees.employeesTab}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "history"}
+                  className={`settings-tab${tab === "history" ? " active" : ""}`}
+                  onClick={() => setTab("history")}
+                >
+                  {t.employees.historyTab}
+                </button>
+              </div>
+              {tab === "employees" ? (
+                <button
+                  type="button"
+                  className="btn primary"
+                  data-desk-action="new"
+                  data-desk-primary
+                  onClick={openAddEmployee}
+                >
+                  {t.employees.add}
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {tab === "employees" ? (
+            <div className="table-toolbar">
+              <label className="search-field search-field-emphasized">
+                <input
+                  type="search"
+                  className="desk-search"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={t.employees.searchPlaceholder}
+                  aria-label={t.common.search}
+                />
+              </label>
+            </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-toolbar">
+              <label className="search-field search-field-emphasized">
+                <input
+                  type="search"
+                  className="desk-search"
+                  value={historySearchInput}
+                  onChange={(e) => setHistorySearchInput(e.target.value)}
+                  placeholder={t.employees.searchHistoryPlaceholder}
+                  aria-label={t.common.search}
+                />
+              </label>
+              <div className="table-filters">
+                <label>
+                  <input
+                    type="date"
+                    value={historyFrom}
+                    max={historyTo || today}
+                    aria-label={t.common.fromDate}
+                    title={t.common.fromDate}
+                    onChange={(e) => {
+                      setHistoryFrom(e.target.value);
+                      setHistoryPage(1);
+                    }}
+                  />
+                </label>
+                <label>
+                  <input
+                    type="date"
+                    value={historyTo}
+                    min={historyFrom || undefined}
+                    max={today}
+                    aria-label={t.common.toDate}
+                    title={t.common.toDate}
+                    onChange={(e) => {
+                      setHistoryTo(e.target.value);
+                      setHistoryPage(1);
+                    }}
+                  />
+                </label>
+                <p className="muted" style={{ margin: 0, alignSelf: "center" }}>
+                  {t.employees.periodTotal}: <strong>{historyPeriodSummary}</strong>
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {tab === "employees" ? (
+          <>
+            {busy && employees.length === 0 ? (
+              <p className="muted" style={{ padding: "12px 18px" }}>
+                {t.common.loading}
+              </p>
+            ) : null}
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -436,102 +502,66 @@ export function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((emp) => (
-                    <tr
-                      key={emp.id}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setEmpMenu({ x: e.clientX, y: e.clientY, emp });
-                      }}
-                    >
-                      <td>
-                        <strong>{emp.fullName}</strong>
-                      </td>
-                      <td>{emp.fatherName || "—"}</td>
-                      <td className="ltr-text">{emp.idNumber || "—"}</td>
-                      <td>{emp.title || "—"}</td>
-                      <td>{emp.startDate ? String(emp.startDate).slice(0, 10) : "—"}</td>
-                      <td>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void onDeleteEmployee(emp);
-                            }}
-                          >
-                            {t.common.delete}
-                          </button>
-                        ) : null}
+                  {!busy && employees.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        {t.employees.empty}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    employees.map((emp) => (
+                      <tr
+                        key={emp.id}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setEmpMenu({ x: e.clientX, y: e.clientY, emp });
+                        }}
+                      >
+                        <td>
+                          <strong>{emp.fullName}</strong>
+                        </td>
+                        <td>{emp.fatherName || "—"}</td>
+                        <td className="ltr-text">{emp.idNumber || "—"}</td>
+                        <td>{emp.title || "—"}</td>
+                        <td>{emp.startDate ? String(emp.startDate).slice(0, 10) : "—"}</td>
+                        <td>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              className="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void onDeleteEmployee(emp);
+                              }}
+                            >
+                              {t.common.delete}
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
-
-          <Pagination
-            page={empPage}
-            pageSize={EMP_PAGE_SIZE}
-            total={empTotal}
-            busy={busy}
-            onPageChange={setEmpPage}
-          />
-        </div>
-      ) : (
-        <div className="section-card stack">
-          <div className="row" style={{ flexWrap: "wrap", gap: "0.75rem", alignItems: "flex-end" }}>
-            <label className="stack" style={{ gap: "0.25rem", flex: "1 1 14rem" }}>
-              <span className="muted">{t.common.search}</span>
-              <input
-                type="search"
-                className="desk-search"
-                value={historySearchInput}
-                onChange={(e) => setHistorySearchInput(e.target.value)}
-                placeholder={t.employees.searchHistoryPlaceholder}
+            <div className="records-pagination">
+              <Pagination
+                page={empPage}
+                pageSize={EMP_PAGE_SIZE}
+                total={empTotal}
+                busy={busy}
+                onPageChange={setEmpPage}
               />
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.fromDate}</span>
-              <input
-                type="date"
-                value={historyFrom}
-                max={historyTo || today}
-                onChange={(e) => {
-                  setHistoryFrom(e.target.value);
-                  setHistoryPage(1);
-                }}
-              />
-            </label>
-            <label className="stack" style={{ gap: "0.25rem" }}>
-              <span className="muted">{t.common.toDate}</span>
-              <input
-                type="date"
-                value={historyTo}
-                min={historyFrom || undefined}
-                max={today}
-                onChange={(e) => {
-                  setHistoryTo(e.target.value);
-                  setHistoryPage(1);
-                }}
-              />
-            </label>
-          </div>
-
-          <p style={{ margin: 0 }}>
-            <span className="muted">{t.employees.periodTotal}: </span>
-            <strong>{historyPeriodSummary}</strong>
-          </p>
-
-          {historyBusy && historyItems.length === 0 ? (
-            <p className="muted">{t.common.loading}</p>
-          ) : null}
-          {!historyBusy && historyItems.length === 0 ? (
-            <p className="muted">{t.employees.emptyHistory}</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
+            </div>
+          </>
+        ) : (
+          <>
+            {historyBusy && historyItems.length === 0 ? (
+              <p className="muted" style={{ padding: "12px 18px" }}>
+                {t.common.loading}
+              </p>
+            ) : null}
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -543,39 +573,48 @@ export function EmployeesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {historyItems.map((row) => (
-                    <tr
-                      key={row.id}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setPayMenu({ x: e.clientX, y: e.clientY, row });
-                      }}
-                    >
-                      <td>{String(row.valueDate).slice(0, 10)}</td>
-                      <td>
-                        <strong>{row.employeeName}</strong>
+                  {!historyBusy && historyItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        {t.employees.emptyHistory}
                       </td>
-                      <td className="money-out">
-                        {row.amount} {row.currencySymbol?.trim() || row.currencyCode}
-                      </td>
-                      <td className="ltr-text">{txDisplayRef(row)}</td>
-                      <td>{row.notes || "—"}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    historyItems.map((row) => (
+                      <tr
+                        key={row.id}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setPayMenu({ x: e.clientX, y: e.clientY, row });
+                        }}
+                      >
+                        <td>{String(row.valueDate).slice(0, 10)}</td>
+                        <td>
+                          <strong>{row.employeeName}</strong>
+                        </td>
+                        <td className="money-out">
+                          {row.amount} {row.currencySymbol?.trim() || row.currencyCode}
+                        </td>
+                        <td className="ltr-text">{txDisplayRef(row)}</td>
+                        <td>{row.notes || "—"}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
-
-          <Pagination
-            page={historyPage}
-            pageSize={HISTORY_PAGE_SIZE}
-            total={historyTotal}
-            busy={historyBusy}
-            onPageChange={setHistoryPage}
-          />
-        </div>
-      )}
+            <div className="records-pagination">
+              <Pagination
+                page={historyPage}
+                pageSize={HISTORY_PAGE_SIZE}
+                total={historyTotal}
+                busy={historyBusy}
+                onPageChange={setHistoryPage}
+              />
+            </div>
+          </>
+        )}
+      </section>
 
       {empMenu ? (
         <DeskContextMenu

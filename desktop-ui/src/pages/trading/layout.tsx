@@ -26,20 +26,32 @@ export function TradingLayout() {
 
   return (
     <div className="stack trading-page workspace-page">
-      <div className="row" style={{ justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
-        <nav className="nav-row" aria-label={t.nav.trading} style={{ flex: 1 }}>
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.end}
-              className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+      <div className="records-chrome" style={{ border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+        <div className="records-title">
+          <div>
+            <h2>{t.nav.trading}</h2>
+          </div>
+          <div className="records-title-actions">
+            <nav
+              className="settings-tabs currency-panel-tabs"
+              aria-label={t.nav.trading}
             >
-              <span className="nav-link-icon">{link.icon}</span>
-              <span className="nav-link-label">{link.label}</span>
-            </NavLink>
-          ))}
-        </nav>
+              {links.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.end}
+                  className={({ isActive }) =>
+                    `settings-tab${isActive ? " active" : ""}`
+                  }
+                >
+                  <span className="nav-link-icon">{link.icon}</span>
+                  <span className="nav-link-label">{link.label}</span>
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
       </div>
       <Outlet context={outletContext} />
     </div>

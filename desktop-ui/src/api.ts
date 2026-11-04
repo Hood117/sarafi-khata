@@ -521,6 +521,7 @@ export function identifyFingerprint() {
 export type FingerprintVerifyResult = {
   ok: boolean;
   matchScore: number | null;
+  templateBase64: string | null;
   sdkErrorCode: number | null;
   message: string;
 };
@@ -538,6 +539,22 @@ export function verifyHawalaCollectorFingerprint(
     receiverNationalId: opts?.receiverNationalId ?? null,
     receiverPhone: opts?.receiverPhone ?? null,
   });
+}
+
+export type HawalaCollectorIdentifyResult = {
+  ok: boolean;
+  hawalaId: string | null;
+  hawalaNumber: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  matchScore: number | null;
+  sdkErrorCode: number | null;
+  message: string;
+};
+
+/** Hawala desk: match collector finger to a collected / linked hawala. */
+export function identifyHawalaCollectorFingerprint() {
+  return invoke<HawalaCollectorIdentifyResult>("identify_hawala_collector_fingerprint");
 }
 
 export function updateCustomer(input: {
@@ -1196,6 +1213,7 @@ export function completeReceiveHawala(input: {
   actorUserId?: string | null;
   receiverPhone?: string | null;
   receiverNationalId?: string | null;
+  collectorFingerprintTemplate?: string | null;
 }) {
   return invoke<HawalaDetail>("complete_receive_hawala", { input });
 }
@@ -1767,6 +1785,7 @@ export function setBusinessName(businessName: string) {
 
 export type UiTextPrefs = {
   fontSize: string;
+  fontFamily: string;
   boldText: boolean;
   theme: string;
 };
@@ -1775,9 +1794,14 @@ export function getUiTextPrefs() {
   return invoke<UiTextPrefs>("get_ui_text_prefs");
 }
 
-export function setUiTextPrefs(fontSize: string, boldText: boolean, theme = "light") {
+export function setUiTextPrefs(
+  fontSize: string,
+  boldText: boolean,
+  theme = "light",
+  fontFamily = "default",
+) {
   return invoke<UiTextPrefs>("set_ui_text_prefs", {
-    input: { fontSize, boldText, theme },
+    input: { fontSize, boldText, theme, fontFamily },
   });
 }
 
@@ -3215,6 +3239,8 @@ export type DaybookJournalPage = {
 
 export function listDaybookJournal(input?: {
   businessDate?: string;
+  dateFrom?: string;
+  dateTo?: string;
   currencyCode?: string;
   search?: string;
   page?: number;

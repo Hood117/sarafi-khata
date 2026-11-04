@@ -3,8 +3,9 @@ import {
   Instrument_Sans,
   Source_Serif_4,
   JetBrains_Mono,
-  Noto_Naskh_Arabic,
   Noto_Sans_Arabic,
+  Tajawal,
+  Cairo,
 } from "next/font/google";
 
 import { ThemeProvider } from "@/design-system/theme-provider";
@@ -30,15 +31,21 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
-const notoNaskhArabic = Noto_Naskh_Arabic({
+const notoSansArabic = Noto_Sans_Arabic({
   variable: "--font-arabic-face",
   subsets: ["arabic"],
   weight: ["400", "500", "600", "700"],
 });
 
-const notoSansArabic = Noto_Sans_Arabic({
-  variable: "--font-pashto-face",
-  subsets: ["arabic"],
+const tajawal = Tajawal({
+  variable: "--font-tajawal-face",
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "700"],
+});
+
+const cairo = Cairo({
+  variable: "--font-cairo-face",
+  subsets: ["arabic", "latin"],
   weight: ["400", "500", "600", "700"],
 });
 
@@ -66,7 +73,7 @@ export default async function RootLayout({
       lang={lang}
       dir={dir}
       suppressHydrationWarning
-      className={`${instrumentSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${notoNaskhArabic.variable} ${notoSansArabic.variable} h-full antialiased`}
+      className={`${instrumentSans.variable} ${sourceSerif.variable} ${jetbrainsMono.variable} ${notoSansArabic.variable} ${tajawal.variable} ${cairo.variable} h-full antialiased`}
     >
       <body className="flex h-full min-h-0 flex-col font-sans">
         <ThemeProvider>

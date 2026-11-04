@@ -394,6 +394,7 @@ pub fn run() {
       commands::enroll_user_fingerprint,
       commands::clear_user_fingerprint,
       commands::identify_fingerprint,
+      commands::identify_hawala_collector_fingerprint,
       commands::verify_hawala_collector_fingerprint,
       commands::list_printers,
       commands::print_plain_text,

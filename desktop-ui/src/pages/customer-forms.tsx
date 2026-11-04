@@ -86,6 +86,7 @@ type CustomerFormFieldsProps = {
   nameAutoFocus?: boolean;
   nameFocusKey?: number;
   showNotes?: boolean;
+  showPhoto?: boolean;
   onChange: (
     field:
       | "fullName"
@@ -113,6 +114,7 @@ function CustomerFormFields({
   nameAutoFocus,
   nameFocusKey = 0,
   showNotes = true,
+  showPhoto = true,
   onChange,
   onPhotoChange,
 }: CustomerFormFieldsProps) {
@@ -196,7 +198,9 @@ function CustomerFormFields({
           />
         </label>
       ) : null}
-      <CustomerPhotoField value={photo} disabled={disabled} onChange={onPhotoChange} />
+      {showPhoto ? (
+        <CustomerPhotoField value={photo} disabled={disabled} onChange={onPhotoChange} />
+      ) : null}
     </div>
   );
 }
@@ -479,7 +483,7 @@ export function CustomerCreateForm({
   return (
     <div
       ref={formRootRef}
-      className="stack customer-desk-form"
+      className="stack customer-desk-form customer-desk-form--create"
       data-desk-form
       onKeyDown={(e) =>
         handleDeskFormKeyDown(e, {
@@ -491,62 +495,87 @@ export function CustomerCreateForm({
         })
       }
     >
-      <div className="customer-desk-scroll">
-        {editing ? (
-          <p className="muted" style={{ margin: 0 }}>
-            {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
-            {editing.fullName}
-            {editing.code ? ` · ${editing.code}` : ""}
-          </p>
-        ) : null}
-        <CustomerFormFields
-          fullName={fullName}
-          fatherName={fatherName}
-          phone={phone}
-          address={address}
-          nationalId={nationalId}
-          notes={notes}
-          customerType={customerType}
-          photo={photo}
-          disabled={formLocked}
-          nameAutoFocus={!editing && !awaitingEnroll}
-          nameFocusKey={nameFocusKey}
-          showNotes={false}
-          onChange={onChange}
-          onPhotoChange={setPhoto}
-        />
-        <OpeningKataFields
-          currencies={currencies}
-          lines={openingLines}
-          onChange={updateLine}
-          onCurrenciesChange={setCurrencies}
-          onAdd={() =>
-            setOpeningLines((rows) => [
-              ...rows,
-              emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
-            ])
-          }
-          onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
-          showLineNotes={false}
-        />
-        <CustomerFingerprintEnrollBlock
-          customerId={awaitingEnroll?.id ?? ""}
-          hint={awaitingEnroll ? t.customers.enrollAfterCreateHint : ""}
-          ensureCustomerId={async () => {
-            if (awaitingEnroll?.id) return awaitingEnroll.id;
-            const wasCreating = !editing;
-            const saved = await persist();
-            if (!saved) return null;
-            if (wasCreating) {
-              setEditing(saved);
-              setAwaitingEnroll(saved);
-              setSaveAndNewAfterEnroll(false);
-              onEditingChange?.(true, saved.fullName);
-            }
-            return saved.id;
-          }}
-          onBusyChange={setBusy}
-        />
+      <div className="customer-desk-scroll customer-create-layout">
+        <div className="customer-create-main">
+          {editing ? (
+            <p className="muted customer-create-edit-banner" style={{ margin: 0 }}>
+              {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
+              {editing.fullName}
+              {editing.code ? ` · ${editing.code}` : ""}
+            </p>
+          ) : null}
+          <section className="customer-create-section customer-create-section--identity">
+            <header className="customer-create-section-head">
+              <h3 className="customer-create-section-title">{t.customers.add}</h3>
+            </header>
+            <CustomerFormFields
+              fullName={fullName}
+              fatherName={fatherName}
+              phone={phone}
+              address={address}
+              nationalId={nationalId}
+              notes={notes}
+              customerType={customerType}
+              photo={photo}
+              disabled={formLocked}
+              nameAutoFocus={!editing && !awaitingEnroll}
+              nameFocusKey={nameFocusKey}
+              showNotes={false}
+              showPhoto={false}
+              onChange={onChange}
+              onPhotoChange={setPhoto}
+            />
+          </section>
+          <section className="customer-create-section customer-create-section--opening">
+            <OpeningKataFields
+              currencies={currencies}
+              lines={openingLines}
+              onChange={updateLine}
+              onCurrenciesChange={setCurrencies}
+              onAdd={() =>
+                setOpeningLines((rows) => [
+                  ...rows,
+                  emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
+                ])
+              }
+              onRemove={(index) =>
+                setOpeningLines((rows) => rows.filter((_, i) => i !== index))
+              }
+              showLineNotes={false}
+            />
+          </section>
+        </div>
+        <aside className="customer-create-aside">
+          <section className="customer-create-section customer-create-section--photo">
+            <header className="customer-create-section-head">
+              <span className="customer-create-section-kicker">{t.customers.photo}</span>
+              <h3 className="customer-create-section-title">{t.customers.photoOptional}</h3>
+            </header>
+            <CustomerPhotoField
+              value={photo}
+              disabled={formLocked}
+              onChange={setPhoto}
+            />
+          </section>
+          <CustomerFingerprintEnrollBlock
+            customerId={awaitingEnroll?.id ?? ""}
+            hint={awaitingEnroll ? t.customers.enrollAfterCreateHint : ""}
+            ensureCustomerId={async () => {
+              if (awaitingEnroll?.id) return awaitingEnroll.id;
+              const wasCreating = !editing;
+              const saved = await persist();
+              if (!saved) return null;
+              if (wasCreating) {
+                setEditing(saved);
+                setAwaitingEnroll(saved);
+                setSaveAndNewAfterEnroll(false);
+                onEditingChange?.(true, saved.fullName);
+              }
+              return saved.id;
+            }}
+            onBusyChange={setBusy}
+          />
+        </aside>
       </div>
       {awaitingEnroll ? (
         <div className="customer-desk-footer">

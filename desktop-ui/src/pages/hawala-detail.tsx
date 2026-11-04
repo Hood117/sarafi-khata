@@ -30,27 +30,19 @@ function stamp(value: string | null | undefined): string {
   return String(value).replace("T", " ").slice(0, 19);
 }
 
-function DetailRow({
+function Fact({
   label,
   children,
-  highlight = false,
 }: {
   label: string;
   children: ReactNode;
-  highlight?: boolean;
 }) {
   if (children == null || children === "" || children === "—") return null;
   return (
-    <tr>
-      <th>{label}</th>
-      <td>
-        {highlight ? (
-          <span className="badge hawala-detail-id-badge">{children}</span>
-        ) : (
-          children
-        )}
-      </td>
-    </tr>
+    <div>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
   );
 }
 
@@ -184,6 +176,11 @@ export function HawalaDetailPage() {
   const isSend = detail?.direction.toUpperCase() === "SEND";
   const net = detail ? payoutAmount(detail) : "";
   const commission = detail?.ownCommissionAmount?.trim() || "";
+  const heroAmount = net || detail?.amount || "";
+  const heroLabel =
+    isReceive && net && net !== detail?.amount
+      ? t.hawala.netPayout
+      : t.common.amount;
 
   function handlePrint() {
     if (!detail) return;
@@ -197,19 +194,17 @@ export function HawalaDetailPage() {
     : "";
 
   return (
-    <div className="stack">
-      <div className="row no-print" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ margin: "0 0 0.25rem" }}>
-            {detail ? hawalaNumberRef(detail) : t.nav.hawala}
-          </h1>
-          <p className="muted" style={{ margin: 0 }}>
+    <div className="stack hawala-detail-page workspace-page">
+      <div className="row no-print hawala-detail-top">
+        <div className="hawala-detail-top-copy">
+          <h1>{detail ? hawalaNumberRef(detail) : t.nav.hawala}</h1>
+          <p className="muted">
             {detail
               ? `${detail.direction === "SEND" ? t.hawala.send : t.hawala.receive} · ${stamp(detail.valueDate)}`
               : t.common.loading}
           </p>
         </div>
-        <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+        <div className="row hawala-detail-top-actions">
           {detail ? (
             <button type="button" className="secondary" onClick={handlePrint}>
               {t.common.print}
@@ -230,143 +225,170 @@ export function HawalaDetailPage() {
             <p className="error no-print">{t.hawala.archiveNotice}</p>
           ) : null}
 
-          <div className="row no-print hawala-detail-actions">
-            {isPendingReceiveHawala(detail) && !archived ? (
-              <button
-                type="button"
-                className="btn primary hawala-action-btn"
-                disabled={busy || completeBusy}
-                onClick={() => {
-                  setCompleteError(null);
-                  setCompleteOpen(true);
-                }}
-              >
-                {t.hawala.completeHawala}
-              </button>
-            ) : null}
-            {!archived ? (
-              <button
-                type="button"
-                className="btn btn-action btn-action--whatsapp hawala-action-btn"
-                disabled={busy || whatsappBusy}
-                onClick={() => void handleWhatsApp()}
-              >
-                {whatsappBusy ? t.common.loading : t.hawala.sendWhatsApp}
-              </button>
-            ) : null}
-            {!archived ? (
-              <button
-                type="button"
-                className="secondary hawala-action-btn"
-                data-desk-action="delete"
-                disabled={busy}
-                onClick={() => void handleArchive()}
-              >
-                {t.common.archive}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="hawala-action-btn"
-                disabled={busy}
-                onClick={() => void handleRestore()}
-              >
-                {t.common.restore}
-              </button>
-            )}
-          </div>
-
-          <section className="section-card">
-            <table className="hawala-detail-facts">
-              <tbody>
-                <DetailRow label={t.desk.hawalaNumber}>
-                  <strong>{hawalaNumberRef(detail)}</strong>
-                </DetailRow>
-                <DetailRow label={t.common.date}>
-                  {stamp(detail.valueDate)}
-                </DetailRow>
-                <DetailRow label={t.hawala.direction}>
-                  {isSend ? t.hawala.send : t.hawala.receive}
-                </DetailRow>
-                <DetailRow label={t.common.status}>
-                  <span className={statusBadgeClass(detail.status)}>
-                    {statusLabel(t, detail.status)}
-                  </span>
-                  {archived ? (
-                    <>
-                      {" "}
-                      <span className="badge badge-cancelled">
-                        {t.common.archived}
-                      </span>
-                    </>
+          <div className="hawala-complete-layout hawala-detail-layout">
+            <div className="hawala-complete-main">
+              <section className="hawala-complete-section hawala-complete-section--payout">
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">{heroLabel}</span>
+                  <h3 className="hawala-complete-section-title">
+                    {formatAmountDisplay(heroAmount)} {detail.currencyCode}
+                  </h3>
+                </header>
+                <dl className="hawala-complete-summary">
+                  <Fact label={t.desk.hawalaNumber}>
+                    <strong>{hawalaNumberRef(detail)}</strong>
+                  </Fact>
+                  <Fact label={t.common.date}>{stamp(detail.valueDate)}</Fact>
+                  <Fact label={t.hawala.direction}>
+                    {isSend ? t.hawala.send : t.hawala.receive}
+                  </Fact>
+                  <Fact label={t.common.status}>
+                    <span className={statusBadgeClass(detail.status)}>
+                      {statusLabel(t, detail.status)}
+                    </span>
+                    {archived ? (
+                      <>
+                        {" "}
+                        <span className="badge badge-cancelled">
+                          {t.common.archived}
+                        </span>
+                      </>
+                    ) : null}
+                  </Fact>
+                  <Fact label={t.common.currency}>{detail.currencyCode}</Fact>
+                  <Fact label={t.common.amount}>
+                    <strong>
+                      {formatAmountDisplay(detail.amount)} {detail.currencyCode}
+                    </strong>
+                  </Fact>
+                  {commission ? (
+                    <Fact label={t.desk.ownCommission}>
+                      {formatAmountDisplay(commission)} {detail.currencyCode}
+                    </Fact>
                   ) : null}
-                </DetailRow>
-                <DetailRow label={t.hawala.sender}>{detail.senderName}</DetailRow>
-                <DetailRow label={t.hawala.receiver}>
-                  {detail.receiverName}
-                </DetailRow>
-                {detail.receiverNationalId ? (
-                  <DetailRow label={t.common.nationalId} highlight>
-                    {detail.receiverNationalId}
-                  </DetailRow>
-                ) : null}
-                {detail.receiverPhone ? (
-                  <DetailRow label={t.common.phone} highlight>
-                    {detail.receiverPhone}
-                  </DetailRow>
-                ) : null}
-                {isReceive ? (
-                  <DetailRow label={t.hawala.sourceCustomerAccount}>
-                    {detail.partnerSarafi ||
-                      detail.senderName ||
-                      "—"}
-                  </DetailRow>
-                ) : null}
-                {isSend && detail.receiverCustomerId ? (
-                  <DetailRow label={t.hawala.receivingAccount}>
-                    {detail.receiverName}
-                  </DetailRow>
-                ) : null}
-                <DetailRow label={t.common.currency}>
-                  {detail.currencyCode}
-                </DetailRow>
-                <DetailRow label={t.common.amount}>
-                  <strong>
-                    {formatAmountDisplay(detail.amount)} {detail.currencyCode}
-                  </strong>
-                </DetailRow>
-                {commission ? (
-                  <DetailRow label={t.desk.ownCommission}>
-                    {formatAmountDisplay(commission)} {detail.currencyCode}
-                  </DetailRow>
-                ) : null}
-                {net && net !== detail.amount ? (
-                  <DetailRow
-                    label={
-                      isReceive ? t.hawala.netPayout : t.hawala.receive
-                    }
-                  >
-                    {formatAmountDisplay(net)} {detail.currencyCode}
-                  </DetailRow>
-                ) : null}
-                {detail.completedAt ? (
-                  <DetailRow label={t.hawala.completedAt}>
-                    {stamp(detail.completedAt)}
-                  </DetailRow>
-                ) : null}
-                {detail.payoutDisplayRef || detail.payoutTransactionId ? (
-                  <DetailRow label={t.hawala.payoutRecord}>
-                    {detail.payoutDisplayRef || detail.payoutTransactionId}
-                  </DetailRow>
-                ) : null}
-                {detail.createdByName ? (
-                  <DetailRow label={t.desk.createdBy}>
-                    {detail.createdByName}
-                  </DetailRow>
-                ) : null}
-              </tbody>
-            </table>
-          </section>
+                  {net && net !== detail.amount ? (
+                    <Fact
+                      label={isReceive ? t.hawala.netPayout : t.hawala.receive}
+                    >
+                      {formatAmountDisplay(net)} {detail.currencyCode}
+                    </Fact>
+                  ) : null}
+                </dl>
+              </section>
+
+              <section className="hawala-complete-section hawala-complete-section--collector">
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">
+                    {t.hawala.parties}
+                  </span>
+                  <h3 className="hawala-complete-section-title">
+                    {detail.receiverName || detail.senderName || t.hawala.information}
+                  </h3>
+                </header>
+                <dl className="hawala-complete-summary">
+                  <Fact label={t.hawala.sender}>{detail.senderName}</Fact>
+                  <Fact label={t.hawala.receiver}>{detail.receiverName}</Fact>
+                  {detail.receiverNationalId ? (
+                    <Fact label={t.common.nationalId}>
+                      <span className="badge hawala-detail-id-badge">
+                        {detail.receiverNationalId}
+                      </span>
+                    </Fact>
+                  ) : null}
+                  {detail.receiverPhone ? (
+                    <Fact label={t.common.phone}>
+                      <span className="badge hawala-detail-id-badge">
+                        {detail.receiverPhone}
+                      </span>
+                    </Fact>
+                  ) : null}
+                  {isReceive ? (
+                    <Fact label={t.hawala.sourceCustomerAccount}>
+                      {detail.partnerSarafi || detail.senderName || "—"}
+                    </Fact>
+                  ) : null}
+                  {isSend && detail.receiverCustomerId ? (
+                    <Fact label={t.hawala.receivingAccount}>
+                      {detail.receiverName}
+                    </Fact>
+                  ) : null}
+                </dl>
+              </section>
+            </div>
+
+            <aside className="hawala-complete-aside">
+              <section className="hawala-complete-section hawala-complete-section--receipt">
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">
+                    {t.common.actions}
+                  </span>
+                  <h3 className="hawala-complete-section-title">
+                    {t.common.details}
+                  </h3>
+                </header>
+                <div className="hawala-detail-side-actions no-print">
+                  {isPendingReceiveHawala(detail) && !archived ? (
+                    <button
+                      type="button"
+                      className="btn primary hawala-action-btn"
+                      disabled={busy || completeBusy}
+                      onClick={() => {
+                        setCompleteError(null);
+                        setCompleteOpen(true);
+                      }}
+                    >
+                      {t.hawala.completeHawala}
+                    </button>
+                  ) : null}
+                  {!archived ? (
+                    <button
+                      type="button"
+                      className="btn btn-action btn-action--whatsapp hawala-action-btn"
+                      disabled={busy || whatsappBusy}
+                      onClick={() => void handleWhatsApp()}
+                    >
+                      {whatsappBusy ? t.common.loading : t.hawala.sendWhatsApp}
+                    </button>
+                  ) : null}
+                  {!archived ? (
+                    <button
+                      type="button"
+                      className="secondary hawala-action-btn"
+                      data-desk-action="delete"
+                      disabled={busy}
+                      onClick={() => void handleArchive()}
+                    >
+                      {t.common.archive}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="hawala-action-btn"
+                      disabled={busy}
+                      onClick={() => void handleRestore()}
+                    >
+                      {t.common.restore}
+                    </button>
+                  )}
+                </div>
+                <dl className="hawala-complete-summary hawala-detail-meta">
+                  {detail.completedAt ? (
+                    <Fact label={t.hawala.completedAt}>
+                      {stamp(detail.completedAt)}
+                    </Fact>
+                  ) : null}
+                  {detail.payoutDisplayRef || detail.payoutTransactionId ? (
+                    <Fact label={t.hawala.payoutRecord}>
+                      {detail.payoutDisplayRef || detail.payoutTransactionId}
+                    </Fact>
+                  ) : null}
+                  {detail.createdByName ? (
+                    <Fact label={t.desk.createdBy}>{detail.createdByName}</Fact>
+                  ) : null}
+                </dl>
+              </section>
+            </aside>
+          </div>
 
           {createPortal(
             <div className="tx-print-receipt" aria-hidden="true">

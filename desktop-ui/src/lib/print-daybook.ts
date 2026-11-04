@@ -1,4 +1,4 @@
-/** Daybook CSV download + print/PDF ledger (dedicated print window). */
+/** Daybook CSV download + print/PDF ledger (in-page print sheet). */
 
 import { saveTextExport } from "@desktop/api";
 
@@ -33,6 +33,19 @@ function escapeCsv(value: string): string {
 
 function cell(value: string | number | null | undefined): string {
   return value == null ? "" : String(value);
+}
+
+/** Format plain amount strings (9700 → 9,700) while keeping currency suffixes. */
+function formatPrintAmount(raw: string): string {
+  const text = raw.trim();
+  if (!text) return "";
+  return text.replace(/-?\d+(?:\.\d+)?/g, (num) => {
+    const n = Number(num);
+    if (!Number.isFinite(n)) return num;
+    return n.toLocaleString("en-US", {
+      maximumFractionDigits: 4,
+    });
+  });
 }
 
 function buildCsv(
@@ -126,6 +139,43 @@ function printHtmlInPage(html: string): void {
   }, 60);
 }
 
+function colClass(key: string): string {
+  switch (key) {
+    case "rowNo":
+      return "col-row num";
+    case "valueDate":
+      return "col-when";
+    case "accountCode":
+      return "col-code";
+    case "accountName":
+      return "col-name";
+    case "oppositeAccount":
+      return "col-opp";
+    case "description":
+      return "col-desc";
+    case "debit":
+      return "col-debit num";
+    case "credit":
+      return "col-credit num";
+    case "balanceAfter":
+      return "col-balance num";
+    case "currencyCode":
+      return "col-ccy";
+    case "reference":
+      return "col-ref";
+    default:
+      return "";
+  }
+}
+
+function displayCell(key: string, raw: string): string {
+  if (key === "valueDate") return raw.slice(0, 10);
+  if (key === "debit" || key === "credit" || key === "balanceAfter") {
+    return formatPrintAmount(raw);
+  }
+  return raw;
+}
+
 /**
  * Opens a landscape ledger sheet and triggers the system print dialog
  * (user can choose “Save as PDF”). No pop-up window required.
@@ -141,32 +191,40 @@ export function printDaybookLedger(input: {
   const emptyLabel = input.emptyLabel ?? "No journal lines for this day.";
   const generatedAt = meta.generatedAt ?? new Date().toLocaleString();
 
-  const header = columns
+  const colgroup = columns
     .map((c) => {
-      const align =
-        c.key === "debit" ||
-        c.key === "credit" ||
-        c.key === "balanceAfter" ||
+      const width =
         c.key === "rowNo"
-          ? "num"
-          : "";
-      return `<th class="${align}">${escapeHtml(c.header)}</th>`;
+          ? "3%"
+          : c.key === "valueDate"
+            ? "7%"
+            : c.key === "accountCode" || c.key === "oppositeAccount"
+              ? "5%"
+              : c.key === "accountName"
+                ? "9%"
+                : c.key === "description"
+                  ? "28%"
+                  : c.key === "debit" || c.key === "credit"
+                    ? "7%"
+                    : c.key === "balanceAfter"
+                      ? "9%"
+                      : c.key === "currencyCode"
+                        ? "5%"
+                        : c.key === "reference"
+                          ? "8%"
+                          : undefined;
+      return width ? `<col style="width:${width}" />` : "<col />";
     })
     .join("");
 
+  const header = columns
+    .map((c) => `<th class="${colClass(c.key)}">${escapeHtml(c.header)}</th>`)
+    .join("");
+
   const body = rows
-    .map((row) => {
+    .map((row, index) => {
       const cells = columns
         .map((c) => {
-          const align =
-            c.key === "debit" ||
-            c.key === "credit" ||
-            c.key === "balanceAfter" ||
-            c.key === "rowNo"
-              ? "num"
-              : c.key === "description"
-                ? "desc"
-                : "";
           const toneKey =
             c.key === "debit"
               ? "_debitTone"
@@ -178,10 +236,13 @@ export function printDaybookLedger(input: {
           const tone = toneKey ? String(row[toneKey] ?? "") : "";
           const toneClass =
             tone === "in" ? " money-in" : tone === "out" ? " money-out" : "";
-          return `<td class="${align}${toneClass}">${escapeHtml(cell(row[c.key]))}</td>`;
+          const raw = cell(row[c.key]);
+          const shown = displayCell(c.key, raw);
+          return `<td class="${colClass(c.key)}${toneClass}">${escapeHtml(shown)}</td>`;
         })
         .join("");
-      return `<tr>${cells}</tr>`;
+      const zebra = index % 2 === 1 ? " is-alt" : "";
+      return `<tr class="${zebra.trim()}">${cells}</tr>`;
     })
     .join("");
 
@@ -194,34 +255,35 @@ export function printDaybookLedger(input: {
     .daybook-print-root .sheet {
       padding: 0;
       color: #122018;
-      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      font-family: "Segoe UI", Tahoma, "Noto Naskh Arabic", "Noto Sans Arabic", Arial, sans-serif;
     }
     .daybook-print-root .brand {
       display: flex;
       justify-content: space-between;
       gap: 16px;
       align-items: flex-start;
-      border-bottom: 2.5px solid #183a31;
+      border-bottom: 2px solid #2f5d8c;
       padding-bottom: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
     .daybook-print-root .brand h1 {
       margin: 0;
-      font-size: 20px;
-      letter-spacing: 0.03em;
-      color: #183a31;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+      color: #1a3354;
       text-transform: uppercase;
     }
     .daybook-print-root .brand .title {
       margin: 4px 0 0;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
+      color: #243447;
     }
     .daybook-print-root .meta {
       text-align: right;
-      font-size: 11px;
-      color: #4b5c55;
-      line-height: 1.55;
+      font-size: 10.5px;
+      color: #5a6b78;
+      line-height: 1.5;
       white-space: nowrap;
     }
     .daybook-print-root table {
@@ -229,41 +291,96 @@ export function printDaybookLedger(input: {
       border-collapse: collapse;
       table-layout: fixed;
       font-size: 10.5px;
+      line-height: 1.35;
     }
     .daybook-print-root thead { display: table-header-group; }
     .daybook-print-root th,
     .daybook-print-root td {
-      border: 1px solid #2a4038;
-      padding: 5px 6px;
-      vertical-align: top;
-      word-wrap: break-word;
+      border: 1px solid #c5d0ca;
+      padding: 6px 7px;
+      vertical-align: middle;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .daybook-print-root th {
-      background: #e8ece9;
-      color: #122018;
+      background: #e8eef5;
+      color: #1a3354;
       font-weight: 700;
-      text-align: left;
+      font-size: 9.5px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      text-align: start;
+      vertical-align: bottom;
+      border-bottom: 1.5px solid #8aa0b5;
     }
+    .daybook-print-root th.num { text-align: end; }
     .daybook-print-root tbody tr {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .daybook-print-root tbody tr:nth-child(even) td { background: #f3f7f5; }
+    .daybook-print-root tbody tr.is-alt td:not(.money-in):not(.money-out) {
+      background: #f5f8f6;
+    }
+    .daybook-print-root td {
+      color: #1c2a33;
+      text-align: start;
+    }
     .daybook-print-root td.num,
     .daybook-print-root th.num {
-      text-align: right;
+      text-align: end;
       font-variant-numeric: tabular-nums;
+      font-weight: 650;
       white-space: nowrap;
+      font-feature-settings: "tnum" 1;
+    }
+    .daybook-print-root td.col-row {
+      text-align: center;
+      color: #6b7a84;
+      font-weight: 600;
+    }
+    .daybook-print-root td.col-when,
+    .daybook-print-root td.col-code,
+    .daybook-print-root td.col-opp,
+    .daybook-print-root td.col-ccy,
+    .daybook-print-root td.col-ref {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .daybook-print-root td.col-code,
+    .daybook-print-root td.col-opp,
+    .daybook-print-root td.col-ref {
+      font-weight: 700;
+      font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+      font-size: 10px;
+    }
+    .daybook-print-root td.col-name {
+      font-weight: 600;
+    }
+    .daybook-print-root td.col-desc {
+      font-size: 10.5px;
+      line-height: 1.4;
+      vertical-align: top;
+      text-align: start;
+    }
+    .daybook-print-root td.col-debit {
+      background: rgba(26, 122, 69, 0.05);
+    }
+    .daybook-print-root td.col-credit {
+      background: rgba(180, 35, 24, 0.04);
     }
     .daybook-print-root td.money-in {
       color: #1a7a45 !important;
       font-weight: 700;
+      background: rgba(26, 122, 69, 0.1) !important;
     }
     .daybook-print-root td.money-out {
       color: #b42318 !important;
       font-weight: 700;
+      background: rgba(180, 35, 24, 0.08) !important;
     }
-    .daybook-print-root td.desc { font-size: 10px; }
+    .daybook-print-root td.col-balance {
+      font-weight: 750;
+    }
     .daybook-print-root .empty {
       border: 1px dashed #9aafa6;
       padding: 28px;
@@ -284,19 +401,12 @@ export function printDaybookLedger(input: {
       .daybook-print-root thead {
         display: table-header-group !important;
       }
-      .daybook-print-root th {
-        background: #e8ece9 !important;
-        color: #122018 !important;
-        border: 1px solid #2a4038 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      .daybook-print-root tbody tr:nth-child(even) td {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
+      .daybook-print-root th,
       .daybook-print-root td.money-in,
-      .daybook-print-root td.money-out {
+      .daybook-print-root td.money-out,
+      .daybook-print-root tbody tr.is-alt td:not(.money-in):not(.money-out),
+      .daybook-print-root td.col-debit,
+      .daybook-print-root td.col-credit {
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
@@ -322,6 +432,7 @@ export function printDaybookLedger(input: {
       rows.length === 0
         ? `<div class="empty">${escapeHtml(emptyLabel)}</div>`
         : `<table>
+      <colgroup>${colgroup}</colgroup>
       <thead><tr>${header}</tr></thead>
       <tbody>${body}</tbody>
     </table>`
@@ -336,5 +447,3 @@ export function printDaybookLedger(input: {
 
   printHtmlInPage(html);
 }
-
-

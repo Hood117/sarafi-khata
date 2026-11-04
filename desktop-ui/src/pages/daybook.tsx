@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Pencil, Printer, Search, Trash2 } from "lucide-react";
 
 import {
   getAppInfo,
@@ -168,14 +169,15 @@ export function DaybookPage() {
   const { locale, dir } = useLocale();
   const rtl = dir === "rtl";
   const { session } = useAuth();
-  const [date, setDate] = useState(todayIso);
+  const [dateFrom, setDateFrom] = useState(todayIso);
+  const [dateTo, setDateTo] = useState(todayIso);
   const [journal, setJournal] = useState<DaybookJournalLine[]>([]);
   const [journalTotal, setJournalTotal] = useState(0);
   const [dayTotals, setDayTotals] = useState<JournalFilterTotals>(
     EMPTY_JOURNAL_FILTER_TOTALS,
   );
   const [journalPage, setJournalPage] = useState(1);
-  const [journalLimitDraft, setJournalLimitDraft] = useState("");
+  const [journalLimitDraft, setJournalLimitDraft] = useState("50");
   const [journalPageSize, setJournalPageSize] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -255,7 +257,8 @@ export function DaybookPage() {
     setBusy(true);
     try {
       const j = await listDaybookJournal({
-        businessDate: date,
+        dateFrom,
+        dateTo,
         currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
         search: search || undefined,
         page: journalPage,
@@ -279,7 +282,7 @@ export function DaybookPage() {
       setBusy(false);
       setHasLoaded(true);
     }
-  }, [date, currencyFilter, search, journalPage, journalPageSize, t.errors.loadDaybook]);
+  }, [dateFrom, dateTo, currencyFilter, search, journalPage, journalPageSize, t.errors.loadDaybook]);
 
   useEffect(() => {
     void load();
@@ -292,7 +295,8 @@ export function DaybookPage() {
     const all: DaybookJournalLine[] = [];
     while (page <= totalPages) {
       const j = await listDaybookJournal({
-        businessDate: date,
+        dateFrom,
+        dateTo,
         currencyCode: currencyFilter === "ALL" ? undefined : currencyFilter,
         search: search || undefined,
         page,
@@ -304,7 +308,7 @@ export function DaybookPage() {
       page += 1;
     }
     return all;
-  }, [date, currencyFilter, search]);
+  }, [dateFrom, dateTo, currencyFilter, search]);
 
   /** Day Total always covers the full filtered day — never only the visible page. */
   const loadDayTotals = useCallback(async () => {
@@ -326,10 +330,12 @@ export function DaybookPage() {
   }, [load, loadDayTotals]);
 
   useEffect(() => {
-    preferLatestPageRef.current = true;
-    stickJournalBottomRef.current = true;
+    // While searching, stay on page 1 from the top — don't jump to the latest page.
+    const searching = search.trim().length > 0;
+    preferLatestPageRef.current = !searching;
+    stickJournalBottomRef.current = !searching;
     setJournalPage(1);
-  }, [date, currencyFilter, search, journalPageSize]);
+  }, [dateFrom, dateTo, currencyFilter, search, journalPageSize]);
 
   useEffect(() => {
     const el = journalScrollRef.current;
@@ -523,6 +529,8 @@ export function DaybookPage() {
       {
         id: "edit",
         label: t.common.editAction,
+        tone: "edit" as const,
+        icon: <Pencil size={15} aria-hidden />,
         disabled: !editable,
         onSelect: () =>
           handleEditMovement(line.transactionId, line.transactionType, line.reference),
@@ -530,13 +538,16 @@ export function DaybookPage() {
       {
         id: "delete",
         label: t.common.delete,
-        danger: true,
+        tone: "danger" as const,
+        icon: <Trash2 size={15} aria-hidden />,
         disabled: !editable,
         onSelect: () => void handleDeleteMovement(line.transactionId, journalTxRef(line)),
       },
       {
         id: "print",
         label: t.transactions.printReceipt,
+        tone: "print" as const,
+        icon: <Printer size={15} aria-hidden />,
         onSelect: () => void handlePrintMovement(line),
       },
       ...(isHawala
@@ -544,6 +555,8 @@ export function DaybookPage() {
             {
               id: "whatsapp",
               label: t.hawala.sendWhatsApp,
+              tone: "accent" as const,
+              icon: <IconWhatsApp />,
               onSelect: () => {
                 void (async () => {
                   const result = await sendHawalaWhatsAppToPartner(
@@ -627,14 +640,16 @@ export function DaybookPage() {
     setError(null);
     try {
       const lines = await fetchAllJournalLines();
+      const periodLabel =
+        dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`;
       const path = await exportTable(
-        `daybook-${date}`,
+        `daybook-${dateFrom}_${dateTo}`,
         journalExportColumns(),
         toExportRows(lines),
         {
           title: t.nav.dailyBook,
           businessName: "ASMS",
-          periodLabel: date,
+          periodLabel,
           subtitle:
             currencyFilter === "ALL"
               ? t.dailyBook.allCurrencies
@@ -663,13 +678,15 @@ export function DaybookPage() {
         fetchAllJournalLines(),
         getAppInfo().catch(() => null),
       ]);
+      const periodLabel =
+        dateFrom === dateTo ? dateFrom : `${dateFrom} → ${dateTo}`;
       printDaybookLedger({
         columns: journalExportColumns(),
         rows: toExportRows(lines),
         meta: {
           title: t.nav.dailyBook,
           businessName: appInfo?.name?.trim() || "ASMS",
-          businessDate: date,
+          businessDate: periodLabel,
           currencyFilter:
             currencyFilter === "ALL" ? t.dailyBook.allCurrencies : currencyFilter,
           generatedBy: session?.fullName ?? undefined,
@@ -695,27 +712,13 @@ export function DaybookPage() {
       {hasLoaded ? (
         <>
           <section className="panel records-panel daybook-journal-section">
-            <div className="records-chrome no-print">
-              <div className="records-title">
+            <div className="records-chrome no-print daybook-records-chrome">
+              <div className="records-title daybook-records-head">
                 <div>
                   <h2>{t.dailyBook.journal}</h2>
                   <span className="count-badge">{journalTotal}</span>
                 </div>
                 <div className="records-title-actions">
-                  <label style={{ margin: 0, minWidth: 120 }}>
-                    <span className="muted" style={{ fontSize: 11 }}>
-                      {t.dailyBook.activityRecords}
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={500}
-                      inputMode="numeric"
-                      placeholder={t.dailyBook.activityAllDay}
-                      value={journalLimitDraft}
-                      onChange={(e) => setJournalLimitDraft(e.target.value)}
-                    />
-                  </label>
                   <button
                     type="button"
                     className="btn"
@@ -728,7 +731,7 @@ export function DaybookPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn secondary"
                     disabled={exportBusy}
                     onClick={() => void handleExportCsv()}
                   >
@@ -736,38 +739,83 @@ export function DaybookPage() {
                   </button>
                 </div>
               </div>
-              <div className="table-toolbar">
-                <div className="search-field">
+              <div className="table-toolbar daybook-journal-toolbar">
+                <div className="daybook-journal-search">
+                  <Search size={15} aria-hidden className="daybook-search-icon" />
                   <input
                     type="search"
-                    className="desk-search"
+                    className="daybook-search-input"
                     value={searchDraft}
-                    placeholder={t.common.search}
+                    placeholder={t.dailyBook.searchPlaceholder}
                     aria-label={t.common.search}
+                    autoComplete="off"
                     onChange={(e) => setSearchDraft(e.target.value)}
                   />
+                  {searchDraft ? (
+                    <button
+                      type="button"
+                      className="daybook-search-clear"
+                      aria-label={t.common.clear}
+                      onClick={() => {
+                        setSearchDraft("");
+                        setSearch("");
+                      }}
+                    >
+                      ×
+                    </button>
+                  ) : null}
                 </div>
-                <div className="table-filters">
-                  <label className="daybook-journal-date" style={{ margin: 0 }}>
-                    <span className="muted">{t.common.date}</span>
+                <div className="table-filters daybook-journal-filters">
+                  <label className="daybook-journal-date">
                     <input
                       type="date"
-                      value={date}
+                      value={dateFrom}
                       onChange={(e) => {
                         const next = e.target.value;
-                        if (next) setDate(next);
+                        if (!next) return;
+                        setDateFrom(next);
+                        if (next > dateTo) setDateTo(next);
                       }}
-                      aria-label={t.common.date}
+                      aria-label={t.common.from}
+                      title={t.common.from}
                     />
                   </label>
-                  <div style={{ margin: 0, minWidth: 140 }}>
+                  <label className="daybook-journal-date">
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        if (!next) return;
+                        setDateTo(next);
+                        if (next < dateFrom) setDateFrom(next);
+                      }}
+                      aria-label={t.common.to}
+                      title={t.common.to}
+                    />
+                  </label>
+                  <div className="daybook-journal-currency">
                     <CurrencyFilter
                       currencies={currencies}
                       value={currencyFilter === "ALL" ? "" : currencyFilter}
                       onChange={(code) => setCurrencyFilter(code || "ALL")}
                       allLabel={t.dailyBook.allCurrencies}
+                      hideLabel
                     />
                   </div>
+                  <label className="daybook-journal-limit">
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      inputMode="numeric"
+                      placeholder={t.dailyBook.activityAllDay}
+                      value={journalLimitDraft}
+                      onChange={(e) => setJournalLimitDraft(e.target.value)}
+                      aria-label={t.dailyBook.activityRecords}
+                      title={t.dailyBook.activityRecordsHint}
+                    />
+                  </label>
                 </div>
               </div>
             </div>
@@ -783,7 +831,7 @@ export function DaybookPage() {
                       <th className="col-row">{t.dailyBook.rowNo}</th>
                       <th className="col-when">{t.common.date}</th>
                       <th className="col-account-code">{t.dailyBook.accountCode}</th>
-                      <th>{t.dailyBook.accountName}</th>
+                      <th className="col-account-name">{t.dailyBook.accountName}</th>
                       <th className="col-opposite">{t.dailyBook.oppositeAccount}</th>
                       <th className="col-description">{t.common.description}</th>
                       <th className="col-amount col-debit">{t.dailyBook.debit}</th>
@@ -822,7 +870,12 @@ export function DaybookPage() {
                               "—"
                             )}
                           </td>
-                          <td>{line.accountName || "—"}</td>
+                          <td
+                            className="col-account-name"
+                            title={line.accountName || undefined}
+                          >
+                            {line.accountName || "—"}
+                          </td>
                           <td className="col-opposite" title={oppositeLabel}>
                             {oppositeCode ? (
                               <strong className="daybook-account-code">{oppositeCode}</strong>

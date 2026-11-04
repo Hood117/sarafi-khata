@@ -6,6 +6,16 @@ import {
   type FormEvent,
 } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Archive,
+  ClipboardList,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  UserPlus,
+  X,
+} from "lucide-react";
 
 import {
   archiveAccountOrder,
@@ -26,19 +36,30 @@ import {
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import { errorMessage, todayIso } from "@desktop/lib/datetime";
-import { statusLabel } from "@desktop/lib/i18n-labels";
 import { canWritePath } from "@desktop/lib/permissions";
-import {
-  formatAmountDisplay,
-  statusBadgeClass,
-} from "@desktop/pages/hawala-helpers";
+import { formatAmountDisplay } from "@desktop/pages/hawala-helpers";
 import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
+import { Modal } from "@desktop/ui/modal";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SearchableSelect } from "@desktop/ui/searchable-select";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
+
+function orderStatusLabel(
+  t: ReturnType<typeof useT>,
+  status: string,
+): string {
+  switch (status.toUpperCase()) {
+    case "COMPLETED":
+      return t.accountOrders.statusCompleted;
+    case "CANCELLED":
+      return t.accountOrders.statusCancelled;
+    default:
+      return t.accountOrders.statusOpen;
+  }
+}
 
 export function AccountOrderDetailPage() {
   const { id = "" } = useParams();
@@ -356,7 +377,8 @@ export function AccountOrderDetailPage() {
         <div className="row wrap gap">
           {canWrite ? (
             <button type="button" className="btn danger" onClick={() => void onArchive()}>
-              {t.accountOrders.archiveOrder}
+              <Archive className="nav-icon" size={16} aria-hidden />
+              <span>{t.accountOrders.archiveOrder}</span>
             </button>
           ) : null}
         </div>
@@ -400,167 +422,107 @@ export function AccountOrderDetailPage() {
         </aside>
 
         <section className="account-order-main stack">
-          <form className="section-card stack" onSubmit={onSaveOrder}>
-            <div className="account-order-header-grid">
-              <label className="field">
-                <span>{t.accountOrders.orderName}</span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  disabled={!editingOrder}
-                  readOnly={!editingOrder}
-                  required={editingOrder}
-                />
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.orderNumber}</span>
-                <input value={detail.orderNumber} readOnly dir="ltr" />
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.orderDate}</span>
-                <input
-                  type="date"
-                  value={orderDate}
-                  onChange={(e) => setOrderDate(e.target.value)}
-                  disabled={!editingOrder}
-                  required={editingOrder}
-                />
-              </label>
-              {editingOrder ? (
-                <SearchableSelect
-                  label={t.accountOrders.linkedCustomer}
-                  value={customerId}
-                  options={customerOptions}
-                  onChange={setCustomerId}
-                  placeholder={t.accountOrders.optionalCustomer}
-                />
-              ) : (
-                <label className="field">
-                  <span>{t.accountOrders.linkedCustomer}</span>
-                  <input
-                    value={
-                      detail.customerName
-                        ? detail.customerCode
-                          ? `${detail.customerName} (${detail.customerCode})`
-                          : detail.customerName
-                        : "—"
-                    }
-                    readOnly
-                  />
-                </label>
-              )}
-              {editingOrder ? (
-                <CurrencyPicker
-                  label={t.common.currency}
-                  currencies={currencies}
-                  value={currencyCode}
-                  onChange={setCurrencyCode}
-                  onCurrenciesChange={setCurrencies}
-                  emptyLabel={t.common.noData}
-                  searchPlaceholder={t.common.search}
-                  required
-                  allowManage={false}
-                />
-              ) : (
-                <label className="field">
-                  <span>{t.common.currency}</span>
-                  <input value={currencyCode} readOnly dir="ltr" />
-                </label>
-              )}
-              <label className="field">
-                <span>{t.common.status}</span>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  disabled={!editingOrder}
+          <section className="section-card stack account-order-header-card">
+            <div className="account-order-header-top">
+              <h2 className="section-title">
+                <ClipboardList className="nav-icon" size={16} aria-hidden />
+                <span>{t.accountOrders.orderDetails}</span>
+              </h2>
+              {canWrite ? (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    applyOrderFields(detail);
+                    setEditingOrder(true);
+                    setFormError(null);
+                  }}
                 >
-                  <option value="OPEN">{t.accountOrders.statusOpen}</option>
-                  <option value="COMPLETED">{t.accountOrders.statusCompleted}</option>
-                  <option value="CANCELLED">{t.accountOrders.statusCancelled}</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.originalAmount}</span>
-                <AmountInput
-                  className="amount-emphasis"
-                  value={originalAmount}
-                  onValueChange={setOriginalAmount}
-                  disabled={!editingOrder}
-                  readOnly={!editingOrder}
-                  required={editingOrder}
-                />
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.purchaseDeductionPercent}</span>
-                <AmountInput
-                  className="amount-emphasis"
-                  value={purchaseDeductionPercent}
-                  onValueChange={setPurchaseDeductionPercent}
-                  disabled={!editingOrder}
-                  readOnly={!editingOrder}
-                />
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.purchaseDeduction}</span>
-                <input
-                  className="amount-emphasis"
-                  value={formatAmountDisplay(totals.purchaseDeduction)}
-                  readOnly
-                  dir="ltr"
-                />
-              </label>
-              <label className="field">
-                <span>{t.accountOrders.netPurchaseAmount}</span>
-                <input
-                  className="amount-emphasis"
-                  value={formatAmountDisplay(totals.netPurchaseAmount)}
-                  readOnly
-                  dir="ltr"
-                />
-              </label>
+                  <Pencil className="nav-icon" size={16} aria-hidden />
+                  <span>{t.accountOrders.editOrder}</span>
+                </button>
+              ) : null}
             </div>
-            {canWrite ? (
-              <div className="row gap end account-order-entry-actions">
-                {editingOrder ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={cancelEditOrder}
-                      disabled={savingOrder}
-                    >
-                      {t.common.cancel}
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn primary"
-                      disabled={savingOrder}
-                    >
-                      {t.accountOrders.saveOrder}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      applyOrderFields(detail);
-                      setEditingOrder(true);
-                      setFormError(null);
-                    }}
-                  >
-                    {t.accountOrders.editOrder}
-                  </button>
-                )}
+            <dl className="account-order-detail-grid account-order-header-identity">
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.orderName}</dt>
+                <dd>{detail.name}</dd>
               </div>
-            ) : null}
-          </form>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.orderNumber}</dt>
+                <dd dir="ltr">{detail.orderNumber}</dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.orderDate}</dt>
+                <dd dir="ltr">{String(detail.orderDate).slice(0, 10)}</dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.linkedCustomer}</dt>
+                <dd>
+                  {detail.customerName
+                    ? detail.customerCode
+                      ? `${detail.customerName} (${detail.customerCode})`
+                      : detail.customerName
+                    : "—"}
+                </dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.common.currency}</dt>
+                <dd>
+                  <CurrencyCodeWithFlag code={detail.currencyCode} />
+                </dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.common.status}</dt>
+                <dd>
+                  <span
+                    className={`badge account-order-status-badge status-${detail.status.toLowerCase()}`}
+                  >
+                    {orderStatusLabel(t, detail.status)}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+            <dl className="account-order-detail-grid account-order-header-money">
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.originalAmount}</dt>
+                <dd className="amount-emphasis" dir="ltr">
+                  {formatAmountDisplay(detail.originalAmount)}
+                </dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.purchaseDeductionPercent}</dt>
+                <dd className="amount-emphasis" dir="ltr">
+                  {detail.purchaseDeductionPercent}
+                </dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.purchaseDeduction}</dt>
+                <dd className="amount-emphasis" dir="ltr">
+                  {formatAmountDisplay(totals.purchaseDeduction)}
+                </dd>
+              </div>
+              <div className="account-order-detail-item">
+                <dt>{t.accountOrders.netPurchaseAmount}</dt>
+                <dd className="amount-emphasis" dir="ltr">
+                  {formatAmountDisplay(totals.netPurchaseAmount)}
+                </dd>
+              </div>
+            </dl>
+          </section>
 
           <form className="section-card account-order-entry-row" onSubmit={onSaveRecipient}>
             <h2 className="section-title">
-              {editRecipientId
-                ? t.accountOrders.editRecipient
-                : t.accountOrders.addRecipient}
+              {editRecipientId ? (
+                <Pencil className="nav-icon" size={16} aria-hidden />
+              ) : (
+                <UserPlus className="nav-icon" size={16} aria-hidden />
+              )}
+              <span>
+                {editRecipientId
+                  ? t.accountOrders.editRecipient
+                  : t.accountOrders.addRecipient}
+              </span>
             </h2>
             <div className="account-order-entry-grid">
               <label className="field">
@@ -658,7 +620,8 @@ export function AccountOrderDetailPage() {
                         })
                       }
                     >
-                      {t.common.cancel}
+                      <X className="nav-icon" size={16} aria-hidden />
+                      <span>{t.common.cancel}</span>
                     </button>
                   ) : null}
                   <button
@@ -666,37 +629,44 @@ export function AccountOrderDetailPage() {
                     className="btn primary"
                     disabled={savingRecipient}
                   >
-                    {t.accountOrders.saveRecipient}
+                    {editRecipientId ? (
+                      <Save className="nav-icon" size={16} aria-hidden />
+                    ) : (
+                      <Plus className="nav-icon" size={16} aria-hidden />
+                    )}
+                    <span>{t.accountOrders.saveRecipient}</span>
                   </button>
                 </div>
               ) : null}
             </div>
           </form>
 
-          <div className="section-card stack">
-            <h2 className="section-title">{t.accountOrders.recipients}</h2>
+          <div className="section-card stack account-order-recipients-card">
+            <h2 className="section-title">
+              <ClipboardList className="nav-icon" size={16} aria-hidden />
+              <span>{t.accountOrders.recipients}</span>
+            </h2>
             <div className="table-scroll">
-              <table className="data-table">
+              <table className="data-table account-order-recipients-table">
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>{t.accountOrders.recipientId}</th>
-                    <th>{t.accountOrders.recipientName}</th>
+                    <th className="col-row">#</th>
+                    <th className="col-ref">{t.accountOrders.recipientId}</th>
+                    <th className="col-party">{t.accountOrders.recipientName}</th>
                     <th className="col-date">{t.accountOrders.recipientDate}</th>
                     <th>{t.accountOrders.detail}</th>
-                    <th className="num">{t.accountOrders.recipientAmount}</th>
+                    <th className="num col-amount">{t.accountOrders.recipientAmount}</th>
                     <th className="num">{t.accountOrders.distributionFeePercent}</th>
-                    <th className="num">{t.accountOrders.distributionFeeAmount}</th>
-                    <th className="num">{t.accountOrders.netRecipientAmount}</th>
+                    <th className="num col-amount">{t.accountOrders.distributionFeeAmount}</th>
+                    <th className="num col-amount">{t.accountOrders.netRecipientAmount}</th>
                     <th className="col-center">{t.common.currency}</th>
-                    <th>{t.common.status}</th>
-                    {canWrite ? <th /> : null}
+                    {canWrite ? <th className="col-actions" /> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {detail.recipients.length === 0 ? (
                     <tr>
-                      <td colSpan={canWrite ? 12 : 11} className="muted">
+                      <td colSpan={canWrite ? 11 : 10} className="muted">
                         {t.accountOrders.emptyRecipients}
                       </td>
                     </tr>
@@ -709,54 +679,62 @@ export function AccountOrderDetailPage() {
                       }
                       aria-selected={editRecipientId === row.id}
                     >
-                      <td dir="ltr">{index + 1}</td>
-                      <td dir="ltr">{row.recipientNumber}</td>
-                      <td>
-                        {row.customerName ?? row.name}
+                      <td className="col-row" dir="ltr">
+                        {index + 1}
+                      </td>
+                      <td className="col-ref" dir="ltr">
+                        <strong>{row.recipientNumber}</strong>
+                      </td>
+                      <td className="col-party">
+                        <strong className="account-order-recipient-name">
+                          {row.customerName ?? row.name}
+                        </strong>
                         {row.customerCode ? (
-                          <span className="muted"> ({row.customerCode})</span>
+                          <span className="account-order-recipient-code muted">
+                            {" "}
+                            ({row.customerCode})
+                          </span>
                         ) : null}
                       </td>
                       <td className="col-date" dir="ltr">
                         {String(row.recipientDate).slice(0, 10)}
                       </td>
-                      <td>{row.detail ?? "—"}</td>
-                      <td className="num amount-emphasis" dir="ltr">
+                      <td className="account-order-recipient-detail">
+                        {row.detail ?? "—"}
+                      </td>
+                      <td className="num col-amount amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.amount)}
                       </td>
                       <td className="num" dir="ltr">
                         {row.distributionFeePercent}
                       </td>
-                      <td className="num amount-emphasis" dir="ltr">
+                      <td className="num col-amount amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.distributionFeeAmount)}
                       </td>
-                      <td className="num amount-emphasis" dir="ltr">
+                      <td className="num col-amount amount-emphasis" dir="ltr">
                         {formatAmountDisplay(row.netAmount)}
                       </td>
                       <td className="col-center">
                         <CurrencyCodeWithFlag code={detail.currencyCode} />
                       </td>
-                      <td>
-                        <span className={statusBadgeClass(row.status)}>
-                          {statusLabel(t, row.status)}
-                        </span>
-                      </td>
                       {canWrite ? (
-                        <td>
-                          <div className="row gap wrap">
+                        <td className="col-actions">
+                          <div className="row gap account-order-row-actions">
                             <button
                               type="button"
                               className="btn small"
                               onClick={() => startEditRecipient(row)}
                             >
-                              {t.common.editAction}
+                              <Pencil className="nav-icon" size={14} aria-hidden />
+                              <span>{t.common.editAction}</span>
                             </button>
                             <button
                               type="button"
                               className="btn small danger"
                               onClick={() => void onDeleteRecipient(row)}
                             >
-                              {t.common.delete}
+                              <Trash2 className="nav-icon" size={14} aria-hidden />
+                              <span>{t.common.delete}</span>
                             </button>
                           </div>
                         </td>
@@ -808,6 +786,126 @@ export function AccountOrderDetailPage() {
           </strong>
         </div>
       </footer>
+
+      {editingOrder ? (
+        <Modal
+          title={t.accountOrders.editOrder}
+          size="wide"
+          onClose={cancelEditOrder}
+        >
+          <form className="stack account-order-edit-modal" onSubmit={onSaveOrder}>
+            <ModalErrorBanner message={formError} />
+            <div className="account-order-header-grid account-order-edit-identity">
+              <label className="field">
+                <span>{t.accountOrders.orderName}</span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>{t.accountOrders.orderNumber}</span>
+                <input value={detail.orderNumber} readOnly dir="ltr" />
+              </label>
+              <label className="field">
+                <span>{t.accountOrders.orderDate}</span>
+                <input
+                  type="date"
+                  value={orderDate}
+                  onChange={(e) => setOrderDate(e.target.value)}
+                  required
+                />
+              </label>
+              <SearchableSelect
+                label={t.accountOrders.linkedCustomer}
+                value={customerId}
+                options={customerOptions}
+                onChange={setCustomerId}
+                placeholder={t.accountOrders.optionalCustomer}
+              />
+              <CurrencyPicker
+                label={t.common.currency}
+                currencies={currencies}
+                value={currencyCode}
+                onChange={setCurrencyCode}
+                onCurrenciesChange={setCurrencies}
+                emptyLabel={t.common.noData}
+                searchPlaceholder={t.common.search}
+                required
+                allowManage={false}
+              />
+              <label className="field">
+                <span>{t.common.status}</span>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  <option value="OPEN">{t.accountOrders.statusOpen}</option>
+                  <option value="COMPLETED">{t.accountOrders.statusCompleted}</option>
+                  <option value="CANCELLED">{t.accountOrders.statusCancelled}</option>
+                </select>
+              </label>
+            </div>
+            <div className="account-order-header-grid account-order-edit-money">
+              <label className="field">
+                <span>{t.accountOrders.originalAmount}</span>
+                <AmountInput
+                  className="amount-emphasis"
+                  value={originalAmount}
+                  onValueChange={setOriginalAmount}
+                  required
+                />
+              </label>
+              <label className="field">
+                <span>{t.accountOrders.purchaseDeductionPercent}</span>
+                <AmountInput
+                  className="amount-emphasis"
+                  value={purchaseDeductionPercent}
+                  onValueChange={setPurchaseDeductionPercent}
+                />
+              </label>
+              <label className="field">
+                <span>{t.accountOrders.purchaseDeduction}</span>
+                <input
+                  className="amount-emphasis"
+                  value={formatAmountDisplay(totals.purchaseDeduction)}
+                  readOnly
+                  dir="ltr"
+                />
+              </label>
+              <label className="field">
+                <span>{t.accountOrders.netPurchaseAmount}</span>
+                <input
+                  className="amount-emphasis"
+                  value={formatAmountDisplay(totals.netPurchaseAmount)}
+                  readOnly
+                  dir="ltr"
+                />
+              </label>
+            </div>
+            <div className="modal-actions" style={{ justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={cancelEditOrder}
+                disabled={savingOrder}
+              >
+                <X className="nav-icon" size={16} aria-hidden />
+                <span>{t.common.cancel}</span>
+              </button>
+              <button
+                type="submit"
+                className="btn primary"
+                disabled={savingOrder}
+              >
+                <Save className="nav-icon" size={16} aria-hidden />
+                <span>{t.accountOrders.saveOrder}</span>
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
 
       {successModal}
     </div>

@@ -145,7 +145,6 @@ export function CreatePartnerFromCustomerModal({
       }
       onSubmit={(e) => void handleSubmit(e)}
     >
-      <p className="muted">{t.customers.addAsPartnerHint}</p>
       <div className="exchange-fields-grid">
         <label>
           {t.common.name}

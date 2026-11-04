@@ -89,6 +89,8 @@ pub struct FingerprintVerifyResult {
   pub ok: bool,
   /// SDK 1:1 match score when `ok` is true.
   pub match_score: Option<i32>,
+  /// Captured probe template (base64) when `ok` is true — saved on hawala collection.
+  pub template_base64: Option<String>,
   pub sdk_error_code: Option<i32>,
   pub message: String,
 }
@@ -114,6 +116,12 @@ enum Request {
   IdentifyOne {
     /// `Some` rebuilds the in-memory DB cache; `None` reuses the warm session.
     enrolled: Option<(String, Vec<EnrolledFingerprint>)>,
+    reply: mpsc::Sender<Result<FingerprintIdentifyResult, String>>,
+  },
+  /// One capture, then 1:1 `DBMatch` against each candidate (best score wins).
+  /// Used for hawala collector templates saved from a single verify/capture.
+  MatchOneOf {
+    candidates: Vec<EnrolledFingerprint>,
     reply: mpsc::Sender<Result<FingerprintIdentifyResult, String>>,
   },
   VerifyOne {
@@ -224,6 +232,26 @@ impl FingerprintService {
       .map_err(AppError::Internal)
   }
 
+  /// Capture one press and 1:1-match against many templates; returns the best score.
+  pub fn match_one_of(
+    &self,
+    candidates: Vec<EnrolledFingerprint>,
+  ) -> Result<FingerprintIdentifyResult, AppError> {
+    let (reply_tx, reply_rx) = mpsc::channel();
+    self
+      .tx
+      .send(Request::MatchOneOf {
+        candidates,
+        reply: reply_tx,
+      })
+      .map_err(|_| AppError::Internal("Fingerprint service is unavailable.".into()))?;
+
+    reply_rx
+      .recv()
+      .map_err(|_| AppError::Internal("Fingerprint service did not respond.".into()))?
+      .map_err(AppError::Internal)
+  }
+
   /// Capture one press and 1:1-match against a single enrolled template via `ZKFPM_DBMatch`.
   pub fn verify_one(
     &self,
@@ -296,6 +324,10 @@ fn owner_loop(rx: Receiver<Request>) {
       }
       Request::IdentifyOne { enrolled, reply } => {
         let _ = reply.send(identify_with_session(&mut session, enrolled));
+      }
+      Request::MatchOneOf { candidates, reply } => {
+        release_session(&mut session);
+        let _ = reply.send(match_one_of_fingerprints(candidates));
       }
       Request::VerifyOne {
         enrolled_template,
@@ -890,8 +922,149 @@ fn verify_fail(
   FingerprintVerifyResult {
     ok: false,
     match_score: None,
+    template_base64: None,
     sdk_error_code,
     message,
+  }
+}
+
+fn match_one_of_fingerprints(
+  candidates: Vec<EnrolledFingerprint>,
+) -> Result<FingerprintIdentifyResult, String> {
+  if candidates.is_empty() {
+    return Ok(identify_fail(
+      None,
+      "No collector fingerprints to match against.".into(),
+    ));
+  }
+
+  let sdk = match ZkFpSdk::load() {
+    Ok(s) => s,
+    Err(e) => return Ok(identify_fail(None, e)),
+  };
+
+  let init_code = sdk.init();
+  if init_code != ZKFP_ERR_OK && init_code != ZKFP_ERR_ALREADY_INIT {
+    return Ok(identify_fail(
+      Some(init_code),
+      format!(
+        "ZKFPM_Init failed ({init_code}: {})",
+        describe_sdk_code(init_code)
+      ),
+    ));
+  }
+
+  let count = sdk.device_count();
+  if count <= 0 {
+    let _ = sdk.terminate();
+    return Ok(identify_fail(
+      Some(if count < 0 {
+        count
+      } else {
+        ZKFP_ERR_NO_DEVICE
+      }),
+      "No fingerprint reader detected.".into(),
+    ));
+  }
+
+  let handle = sdk.open_device(0);
+  if handle.is_null() {
+    let _ = sdk.terminate();
+    return Ok(identify_fail(
+      Some(ZKFP_ERR_OPEN),
+      "ZKFPM_OpenDevice(0) failed.".into(),
+    ));
+  }
+
+  let db = sdk.db_init();
+  if db.is_null() {
+    let _ = sdk.close_device(handle);
+    let _ = sdk.terminate();
+    return Ok(identify_fail(None, "ZKFPM_DBInit failed.".into()));
+  }
+
+  let result = match_one_of_with_open_device(&sdk, handle, db, &candidates);
+  let _ = sdk.db_free(db);
+  let _ = sdk.close_device(handle);
+  let _ = sdk.terminate();
+  Ok(result)
+}
+
+fn match_one_of_with_open_device(
+  sdk: &ZkFpSdk,
+  handle: super::sdk::DeviceHandle,
+  db: super::sdk::DeviceHandle,
+  candidates: &[EnrolledFingerprint],
+) -> FingerprintIdentifyResult {
+  let mut width_buf = [0u8; 4];
+  let mut height_buf = [0u8; 4];
+  let (w_code, _) = match sdk.get_parameters(handle, 1, &mut width_buf) {
+    Ok(v) => v,
+    Err(e) => return identify_fail(None, e),
+  };
+  let (h_code, _) = match sdk.get_parameters(handle, 2, &mut height_buf) {
+    Ok(v) => v,
+    Err(e) => return identify_fail(None, e),
+  };
+  if w_code != ZKFP_ERR_OK || h_code != ZKFP_ERR_OK {
+    let code = if w_code != ZKFP_ERR_OK { w_code } else { h_code };
+    return identify_fail(
+      Some(code),
+      format!(
+        "Failed to read image size ({code}: {})",
+        describe_sdk_code(code)
+      ),
+    );
+  }
+
+  let width = u32::from_le_bytes(width_buf);
+  let height = u32::from_le_bytes(height_buf);
+  let image_len = (width as usize).saturating_mul(height as usize);
+  if width == 0 || height == 0 || image_len == 0 || image_len > 10_000_000 {
+    return identify_fail(
+      Some(-5),
+      format!("Invalid image size from device ({width}x{height})."),
+    );
+  }
+
+  let mut image = vec![0u8; image_len];
+  let probe = match poll_template_bytes(
+    sdk,
+    handle,
+    &mut image,
+    IDENTIFY_TIMEOUT,
+    IDENTIFY_POLL_INTERVAL,
+  ) {
+    Ok(bytes) => bytes,
+    Err(fail) => {
+      return identify_fail(
+        fail.sdk_error_code,
+        format!("Capture failed: {}", fail.message),
+      );
+    }
+  };
+
+  let mut best: Option<(String, i32)> = None;
+  for item in candidates {
+    let score = sdk.db_match(db, &item.template, &probe);
+    if score <= 0 {
+      continue;
+    }
+    match &best {
+      Some((_, best_score)) if score <= *best_score => {}
+      _ => best = Some((item.customer_id.clone(), score)),
+    }
+  }
+
+  match best {
+    Some((id, score)) => FingerprintIdentifyResult {
+      ok: true,
+      customer_id: Some(id),
+      match_score: Some(score as u32),
+      sdk_error_code: None,
+      message: format!("Fingerprint matched (score={score})."),
+    },
+    None => identify_fail(None, "No match for this fingerprint.".into()),
   }
 }
 
@@ -1022,6 +1195,7 @@ fn verify_with_open_device(
   FingerprintVerifyResult {
     ok: true,
     match_score: Some(score),
+    template_base64: Some(B64.encode(&probe)),
     sdk_error_code: None,
     message: format!("Fingerprint verified (score={score})."),
   }

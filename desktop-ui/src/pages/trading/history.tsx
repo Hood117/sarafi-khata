@@ -120,141 +120,154 @@ export function TradingHistoryPage() {
   }
 
   return (
-    <div className="card stack">
-      <h2 className="section-title">{t.desk.tradeHistory}</h2>
-      <div className="row">
-        <label style={{ flex: 1, minWidth: "12rem" }}>
-          {t.common.search}
-          <input
-            type="search"
-            className="desk-search"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            placeholder={t.common.search}
-          />
-        </label>
-        <label>
-          {t.desk.direction}
-          <select
-            value={direction}
-            onChange={(e) => {
-              setDirection(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="ALL">{t.common.all}</option>
-            <option value="BUY">{t.desk.purchases}</option>
-            <option value="SELL">{t.desk.sales}</option>
-          </select>
-        </label>
-        <div style={{ minWidth: "11rem" }}>
-          <CurrencyFilter
-            currencies={currencies}
-            value={currencyCode}
-            onChange={(code) => {
-              setCurrencyCode(code);
-              setPage(1);
-            }}
-            allLabel={t.common.all}
-          />
+    <section className="panel records-panel">
+      <div className="records-chrome">
+        <div className="records-title">
+          <div>
+            <h2>{t.desk.tradeHistory}</h2>
+            <span className="count-badge">{total}</span>
+          </div>
         </div>
-        <label>
-          {t.common.from}
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-        <label>
-          {t.common.to}
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value);
-              setPage(1);
-            }}
-          />
-        </label>
-      </div>
-      {error ? <p className="error">{error}</p> : null}
-      {busy ? <p className="muted">{t.common.loading}</p> : null}
-      <table>
-        <thead>
-          <tr>
-            <th>{t.desk.direction}</th>
-            <th>{t.common.reference}</th>
-            <th>{t.desk.held}</th>
-            <th>{t.desk.ratePaid}</th>
-            <th>{t.desk.paidReceived}</th>
-            <th>{t.desk.avgCostPerUnit}</th>
-            <th>{t.desk.profitLossShort}</th>
-            <th>{t.desk.party}</th>
-            <th>{t.common.date}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 && !busy ? (
-            <tr>
-              <td colSpan={9} className="muted">
-                {t.desk.noTradesMatch}
-              </td>
-            </tr>
-          ) : null}
-          {items.map((trade) => (
-            <tr
-              key={trade.id}
-              className="customer-row-clickable"
-              onClick={() => openTrade(trade)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setRowMenu({ x: e.clientX, y: e.clientY, trade });
+        <div className="table-toolbar">
+          <label className="search-field search-field-emphasized">
+            <input
+              type="search"
+              className="desk-search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
               }}
-            >
-              <td>{statusLabel(t, trade.direction)}</td>
-              <td>{trade.reference}</td>
-              <td>
-                <strong>
-                  {trade.quantity} {trade.inventoryCurrencyCode}
-                </strong>
-              </td>
-              <td>
-                {trade.rate} {trade.paymentCurrencyCode} / {trade.inventoryCurrencyCode}
-              </td>
-              <td>
-                {trade.paymentAmount} {trade.paymentCurrencyCode}
-              </td>
-              <td>
-                {trade.avgCostAtPost
-                  ? `${trade.avgCostAtPost} ${trade.paymentCurrencyCode} / ${trade.inventoryCurrencyCode}`
-                  : "—"}
-              </td>
-              <td>
-                {trade.grossProfit
-                  ? `${trade.grossProfit} ${trade.paymentCurrencyCode}`
-                  : "—"}
-              </td>
-              <td>{trade.counterpartyName ?? trade.counterpartyType}</td>
-              <td>{trade.valueDate.slice(0, 10)}</td>
+              placeholder={t.common.search}
+              aria-label={t.common.search}
+            />
+          </label>
+          <div className="table-filters">
+            <label>
+              <span className="muted">{t.desk.direction}</span>
+              <select
+                value={direction}
+                aria-label={t.desk.direction}
+                onChange={(e) => {
+                  setDirection(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="ALL">{t.common.all}</option>
+                <option value="BUY">{t.desk.purchases}</option>
+                <option value="SELL">{t.desk.sales}</option>
+              </select>
+            </label>
+            <CurrencyFilter
+              currencies={currencies}
+              value={currencyCode}
+              onChange={(code) => {
+                setCurrencyCode(code);
+                setPage(1);
+              }}
+              allLabel={t.common.all}
+              hideLabel
+            />
+            <label>
+              <input
+                type="date"
+                value={dateFrom}
+                aria-label={t.common.from}
+                title={t.common.from}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+            <label>
+              <input
+                type="date"
+                value={dateTo}
+                aria-label={t.common.to}
+                title={t.common.to}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+      {error ? <p className="error" style={{ margin: 0, padding: "10px 12px" }}>{error}</p> : null}
+      {busy ? <p className="muted" style={{ margin: 0, padding: "10px 12px" }}>{t.common.loading}</p> : null}
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>{t.desk.direction}</th>
+              <th>{t.common.reference}</th>
+              <th>{t.desk.held}</th>
+              <th>{t.desk.ratePaid}</th>
+              <th>{t.desk.paidReceived}</th>
+              <th>{t.desk.avgCostPerUnit}</th>
+              <th>{t.desk.profitLossShort}</th>
+              <th>{t.desk.party}</th>
+              <th>{t.common.date}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <span className="muted">
+          </thead>
+          <tbody>
+            {items.length === 0 && !busy ? (
+              <tr>
+                <td colSpan={9} className="muted">
+                  {t.desk.noTradesMatch}
+                </td>
+              </tr>
+            ) : null}
+            {items.map((trade) => (
+              <tr
+                key={trade.id}
+                className="customer-row-clickable"
+                onClick={() => openTrade(trade)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setRowMenu({ x: e.clientX, y: e.clientY, trade });
+                }}
+              >
+                <td>{statusLabel(t, trade.direction)}</td>
+                <td>{trade.reference}</td>
+                <td>
+                  <strong>
+                    {trade.quantity} {trade.inventoryCurrencyCode}
+                  </strong>
+                </td>
+                <td>
+                  {trade.rate} {trade.paymentCurrencyCode} / {trade.inventoryCurrencyCode}
+                </td>
+                <td>
+                  {trade.paymentAmount} {trade.paymentCurrencyCode}
+                </td>
+                <td>
+                  {trade.avgCostAtPost
+                    ? `${trade.avgCostAtPost} ${trade.paymentCurrencyCode} / ${trade.inventoryCurrencyCode}`
+                    : "—"}
+                </td>
+                <td>
+                  {trade.grossProfit
+                    ? `${trade.grossProfit} ${trade.paymentCurrencyCode}`
+                    : "—"}
+                </td>
+                <td>{trade.counterpartyName ?? trade.counterpartyType}</td>
+                <td>{trade.valueDate.slice(0, 10)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="records-pagination">
+        <span>
           {t.desk.pageTotal
             .replace("{page}", String(page))
             .replace("{totalPages}", String(totalPages))
             .replace("{total}", String(total))}
         </span>
-        <div className="row">
+        <div className="row" style={{ gap: 8 }}>
           <button
             type="button"
             className="secondary"
@@ -315,6 +328,6 @@ export function TradingHistoryPage() {
         error={dealModal.error}
         onClose={dealModal.close}
       />
-    </div>
+    </section>
   );
 }

@@ -304,7 +304,7 @@ export function QuickActionsBar() {
       />
 
       {open === "newCustomer" ? (
-        <Modal title={customerModalTitle} size="wide" onClose={close}>
+        <Modal title={customerModalTitle} size="xl" onClose={close}>
           <CustomerCreateForm
             onCancel={close}
             onEditingChange={(editing, name) => {

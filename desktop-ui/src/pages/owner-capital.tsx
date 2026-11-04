@@ -159,39 +159,46 @@ export function OwnerCapitalPage() {
 
       {snap ? (
         <>
-          <div className="row" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ minWidth: "16rem", flex: "1 1 16rem", maxWidth: "24rem" }}>
-              <CurrencyPicker
-                label={t.desk.capitalSelectCurrency}
-                currencies={currencyOptions}
-                value={focusCurrency}
-                onChange={setFocusCurrency}
-                emptyLabel={t.common.select}
-                searchPlaceholder={t.common.search}
-              />
-            </div>
-            <label className="stack" style={{ gap: "0.25rem", minWidth: "12rem" }}>
-              <span className="muted">{t.desk.asOfDate}</span>
-              <input
-                type="date"
-                value={asOfDate}
-                max={today}
-                onChange={(e) => setAsOfDate(e.target.value || today)}
-              />
-            </label>
-          </div>
-
-          {!focusRow ? (
-            <p className="muted">{t.desk.noCurrencyBalances}</p>
-          ) : (
-            <div className="section-card stack">
-              <div>
-                <h2 style={{ margin: "0 0 0.25rem" }}>{currencyTitle(focusRow, locale)}</h2>
+          <section className="panel records-panel">
+            <div className="records-chrome">
+              <div className="records-title">
+                <div>
+                  <h2>{t.nav.ownerCapital}</h2>
+                </div>
               </div>
+              <div className="table-toolbar">
+                <div className="table-filters" style={{ flex: 1 }}>
+                  <div style={{ minWidth: "16rem", flex: "1 1 16rem", maxWidth: "24rem" }}>
+                    <CurrencyPicker
+                      label={t.desk.capitalSelectCurrency}
+                      currencies={currencyOptions}
+                      value={focusCurrency}
+                      onChange={setFocusCurrency}
+                      emptyLabel={t.common.select}
+                      searchPlaceholder={t.common.search}
+                    />
+                  </div>
+                  <label>
+                    <span className="muted">{t.desk.asOfDate}</span>
+                    <input
+                      type="date"
+                      value={asOfDate}
+                      max={today}
+                      onChange={(e) => setAsOfDate(e.target.value || today)}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
 
-              <div className="section-card stack" style={{ margin: 0 }}>
+            {!focusRow ? (
+              <p className="muted" style={{ margin: 0, padding: "12px" }}>
+                {t.desk.noCurrencyBalances}
+              </p>
+            ) : (
+              <div style={{ padding: "12px" }} className="stack">
                 <h3 className="section-title" style={{ margin: 0 }}>
-                  {t.desk.capitalOwnershipRecon}
+                  {currencyTitle(focusRow, locale)} · {t.desk.capitalOwnershipRecon}
                 </h3>
                 <dl className="capital-recon-list">
                   <div className="capital-recon-row">
@@ -220,32 +227,48 @@ export function OwnerCapitalPage() {
                   </div>
                 </dl>
               </div>
-            </div>
-          )}
+            )}
+          </section>
 
           {comparing && snapNow ? (
-            <div className="section-card stack">
-              <h2 style={{ margin: 0 }}>
-                {t.desk.capitalThen} ({asOfDate}) → {t.desk.capitalNow} ({today})
-              </h2>
-              <div className="stat-grid">
-                {compareRows.map((r) => (
-                  <Stat
-                    key={r.currencyCode}
-                    label={r.currencyCode}
-                    value={`${r.then} → ${r.now}`}
-                    hint={`${t.desk.capitalChange}: ${r.changeNum >= 0 ? "+" : ""}${r.change}`}
-                  />
-                ))}
+            <section className="panel records-panel">
+              <div className="records-chrome">
+                <div className="records-title">
+                  <div>
+                    <h2>
+                      {t.desk.capitalThen} ({asOfDate}) → {t.desk.capitalNow} ({today})
+                    </h2>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div style={{ padding: "12px" }}>
+                <div className="stat-grid hawala-kpi-strip">
+                  {compareRows.map((r) => (
+                    <Stat
+                      key={r.currencyCode}
+                      label={r.currencyCode}
+                      value={`${r.then} → ${r.now}`}
+                      hint={`${t.desk.capitalChange}: ${r.changeNum >= 0 ? "+" : ""}${r.change}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </section>
           ) : null}
 
-          <div className="section-card stack">
-            <h2>{t.desk.capitalAnalytics}</h2>
-            <CurrencyDistributionChart rows={snap.byCurrency} />
-            <IncomeSourcesChart snap={snap} />
-          </div>
+          <section className="panel records-panel">
+            <div className="records-chrome">
+              <div className="records-title">
+                <div>
+                  <h2>{t.desk.capitalAnalytics}</h2>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: "12px" }} className="stack">
+              <CurrencyDistributionChart rows={snap.byCurrency} />
+              <IncomeSourcesChart snap={snap} />
+            </div>
+          </section>
         </>
       ) : null}
     </div>

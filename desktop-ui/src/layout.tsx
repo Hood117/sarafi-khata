@@ -17,21 +17,15 @@ import {
   ArrowLeftRight,
   Banknote,
   BookOpen,
-  BriefcaseBusiness,
   Building2,
-  ChartNoAxesCombined,
   ClipboardList,
-  Handshake,
   Landmark,
   LayoutDashboard,
   Percent,
   Receipt,
-  Repeat2,
   Scale,
   Send,
-  Settings,
   ShieldCheck,
-  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -41,6 +35,7 @@ import { useBackspaceNavigate } from "@desktop/lib/use-backspace-navigate";
 import { useDeskAction } from "@desktop/lib/use-desk-action";
 import { useGlobalShortcuts } from "@desktop/lib/use-global-shortcuts";
 import { useChromeIntro, usePageMotion } from "@desktop/lib/use-page-motion";
+import { useSmoothScroll } from "@desktop/lib/use-smooth-scroll";
 
 type NavItem = {
   to: string;
@@ -90,8 +85,11 @@ export function AppLayout() {
   useBackspaceNavigate();
   useGlobalShortcuts({ onOpenSearch: openSearch });
 
+  const shellRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  usePageMotion(mainRef, `${location.pathname}:${refreshKey}`);
+  const routeKey = `${location.pathname}:${refreshKey}`;
+  useSmoothScroll(shellRef, routeKey);
+  usePageMotion(mainRef, routeKey);
 
   useEffect(() => {
     void getBusinessName()
@@ -153,22 +151,10 @@ export function AppLayout() {
       label: "OPERATIONS",
       items: [
         {
-          to: "/trading",
-          screen: "trading",
-          label: t.nav.trading,
-          icon: <TrendingUp className="nav-icon" size={18} />,
-        },
-        {
           to: "/hawala",
           screen: "hawala",
           label: t.nav.hawala,
           icon: <Send className="nav-icon" size={18} />,
-        },
-        {
-          to: "/partners",
-          screen: "partners",
-          label: t.nav.partnerSarafi,
-          icon: <Handshake className="nav-icon" size={18} />,
         },
         {
           to: "/hawala/commission",
@@ -183,12 +169,6 @@ export function AppLayout() {
           icon: <Receipt className="nav-icon" size={18} />,
         },
         {
-          to: "/employees",
-          screen: "employees",
-          label: t.nav.employees,
-          icon: <BriefcaseBusiness className="nav-icon" size={18} />,
-        },
-        {
           to: "/capital",
           screen: "capital",
           label: t.nav.ownerCapital,
@@ -199,30 +179,6 @@ export function AppLayout() {
           screen: "accountOrders",
           label: t.nav.accountOrders,
           icon: <ClipboardList className="nav-icon" size={18} />,
-        },
-      ],
-    },
-    {
-      id: "management",
-      label: "MANAGEMENT",
-      items: [
-        {
-          to: "/rates",
-          screen: "rates",
-          label: t.pages.exchangeRates,
-          icon: <Repeat2 className="nav-icon" size={18} />,
-        },
-        {
-          to: "/reports",
-          screen: "reports",
-          label: t.nav.reports,
-          icon: <ChartNoAxesCombined className="nav-icon" size={18} />,
-        },
-        {
-          to: "/settings",
-          screen: "settings",
-          label: t.nav.settings,
-          icon: <Settings className="nav-icon" size={18} />,
         },
       ],
     },
@@ -247,7 +203,7 @@ export function AppLayout() {
 
   return (
     <div className="app-frame">
-      <div className="app-shell stack" data-screen={screenId}>
+      <div ref={shellRef} className="app-shell stack" data-screen={screenId}>
         <aside className="app-topbar sidebar">
           <NavLink to="/" end className="sidebar-brand brand">
             <span className="brand-mark" aria-hidden>
@@ -258,11 +214,6 @@ export function AppLayout() {
               <span className="brand-sub">BUSINESS WORKSPACE</span>
             </span>
           </NavLink>
-
-          <div className="business-switch is-single" aria-label={t.settings.businessName}>
-            <Building2 className="nav-icon" size={18} />
-            <span className="business-switch-name">{businessName}</span>
-          </div>
 
           <nav className="app-tabbar" aria-label={t.brand.name}>
             <div className="app-tabbar-track">
@@ -310,6 +261,14 @@ export function AppLayout() {
 
         <div className="app-workspace">
           <header className="app-header-bar topbar">
+            <div
+              className="app-header-business"
+              aria-label={t.settings.businessName}
+              title={businessName}
+            >
+              <Building2 className="nav-icon" size={18} aria-hidden />
+              <span className="app-header-business-name">{businessName}</span>
+            </div>
             <div
               className="app-header-actions topbar-actions"
               role="toolbar"

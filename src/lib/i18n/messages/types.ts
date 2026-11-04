@@ -897,6 +897,11 @@ export type Dictionary = {
     totalHawalas: string;
     totalCommission: string;
     clearFilters: string;
+    fingerprintMatchFound: string;
+    fingerprintMatchCollected: string;
+    fingerprintMatchFilter: string;
+    fingerprintMatchNoHawala: string;
+    clearFingerprintFilter: string;
   };
   partner: {
     add: string;
@@ -1152,6 +1157,7 @@ export type Dictionary = {
     activityRecordsHint: string;
     activityAllDay: string;
     activityShowing: string;
+    searchPlaceholder: string;
     noJournalLines: string;
     moreDetails: string;
     hideDetails: string;
@@ -1480,6 +1486,11 @@ export type Dictionary = {
     textSizeDefault: string;
     textSizeLarge: string;
     textSizeExtraLarge: string;
+    fontFamily: string;
+    fontFamilyHint: string;
+    fontFamilyDefault: string;
+    fontFamilyTajawal: string;
+    fontFamilyCairo: string;
     appearance: string;
     themeLight: string;
     themeDark: string;
@@ -2011,6 +2022,7 @@ export type Dictionary = {
     subtitle: string;
     newOrder: string;
     editOrder: string;
+    orderDetails: string;
     orderName: string;
     orderNumber: string;
     orderDate: string;

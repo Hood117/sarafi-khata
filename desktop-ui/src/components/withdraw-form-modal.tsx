@@ -476,8 +476,9 @@ export function WithdrawFormModal({
       {open ? (
         <Modal title={title} size="xl" onClose={() => resetForm(false)}>
           <div
-            className="stack movement-form-compact"
+            className="stack movement-form-compact desk-qa-form"
             data-desk-form
+            data-qa-tone="withdraw"
             onKeyDown={(e) =>
               handleDeskFormKeyDown(e, {
                 busy: saving,
@@ -485,10 +486,6 @@ export function WithdrawFormModal({
               })
             }
           >
-          <p className="muted" style={{ margin: 0 }}>
-            {t.dashboard.withdrawalHint}
-          </p>
-
           <div className="fx-simple-top">
             <label>
               <span>{t.common.date}</span>
@@ -680,7 +677,7 @@ export function WithdrawFormModal({
           <label>
             {t.desk.movementDescription}
             <textarea
-              rows={2}
+              rows={1}
               value={form.description}
               onChange={(e) => {
                 setDescriptionDirty(true);

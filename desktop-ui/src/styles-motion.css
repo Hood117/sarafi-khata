@@ -1,0 +1,154 @@
+/* Unified desk motion — CSS interactions + GSAP companions. Keep subtle. */
+
+:root {
+  --motion-fast: 140ms;
+  --motion-med: 220ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---- Buttons / chips: press feedback ---- */
+.button-link:active:not(:disabled),
+.btn:active:not(:disabled),
+button.primary:active:not(:disabled),
+button.secondary:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.97);
+}
+
+.btn.secondary,
+button.secondary {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    filter var(--motion-fast) ease,
+    opacity var(--motion-fast) ease;
+}
+
+/* ---- Tabs / segmented controls ---- */
+.settings-tab,
+.hawala-mode,
+.report-period-preset {
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.settings-tab:active,
+.hawala-mode:active,
+.report-period-preset:active {
+  transform: scale(0.98);
+}
+
+.app-tabbar-link.nav-link {
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) ease;
+}
+
+.app-tabbar-link.nav-link:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* ---- Records panels / cards: soft hover, no layout jump ---- */
+html[data-ui="web"] .panel.records-panel,
+html[data-ui="web"] .section-card,
+html[data-ui="web"] .stat-card,
+html[data-ui="web"] .cash-balance-card {
+  transition:
+    box-shadow var(--motion-med) ease,
+    border-color var(--motion-med) ease,
+    transform var(--motion-med) var(--motion-ease);
+}
+
+html[data-ui="web"] .stat-card:hover,
+html[data-ui="web"] .cash-balance-card:hover {
+  transform: translateY(-1px);
+}
+
+/* ---- Dropdowns / menus ---- */
+.desk-context-menu {
+  transform-origin: top left;
+  animation: desk-menu-in var(--motion-med) var(--motion-ease) both;
+}
+
+html[dir="rtl"] .desk-context-menu {
+  transform-origin: top right;
+}
+
+.desk-context-menu-item {
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.customer-suggest {
+  animation: desk-menu-in var(--motion-med) var(--motion-ease) both;
+}
+
+@keyframes desk-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---- Loading / content settle ---- */
+.app-main > .stack > .muted:first-child,
+.records-panel > .muted,
+.workspace-page > .muted {
+  animation: desk-fade-in var(--motion-med) ease both;
+}
+
+@keyframes desk-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Count badge pop when values update visually */
+.count-badge {
+  transition:
+    background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .desk-context-menu,
+  .customer-suggest,
+  .app-main > .stack > .muted:first-child {
+    animation: none !important;
+  }
+
+  html[data-ui="web"] .stat-card:hover,
+  html[data-ui="web"] .cash-balance-card:hover,
+  .button-link:hover,
+  .btn:hover,
+  .nav-link:hover,
+  .app-tabbar-link.nav-link:hover {
+    transform: none !important;
+  }
+}

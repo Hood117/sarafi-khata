@@ -277,8 +277,12 @@ pub async fn identify_fingerprint(
 /// customer / national ID / phone), we also 1:1-check the finger. Otherwise the
 /// capture alone counts as verified presence — national ID & phone are saved on
 /// complete.
+///
+/// Async + `spawn_blocking`: same as `identify_fingerprint` — sync Tauri commands
+/// run on the main thread, and capture/verify can block up to ~30s on the reader
+/// owner queue. That froze the desk while completing receive hawala.
 #[tauri::command]
-pub fn verify_hawala_collector_fingerprint(
+pub async fn verify_hawala_collector_fingerprint(
   fingerprint: State<'_, FingerprintService>,
   state: State<'_, AppState>,
   hawala_id: String,
@@ -350,30 +354,39 @@ pub fn verify_hawala_collector_fingerprint(
     )?
   };
 
-  // Walk-in (no enrolled template): one capture = verified.
-  let Some(enrolled) = enrolled_template else {
-    let capture = fingerprint.capture_one()?;
-    if capture.ok {
+  let fingerprint = fingerprint.inner().clone();
+  let result = tauri::async_runtime::spawn_blocking(move || -> Result<FingerprintVerifyResult, AppError> {
+    // Walk-in (no enrolled template): one capture = verified (template saved on complete).
+    let Some(enrolled) = enrolled_template else {
+      let capture = fingerprint.capture_one()?;
+      if capture.ok {
+        return Ok(FingerprintVerifyResult {
+          ok: true,
+          match_score: None,
+          template_base64: capture.template_base64,
+          sdk_error_code: None,
+          message: "Fingerprint captured. You can complete the hawala.".into(),
+        });
+      }
       return Ok(FingerprintVerifyResult {
-        ok: true,
+        ok: false,
         match_score: None,
-        sdk_error_code: None,
-        message: "Fingerprint captured. You can complete the hawala.".into(),
+        template_base64: None,
+        sdk_error_code: capture.sdk_error_code,
+        message: capture.message,
       });
-    }
-    return Ok(FingerprintVerifyResult {
-      ok: false,
-      match_score: None,
-      sdk_error_code: capture.sdk_error_code,
-      message: capture.message,
-    });
-  };
+    };
 
-  // Enrolled collector: capture + 1:1 match.
-  let mut result = fingerprint.verify_one(enrolled)?;
-  if result.ok && result.message.trim().is_empty() {
-    result.message = "Fingerprint verified. You can complete the hawala.".into();
-  }
+    // Enrolled collector: capture + 1:1 match (probe template saved on complete).
+    let mut result = fingerprint.verify_one(enrolled)?;
+    if result.ok && result.message.trim().is_empty() {
+      result.message = "Fingerprint verified. You can complete the hawala.".into();
+    }
+    Ok(result)
+  })
+  .await
+  .map_err(|e| AppError::Internal(format!("Hawala fingerprint verify failed: {e}")))??;
+
   Ok(result)
 }
 
@@ -444,6 +457,300 @@ fn find_enrolled_collector_template(
     return Ok(None);
   }
   Ok(Some(bytes))
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HawalaCollectorIdentifyResult {
+  pub ok: bool,
+  pub hawala_id: Option<String>,
+  pub hawala_number: Option<String>,
+  pub customer_id: Option<String>,
+  pub customer_name: Option<String>,
+  pub match_score: Option<u32>,
+  pub sdk_error_code: Option<i32>,
+  pub message: String,
+}
+
+fn hawala_number_for(conn: &rusqlite::Connection, hawala_id: &str) -> Option<String> {
+  conn.query_row(
+    r#"SELECT TRIM(IFNULL(reference, '')) FROM HawalaTransfer WHERE id = ?1 LIMIT 1"#,
+    [hawala_id],
+    |r| r.get::<_, String>(0),
+  )
+  .ok()
+  .map(|s| s.trim().to_string())
+  .filter(|s| !s.is_empty())
+}
+
+fn load_hawala_collector_templates(
+  conn: &rusqlite::Connection,
+) -> Result<Vec<EnrolledFingerprint>, AppError> {
+  let mut stmt = conn.prepare(
+    r#"SELECT id, collectorFingerprintTemplate FROM HawalaTransfer
+       WHERE deletedAt IS NULL
+         AND collectorFingerprintTemplate IS NOT NULL
+         AND TRIM(collectorFingerprintTemplate) != ''"#,
+  )?;
+  let rows = stmt.query_map([], |row| {
+    let id: String = row.get(0)?;
+    let template_b64: String = row.get(1)?;
+    Ok((id, template_b64))
+  })?;
+
+  let mut out = Vec::new();
+  for row in rows {
+    let (hawala_id, template_b64) = row?;
+    let Ok(template) = B64.decode(template_b64.trim()) else {
+      continue;
+    };
+    if template.is_empty() {
+      continue;
+    }
+    out.push(EnrolledFingerprint {
+      customer_id: format!("h:{hawala_id}"),
+      template,
+    });
+  }
+  Ok(out)
+}
+
+fn find_hawala_for_matched_customer(
+  conn: &rusqlite::Connection,
+  customer_id: &str,
+) -> Result<Option<String>, AppError> {
+  // Prefer pending receive for this customer (collector pickup).
+  let pending: Option<String> = conn
+    .query_row(
+      r#"SELECT id FROM HawalaTransfer
+         WHERE deletedAt IS NULL
+           AND UPPER(direction) = 'RECEIVE'
+           AND UPPER(status) = 'PENDING'
+           AND (
+             customerId = ?1
+             OR senderCustomerId = ?1
+             OR receiverCustomerId = ?1
+           )
+         ORDER BY valueDate DESC, updatedAt DESC
+         LIMIT 1"#,
+      [customer_id],
+      |r| r.get(0),
+    )
+    .optional()?;
+  if pending.is_some() {
+    return Ok(pending);
+  }
+
+  // Completed collections linked by customer id.
+  let by_id: Option<String> = conn
+    .query_row(
+      r#"SELECT id FROM HawalaTransfer
+         WHERE deletedAt IS NULL
+           AND (
+             customerId = ?1
+             OR senderCustomerId = ?1
+             OR receiverCustomerId = ?1
+           )
+         ORDER BY
+           CASE WHEN UPPER(direction) = 'RECEIVE' THEN 0 ELSE 1 END,
+           COALESCE(completedAt, valueDate) DESC,
+           updatedAt DESC
+         LIMIT 1"#,
+      [customer_id],
+      |r| r.get(0),
+    )
+    .optional()?;
+  if by_id.is_some() {
+    return Ok(by_id);
+  }
+
+  // Walk-in collections: match collector national ID / phone saved on the hawala.
+  let (national_id, phone): (Option<String>, Option<String>) = conn
+    .query_row(
+      r#"SELECT nationalId, phone FROM Customer
+         WHERE id = ?1 AND deletedAt IS NULL
+         LIMIT 1"#,
+      [customer_id],
+      |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .optional()?
+    .unwrap_or((None, None));
+
+  let national_id = national_id
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty());
+  let phone = phone.as_deref().map(str::trim).filter(|s| !s.is_empty());
+
+  if let Some(nid) = national_id {
+    let id: Option<String> = conn
+      .query_row(
+        r#"SELECT id FROM HawalaTransfer
+           WHERE deletedAt IS NULL
+             AND UPPER(direction) = 'RECEIVE'
+             AND TRIM(IFNULL(receiverNationalId, '')) = ?1
+           ORDER BY COALESCE(completedAt, valueDate) DESC, updatedAt DESC
+           LIMIT 1"#,
+        [nid],
+        |r| r.get(0),
+      )
+      .optional()?;
+    if id.is_some() {
+      return Ok(id);
+    }
+  }
+
+  if let Some(ph) = phone {
+    let id: Option<String> = conn
+      .query_row(
+        r#"SELECT id FROM HawalaTransfer
+           WHERE deletedAt IS NULL
+             AND UPPER(direction) = 'RECEIVE'
+             AND TRIM(IFNULL(receiverPhone, '')) = ?1
+           ORDER BY COALESCE(completedAt, valueDate) DESC, updatedAt DESC
+           LIMIT 1"#,
+        [ph],
+        |r| r.get(0),
+      )
+      .optional()?;
+    if id.is_some() {
+      return Ok(id);
+    }
+  }
+
+  Ok(None)
+}
+
+/// Hawala desk: one finger press → open the hawala collected with that finger.
+///
+/// Uses 1:1 match against collector templates saved at complete time (same finger),
+/// then falls back to enrolled customer templates + linked hawala lookup.
+#[tauri::command]
+pub async fn identify_hawala_collector_fingerprint(
+  fingerprint: State<'_, FingerprintService>,
+  state: State<'_, AppState>,
+) -> Result<HawalaCollectorIdentifyResult, AppError> {
+  let (candidates, customer_names) = {
+    let conn = state.db.lock();
+    let _actor = require_any_screen(&state, &conn, &["hawala", "customers"])?;
+
+    let mut candidates = load_hawala_collector_templates(&conn)?;
+    let customers = load_enrolled_templates(&conn)?;
+    let mut names = std::collections::HashMap::<String, String>::new();
+    for item in &customers {
+      if let Ok(name) = conn.query_row(
+        r#"SELECT fullName FROM Customer WHERE id = ?1 LIMIT 1"#,
+        [&item.customer_id],
+        |r| r.get::<_, String>(0),
+      ) {
+        let trimmed = name.trim().to_string();
+        if !trimmed.is_empty() {
+          names.insert(item.customer_id.clone(), trimmed);
+        }
+      }
+      candidates.push(EnrolledFingerprint {
+        customer_id: format!("c:{}", item.customer_id),
+        template: item.template.clone(),
+      });
+    }
+    (candidates, names)
+  };
+
+  if candidates.is_empty() {
+    return Ok(HawalaCollectorIdentifyResult {
+      ok: false,
+      hawala_id: None,
+      hawala_number: None,
+      customer_id: None,
+      customer_name: None,
+      match_score: None,
+      sdk_error_code: None,
+      message: "No collected hawala fingerprints to match yet. Complete a receive with fingerprint first.".into(),
+    });
+  }
+
+  let fingerprint = fingerprint.inner().clone();
+  let identify = tauri::async_runtime::spawn_blocking(move || {
+    fingerprint.match_one_of(candidates)
+  })
+  .await
+  .map_err(|e| AppError::Internal(format!("Hawala collector identify failed: {e}")))??;
+
+  if !identify.ok {
+    return Ok(HawalaCollectorIdentifyResult {
+      ok: false,
+      hawala_id: None,
+      hawala_number: None,
+      customer_id: None,
+      customer_name: None,
+      match_score: identify.match_score,
+      sdk_error_code: identify.sdk_error_code,
+      message: identify.message,
+    });
+  }
+
+  let matched = identify.customer_id.unwrap_or_default();
+  if let Some(hawala_id) = matched.strip_prefix("h:") {
+    let hawala_number = {
+      let conn = state.db.lock();
+      hawala_number_for(&conn, hawala_id)
+    };
+    let number_label = hawala_number.clone().unwrap_or_else(|| hawala_id.to_string());
+    return Ok(HawalaCollectorIdentifyResult {
+      ok: true,
+      hawala_id: Some(hawala_id.to_string()),
+      hawala_number,
+      customer_id: None,
+      customer_name: None,
+      match_score: identify.match_score,
+      sdk_error_code: None,
+      message: format!(
+        "This hawala was collected with this finger — opening #{number_label}."
+      ),
+    });
+  }
+
+  let customer_id = matched
+    .strip_prefix("c:")
+    .unwrap_or(matched.as_str())
+    .to_string();
+  let customer_name = customer_names.get(&customer_id).cloned();
+
+  let (hawala_id, hawala_number) = {
+    let conn = state.db.lock();
+    let id = find_hawala_for_matched_customer(&conn, &customer_id)?;
+    let number = id.as_deref().and_then(|hid| hawala_number_for(&conn, hid));
+    (id, number)
+  };
+
+  if let Some(hawala_id) = hawala_id {
+    let number_label = hawala_number
+      .clone()
+      .unwrap_or_else(|| hawala_id.clone());
+    return Ok(HawalaCollectorIdentifyResult {
+      ok: true,
+      hawala_id: Some(hawala_id),
+      hawala_number,
+      customer_id: Some(customer_id),
+      customer_name,
+      match_score: identify.match_score,
+      sdk_error_code: None,
+      message: format!(
+        "This hawala was collected with this finger — opening #{number_label}."
+      ),
+    });
+  }
+
+  Ok(HawalaCollectorIdentifyResult {
+    ok: false,
+    hawala_id: None,
+    hawala_number: None,
+    customer_id: Some(customer_id),
+    customer_name,
+    match_score: identify.match_score,
+    sdk_error_code: None,
+    message: "Fingerprint matched a customer, but no linked hawala was found.".into(),
+  })
 }
 
 /// Three-press enrollment for an existing desk user; saves template for fingerprint sign-in.

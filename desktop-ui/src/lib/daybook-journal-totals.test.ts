@@ -106,4 +106,18 @@ describe("journalFilterTotals (Day Total)", () => {
     expect(totals.closing).toEqual([{ code: "AFN", amount: "50" }]);
     expect(totals.debit.some((r) => r.code === "USD")).toBe(false);
   });
+
+  it("uses the newest balanceAfter when newest-first rows are reversed to ASC", () => {
+    const newestFirst = [
+      line({ credit: "10,000", currencyCode: "AFN", balanceAfter: "0" }),
+      line({ debit: "10,000", currencyCode: "AED", balanceAfter: "10,000" }),
+      line({ credit: "10,000", currencyCode: "AFN", balanceAfter: "-10,000" }),
+    ];
+    const stale = journalFilterTotals(newestFirst);
+    expect(stale.closing.find((r) => r.code === "AFN")?.amount).toBe("-10,000");
+
+    const fixed = journalFilterTotals([...newestFirst].reverse());
+    expect(fixed.closing.find((r) => r.code === "AFN")?.amount).toBe("0");
+    expect(fixed.closing.find((r) => r.code === "AED")?.amount).toBe("10,000");
+  });
 });

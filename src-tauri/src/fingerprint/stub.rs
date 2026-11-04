@@ -58,6 +58,7 @@ pub struct FingerprintIdentifyResult {
 pub struct FingerprintVerifyResult {
   pub ok: bool,
   pub match_score: Option<i32>,
+  pub template_base64: Option<String>,
   pub sdk_error_code: Option<i32>,
   pub message: String,
 }
@@ -104,6 +105,15 @@ impl FingerprintService {
   pub fn identify_one(
     &self,
     _enrolled: Option<(String, Vec<EnrolledFingerprint>)>,
+  ) -> Result<FingerprintIdentifyResult, AppError> {
+    Err(AppError::Internal(
+      "Fingerprint reader support is only available on Windows.".into(),
+    ))
+  }
+
+  pub fn match_one_of(
+    &self,
+    _candidates: Vec<EnrolledFingerprint>,
   ) -> Result<FingerprintIdentifyResult, AppError> {
     Err(AppError::Internal(
       "Fingerprint reader support is only available on Windows.".into(),

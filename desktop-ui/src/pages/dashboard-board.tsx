@@ -1,10 +1,10 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDownLeft,
   ArrowLeftRight,
   ArrowUpRight,
   Banknote,
-  ChartNoAxesCombined,
   Repeat2,
   Send,
   UserPlus,
@@ -15,6 +15,7 @@ import {
 import type { CashBalanceRow, DashboardSnapshot } from "@desktop/api";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
+import { animateDashboard, useGSAP } from "@desktop/lib/motion";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 
 type Tone = "blue" | "green" | "rose" | "amber" | "slate" | "teal" | "violet";
@@ -44,7 +45,6 @@ const CURRENCY_ACCENT: Record<string, string> = {
 
 type Props = {
   data: DashboardSnapshot;
-  pendingHawala: number;
   todayCashIn: string;
   todayCashOut: string;
   baseCurrency: string;
@@ -58,6 +58,62 @@ function currencyAccent(code: string): string {
 function cashNumber(balance: string): number {
   const n = Number.parseFloat(String(balance).replace(/,/g, ""));
   return Number.isFinite(n) ? n : 0;
+}
+
+function BusinessCashCards({ cash }: { cash: CashBalanceRow[] }) {
+  const t = useT();
+  const rows = cash
+    .map((row) => ({
+      code: row.currencyCode,
+      balance: row.balanceDisplay,
+      abs: Math.abs(cashNumber(row.balanceDisplay)),
+      symbol: row.currencySymbol,
+    }))
+    .filter((row) => row.abs !== 0)
+    .sort((a, b) => b.abs - a.abs);
+
+  return (
+    <section className="dashboard-cash-panel">
+      <div className="dashboard-cash-head">
+        <h2>{t.dashboard.businessCash}</h2>
+        <Link className="text-link" to="/cash">
+          {t.dashboard.viewCash}
+        </Link>
+      </div>
+      {rows.length === 0 ? (
+        <p className="muted">{t.cash.noBalances}</p>
+      ) : (
+        <div className="cash-card-grid">
+          {rows.map((row) => {
+            const accent = currencyAccent(row.code);
+            return (
+              <article
+                key={row.code}
+                className="cash-balance-card"
+                style={{ ["--cash-accent" as string]: accent }}
+              >
+                <div className="cash-balance-card-top">
+                  <CurrencyCodeWithFlag code={row.code} />
+                  <span className="cash-balance-icon" aria-hidden>
+                    <Banknote size={15} />
+                  </span>
+                </div>
+                <div className="cash-balance-amount-block">
+                  {row.symbol ? (
+                    <span className="cash-balance-symbol">{row.symbol}</span>
+                  ) : null}
+                  <div className={`cash-balance-amount ${moneyToneClass(row.balance)}`}>
+                    {row.balance}
+                  </div>
+                </div>
+                <div className="cash-balance-meta">{t.cash.shopCash}</div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function ActivityBars({
@@ -175,95 +231,34 @@ function ActivityDonut({
   );
 }
 
-function BusinessCashSection({ cash }: { cash: CashBalanceRow[] }) {
-  const t = useT();
-  const rows = cash
-    .map((row) => ({
-      code: row.currencyCode,
-      balance: row.balanceDisplay,
-      abs: Math.abs(cashNumber(row.balanceDisplay)),
-      symbol: row.currencySymbol,
-    }))
-    .filter((row) => row.abs !== 0)
-    .sort((a, b) => b.abs - a.abs);
-  const max = Math.max(...rows.map((row) => row.abs), 1);
-
-  return (
-    <section className="dashboard-cash-panel">
-      <div className="dashboard-cash-head">
-        <h2>{t.dashboard.businessCash}</h2>
-        <Link className="text-link" to="/cash">
-          {t.dashboard.viewCash}
-        </Link>
-      </div>
-      {rows.length === 0 ? (
-        <p className="muted">{t.cash.noBalances}</p>
-      ) : (
-        <>
-          <div className="dashboard-cash-rank">
-            {rows.slice(0, 6).map((row) => {
-              const accent = currencyAccent(row.code);
-              const width = Math.max(6, Math.round((row.abs / max) * 100));
-              return (
-                <div className="dashboard-cash-rank-row" key={row.code}>
-                  <CurrencyCodeWithFlag code={row.code} />
-                  <div className="dashboard-cash-rank-track">
-                    <div
-                      className="dashboard-cash-rank-fill"
-                      style={{ width: `${width}%`, background: accent }}
-                    />
-                  </div>
-                  <span
-                    className={`dashboard-cash-rank-amount ${moneyToneClass(row.balance)}`}
-                  >
-                    {row.balance}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="cash-card-grid">
-            {rows.map((row) => {
-              const accent = currencyAccent(row.code);
-              return (
-                <article
-                  key={row.code}
-                  className="cash-balance-card"
-                  style={{ ["--cash-accent" as string]: accent }}
-                >
-                  <div className="cash-balance-card-top">
-                    <CurrencyCodeWithFlag code={row.code} />
-                    <span className="cash-balance-icon" aria-hidden>
-                      <Banknote size={15} />
-                    </span>
-                  </div>
-                  <div className="cash-balance-amount-block">
-                    {row.symbol ? (
-                      <span className="cash-balance-symbol">{row.symbol}</span>
-                    ) : null}
-                    <div className={`cash-balance-amount ${moneyToneClass(row.balance)}`}>
-                      {row.balance}
-                    </div>
-                  </div>
-                  <div className="cash-balance-meta">{t.cash.shopCash}</div>
-                </article>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
 export function DashboardBoard({
   data,
-  pendingHawala,
   todayCashIn,
   todayCashOut,
   baseCurrency,
 }: Props) {
   const t = useT();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(
+    () => {
+      if (!rootRef.current) return;
+      animateDashboard(rootRef.current);
+    },
+    {
+      scope: rootRef,
+      dependencies: [
+        data.month.deposits,
+        data.month.withdrawals,
+        data.month.transfers,
+        data.month.exchanges,
+        data.month.hawala,
+        data.customers.active,
+        data.customers.newThisMonth,
+      ],
+      revertOnUpdate: true,
+    },
+  );
 
   const deposits = data.month.deposits;
   const withdrawals = data.month.withdrawals;
@@ -280,43 +275,6 @@ export function DashboardBoard({
     { label: t.nav.transfers, value: transfers, tone: "blue" as const },
     { label: t.dashboard.exchanges, value: exchanges, tone: "teal" as const },
     { label: t.nav.hawala, value: hawala, tone: "amber" as const },
-  ];
-
-  const hero: {
-    label: string;
-    value: number;
-    hint: string;
-    tone: Tone;
-    Icon: LucideIcon;
-  }[] = [
-    {
-      label: t.dashboard.thisMonthTransactions,
-      value: totalOps,
-      hint: t.common.thisMonth,
-      tone: "blue",
-      Icon: ChartNoAxesCombined,
-    },
-    {
-      label: t.reports.pendingHawala,
-      value: pendingHawala,
-      hint: t.dashboard.awaitingAction,
-      tone: "amber",
-      Icon: Send,
-    },
-    {
-      label: t.dashboard.activeCustomers,
-      value: activeCustomers,
-      hint: t.dashboard.currentlyActive,
-      tone: "teal",
-      Icon: Users,
-    },
-    {
-      label: t.dashboard.newCustomers,
-      value: newCustomers,
-      hint: t.common.thisMonth,
-      tone: "violet",
-      Icon: UserPlus,
-    },
   ];
 
   const stats: {
@@ -378,31 +336,7 @@ export function DashboardBoard({
   ];
 
   return (
-    <div className="dashboard-home">
-      <div className="dashboard-hero-grid">
-        {hero.map((card) => {
-          const Icon = card.Icon;
-          return (
-            <article
-              className="dashboard-hero-card"
-              key={card.label}
-              style={{ ["--kpi-accent" as string]: TONE_COLOR[card.tone] }}
-            >
-              <div className="dashboard-hero-top">
-                <span className="dashboard-hero-label">{card.label}</span>
-                <span className="dashboard-hero-icon" aria-hidden>
-                  <Icon size={16} />
-                </span>
-              </div>
-              <strong className="dashboard-hero-value" data-count={card.value}>
-                {card.value.toLocaleString("en-US")}
-              </strong>
-              <span className="dashboard-hero-hint">{card.hint}</span>
-            </article>
-          );
-        })}
-      </div>
-
+    <div className="dashboard-home" ref={rootRef}>
       <div className="dashboard-day-strip">
         <div className="dashboard-day-item">
           <span>{t.common.today}</span>
@@ -470,7 +404,7 @@ export function DashboardBoard({
         })}
       </div>
 
-      <BusinessCashSection cash={data.cash} />
+      <BusinessCashCards cash={data.cash} />
     </div>
   );
 }

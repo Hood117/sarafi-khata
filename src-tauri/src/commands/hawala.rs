@@ -1171,6 +1171,8 @@ pub struct CompleteReceiveHawalaInput {
   pub receiver_phone: Option<String>,
   /// Optional collector national ID recorded when the receiver collects the payout.
   pub receiver_national_id: Option<String>,
+  /// Collector fingerprint captured during verify (base64). Used later to reopen this hawala.
+  pub collector_fingerprint_template: Option<String>,
 }
 
 /// Pay a pending Receive Hawala from Main Vault (walk-in) or credit the
@@ -1181,6 +1183,7 @@ pub(crate) fn complete_receive_hawala_conn(
   actor_user_id: &str,
   receiver_phone: Option<String>,
   receiver_national_id: Option<String>,
+  collector_fingerprint_template: Option<String>,
 ) -> Result<(), AppError> {
   let id = hawala_id.trim();
   if id.is_empty() {
@@ -1399,6 +1402,7 @@ pub(crate) fn complete_receive_hawala_conn(
       },
     )?;
 
+    let fingerprint_to_save = trim_opt(collector_fingerprint_template);
     let updated = conn.execute(
       "UPDATE HawalaTransfer
        SET status = 'COMPLETED',
@@ -1406,8 +1410,9 @@ pub(crate) fn complete_receive_hawala_conn(
            payoutTransactionId = ?2,
            receiverPhone = ?3,
            receiverNationalId = ?4,
+           collectorFingerprintTemplate = COALESCE(?5, collectorFingerprintTemplate),
            updatedAt = ?1
-       WHERE id = ?5
+       WHERE id = ?6
          AND deletedAt IS NULL
          AND UPPER(status) = 'PENDING'
          AND IFNULL(payoutTransactionId, '') = ''",
@@ -1416,6 +1421,7 @@ pub(crate) fn complete_receive_hawala_conn(
         posted.id,
         phone_to_save,
         national_id_to_save,
+        fingerprint_to_save,
         id
       ],
     )?;
@@ -1468,6 +1474,7 @@ pub fn complete_receive_hawala(
     &actor.id,
     input.receiver_phone,
     input.receiver_national_id,
+    input.collector_fingerprint_template,
   )?;
   crate::commands::hawala_desk::map_detail(&conn, &id)
 }
@@ -1834,7 +1841,7 @@ mod tests {
   }
 
   fn complete_receive(conn: &Connection, hawala_id: &str) {
-    complete_receive_hawala_conn(conn, hawala_id, "u1", None, None)
+    complete_receive_hawala_conn(conn, hawala_id, "u1", None, None, None)
       .expect("complete receive hawala");
   }
 
@@ -2524,7 +2531,7 @@ mod tests {
     }
     assert_eq!(pay_debit, pay_credit);
 
-    let twice = complete_receive_hawala_conn(&conn, &posted.id, "u1", None, None);
+    let twice = complete_receive_hawala_conn(&conn, &posted.id, "u1", None, None, None);
     assert!(twice.is_err(), "completed hawala cannot be completed twice");
     assert_eq!(wallet_named_balance(&conn, "Main Vault"), -5500);
   }
@@ -2682,6 +2689,7 @@ mod tests {
       "u1",
       Some("0700123456".into()),
       Some("Tazkira-9988".into()),
+      None,
     )
     .expect("complete with collector info");
     let (phone, national_id, status): (Option<String>, Option<String>, String) = conn

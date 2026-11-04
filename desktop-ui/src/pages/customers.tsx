@@ -325,10 +325,10 @@ export function CustomersPage() {
               </label>
               <div className="table-filters">
                 <label className="customers-status-filter">
-                  <span className="muted">{t.common.status}</span>
                   <select
                     value={archiveFilter}
                     aria-label={t.common.status}
+                    title={t.common.status}
                     onChange={(e) => {
                       setPage(1);
                       setArchiveFilter(e.target.value as ArchiveFilter);

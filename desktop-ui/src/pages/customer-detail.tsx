@@ -5,20 +5,26 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { Pencil, Printer, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import {
   archiveCustomer,
+  getAppInfo,
   getCustomer,
   getCustomerBalances,
+  getHawala,
+  getTransactionDetail,
   listCustomerLedger,
   listCustomersPage,
   restoreCustomer,
+  softDeleteMovement,
   type CustomerBalanceRow,
   type CustomerDetail,
   type CustomerLedgerRow,
   type CustomerListItem,
 } from "@desktop/api";
+import { useAuth } from "@desktop/auth";
 import {
   TransactionDetailModal,
   clickableTxRowProps,
@@ -28,14 +34,39 @@ import {
   ExchangeDealDetailModal,
   useExchangeDealDetailModal,
 } from "@desktop/components/exchange-deal-detail-modal";
+import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
+import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
+import { OpeningBalanceFormModal, isOpeningBalanceMovement } from "@desktop/components/opening-balance-form-modal";
 import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
+import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
+import { TransferFormModal } from "@desktop/components/transfer-form-modal";
+import {
+  VaultCashFormModal,
+  isVaultCashMovement,
+  vaultCashDirectionFromTx,
+  type VaultCashDirection,
+} from "@desktop/components/vault-cash-form-modal";
+import { WithdrawFormModal } from "@desktop/components/withdraw-form-modal";
 import { useLocale, useT } from "@desktop/i18n";
-import { errorMessage } from "@desktop/lib/datetime";
+import { endSubmit, errorMessage, tryBeginSubmit } from "@desktop/lib/datetime";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import {
   EMPTY_JOURNAL_FILTER_TOTALS,
   journalFilterTotals,
 } from "@desktop/lib/daybook-journal-totals";
+import {
+  visibleLedgerLines,
+  type AmountPart,
+} from "@desktop/lib/format-transaction-line";
+import {
+  statusLabel as txStatusLabel,
+  transactionTypeLabel,
+} from "@desktop/lib/i18n-labels";
+import {
+  printTransactionReceipt,
+  type TransactionReceiptLabels,
+} from "@desktop/lib/print-transaction-receipt";
+import { journalTxRef } from "@desktop/lib/tx-ref";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
 import {
   printReportSheet,
@@ -45,11 +76,26 @@ import {
 } from "@desktop/lib/export-table";
 import { DepositFormModal } from "@desktop/components/deposit-form-modal";
 import { InlineLedgerEntryRow } from "@desktop/components/inline-ledger-entry-row";
+import { isSimpleDeskHawala } from "@desktop/pages/hawala-helpers";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
+import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SuccessModal } from "@desktop/ui/success-modal";
+
+function isEditableCustomerMovement(type: string, reference?: string | null) {
+  const upper = type.toUpperCase();
+  return (
+    upper === "DEPOSIT" ||
+    upper === "WITHDRAWAL" ||
+    upper === "TRANSFER" ||
+    upper === "HAWALA" ||
+    upper === "EXCHANGE" ||
+    isVaultCashMovement(type, reference) ||
+    isOpeningBalanceMovement(type, reference)
+  );
+}
 
 type LedgerTypeFilter =
   | "ALL"
@@ -205,6 +251,7 @@ function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
 export function CustomerDetailPage() {
   const { id = "" } = useParams();
   const t = useT();
+  const { session } = useAuth();
   const { locale, dir } = useLocale();
   const rtl = dir === "rtl";
 
@@ -212,6 +259,28 @@ export function CustomerDetailPage() {
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [editDepositId, setEditDepositId] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [editWithdrawId, setEditWithdrawId] = useState<string | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [editTransferId, setEditTransferId] = useState<string | null>(null);
+  const [exchangeOpen, setExchangeOpen] = useState(false);
+  const [editExchangeId, setEditExchangeId] = useState<string | null>(null);
+  const [sendHawalaOpen, setSendHawalaOpen] = useState(false);
+  const [simpleHawalaOpen, setSimpleHawalaOpen] = useState(false);
+  const [editHawalaId, setEditHawalaId] = useState<string | null>(null);
+  const [editHawalaDirection, setEditHawalaDirection] = useState<"SEND" | "RECEIVE">("SEND");
+  const [cashOpen, setCashOpen] = useState(false);
+  const [editCashId, setEditCashId] = useState<string | null>(null);
+  const [cashDirection, setCashDirection] = useState<VaultCashDirection>("CASH_IN");
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [editOpeningId, setEditOpeningId] = useState<string | null>(null);
+  const [historyMenu, setHistoryMenu] = useState<{
+    x: number;
+    y: number;
+    row: CustomerLedgerRow;
+  } | null>(null);
+  const deleteSubmittingRef = useRef(false);
 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [balances, setBalances] = useState<CustomerBalanceRow[]>([]);
@@ -237,6 +306,167 @@ export function CustomerDetailPage() {
   function openTxOrDeal(txId: string, type: string) {
     if (type.toUpperCase() === "EXCHANGE") void dealModal.open(txId);
     else void txModal.open(txId);
+  }
+
+  function refreshAfterMovement() {
+    window.dispatchEvent(new CustomEvent(DESK_MOVEMENT_SAVED_EVENT));
+  }
+
+  function handleEditHistoryRow(row: CustomerLedgerRow) {
+    const type = row.type;
+    const reference = row.reference;
+    const cashDir = vaultCashDirectionFromTx(type, reference);
+    if (cashDir) {
+      setCashDirection(cashDir);
+      setEditCashId(row.id);
+      setCashOpen(true);
+      return;
+    }
+    if (isOpeningBalanceMovement(type, reference)) {
+      setEditOpeningId(row.id);
+      setOpeningOpen(true);
+      return;
+    }
+    const upper = type.toUpperCase();
+    if (upper === "DEPOSIT") {
+      setEditDepositId(row.id);
+      setDepositOpen(true);
+      return;
+    }
+    if (upper === "WITHDRAWAL") {
+      setEditWithdrawId(row.id);
+      setWithdrawOpen(true);
+      return;
+    }
+    if (upper === "TRANSFER") {
+      setEditTransferId(row.id);
+      setTransferOpen(true);
+      return;
+    }
+    if (upper === "EXCHANGE") {
+      setEditExchangeId(row.id);
+      setExchangeOpen(true);
+      return;
+    }
+    if (upper === "HAWALA") {
+      void (async () => {
+        try {
+          const detail = await getHawala(row.id);
+          if (isSimpleDeskHawala(detail)) {
+            setEditHawalaId(row.id);
+            setEditHawalaDirection(
+              detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+            );
+            setSimpleHawalaOpen(true);
+            return;
+          }
+          setEditHawalaId(row.id);
+          setEditHawalaDirection(
+            detail.direction.toUpperCase() === "RECEIVE" ? "RECEIVE" : "SEND",
+          );
+          setSendHawalaOpen(true);
+        } catch {
+          setEditHawalaId(row.id);
+          setEditHawalaDirection("SEND");
+          setSendHawalaOpen(true);
+        }
+      })();
+      return;
+    }
+    openTxOrDeal(row.id, type);
+  }
+
+  async function handleDeleteHistoryRow(row: CustomerLedgerRow) {
+    if (!session) return;
+    const reference = journalTxRef(row) || row.reference || row.id;
+    const ok = window.confirm(
+      t.desk.deleteTxConfirm.replace("{reference}", reference),
+    );
+    if (!ok) return;
+    if (!tryBeginSubmit(deleteSubmittingRef)) return;
+    setError(null);
+    try {
+      await softDeleteMovement({
+        id: row.id,
+        createdById: session.userId,
+      });
+      refreshAfterMovement();
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    } finally {
+      endSubmit(deleteSubmittingRef);
+    }
+  }
+
+  async function handlePrintHistoryRow(row: CustomerLedgerRow) {
+    try {
+      const [detail, appInfo] = await Promise.all([
+        getTransactionDetail(row.id),
+        getAppInfo(),
+      ]);
+      const amounts: AmountPart[] = visibleLedgerLines(detail.lines).map((l) => ({
+        sign: l.direction === "DEBIT" ? ("+" as const) : ("−" as const),
+        currency: l.currencyCode,
+        amount: l.amount,
+      }));
+      const labels: TransactionReceiptLabels = {
+        receiptTitle: t.transactions.receipt,
+        reference: t.common.reference,
+        date: t.common.date,
+        time: t.desk.currentTime,
+        customer: t.common.customer,
+        type: t.common.type,
+        amount: t.common.amount,
+        currency: t.common.currency,
+        description: t.common.description,
+        status: t.common.status,
+        thankYou: t.transactions.thankYou,
+        sender: t.common.sender,
+        receiver: t.common.receiver,
+        cashier: t.users.cashier,
+        print: t.desk.printPdf,
+      };
+      printTransactionReceipt({
+        businessName: appInfo.name?.trim() || "ASMS",
+        detail,
+        amounts,
+        typeLabel: transactionTypeLabel(t, detail.type),
+        statusLabel: txStatusLabel(t, detail.status),
+        labels,
+        txLineLabels: t.txLine,
+      });
+    } catch (err: unknown) {
+      setError(errorMessage(err));
+    }
+  }
+
+  function historyContextItems(row: CustomerLedgerRow) {
+    const editable = isEditableCustomerMovement(row.type, row.reference);
+    return [
+      {
+        id: "edit",
+        label: t.common.editAction,
+        tone: "edit" as const,
+        icon: <Pencil size={15} aria-hidden />,
+        disabled: !editable || Boolean(customer?.isArchived),
+        onSelect: () => handleEditHistoryRow(row),
+      },
+      {
+        id: "delete",
+        label: t.common.delete,
+        tone: "danger" as const,
+        icon: <Trash2 size={15} aria-hidden />,
+        disabled: !editable || Boolean(customer?.isArchived),
+        onSelect: () => void handleDeleteHistoryRow(row),
+      },
+      {
+        id: "print",
+        label: t.transactions.printReceipt,
+        tone: "print" as const,
+        icon: <Printer size={15} aria-hidden />,
+        onSelect: () => void handlePrintHistoryRow(row),
+      },
+    ];
   }
 
   const loadLedger = useCallback(async () => {
@@ -376,7 +606,8 @@ export function CustomerDetailPage() {
     try {
       const rows = await fetchAllFilteredHistory();
       if (currentId.current !== id) return;
-      setHistoryTotals(journalFilterTotals(rows));
+      // Ledger pages are newest-first; closing needs chrono ASC (last balanceAfter wins).
+      setHistoryTotals(journalFilterTotals([...rows].reverse()));
     } catch {
       setHistoryTotals(EMPTY_JOURNAL_FILTER_TOTALS);
     }
@@ -583,14 +814,20 @@ export function CustomerDetailPage() {
                     <td>{customer.fatherName?.trim() || "—"}</td>
                     <th>{t.common.phone}</th>
                     <td className="ltr-text phone-ltr" dir="ltr">
-                      {phoneLabel || "—"}
+                      <span className="ltr-text phone-ltr" dir="ltr">
+                        {phoneLabel || "—"}
+                      </span>
                     </td>
                   </tr>
                   <tr>
                     <th>{t.common.address}</th>
                     <td>{customer.address?.trim() || "—"}</td>
                     <th>{t.customers.code}</th>
-                    <td className="customer-detail-code">{codeLabel}</td>
+                    <td className="customer-detail-code" dir="ltr">
+                      <span className="customer-detail-code ltr-text" dir="ltr">
+                        {codeLabel}
+                      </span>
+                    </td>
                   </tr>
                   <tr>
                     <th>{t.common.notes}</th>
@@ -694,11 +931,13 @@ export function CustomerDetailPage() {
                         <button
                           type="button"
                           key={b.currencyCode}
-                          className={
-                            ledgerCurrency === b.currencyCode
-                              ? "customer-money-cell is-selected"
-                              : "customer-money-cell"
-                          }
+                          className={[
+                            "customer-money-cell",
+                            moneyToneClass(b.balanceDisplay),
+                            ledgerCurrency === b.currencyCode ? "is-selected" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
                           aria-pressed={ledgerCurrency === b.currencyCode}
                           onClick={() =>
                             setLedgerCurrency((current) =>
@@ -711,6 +950,12 @@ export function CustomerDetailPage() {
                             className="cash-currency-flag"
                             size="sm"
                           />
+                          <span
+                            className="customer-balance-amount"
+                            dir="ltr"
+                          >
+                            {b.balanceDisplay}
+                          </span>
                           <span className="customer-money-code">{b.currencyCode}</span>
                         </button>
                       ))
@@ -720,7 +965,10 @@ export function CustomerDetailPage() {
                   <button
                     type="button"
                     className="btn customer-money-add"
-                    onClick={() => setDepositOpen(true)}
+                    onClick={() => {
+                      setEditDepositId(null);
+                      setDepositOpen(true);
+                    }}
                   >
                     {t.openingKata.addCurrency}
                   </button>
@@ -752,6 +1000,10 @@ export function CustomerDetailPage() {
                             key={`${row.id}-${row.currencyCode}`}
                             {...clickableTxRowProps(() => void openTxOrDeal(row.id, row.type))}
                             aria-label={description}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              setHistoryMenu({ x: e.clientX, y: e.clientY, row });
+                            }}
                           >
                             <td className="col-when">{String(row.valueDate).slice(0, 10)}</td>
                             <td className="col-description">{description}</td>
@@ -808,7 +1060,9 @@ export function CustomerDetailPage() {
                             className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
                           >
                             <CurrencyFlag code={row.code} size="sm" />
-                            <span className="customer-history-closing-amount">{row.amount}</span>
+                            <span className="customer-history-closing-amount" dir="ltr">
+                              {row.amount}
+                            </span>
                             <span className="customer-history-closing-code">{row.code}</span>
                           </span>
                         ))}
@@ -816,11 +1070,10 @@ export function CustomerDetailPage() {
                     ) : null
                   }
                 />
-                {!customer.isArchived ? (
+                {!customer.isArchived && !draftOpen ? (
                   <button
                     type="button"
                     className="btn primary customer-ledger-fab"
-                    disabled={draftOpen}
                     onClick={() => setDraftOpen(true)}
                   >
                     {t.customers.addLedgerEntry}
@@ -828,10 +1081,126 @@ export function CustomerDetailPage() {
                 ) : null}
               </div>
             </section>
+          {historyMenu ? (
+            <DeskContextMenu
+              x={historyMenu.x}
+              y={historyMenu.y}
+              items={historyContextItems(historyMenu.row)}
+              onClose={() => setHistoryMenu(null)}
+            />
+          ) : null}
+
           <DepositFormModal
             open={depositOpen}
-            onClose={() => setDepositOpen(false)}
-            initialCustomer={{ id: customer.id, name: customer.fullName }}
+            editTransactionId={editDepositId}
+            initialCustomer={
+              editDepositId
+                ? null
+                : { id: customer.id, name: customer.fullName }
+            }
+            onClose={() => {
+              setDepositOpen(false);
+              setEditDepositId(null);
+            }}
+            onSaved={() => {
+              setDepositOpen(false);
+              setEditDepositId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <WithdrawFormModal
+            open={withdrawOpen}
+            editTransactionId={editWithdrawId}
+            onClose={() => {
+              setWithdrawOpen(false);
+              setEditWithdrawId(null);
+            }}
+            onSaved={() => {
+              setWithdrawOpen(false);
+              setEditWithdrawId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <TransferFormModal
+            open={transferOpen}
+            editTransactionId={editTransferId}
+            onClose={() => {
+              setTransferOpen(false);
+              setEditTransferId(null);
+            }}
+            onSaved={() => {
+              setTransferOpen(false);
+              setEditTransferId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <ExchangeFormModal
+            open={exchangeOpen}
+            editTransactionId={editExchangeId}
+            onClose={() => {
+              setExchangeOpen(false);
+              setEditExchangeId(null);
+            }}
+            onSaved={() => {
+              setExchangeOpen(false);
+              setEditExchangeId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <HawalaFormModal
+            open={sendHawalaOpen}
+            direction={editHawalaId ? editHawalaDirection : "SEND"}
+            editTransactionId={editHawalaId}
+            onClose={() => {
+              setSendHawalaOpen(false);
+              setEditHawalaId(null);
+            }}
+            onSaved={() => {
+              setSendHawalaOpen(false);
+              setEditHawalaId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <SendHawalaFormModal
+            open={simpleHawalaOpen}
+            direction={editHawalaDirection}
+            editTransactionId={editHawalaId}
+            onClose={() => {
+              setSimpleHawalaOpen(false);
+              setEditHawalaId(null);
+            }}
+            onSaved={() => {
+              setSimpleHawalaOpen(false);
+              setEditHawalaId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <VaultCashFormModal
+            open={cashOpen}
+            direction={cashDirection}
+            editTransactionId={editCashId}
+            onClose={() => {
+              setCashOpen(false);
+              setEditCashId(null);
+            }}
+            onSaved={() => {
+              setCashOpen(false);
+              setEditCashId(null);
+              refreshAfterMovement();
+            }}
+          />
+          <OpeningBalanceFormModal
+            open={openingOpen}
+            editTransactionId={editOpeningId}
+            onClose={() => {
+              setOpeningOpen(false);
+              setEditOpeningId(null);
+            }}
+            onSaved={() => {
+              setOpeningOpen(false);
+              setEditOpeningId(null);
+              refreshAfterMovement();
+            }}
           />
         </>
       ) : null}

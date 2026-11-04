@@ -1531,6 +1531,10 @@ pub struct DaybookJournalLine {
 #[serde(rename_all = "camelCase")]
 pub struct DaybookJournalInput {
   pub business_date: Option<String>,
+  /// Inclusive range start (YYYY-MM-DD). When set with date_to, overrides single-day business_date.
+  pub date_from: Option<String>,
+  /// Inclusive range end (YYYY-MM-DD).
+  pub date_to: Option<String>,
   pub currency_code: Option<String>,
   pub search: Option<String>,
   pub page: Option<i64>,
@@ -1629,10 +1633,11 @@ fn journal_shop_cash_opening(
   Ok(map)
 }
 
-/// Intraday shop-cash nets before the first transaction on this page (same business day).
+/// Shop-cash nets before the first transaction on this page within [date_from, date_to].
 fn journal_shop_cash_prefix(
   conn: &Connection,
-  business_day: &str,
+  date_from: &str,
+  date_to: &str,
   first_created_at: &str,
   first_tx_id: &str,
 ) -> Result<std::collections::HashMap<String, f64>, AppError> {
@@ -1647,13 +1652,13 @@ fn journal_shop_cash_prefix(
        INNER JOIN Currency c ON c.id = le.currencyId AND c.deletedAt IS NULL
        WHERE w.deletedAt IS NULL AND w.isActive = 1
          AND {JOURNAL_SHOP_CASH_WALLETS}
-         AND t.valueDate >= ?1 AND t.valueDate < date(?1, '+1 day')
-         AND (t.createdAt < ?2 OR (t.createdAt = ?2 AND t.id < ?3))
+         AND t.valueDate >= ?1 AND t.valueDate < date(?2, '+1 day')
+         AND (t.createdAt < ?3 OR (t.createdAt = ?3 AND t.id < ?4))
        GROUP BY c.code"#
   );
   let mut stmt = conn.prepare(&sql)?;
   for row in stmt.query_map(
-    rusqlite::params![business_day, first_created_at, first_tx_id],
+    rusqlite::params![date_from, date_to, first_created_at, first_tx_id],
     |row| Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?)),
   )? {
     let (code, net) = row?;
@@ -1850,13 +1855,31 @@ pub fn list_daybook_journal(
 ) -> Result<DaybookJournalPage, AppError> {
   let conn = state.db.lock();
   let _actor = require_screen(&state, &conn, "daybook")?;
-  let day = input
+  let today = today_local();
+  let fallback_day = input
     .business_date
     .as_deref()
     .map(str::trim)
     .filter(|s| !s.is_empty())
-    .unwrap_or(&today_local())
+    .unwrap_or(&today);
+  let mut date_from = input
+    .date_from
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .unwrap_or(fallback_day)
     .to_string();
+  let mut date_to = input
+    .date_to
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .unwrap_or(fallback_day)
+    .to_string();
+  if date_from > date_to {
+    std::mem::swap(&mut date_from, &mut date_to);
+  }
+  let day = date_from.clone();
   let search = input
     .search
     .as_deref()
@@ -1873,13 +1896,14 @@ pub fn list_daybook_journal(
   let page_size = input.page_size.unwrap_or(50).clamp(1, 100);
   let mut offset = 0i64;
 
-  // Paginate transactions first (never load the whole day's ledger into memory).
+  // Paginate transactions first (never load the whole range into memory).
   let mut tx_where = String::from(
     r#"FROM "Transaction" t
        WHERE t.deletedAt IS NULL
-         AND t.valueDate >= ?1 AND t.valueDate < date(?1, '+1 day')"#,
+         AND t.valueDate >= ?1 AND t.valueDate < date(?2, '+1 day')"#,
   );
-  let mut tx_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(day.clone())];
+  let mut tx_params: Vec<Box<dyn rusqlite::types::ToSql>> =
+    vec![Box::new(date_from.clone()), Box::new(date_to.clone())];
   if let Some(ref q) = search {
     tx_where.push_str(
       r#" AND (
@@ -2188,10 +2212,11 @@ pub fn list_daybook_journal(
   });
 
   // Running Main Vault / shop cash per currency (not the customer/account wallet).
-  let mut running = journal_shop_cash_opening(&conn, &day)?;
+  let mut running = journal_shop_cash_opening(&conn, &date_from)?;
   if offset > 0 {
     if let Some(first) = txs.first() {
-      let prefix = journal_shop_cash_prefix(&conn, &day, &first.created_at, &first.id)?;
+      let prefix =
+        journal_shop_cash_prefix(&conn, &date_from, &date_to, &first.created_at, &first.id)?;
       for (code, net) in prefix {
         *running.entry(code).or_insert(0.0) += net;
       }

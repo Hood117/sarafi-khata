@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useMemo, useState, useRef, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import {
@@ -141,30 +141,43 @@ export function MovementsPage() {
   }
 
   return (
-    <div className="stack">
-      <div className="nav-row">
-        {(
-          [
-            ["deposit", t.txLine.typeDeposit, <ArrowDownLeft key="d" className="nav-icon" size={18} />],
-            ["withdraw", t.txLine.typeWithdrawal, <ArrowUpRight key="w" className="nav-icon" size={18} />],
-            ["transfer", t.txLine.typeTransfer, <ArrowLeftRight key="t" className="nav-icon" size={18} />],
-          ] as const
-        ).map(([id, label, icon]) => (
-          <button
-            key={id}
-            type="button"
-            className={tab === id ? "nav-link active" : "nav-link"}
-            onClick={() => selectTab(id)}
-          >
-            <span className="nav-link-icon">{icon}</span>
-            <span className="nav-link-label">{label}</span>
-          </button>
-        ))}
-      </div>
+    <div className="stack movements-page workspace-page">
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.nav.transfers}</h2>
+            </div>
+            <div className="records-title-actions">
+              <div className="settings-tabs currency-panel-tabs" role="tablist">
+                {(
+                  [
+                    ["deposit", t.txLine.typeDeposit, <ArrowDownLeft key="d" className="nav-icon" size={18} />],
+                    ["withdraw", t.txLine.typeWithdrawal, <ArrowUpRight key="w" className="nav-icon" size={18} />],
+                    ["transfer", t.txLine.typeTransfer, <ArrowLeftRight key="t" className="nav-icon" size={18} />],
+                  ] as const
+                ).map(([id, label, icon]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    className={`settings-tab${tab === id ? " active" : ""}`}
+                    onClick={() => selectTab(id)}
+                  >
+                    <span className="nav-link-icon">{icon}</span>
+                    <span className="nav-link-label">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
 
       <form
         ref={formRef}
-        className="card stack"
+        className="stack"
+        style={{ padding: "12px" }}
         data-desk-form
         onKeyDown={(e: ReactKeyboardEvent<HTMLFormElement>) =>
           handleDeskFormKeyDown(e, {
@@ -258,10 +271,13 @@ export function MovementsPage() {
         </label>
 
         {error ? <p className="error">{error}</p> : null}
-        <button type="submit" disabled={busy}>
-          {busy ? t.common.posting : t.common.submit}
-        </button>
+        <div className="modal-actions">
+          <button type="submit" className="btn primary" disabled={busy}>
+            {busy ? t.common.posting : t.common.submit}
+          </button>
+        </div>
       </form>
+      </section>
       {successModal}
     </div>
   );

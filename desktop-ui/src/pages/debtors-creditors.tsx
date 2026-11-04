@@ -104,63 +104,72 @@ export function DebtorsCreditorsPage() {
 
   return (
     <div className="stack dc-page workspace-page">
-      <div className="row dc-toolbar">
-        <div className="nav-row" role="tablist" aria-label={t.nav.debtorsCreditors}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "debtors"}
-            className={tab === "debtors" ? "nav-link active" : "nav-link"}
-            onClick={() => selectTab("debtors")}
-          >
-            <span className="nav-link-label">{t.debtorsCreditors.debtors}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "creditors"}
-            className={tab === "creditors" ? "nav-link active" : "nav-link"}
-            onClick={() => selectTab("creditors")}
-          >
-            <span className="nav-link-label">{t.debtorsCreditors.creditors}</span>
-          </button>
-        </div>
-        <label className="stack dc-search">
-          <span className="muted">{t.common.search}</span>
-          <input
-            type="search"
-            className="desk-search"
-            value={searchDraft}
-            placeholder={t.debtorsCreditors.searchPlaceholder}
-            onChange={(e) => setSearchDraft(e.target.value)}
-          />
-        </label>
-        <div className="dc-currency">
-          <CurrencyFilter
-            currencies={currencies}
-            value={currencyFilter === "ALL" ? "" : currencyFilter}
-            onChange={(code) => {
-              setPage(1);
-              setCurrencyFilter(code || "ALL");
-            }}
-            allLabel={t.dailyBook.allCurrencies}
-          />
-        </div>
-      </div>
-
       {error ? <PageLoadError message={error} onRetry={refresh} /> : null}
       {busy && !loaded ? <p className="muted">{t.common.loading}</p> : null}
 
-      {loaded ? (
-        <div aria-busy={busy}>
-          {rows.length === 0 && !busy ? (
-            <p className="muted">
-              {tab === "debtors"
-                ? t.debtorsCreditors.emptyDebtors
-                : t.debtorsCreditors.emptyCreditors}
-            </p>
-          ) : rows.length > 0 ? (
-            <section className="section-card stack">
+      <section className="panel records-panel" aria-busy={busy}>
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.nav.debtorsCreditors}</h2>
+              <span className="count-badge">{loaded ? total : 0}</span>
+            </div>
+            <div className="records-title-actions">
+              <div
+                className="settings-tabs currency-panel-tabs"
+                role="tablist"
+                aria-label={t.nav.debtorsCreditors}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "debtors"}
+                  className={`settings-tab${tab === "debtors" ? " active" : ""}`}
+                  onClick={() => selectTab("debtors")}
+                >
+                  {t.debtorsCreditors.debtors}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === "creditors"}
+                  className={`settings-tab${tab === "creditors" ? " active" : ""}`}
+                  onClick={() => selectTab("creditors")}
+                >
+                  {t.debtorsCreditors.creditors}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="table-toolbar">
+            <label className="search-field search-field-emphasized">
+              <input
+                type="search"
+                className="desk-search"
+                value={searchDraft}
+                placeholder={t.debtorsCreditors.searchPlaceholder}
+                aria-label={t.common.search}
+                onChange={(e) => setSearchDraft(e.target.value)}
+              />
+            </label>
+            <div className="table-filters">
+              <CurrencyFilter
+                currencies={currencies}
+                value={currencyFilter === "ALL" ? "" : currencyFilter}
+                onChange={(code) => {
+                  setPage(1);
+                  setCurrencyFilter(code || "ALL");
+                }}
+                allLabel={t.dailyBook.allCurrencies}
+                hideLabel
+              />
+            </div>
+          </div>
+        </div>
+
+        {loaded ? (
+          <>
+            <div className="table-scroll">
               <table className="report-ledger daybook-journal-table">
                 <thead>
                   <tr>
@@ -172,37 +181,51 @@ export function DebtorsCreditorsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, idx) => (
-                    <tr
-                      key={`${row.customerId}-${row.currencyCode}`}
-                      className="is-clickable"
-                      tabIndex={0}
-                      role="link"
-                      onClick={() => navigate(`/customers/${row.customerId}`)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          navigate(`/customers/${row.customerId}`);
-                        }
-                      }}
-                    >
-                      <td className="col-row">{(page - 1) * pageSize + idx + 1}</td>
-                      <td>
-                        <strong>{row.customerName}</strong>
-                      </td>
-                      <td className="col-ref">{row.accountCode || "—"}</td>
-                      <td><CurrencyCodeWithFlag code={row.currencyCode} /></td>
-                      <td
-                        className={`col-amount amount-emphasis ${
-                          tab === "debtors" ? "money-out" : "money-in"
-                        }`}
-                      >
-                        {row.amountDisplay}
+                  {rows.length === 0 && !busy ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        {tab === "debtors"
+                          ? t.debtorsCreditors.emptyDebtors
+                          : t.debtorsCreditors.emptyCreditors}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    rows.map((row, idx) => (
+                      <tr
+                        key={`${row.customerId}-${row.currencyCode}`}
+                        className="is-clickable customer-row-clickable"
+                        tabIndex={0}
+                        role="link"
+                        onClick={() => navigate(`/customers/${row.customerId}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            navigate(`/customers/${row.customerId}`);
+                          }
+                        }}
+                      >
+                        <td className="col-row">{(page - 1) * pageSize + idx + 1}</td>
+                        <td>
+                          <strong>{row.customerName}</strong>
+                        </td>
+                        <td className="col-ref">{row.accountCode || "—"}</td>
+                        <td>
+                          <CurrencyCodeWithFlag code={row.currencyCode} />
+                        </td>
+                        <td
+                          className={`col-amount amount-emphasis ${
+                            tab === "debtors" ? "money-out" : "money-in"
+                          }`}
+                        >
+                          {row.amountDisplay}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+            <div className="records-pagination">
               <Pagination
                 page={page}
                 pageSize={pageSize}
@@ -210,10 +233,10 @@ export function DebtorsCreditorsPage() {
                 busy={busy}
                 onPageChange={setPage}
               />
-            </section>
-          ) : null}
-        </div>
-      ) : null}
+            </div>
+          </>
+        ) : null}
+      </section>
     </div>
   );
 }

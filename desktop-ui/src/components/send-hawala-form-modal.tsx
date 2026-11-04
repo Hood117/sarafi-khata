@@ -684,8 +684,9 @@ export function SendHawalaFormModal({
       {open ? (
         <Modal title={title} size="xl" onClose={() => resetForm(false)}>
           <div
-            className="stack movement-form-compact"
+            className="stack movement-form-compact desk-qa-form"
             data-desk-form
+            data-qa-tone="send-hawala"
             onKeyDown={(e) =>
               handleDeskFormKeyDown(e, {
                 busy: saving,
@@ -693,10 +694,6 @@ export function SendHawalaFormModal({
               })
             }
           >
-            <p className="muted" style={{ margin: 0 }}>
-              {isSend ? t.hawala.simpleSendHint : t.hawala.simpleReceiveHint}
-            </p>
-
             <div className="fx-simple-top">
               <label className="desk-ref-field">
                 <span>{t.desk.hawalaNumber} *</span>

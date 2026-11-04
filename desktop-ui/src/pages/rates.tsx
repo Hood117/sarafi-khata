@@ -200,34 +200,76 @@ export function RatesPage() {
 
   return (
     <div className="stack rates-page workspace-page">
-      <div className="card stack">
-        <div
-          className="row"
-          style={{ justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}
-        >
-          <h2 style={{ margin: 0 }}>{t.exchangeRates.marketRatesTitle}</h2>
-          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn primary"
-              disabled={marketBusy}
-              onClick={() => void onRefreshMarket()}
-            >
-              {marketBusy ? t.exchangeRates.refreshingMarket : t.exchangeRates.refreshMarket}
-            </button>
+      {error ? <p className="error">{error}</p> : null}
+      {busy ? <p className="muted">{t.common.loading}</p> : null}
+
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.exchangeRates.marketRatesTitle}</h2>
+              <span className="count-badge">{selectedPairs.length}</span>
+            </div>
+            <div className="records-title-actions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={marketBusy}
+                onClick={() => void onRefreshMarket()}
+              >
+                {marketBusy ? t.exchangeRates.refreshingMarket : t.exchangeRates.refreshMarket}
+              </button>
+            </div>
           </div>
+          {market && marketCodes.length > 0 ? (
+            <div className="table-toolbar">
+              <div className="table-filters">
+                <label>
+                  <span className="muted">{t.exchangeRates.selectCurrency}</span>
+                  <select
+                    value={selectedCode}
+                    aria-label={t.exchangeRates.selectCurrency}
+                    onChange={(e) => setSelectedCode(e.target.value)}
+                  >
+                    {marketCodes.map((code) => {
+                      const c = currencyByCode.get(code);
+                      const mark = currencyMark(c, code);
+                      const name = c?.name;
+                      return (
+                        <option key={code} value={code}>
+                          {name ? `${code} — ${name} (${mark})` : `${code} (${mark})`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+                {t.exchangeRates.marketAgainstHint.replace(
+                  "{currency}",
+                  currencyMark(currencyByCode.get(selectedCode), selectedCode || "—"),
+                )}
+              </p>
+            </div>
+          ) : null}
         </div>
 
-        {error ? <p className="error">{error}</p> : null}
-        {busy ? <p className="muted">{t.common.loading}</p> : null}
-
         {marketMsg ? (
-          <p className={market?.lastError && !market.refreshed ? "error" : "muted"}>{marketMsg}</p>
+          <p
+            className={market?.lastError && !market.refreshed ? "error" : "muted"}
+            style={{ margin: 0, padding: "10px 12px" }}
+          >
+            {marketMsg}
+          </p>
         ) : null}
-        {market?.lastError && !marketMsg ? <p className="error">{market.lastError}</p> : null}
+        {market?.lastError && !marketMsg ? (
+          <p className="error" style={{ margin: 0, padding: "10px 12px" }}>
+            {market.lastError}
+          </p>
+        ) : null}
 
         {market?.hasCache ? (
-          <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
+          <p className="muted" style={{ margin: 0, padding: "8px 12px", fontSize: "0.85rem" }}>
             {market.fetchedAt
               ? t.exchangeRates.marketFetchedAt.replace("{time}", market.fetchedAt.slice(0, 19))
               : ""}
@@ -238,68 +280,44 @@ export function RatesPage() {
         ) : null}
 
         {!market?.hasCache && !marketBusy ? (
-          <p className="muted">{t.exchangeRates.marketEmpty}</p>
+          <p className="muted" style={{ margin: 0, padding: "12px" }}>
+            {t.exchangeRates.marketEmpty}
+          </p>
         ) : null}
 
         {market && marketCodes.length > 0 ? (
-          <>
-            <label className="stack" style={{ gap: "0.35rem", maxWidth: "22rem" }}>
-              <span>{t.exchangeRates.selectCurrency}</span>
-              <select
-                value={selectedCode}
-                onChange={(e) => setSelectedCode(e.target.value)}
-              >
-                {marketCodes.map((code) => {
-                  const c = currencyByCode.get(code);
-                  const mark = currencyMark(c, code);
-                  const name = c?.name;
-                  return (
-                    <option key={code} value={code}>
-                      {name ? `${code} — ${name} (${mark})` : `${code} (${mark})`}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-
-            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-              {t.exchangeRates.marketAgainstHint.replace(
-                "{currency}",
-                currencyMark(currencyByCode.get(selectedCode), selectedCode || "—"),
-              )}
-            </p>
-
-            {selectedPairs.length > 0 ? (
-              <div style={{ overflowX: "auto" }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t.exchangeRates.rate}</th>
-                      <th>{t.exchangeRates.marketName}</th>
+          selectedPairs.length > 0 ? (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t.exchangeRates.rate}</th>
+                    <th>{t.exchangeRates.marketName}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedPairs.map((row) => (
+                    <tr key={row.to}>
+                      <td>
+                        <strong>{row.label}</strong>
+                      </td>
+                      <td>{currencyByCode.get(row.to)?.name ?? "—"}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {selectedPairs.map((row) => (
-                      <tr key={row.to}>
-                        <td>
-                          <strong>{row.label}</strong>
-                        </td>
-                        <td>{currencyByCode.get(row.to)?.name ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="muted">{t.exchangeRates.marketNoPairs}</p>
-            )}
-          </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="muted" style={{ margin: 0, padding: "12px" }}>
+              {t.exchangeRates.marketNoPairs}
+            </p>
+          )
         ) : null}
 
-        <p className="muted" style={{ margin: 0, fontSize: "0.8rem" }}>
-          {t.exchangeRates.marketAttribution}
-        </p>
-      </div>
+        <div className="records-pagination">
+          <span>{t.exchangeRates.marketAttribution}</span>
+        </div>
+      </section>
       {successModal}
     </div>
   );

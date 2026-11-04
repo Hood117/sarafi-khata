@@ -722,8 +722,9 @@ export function HawalaFormModal({
       {open ? (
         <Modal title={title} size="xl" onClose={() => resetForm(false)}>
           <div
-            className="hawala-form-compact"
+            className="hawala-form-compact desk-qa-form"
             data-desk-form
+            data-qa-tone="receive-hawala"
             onKeyDown={(e) =>
               handleDeskFormKeyDown(e, {
                 busy: saving,

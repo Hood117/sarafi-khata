@@ -39,8 +39,46 @@ function formatWhen(value: string | null | undefined): string {
 }
 
 /**
- * Opens a print-ready receipt window (black & white, no app chrome).
- * Uses @media print so only the receipt body is printed.
+ * Print HTML in-page (no pop-up). Tauri WebView blocks window.open and may
+ * ignore iframe.print() — same approach as the daybook ledger printer.
+ */
+function printHtmlInPage(html: string): void {
+  const rootId = "daybook-print-root";
+  document.getElementById(rootId)?.remove();
+  document.body.classList.remove("daybook-printing");
+
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const styles = styleMatch?.[1] ?? "";
+  const bodyHtml = bodyMatch?.[1] ?? html;
+
+  const root = document.createElement("div");
+  root.id = rootId;
+  root.className = "daybook-print-root tx-receipt-print-root";
+  root.setAttribute("aria-hidden", "true");
+  root.innerHTML = `<style id="daybook-print-styles">${styles}</style>${bodyHtml}`;
+  document.body.appendChild(root);
+  document.body.classList.add("daybook-printing");
+
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    document.body.classList.remove("daybook-printing");
+    root.remove();
+    window.removeEventListener("afterprint", cleanup);
+  };
+
+  window.addEventListener("afterprint", cleanup);
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(cleanup, 2500);
+  }, 60);
+}
+
+/**
+ * Opens a print-ready receipt (black & white, no app chrome).
+ * Uses in-page print so it works in Tauri as well as the browser.
  */
 export function printTransactionReceipt(input: {
   businessName: string;
@@ -91,33 +129,31 @@ export function printTransactionReceipt(input: {
   const receiver = (detail.receiverName ?? "—").trim() || "—";
 
   const shownRef = txDisplayRef(detail);
-  const w = window.open("", "_blank", "noopener,noreferrer,width=420,height=720");
-  if (!w) return;
 
-  w.document.write(`<!doctype html>
+  const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(labels.receiptTitle)} · ${escapeHtml(shownRef)}</title>
   <style>
-    :root { color-scheme: only light; }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
+    .tx-receipt-print-root {
+      color-scheme: only light;
       background: #fff;
       color: #111;
       font-family: "Courier New", Courier, ui-monospace, monospace;
       font-size: 13px;
       line-height: 1.45;
     }
-    .sheet {
+    .tx-receipt-print-root * { box-sizing: border-box; }
+    .tx-receipt-print-root .sheet {
       width: 80mm;
       max-width: 100%;
       margin: 0 auto;
       padding: 12mm 8mm;
+      background: #fff;
+      color: #111;
     }
-    .brand {
+    .tx-receipt-print-root .brand {
       text-align: center;
       font-size: 18px;
       font-weight: 700;
@@ -125,79 +161,65 @@ export function printTransactionReceipt(input: {
       text-transform: uppercase;
       margin: 0 0 4px;
     }
-    .subtitle {
+    .tx-receipt-print-root .subtitle {
       text-align: center;
       font-size: 12px;
       margin: 0 0 14px;
       color: #222;
     }
-    .rule {
+    .tx-receipt-print-root .rule {
       border: 0;
       border-top: 1px dashed #111;
       margin: 10px 0;
     }
-    .summary {
+    .tx-receipt-print-root .summary {
       text-align: center;
       font-weight: 700;
       font-size: 13px;
       margin: 0 0 10px;
     }
-    .row {
+    .tx-receipt-print-root .row {
       display: flex;
       justify-content: space-between;
       gap: 12px;
       padding: 3px 0;
     }
-    .label {
+    .tx-receipt-print-root .label {
       color: #333;
       flex: 0 0 38%;
     }
-    .value {
+    .tx-receipt-print-root .value {
       flex: 1;
       text-align: right;
       font-weight: 600;
       word-break: break-word;
     }
-    .amount {
+    .tx-receipt-print-root .amount {
       font-size: 16px;
       font-weight: 700;
       letter-spacing: 0.02em;
     }
-    .thanks {
+    .tx-receipt-print-root .thanks {
       text-align: center;
       margin-top: 18px;
       font-size: 12px;
     }
-    .sig {
+    .tx-receipt-print-root .sig {
       display: flex;
       gap: 16px;
       margin-top: 28px;
     }
-    .sig div {
+    .tx-receipt-print-root .sig div {
       flex: 1;
       border-top: 1px solid #111;
       padding-top: 6px;
       font-size: 11px;
       text-align: center;
     }
-    .screen-only {
-      text-align: center;
-      margin: 16px 0 0;
-    }
-    .screen-only button {
-      font: inherit;
-      padding: 8px 16px;
-      cursor: pointer;
-      background: #111;
-      color: #fff;
-      border: 0;
-    }
+    .tx-receipt-print-root .screen-only { display: none !important; }
     @media print {
       @page { margin: 8mm; size: auto; }
-      html, body { background: #fff; }
-      .sheet { width: 100%; padding: 0; }
-      .screen-only { display: none !important; }
-      nav, header, aside, footer, .no-print { display: none !important; }
+      .tx-receipt-print-root .sheet { width: 100%; padding: 0; }
     }
   </style>
 </head>
@@ -229,17 +251,9 @@ export function printTransactionReceipt(input: {
       <div>${escapeHtml(labels.customer)}</div>
       <div>${escapeHtml(labels.cashier)}</div>
     </div>
-    <div class="screen-only">
-      <button type="button" onclick="window.print()">${escapeHtml(labels.print)}</button>
-    </div>
   </div>
-  <script>
-    window.onload = function () {
-      window.focus();
-      window.print();
-    };
-  </script>
 </body>
-</html>`);
-  w.document.close();
+</html>`;
+
+  printHtmlInPage(html);
 }

@@ -104,37 +104,46 @@ export function PartnersPage() {
 
   return (
     <div className="stack partner-page workspace-page">
-      <div className="section-card stack">
-        <div className="row partner-toolbar">
-          <label className="partner-search">
-            <span className="muted" style={{ fontSize: "0.8rem" }}>
-              {t.common.search}
-            </span>
-            <input
-              type="search"
-              className="desk-search"
-              value={searchInput}
-              placeholder={t.partner.searchPlaceholder}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn primary"
-            data-desk-action="new"
-            data-desk-primary
-            onClick={() => setShowForm(true)}
-          >
-            {t.partner.add}
-          </button>
+      {error && !showForm ? <p className="error">{error}</p> : null}
+      {busy && !pageData ? (
+        <p className="muted">{t.partner.loadingPartners}</p>
+      ) : null}
+
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.nav.partnerSarafi}</h2>
+              <span className="count-badge">{pageData?.total ?? 0}</span>
+            </div>
+            <div className="records-title-actions">
+              <button
+                type="button"
+                className="btn primary"
+                data-desk-action="new"
+                data-desk-primary
+                onClick={() => setShowForm(true)}
+              >
+                {t.partner.add}
+              </button>
+            </div>
+          </div>
+          <div className="table-toolbar">
+            <label className="search-field search-field-emphasized">
+              <input
+                type="search"
+                className="desk-search"
+                value={searchInput}
+                placeholder={t.partner.searchPlaceholder}
+                aria-label={t.common.search}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </label>
+          </div>
         </div>
-        {error && !showForm ? <p className="error">{error}</p> : null}
-        {busy && !pageData ? (
-          <p className="muted">{t.partner.loadingPartners}</p>
-        ) : null}
         {pageData ? (
           <>
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -174,7 +183,15 @@ export function PartnersPage() {
                         <td>
                           <strong>{p.name}</strong>
                         </td>
-                        <td>{p.phone ?? "—"}</td>
+                        <td>
+                          {p.phone ? (
+                            <span className="ltr-text phone-ltr" dir="ltr">
+                              {p.phone}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td>{p.city ?? "—"}</td>
                         <td>{p.country ?? "—"}</td>
                       </tr>
@@ -183,16 +200,18 @@ export function PartnersPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              total={pageData.total}
-              busy={busy}
-              onPageChange={setPage}
-            />
+            <div className="records-pagination">
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={pageData.total}
+                busy={busy}
+                onPageChange={setPage}
+              />
+            </div>
           </>
         ) : null}
-      </div>
+      </section>
 
       {rowMenu ? (
         <DeskContextMenu

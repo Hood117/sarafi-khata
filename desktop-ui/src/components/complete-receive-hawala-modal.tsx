@@ -107,19 +107,19 @@ export function CompleteReceiveHawalaModal({
   const [fpState, setFpState] = useState<FpVerifyState>("ready");
   const [fpMessage, setFpMessage] = useState<string | null>(null);
   const [fpScore, setFpScore] = useState<number | null>(null);
+  const [fpTemplateBase64, setFpTemplateBase64] = useState<string | null>(null);
   const [completed, setCompleted] = useState<HawalaDetail | null>(null);
   const [businessName, setBusinessName] = useState("ASMS");
   const [printBusy, setPrintBusy] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
   const [printOk, setPrintOk] = useState<string | null>(null);
-  const message = (
-    toCustomer
-      ? t.hawala.completeConfirmCreditAccount
-      : t.hawala.completeConfirmPayVault
-  )
-    .replace("{amount}", formatAmountDisplay(pay))
-    .replace("{currency}", detail.currencyCode)
-    .replace("{receiver}", detail.receiverName);
+
+  // Hold the global 1:N identify loop for the whole collection modal so it
+  // cannot contend for the scanner or navigate away mid-verify.
+  useEffect(() => {
+    pauseFingerprintIdentify();
+    return () => resumeFingerprintIdentify();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +188,7 @@ export function CompleteReceiveHawalaModal({
     setFpState("scanning");
     setFpMessage(t.hawala.verifyFingerprintScanning);
     setFpScore(null);
-    pauseFingerprintIdentify();
+    setFpTemplateBase64(null);
     try {
       const result = await verifyHawalaCollectorFingerprint(detail.id, {
         receiverNationalId: nationalId || null,
@@ -198,6 +198,7 @@ export function CompleteReceiveHawalaModal({
         playFingerprintSound("success");
         setFpState("verified");
         setFpScore(result.matchScore);
+        setFpTemplateBase64(result.templateBase64?.trim() || null);
         setFpMessage(
           result.message?.trim() || t.hawala.verifyFingerprintVerified,
         );
@@ -207,6 +208,7 @@ export function CompleteReceiveHawalaModal({
         if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
         setFpState("failed");
         setFpScore(result.matchScore);
+        setFpTemplateBase64(null);
         setFpMessage(message);
       }
     } catch (err: unknown) {
@@ -214,9 +216,8 @@ export function CompleteReceiveHawalaModal({
       if (isUnmatchedFingerprint(message)) notifyWrongFingerprint();
       setFpState("failed");
       setFpScore(null);
+      setFpTemplateBase64(null);
       setFpMessage(message);
-    } finally {
-      resumeFingerprintIdentify();
     }
   }
 
@@ -255,6 +256,7 @@ export function CompleteReceiveHawalaModal({
         actorUserId: session.userId,
         receiverPhone: collectorPhone.trim() || null,
         receiverNationalId: collectorNationalId.trim() || null,
+        collectorFingerprintTemplate: fpTemplateBase64,
       });
       // Keep the receipt on screen — do not auto-print.
       setCompleted(updated);
@@ -324,80 +326,103 @@ export function CompleteReceiveHawalaModal({
       <Modal
         title={t.hawala.collectionReceiptTitle}
         onClose={finishAfterReceipt}
-        size="md"
+        size="wide"
       >
-        <div className="stack hawala-receipt-panel">
-          <p className="muted" style={{ margin: 0 }}>
-            {t.hawala.collectionReceiptHint}
-          </p>
-          <pre className="hawala-receipt-preview" aria-label={t.hawala.collectionReceiptTitle}>
-            {preview}
-          </pre>
-          <table>
-            <tbody>
-              <tr>
-                <th>{t.desk.hawalaNumber}</th>
-                <td>
-                  <strong>{hawalaNumberRef(completed)}</strong>
-                </td>
-              </tr>
-              <tr>
-                <th>{t.hawala.sender}</th>
-                <td>{completed.senderName}</td>
-              </tr>
-              <tr>
-                <th>{t.hawala.receiver}</th>
-                <td>{completed.receiverName}</td>
-              </tr>
-              <tr>
-                <th>{t.common.phone}</th>
-                <td>{completed.receiverPhone?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <th>{t.common.nationalId}</th>
-                <td>{completed.receiverNationalId?.trim() || "—"}</td>
-              </tr>
-              <tr>
-                <th>{t.common.amount}</th>
-                <td>
-                  {formatAmountDisplay(completed.amount)} {completed.currencyCode}
-                </td>
-              </tr>
-              <tr>
-                <th>{t.hawala.netPayout}</th>
-                <td>
-                  {formatAmountDisplay(receiptPay)} {completed.currencyCode}
-                </td>
-              </tr>
-              <tr>
-                <th>{t.hawala.completeConfirmStatus}</th>
-                <td>
-                  <span className={statusBadgeClass(completed.status)}>
-                    {statusLabel(t, completed.status)}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          {printError ? <p className="error">{printError}</p> : null}
-          {printOk ? <p className="muted">{printOk}</p> : null}
-          <div className="row" style={{ justifyContent: "flex-end", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="btn secondary"
-              disabled={printBusy}
-              onClick={() => void handlePrintReceipt()}
-            >
-              {printBusy ? t.common.loading : t.transactions.printReceipt}
-            </button>
-            <button
-              type="button"
-              className="btn primary"
-              disabled={printBusy}
-              onClick={finishAfterReceipt}
-            >
-              {t.common.close}
-            </button>
+        <div className="stack hawala-complete-form">
+          <div className="hawala-complete-scroll">
+            <div className="hawala-complete-layout">
+              <div className="hawala-complete-main">
+                <section className="hawala-complete-section hawala-complete-section--payout">
+                  <header className="hawala-complete-section-head">
+                    <span className="hawala-complete-section-kicker">
+                      {t.hawala.netPayout}
+                    </span>
+                    <h3 className="hawala-complete-section-title">
+                      {formatAmountDisplay(receiptPay)} {completed.currencyCode}
+                    </h3>
+                  </header>
+                  <dl className="hawala-complete-summary">
+                    <div>
+                      <dt>{t.desk.hawalaNumber}</dt>
+                      <dd>
+                        <strong>{hawalaNumberRef(completed)}</strong>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{t.hawala.completeConfirmStatus}</dt>
+                      <dd>
+                        <span className={statusBadgeClass(completed.status)}>
+                          {statusLabel(t, completed.status)}
+                        </span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{t.hawala.sender}</dt>
+                      <dd>{completed.senderName}</dd>
+                    </div>
+                    <div>
+                      <dt>{t.hawala.receiver}</dt>
+                      <dd>{completed.receiverName}</dd>
+                    </div>
+                    <div>
+                      <dt>{t.common.phone}</dt>
+                      <dd>{completed.receiverPhone?.trim() || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>{t.common.nationalId}</dt>
+                      <dd>{completed.receiverNationalId?.trim() || "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>{t.common.amount}</dt>
+                      <dd>
+                        {formatAmountDisplay(completed.amount)}{" "}
+                        {completed.currencyCode}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              </div>
+              <aside className="hawala-complete-aside">
+                <section className="hawala-complete-section hawala-complete-section--receipt">
+                  <header className="hawala-complete-section-head">
+                    <span className="hawala-complete-section-kicker">
+                      {t.transactions.printReceipt}
+                    </span>
+                    <h3 className="hawala-complete-section-title">
+                      {t.hawala.collectionReceiptTitle}
+                    </h3>
+                  </header>
+                  <pre
+                    className="hawala-receipt-preview"
+                    aria-label={t.hawala.collectionReceiptTitle}
+                  >
+                    {preview}
+                  </pre>
+                  {printError ? <p className="error">{printError}</p> : null}
+                  {printOk ? <p className="muted">{printOk}</p> : null}
+                </section>
+              </aside>
+            </div>
+          </div>
+          <div className="hawala-complete-footer">
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={printBusy}
+                onClick={() => void handlePrintReceipt()}
+              >
+                {printBusy ? t.common.loading : t.transactions.printReceipt}
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={printBusy}
+                onClick={finishAfterReceipt}
+              >
+                {t.common.close}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -412,171 +437,193 @@ export function CompleteReceiveHawalaModal({
           : t.hawala.completeConfirmTitle
       }
       onClose={onClose}
-      size="md"
+      size="wide"
     >
-      <div className="stack">
-        {error ? <p className="error">{error}</p> : null}
-        {shortage > 0 && resultingVault != null ? (
-          <div className="hawala-cash-shortage" role="status">
-            <div className="hawala-cash-shortage-lines">
-              <p>
-                {t.hawala.requiredPayout}:{" "}
-                <BoldMoney amount={pay} currency={detail.currencyCode} />
-              </p>
-              <p>
-                {t.hawala.availableCash}:{" "}
-                <BoldMoney amount={vaultAvailable ?? 0} currency={detail.currencyCode} />
-              </p>
-              <p>
-                {t.hawala.shortage}:{" "}
-                <BoldMoney amount={shortage} currency={detail.currencyCode} />
-              </p>
-              <p>
-                {t.hawala.resultingMainVault}:{" "}
-                <BoldMoney
-                  amount={resultingVault}
-                  currency={detail.currencyCode}
-                  className={moneyToneClass(resultingVault)}
-                />
-              </p>
-            </div>
-            <p className="hawala-cash-shortage-note">{t.hawala.completeShortageWarning}</p>
-          </div>
-        ) : (
-          <p style={{ margin: 0 }}>{message}</p>
-        )}
-        <table>
-          <tbody>
-            <tr>
-              <th>{t.desk.hawalaNumber}</th>
-              <td>
-                <strong>{hawalaNumberRef(detail)}</strong>
-              </td>
-            </tr>
-            <tr>
-              <th>{t.hawala.receiver}</th>
-              <td>{detail.receiverName}</td>
-            </tr>
-            <tr>
-              <th>{t.common.amount}</th>
-              <td>
-                {formatAmountDisplay(detail.amount)} {detail.currencyCode}
-              </td>
-            </tr>
-            <tr>
-              <th>{t.hawala.netPayout}</th>
-              <td>
-                {formatAmountDisplay(pay)} {detail.currencyCode}
-              </td>
-            </tr>
-            <tr>
-              <th>{t.hawala.completeConfirmStatus}</th>
-              <td>
-                <span className={statusBadgeClass(detail.status)}>
-                  {statusLabel(t, detail.status)}
-                </span>
-              </td>
-            </tr>
-            <tr>
-              <th>{t.common.nationalId}</th>
-              <td>
-                <input
-                  value={collectorNationalId}
-                  onChange={(e) => setCollectorNationalId(e.target.value)}
-                  disabled={busy || fpState === "scanning"}
-                  autoComplete="off"
-                  placeholder={t.common.nationalId}
-                />
-              </td>
-            </tr>
-            <tr>
-              <th>{t.common.phone}</th>
-              <td>
-                <input
-                  value={collectorPhone}
-                  onChange={(e) => setCollectorPhone(e.target.value)}
-                  disabled={busy || fpState === "scanning"}
-                  autoComplete="tel"
-                  inputMode="tel"
-                  placeholder={t.common.phone}
-                />
-              </td>
-            </tr>
-            <tr>
-              <th>{t.hawala.verifyFingerprint}</th>
-              <td>
-                <div className="hawala-fp-verify stack" style={{ gap: "0.4rem" }}>
-                  <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-                    <button
-                      type="button"
-                      className="btn secondary"
-                      disabled={busy || fpState === "scanning"}
-                      onClick={() => void verifyFingerprint()}
-                    >
-                      {fpState === "scanning"
-                        ? t.hawala.verifyFingerprintScanning
-                        : t.hawala.verifyFingerprint}
-                    </button>
-                    <span
-                      className={
-                        fpState === "verified"
-                          ? "hawala-fp-status hawala-fp-status--ok"
-                          : fpState === "failed"
-                            ? "hawala-fp-status hawala-fp-status--fail"
-                            : fpState === "scanning"
-                              ? "hawala-fp-status hawala-fp-status--scan"
-                              : "hawala-fp-status muted"
-                      }
-                    >
-                      {fpStatusLabel}
-                      {fpState === "verified" && fpScore != null
-                        ? ` · ${fpScore}`
-                        : ""}
-                    </span>
-                  </div>
-                  {fpMessage && fpState !== "ready" ? (
-                    <p
-                      className={
-                        fpState === "failed" ? "error" : "muted"
-                      }
-                      style={{ margin: 0, fontSize: "0.85rem" }}
-                    >
-                      {fpMessage}
+      <div className="stack hawala-complete-form">
+        <div className="hawala-complete-scroll">
+          {error ? <p className="error">{error}</p> : null}
+          <div className="hawala-complete-layout">
+            <div className="hawala-complete-main">
+              <section className="hawala-complete-section hawala-complete-section--payout">
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">
+                    {t.hawala.netPayout}
+                  </span>
+                  <h3 className="hawala-complete-section-title">
+                    {formatAmountDisplay(pay)} {detail.currencyCode}
+                  </h3>
+                </header>
+                {shortage > 0 && resultingVault != null ? (
+                  <div className="hawala-cash-shortage" role="status">
+                    <div className="hawala-cash-shortage-lines">
+                      <p>
+                        {t.hawala.requiredPayout}:{" "}
+                        <BoldMoney amount={pay} currency={detail.currencyCode} />
+                      </p>
+                      <p>
+                        {t.hawala.availableCash}:{" "}
+                        <BoldMoney
+                          amount={vaultAvailable ?? 0}
+                          currency={detail.currencyCode}
+                        />
+                      </p>
+                      <p>
+                        {t.hawala.shortage}:{" "}
+                        <BoldMoney amount={shortage} currency={detail.currencyCode} />
+                      </p>
+                      <p>
+                        {t.hawala.resultingMainVault}:{" "}
+                        <BoldMoney
+                          amount={resultingVault}
+                          currency={detail.currencyCode}
+                          className={moneyToneClass(resultingVault)}
+                        />
+                      </p>
+                    </div>
+                    <p className="hawala-cash-shortage-note">
+                      {t.hawala.completeShortageWarning}
                     </p>
-                  ) : null}
+                  </div>
+                ) : null}
+                <dl className="hawala-complete-summary">
+                  <div>
+                    <dt>{t.desk.hawalaNumber}</dt>
+                    <dd>
+                      <strong>{hawalaNumberRef(detail)}</strong>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t.hawala.receiver}</dt>
+                    <dd>{detail.receiverName}</dd>
+                  </div>
+                  <div>
+                    <dt>{t.common.amount}</dt>
+                    <dd>
+                      {formatAmountDisplay(detail.amount)} {detail.currencyCode}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t.hawala.completeConfirmStatus}</dt>
+                    <dd>
+                      <span className={statusBadgeClass(detail.status)}>
+                        {statusLabel(t, detail.status)}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section className="hawala-complete-section hawala-complete-section--collector">
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">
+                    {t.hawala.receiver}
+                  </span>
+                  <h3 className="hawala-complete-section-title">
+                    {detail.receiverName}
+                  </h3>
+                </header>
+                <div className="hawala-complete-fields">
+                  <label>
+                    {t.common.nationalId}
+                    <input
+                      value={collectorNationalId}
+                      onChange={(e) => setCollectorNationalId(e.target.value)}
+                      disabled={busy || fpState === "scanning"}
+                      autoComplete="off"
+                      placeholder={t.common.nationalId}
+                    />
+                  </label>
+                  <label>
+                    {t.common.phone}
+                    <input
+                      value={collectorPhone}
+                      onChange={(e) => setCollectorPhone(e.target.value)}
+                      disabled={busy || fpState === "scanning"}
+                      autoComplete="tel"
+                      inputMode="tel"
+                      placeholder={t.common.phone}
+                    />
+                  </label>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="row" style={{ justifyContent: "flex-end", gap: "0.5rem" }}>
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || fpState === "scanning"}
-            onClick={onClose}
-          >
-            {t.common.cancel}
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={
-              busy ||
-              waitingForCash ||
-              fpState === "scanning" ||
-              fpState !== "verified"
-            }
-            onClick={() => void confirm()}
-          >
-            {busy
-              ? t.common.saving
-              : waitingForCash
-                ? t.common.loading
-                : fpState !== "verified"
-                  ? t.hawala.verifyFingerprintFirst
+              </section>
+            </div>
+
+            <aside className="hawala-complete-aside">
+              <section
+                className={[
+                  "hawala-complete-section",
+                  "hawala-complete-section--fingerprint",
+                  fpState === "verified" ? "is-verified" : "",
+                  fpState === "failed" ? "is-failed" : "",
+                  fpState === "scanning" ? "is-scanning" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <header className="hawala-complete-section-head">
+                  <span className="hawala-complete-section-kicker">
+                    {t.hawala.verifyFingerprint}
+                  </span>
+                  <h3 className="hawala-complete-section-title">{fpStatusLabel}</h3>
+                </header>
+                <div className="hawala-fp-hero" aria-hidden>
+                  <span className="hawala-fp-hero-ring" />
+                  <span className="hawala-fp-hero-core">
+                    {fpState === "verified" ? "✓" : fpState === "failed" ? "!" : "◉"}
+                  </span>
+                </div>
+                {fpMessage && (fpState === "failed" || fpState === "verified") ? (
+                  <p
+                    className={fpState === "failed" ? "error" : "muted"}
+                    style={{ margin: 0, fontSize: "0.85rem", textAlign: "center" }}
+                  >
+                    {fpMessage}
+                    {fpState === "verified" && fpScore != null ? ` · ${fpScore}` : ""}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  className="btn primary hawala-fp-cta"
+                  disabled={busy || fpState === "scanning"}
+                  onClick={() => void verifyFingerprint()}
+                >
+                  {fpState === "scanning"
+                    ? t.hawala.verifyFingerprintScanning
+                    : t.hawala.verifyFingerprint}
+                </button>
+              </section>
+            </aside>
+          </div>
+        </div>
+
+        <div className="hawala-complete-footer">
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy || fpState === "scanning"}
+              onClick={onClose}
+            >
+              {t.common.cancel}
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={
+                busy ||
+                waitingForCash ||
+                fpState === "scanning" ||
+                fpState !== "verified"
+              }
+              onClick={() => void confirm()}
+            >
+              {busy
+                ? t.common.saving
+                : waitingForCash
+                  ? t.common.loading
                   : confirmLabel}
-          </button>
+            </button>
+          </div>
         </div>
       </div>
     </Modal>

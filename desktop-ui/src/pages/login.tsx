@@ -216,9 +216,6 @@ export function LoginPage() {
           </form>
         ) : (
           <div className="stack login-fingerprint-panel">
-            <p className="muted" style={{ margin: 0 }}>
-              {t.login.fingerprintHint}
-            </p>
             {error ? <p className="error">{error}</p> : null}
             <button
               type="button"

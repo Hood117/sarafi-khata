@@ -810,8 +810,9 @@ export function ExchangeFormModal({
       {open ? (
         <Modal title={t.dashboard.exchangeBuySell} size="xl" onClose={() => resetForm(false)}>
           <div
-            className="hawala-form-compact exchange-form-compact"
+            className="hawala-form-compact exchange-form-compact desk-qa-form"
             data-desk-form
+            data-qa-tone="exchange"
             onKeyDown={(e) =>
               handleDeskFormKeyDown(e, {
                 busy: saving,

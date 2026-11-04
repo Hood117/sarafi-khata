@@ -1,10 +1,12 @@
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
-gsap.registerPlugin(useGSAP);
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 gsap.defaults({ force3D: false });
+ScrollTrigger.config({ ignoreMobileResize: true });
 
-export { gsap, useGSAP };
+export { gsap, useGSAP, ScrollTrigger };
 
 const LOCK = "is-gsap-in";
 
@@ -151,38 +153,28 @@ export function animateAuthShell(shell: HTMLElement) {
   });
 }
 
-/** Dashboard charts, counts, and cards. Call from a GSAP context. */
+/** Dashboard charts and section cards. Call from a GSAP context. */
 export function animateDashboard(root: HTMLElement) {
   if (!motionOk()) return;
   const q = (sel: string) => Array.from(root.querySelectorAll<HTMLElement>(sel));
   const rtl = document.documentElement.getAttribute("dir") === "rtl";
 
-  const head = q(".online-dash-head, .dash-board-head");
-  const cards = q(".cash-balance-card, .dash-kpi");
+  const strip = q(".dashboard-day-strip");
   const panels = q(
-    ".online-dash-actions-row, .online-dash-activity, .online-dash-section, .dash-panel",
+    ".dashboard-chart-panel, .dashboard-stat-card, .dashboard-cash-panel .cash-balance-card",
   );
-  const locked = [...head, ...cards, ...panels];
+  const locked = [...strip, ...panels];
   lockMotion(locked);
   const release = () => unlockMotion(locked);
 
-  if (head.length) {
+  if (strip.length) {
     gsap.fromTo(
-      head,
-      { y: 8 },
-      { y: 0, duration: 0.4, ease: "power2.out", overwrite: "auto", clearProps: "transform" },
-    );
-  }
-  if (cards.length) {
-    gsap.fromTo(
-      cards,
-      { y: 16, scale: 0.98 },
+      strip,
+      { y: 10 },
       {
         y: 0,
-        scale: 1,
-        duration: 0.5,
-        stagger: 0.055,
-        ease: "power3.out",
+        duration: 0.42,
+        ease: "power2.out",
         overwrite: "auto",
         clearProps: "transform",
       },
@@ -191,12 +183,12 @@ export function animateDashboard(root: HTMLElement) {
   if (panels.length) {
     gsap.fromTo(
       panels,
-      { y: 18 },
+      { y: 16 },
       {
         y: 0,
-        duration: 0.55,
-        stagger: 0.08,
-        delay: 0.06,
+        duration: 0.5,
+        stagger: 0.06,
+        delay: 0.08,
         ease: "power3.out",
         overwrite: "auto",
         clearProps: "transform",
@@ -207,22 +199,23 @@ export function animateDashboard(root: HTMLElement) {
     release();
   }
 
-  for (const el of q("[data-count]")) {
+  // Integer KPIs only — never count-up currency / ledger amounts.
+  for (const el of q(".dashboard-stat-value[data-count], .dashboard-day-item [data-count]")) {
     const value = Number(el.dataset.count);
     if (!Number.isFinite(value)) continue;
     countUp(el, value, el.dataset.suffix ?? "");
   }
 
-  const vFills = q(".dash-vbar-fill");
-  if (vFills.length) {
+  const barFills = q(".dashboard-bar-fill");
+  if (barFills.length) {
     gsap.fromTo(
-      vFills,
+      barFills,
       { scaleY: 0 },
       {
         scaleY: 1,
         transformOrigin: "center bottom",
-        duration: 0.75,
-        stagger: 0.05,
+        duration: 0.7,
+        stagger: 0.04,
         delay: 0.12,
         ease: "power3.out",
         overwrite: "auto",
@@ -231,17 +224,15 @@ export function animateDashboard(root: HTMLElement) {
     );
   }
 
-  const hFills = q(".dash-bar-fill");
-  if (hFills.length) {
+  const donut = root.querySelector<HTMLElement>(".dashboard-donut");
+  if (donut) {
     gsap.fromTo(
-      hFills,
-      { scaleX: 0 },
+      donut,
+      { scale: 0.86 },
       {
-        scaleX: 1,
-        transformOrigin: rtl ? "100% 50%" : "0% 50%",
-        duration: 0.8,
-        stagger: 0.045,
-        delay: 0.15,
+        scale: 1,
+        duration: 0.55,
+        delay: 0.1,
         ease: "power3.out",
         overwrite: "auto",
         clearProps: "transform",
@@ -249,70 +240,52 @@ export function animateDashboard(root: HTMLElement) {
     );
   }
 
-  const pie = root.querySelector<HTMLElement>(".dash-pie");
-  if (pie) {
-    gsap.fromTo(
-      pie,
-      { scale: 0.72 },
-      {
-        scale: 1,
-        duration: 0.7,
-        delay: 0.1,
-        ease: "back.out(1.5)",
-        overwrite: "auto",
-        clearProps: "transform",
-      },
-    );
-  }
-
-  const legend = q(".dash-legend li");
+  const legend = q(".dashboard-donut-legend li");
   if (legend.length) {
     gsap.fromTo(
       legend,
-      { x: rtl ? -10 : 10 },
+      { x: rtl ? -8 : 8 },
       {
         x: 0,
-        duration: 0.4,
-        stagger: 0.04,
-        delay: 0.16,
+        duration: 0.35,
+        stagger: 0.035,
+        delay: 0.14,
         ease: "power2.out",
         overwrite: "auto",
         clearProps: "transform",
       },
     );
   }
+}
 
-  const stats = q(".dash-customer-stats li");
-  if (stats.length) {
+/** Subtle ScrollTrigger reveal for page sections (not rows/inputs/amounts). */
+export function revealSections(
+  els: HTMLElement[],
+  scroller?: HTMLElement | string | null,
+) {
+  if (!els.length || !motionOk()) return;
+  lockMotion(els);
+  for (const el of els) {
+    if (el.dataset.motion === "in") continue;
+    el.dataset.motion = "in";
     gsap.fromTo(
-      stats,
-      { y: 10, scale: 0.96 },
+      el,
+      { y: 14, opacity: 0.001 },
       {
         y: 0,
-        scale: 1,
+        opacity: 1,
         duration: 0.45,
-        stagger: 0.06,
-        delay: 0.1,
         ease: "power3.out",
         overwrite: "auto",
-        clearProps: "transform",
-      },
-    );
-  }
-
-  const rates = q(".dash-rates li");
-  if (rates.length) {
-    gsap.fromTo(
-      rates,
-      { y: 6 },
-      {
-        y: 0,
-        duration: 0.35,
-        stagger: 0.04,
-        delay: 0.2,
-        ease: "power2.out",
-        overwrite: "auto",
-        clearProps: "transform",
+        clearProps: "opacity,transform",
+        scrollTrigger: {
+          trigger: el,
+          scroller: scroller || undefined,
+          start: "top 92%",
+          toggleActions: "play none none none",
+          once: true,
+        },
+        onComplete: () => unlockMotion([el]),
       },
     );
   }

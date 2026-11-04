@@ -9,6 +9,7 @@ commands.allow = [
   "enroll_user_fingerprint",
   "clear_user_fingerprint",
   "identify_fingerprint",
+  "identify_hawala_collector_fingerprint",
   "verify_hawala_collector_fingerprint",
   "list_printers",
   "print_plain_text",

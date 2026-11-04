@@ -19,10 +19,9 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
-# SQLite: `bundled` for macOS/Linux. On Windows, run-tauri-msvc.bat sets
+# SQLite: `bundled` on non-Windows. On Windows, run-tauri-msvc.bat sets
 # SQLITE3_* to link src-tauri/vendor/sqlite/sqlite3.lib (avoids MSVC
 # build-script exit 259 when compiling sqlite3.c).
-rusqlite = { version = "0.32", features = ["chrono", "bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -37,7 +36,11 @@ rfd = "0.15"
 # (STILL_ACTIVE) on Windows, same class of issue as compiling sqlite3.c.
 ureq = { version = "2.12", default-features = false, features = ["native-tls", "json", "proxy-from-env"] }
 
+[target.'cfg(not(windows))'.dependencies]
+rusqlite = { version = "0.32", features = ["chrono", "bundled"] }
+
 [target.'cfg(windows)'.dependencies]
+rusqlite = { version = "0.32", features = ["chrono"] }
 libloading = "0.8"
 # Win32 printer enumeration (EnumPrinters / DeviceCapabilities) — no vendor SDKs.
 windows = { version = "0.61", features = [

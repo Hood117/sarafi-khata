@@ -137,7 +137,9 @@ html[data-ui="web"] .card:has(.table-scroll),
 html[data-ui="web"] .daybook-journal-section,
 html[data-ui="web"] .records-panel {
   padding: 0;
-  overflow: hidden;
+  /* Clip horizontal bleed for radius, but never trap vertical scroll. */
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 html[data-ui="web"] .section-card:has(table) > .row,
@@ -745,6 +747,121 @@ html[data-ui="web"] .auth-form .btn:not(.primary) {
   html[data-ui="web"] .auth-aside h2 {
     font-size: 26px;
   }
+}
+
+/* Dark login — deep midnight brand panel (not bright --primary) */
+html[data-theme="dark"][data-ui="web"] .auth-page.login-shell {
+  background: var(--bg);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(110, 168, 224, 0.18) 0%, transparent 55%),
+    radial-gradient(90% 70% at 100% 100%, rgba(61, 186, 143, 0.1) 0%, transparent 50%),
+    linear-gradient(165deg, #0a1628 0%, #021024 48%, #071525 100%);
+  color: #e8f0fa;
+  border-inline-end: 1px solid color-mix(in srgb, #6ea8e0 22%, transparent);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside .brand {
+  color: #f2f7fc;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside .brand-mark {
+  background: linear-gradient(145deg, #1a4a7a 0%, #0d2a4a 100%);
+  color: #c1e8ff;
+  box-shadow: 0 0 0 1px rgba(193, 232, 255, 0.18), 0 8px 20px -10px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside .brand-sub {
+  color: #7f9bb8;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside .eyebrow {
+  color: #8ebaff;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside h2 {
+  color: #f4f8fc;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside p {
+  color: #9aadc4;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-aside small {
+  color: #6d849e;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-main {
+  background:
+    radial-gradient(70% 50% at 80% 10%, rgba(110, 168, 224, 0.08) 0%, transparent 60%),
+    var(--bg);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form {
+  width: min(100%, 400px);
+  padding: 28px 26px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-elevated) 92%, #0b1524);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .eyebrow {
+  color: #8ebaff;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form h1 {
+  color: var(--fg);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form > p {
+  color: var(--fg-muted);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form label {
+  color: var(--fg-muted);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form input,
+html[data-theme="dark"][data-ui="web"] .auth-form select {
+  background: var(--input);
+  color: var(--input-fg);
+  border: 1px solid var(--input-border);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form input:focus,
+html[data-theme="dark"][data-ui="web"] .auth-form select:focus {
+  border-color: var(--focus-outline);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .login-mode-tabs {
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .login-mode-tab {
+  color: var(--fg-muted) !important;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .login-mode-tab.is-active {
+  background: var(--surface-elevated) !important;
+  color: var(--fg) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, #8ebaff 25%, transparent) !important;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .btn.primary {
+  background: linear-gradient(180deg, #7eb0e8 0%, #5a94d4 100%) !important;
+  color: #041526 !important;
+  border: 1px solid #8ebaff !important;
+  box-shadow: 0 8px 22px -12px rgba(110, 168, 224, 0.65) !important;
+}
+
+html[data-theme="dark"][data-ui="web"] .auth-form .btn.primary:hover {
+  background: linear-gradient(180deg, #93c0f2 0%, #6ea8e0 100%) !important;
 }
 
 html[data-ui="web"] .modal-body {

@@ -150,7 +150,7 @@ export function TradingDashboardPage() {
       {busy && !data ? <p className="muted">{t.common.loading}</p> : null}
       {data ? (
         <>
-          <div className="stat-grid">
+          <div className="stat-grid hawala-kpi-strip">
             <div className="stat-card">
               <div className="stat-label">{t.desk.profitToday}</div>
               <div className="stat-value">{data.profitToday}</div>
@@ -183,54 +183,69 @@ export function TradingDashboardPage() {
             </div>
           </div>
 
-          <div className="card stack">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <h2 className="section-title">{filteredHint}</h2>
-            </div>
-            <div className="row">
-              <label style={{ flex: 1, minWidth: "12rem" }}>
-                {t.common.search}
-                <input
-                  type="search"
-                  className="desk-search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t.common.search}
-                />
-              </label>
-              <label>
-                {t.desk.direction}
-                <select
-                  value={direction}
-                  onChange={(e) => setDirection(e.target.value)}
-                >
-                  <option value="ALL">{t.common.all}</option>
-                  <option value="BUY">{t.desk.purchases}</option>
-                  <option value="SELL">{t.desk.sales}</option>
-                </select>
-              </label>
+          <section className="panel records-panel">
+            <div className="records-chrome">
+              <div className="records-title">
+                <div>
+                  <h2>{filteredHint}</h2>
+                  <span className="count-badge">{tradesTotal}</span>
+                </div>
+              </div>
+              <div className="table-toolbar">
+                <label className="search-field search-field-emphasized">
+                  <input
+                    type="search"
+                    className="desk-search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t.common.search}
+                    aria-label={t.common.search}
+                  />
+                </label>
+                <div className="table-filters">
+                  <label>
+                    <span className="muted">{t.desk.direction}</span>
+                    <select
+                      value={direction}
+                      aria-label={t.desk.direction}
+                      onChange={(e) => setDirection(e.target.value)}
+                    >
+                      <option value="ALL">{t.common.all}</option>
+                      <option value="BUY">{t.desk.purchases}</option>
+                      <option value="SELL">{t.desk.sales}</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
             </div>
             {listBusy && trades.length === 0 ? (
-              <p className="muted">{t.desk.loadingTrades}</p>
-            ) : trades.length === 0 ? (
-              <p className="muted">{t.desk.noTradesMatch}</p>
-            ) : (
-              <>
-                <table>
-                  <thead>
+              <p className="muted" style={{ margin: 0, padding: "12px" }}>
+                {t.desk.loadingTrades}
+              </p>
+            ) : null}
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t.desk.direction}</th>
+                    <th>{t.common.reference}</th>
+                    <th>{t.desk.held}</th>
+                    <th>{t.desk.ratePaid}</th>
+                    <th>{t.desk.paidReceived}</th>
+                    <th>{t.desk.profitLossShort}</th>
+                    <th>{t.desk.party}</th>
+                    <th>{t.common.date}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!listBusy && trades.length === 0 ? (
                     <tr>
-                      <th>{t.desk.direction}</th>
-                      <th>{t.common.reference}</th>
-                      <th>{t.desk.held}</th>
-                      <th>{t.desk.ratePaid}</th>
-                      <th>{t.desk.paidReceived}</th>
-                      <th>{t.desk.profitLossShort}</th>
-                      <th>{t.desk.party}</th>
-                      <th>{t.common.date}</th>
+                      <td colSpan={8} className="muted">
+                        {t.desk.noTradesMatch}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((trade) => (
+                  ) : (
+                    trades.map((trade) => (
                       <tr
                         key={trade.id}
                         className="customer-row-clickable"
@@ -262,19 +277,21 @@ export function TradingDashboardPage() {
                         <td>{trade.counterpartyName ?? trade.counterpartyType}</td>
                         <td>{day(trade.valueDate)}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <Pagination
-                  page={page}
-                  pageSize={PAGE_SIZE}
-                  total={tradesTotal}
-                  busy={listBusy}
-                  onPageChange={setPage}
-                />
-              </>
-            )}
-          </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="records-pagination">
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={tradesTotal}
+                busy={listBusy}
+                onPageChange={setPage}
+              />
+            </div>
+          </section>
         </>
       ) : null}
       {successModal}

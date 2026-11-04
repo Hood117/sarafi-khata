@@ -146,41 +146,42 @@ export function CommissionTrackingPage() {
         />
       ) : null}
 
-      <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <h1 style={{ margin: 0 }}>{t.commissionTracking.title}</h1>
-        <Link className="button-link secondary" to="/hawala">
-          {t.commissionTracking.backToHawala}
-        </Link>
-      </div>
-
-      <div className="section-card stack">
-        <div className="stat-grid">
-          <div className="stat-card" style={{ minHeight: "6.5rem" }}>
-            <div className="stat-label">{t.commissionTracking.totalEarned}</div>
-            <div className="stat-value commission-stat-value">
-              {linesByCurrency(totals, (row) => row.total)}
-            </div>
-          </div>
-          <div className="stat-card" style={{ minHeight: "6.5rem" }}>
-            <div className="stat-label">{t.commissionTracking.sendCommission}</div>
-            <div className="stat-value commission-stat-value">
-              {linesByCurrency(totals, (row) => row.send)}
-            </div>
-          </div>
-          <div className="stat-card" style={{ minHeight: "6.5rem" }}>
-            <div className="stat-label">{t.commissionTracking.receiveCommission}</div>
-            <div className="stat-value commission-stat-value">
-              {linesByCurrency(totals, (row) => row.receive)}
-            </div>
-          </div>
-          <div className="stat-card" style={{ minHeight: "6.5rem" }}>
-            <div className="stat-label">{t.commissionTracking.transactionCount}</div>
-            <div className="stat-value">{transactionCount}</div>
+      <div className="stat-grid hawala-kpi-strip">
+        <div className="stat-card">
+          <div className="stat-label">{t.commissionTracking.totalEarned}</div>
+          <div className="stat-value commission-stat-value">
+            {linesByCurrency(totals, (row) => row.total)}
           </div>
         </div>
-        {totals.length > 1 ? (
-          <div className="commission-currency-breakdown">
-            <h3 style={{ margin: "0 0 0.5rem" }}>{t.commissionTracking.byCurrency}</h3>
+        <div className="stat-card">
+          <div className="stat-label">{t.commissionTracking.sendCommission}</div>
+          <div className="stat-value commission-stat-value">
+            {linesByCurrency(totals, (row) => row.send)}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t.commissionTracking.receiveCommission}</div>
+          <div className="stat-value commission-stat-value">
+            {linesByCurrency(totals, (row) => row.receive)}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">{t.commissionTracking.transactionCount}</div>
+          <div className="stat-value">{transactionCount}</div>
+        </div>
+      </div>
+
+      {totals.length > 1 ? (
+        <section className="panel records-panel">
+          <div className="records-chrome">
+            <div className="records-title">
+              <div>
+                <h2>{t.commissionTracking.byCurrency}</h2>
+                <span className="count-badge">{totals.length}</span>
+              </div>
+            </div>
+          </div>
+          <div className="table-scroll">
             <table>
               <thead>
                 <tr>
@@ -206,109 +207,126 @@ export function CommissionTrackingPage() {
               </tbody>
             </table>
           </div>
-        ) : null}
-      </div>
+        </section>
+      ) : null}
 
-      <div className="section-card stack commission-tracking-filters no-print">
-        <div
-          className="report-period-presets"
-          role="group"
-          aria-label={t.common.filter}
-        >
-          {(
-            [
-              ["today", t.common.today],
-              ["yesterday", t.common.yesterday],
-              ["week", t.common.thisWeek],
-              ["month", t.common.thisMonth],
-              ["custom", t.common.custom],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={
-                periodPreset === id
-                  ? "report-period-preset active"
-                  : "report-period-preset"
-              }
-              onClick={() => {
-                if (id === "custom") {
-                  setPeriodPreset("custom");
-                  return;
-                }
-                applyPreset(id);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="commission-tracking-filter-row">
-          <label className="stack" style={{ gap: "0.25rem" }}>
-            <span className="muted">{t.common.from}</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => {
-                setPeriodPreset("custom");
-                setDateFrom(e.target.value);
-              }}
-            />
-          </label>
-          <label className="stack" style={{ gap: "0.25rem" }}>
-            <span className="muted">{t.common.to}</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => {
-                setPeriodPreset("custom");
-                setDateTo(e.target.value);
-              }}
-            />
-          </label>
-          <label className="stack" style={{ gap: "0.25rem", minWidth: "9rem" }}>
-            <span className="muted">{t.commissionTracking.hawalaType}</span>
-            <select
-              value={direction}
-              onChange={(e) => setDirection(e.target.value)}
-            >
-              <option value="ALL">{t.common.all}</option>
-              <option value="SEND">{t.commissionTracking.typeSent}</option>
-              <option value="RECEIVE">{t.commissionTracking.typeReceived}</option>
-            </select>
-          </label>
-          <div style={{ minWidth: "12rem" }}>
-            <CurrencyFilter
-              currencies={currencies}
-              value={currencyFilter}
-              onChange={setCurrencyFilter}
-              allLabel={t.desk.allCurrenciesFilter}
-              label={t.common.currency}
-            />
+      <section className="panel records-panel">
+        <div className="records-chrome">
+          <div className="records-title">
+            <div>
+              <h2>{t.commissionTracking.title}</h2>
+              <span className="count-badge">{pageData?.total ?? 0}</span>
+            </div>
+            <div className="records-title-actions">
+              <Link className="button-link secondary" to="/hawala">
+                {t.commissionTracking.backToHawala}
+              </Link>
+            </div>
           </div>
-          <label className="stack" style={{ gap: "0.25rem", flex: "1 1 14rem" }}>
-            <span className="muted">{t.common.search}</span>
-            <input
-              type="search"
-              className="desk-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t.commissionTracking.searchPlaceholder}
-            />
-          </label>
-          <button type="button" className="secondary" onClick={clearFilters}>
-            {t.commissionTracking.clearFilters}
-          </button>
+          <div className="table-toolbar commission-tracking-filters no-print">
+            <label className="search-field search-field-emphasized">
+              <input
+                type="search"
+                className="desk-search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t.commissionTracking.searchPlaceholder}
+                aria-label={t.common.search}
+              />
+            </label>
+            <div className="table-filters">
+              <div
+                className="report-period-presets"
+                role="group"
+                aria-label={t.common.filter}
+              >
+                {(
+                  [
+                    ["today", t.common.today],
+                    ["yesterday", t.common.yesterday],
+                    ["week", t.common.thisWeek],
+                    ["month", t.common.thisMonth],
+                    ["custom", t.common.custom],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={
+                      periodPreset === id
+                        ? "report-period-preset active"
+                        : "report-period-preset"
+                    }
+                    onClick={() => {
+                      if (id === "custom") {
+                        setPeriodPreset("custom");
+                        return;
+                      }
+                      applyPreset(id);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  aria-label={t.common.from}
+                  title={t.common.from}
+                  onChange={(e) => {
+                    setPeriodPreset("custom");
+                    setDateFrom(e.target.value);
+                  }}
+                />
+              </label>
+              <label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  aria-label={t.common.to}
+                  title={t.common.to}
+                  onChange={(e) => {
+                    setPeriodPreset("custom");
+                    setDateTo(e.target.value);
+                  }}
+                />
+              </label>
+              <label>
+                <select
+                  value={direction}
+                  aria-label={t.commissionTracking.hawalaType}
+                  title={t.commissionTracking.hawalaType}
+                  onChange={(e) => setDirection(e.target.value)}
+                >
+                  <option value="ALL">{t.common.all}</option>
+                  <option value="SEND">{t.commissionTracking.typeSent}</option>
+                  <option value="RECEIVE">{t.commissionTracking.typeReceived}</option>
+                </select>
+              </label>
+              <CurrencyFilter
+                currencies={currencies}
+                value={currencyFilter}
+                onChange={setCurrencyFilter}
+                allLabel={t.desk.allCurrenciesFilter}
+                label={t.common.currency}
+                hideLabel
+              />
+              <button type="button" className="secondary" onClick={clearFilters}>
+                {t.commissionTracking.clearFilters}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div className="section-card stack">
-        <h2 style={{ margin: 0 }}>{t.commissionTracking.transactionsHeading}</h2>
-        {busy && !pageData ? <p className="muted">{t.common.loading}</p> : null}
+        {busy && !pageData ? (
+          <p className="muted" style={{ padding: "12px 18px" }}>
+            {t.common.loading}
+          </p>
+        ) : null}
         {pageData ? (
           <>
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
@@ -377,16 +395,18 @@ export function CommissionTrackingPage() {
                 </tbody>
               </table>
             </div>
-            <Pagination
-              page={pageData.page}
-              pageSize={pageData.pageSize}
-              total={pageData.total}
-              busy={busy}
-              onPageChange={setPage}
-            />
+            <div className="records-pagination">
+              <Pagination
+                page={pageData.page}
+                pageSize={pageData.pageSize}
+                total={pageData.total}
+                busy={busy}
+                onPageChange={setPage}
+              />
+            </div>
           </>
         ) : null}
-      </div>
+      </section>
     </div>
   );
 }
