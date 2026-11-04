@@ -109,7 +109,7 @@ export function CompleteReceiveHawalaModal({
   const [fpScore, setFpScore] = useState<number | null>(null);
   const [fpTemplateBase64, setFpTemplateBase64] = useState<string | null>(null);
   const [completed, setCompleted] = useState<HawalaDetail | null>(null);
-  const [businessName, setBusinessName] = useState("ASMS");
+  const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
   const [printBusy, setPrintBusy] = useState(false);
   const [printError, setPrintError] = useState<string | null>(null);
   const [printOk, setPrintOk] = useState<string | null>(null);

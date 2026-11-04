@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ASMS",
+  "productName": "Radefy Sarafi Offline",
   "version": "1.0.0",
   "identifier": "com.saraf.desktop",
   "build": {

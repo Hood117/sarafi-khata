@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import productLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { getBusinessName } from "@desktop/api";
@@ -14,7 +21,6 @@ import {
   useTransactionDetailModal,
 } from "@desktop/components/transaction-detail-modal";
 import {
-  ArrowLeftRight,
   Banknote,
   BookOpen,
   Building2,
@@ -67,7 +73,9 @@ export function AppLayout() {
   const openSearch = useCallback(() => {
     setSearchOpen(true);
     window.requestAnimationFrame(() => {
-      const input = document.querySelector<HTMLInputElement>(".global-search-input");
+      const input = document.querySelector<HTMLInputElement>(
+        ".global-search-input",
+      );
       input?.focus();
       input?.select();
     });
@@ -194,9 +202,7 @@ export function AppLayout() {
 
   function isNavActive(to: string, isActive: boolean): boolean {
     if (to === "/hawala") {
-      return (
-        isActive && !location.pathname.startsWith("/hawala/commission")
-      );
+      return isActive && !location.pathname.startsWith("/hawala/commission");
     }
     return isActive;
   }
@@ -207,7 +213,17 @@ export function AppLayout() {
         <aside className="app-topbar sidebar">
           <NavLink to="/" end className="sidebar-brand brand">
             <span className="brand-mark" aria-hidden>
-              <ArrowLeftRight className="nav-icon" size={23} />
+              <img
+                src={productLogo}
+                alt=""
+                width="32"
+                height="32"
+                style={{
+                  objectFit: "contain",
+                  background: "white",
+                  borderRadius: 8,
+                }}
+              />
             </span>
             <span>
               {t.brand.name}

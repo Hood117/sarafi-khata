@@ -22,7 +22,7 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react";
-import radefyLogo from "@desktop/assets/brand/radefy-logo.svg";
+import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
 import afghaniCoin from "@desktop/assets/brand/afghani-coin.png";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
@@ -149,7 +149,7 @@ export function LoginPage() {
         >
           <img
             src={radefyLogo}
-            alt="Radefy Systems logo"
+            alt="Radefy Sarafi Offline logo"
             width="42"
             height="42"
           />

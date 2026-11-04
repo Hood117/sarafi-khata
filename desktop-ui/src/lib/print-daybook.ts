@@ -417,7 +417,7 @@ export function printDaybookLedger(input: {
   <div class="sheet">
     <div class="brand">
       <div>
-        <h1>${escapeHtml(meta.businessName ?? "ASMS")}</h1>
+        <h1>${escapeHtml(meta.businessName ?? "Radefy Sarafi Offline")}</h1>
         <p class="title">${escapeHtml(meta.title)}</p>
       </div>
       <div class="meta">
@@ -438,7 +438,7 @@ export function printDaybookLedger(input: {
     </table>`
     }
     <div class="footer">
-      <span>ASMS · Daily Book</span>
+      <span>Radefy Sarafi Offline · Daily Book</span>
       <span>Confidential — internal use</span>
     </div>
   </div>

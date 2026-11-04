@@ -1,7 +1,7 @@
 import type { Dictionary } from "@/lib/i18n/messages/types";
 
 export const en: Dictionary = {
-  brand: { name: "ASMS", tagline: "Afghan Sarafi Management System ASMS" },
+  brand: { name: "Radefy Sarafi Offline", tagline: "Radefy Sarafi Offline" },
   shell: { collapse: "Collapse", expand: "Expand", menu: "Menu" },
   globalSearch: {
     title: "Search",
@@ -263,8 +263,8 @@ export const en: Dictionary = {
     reloadApp: "Reload",
   },
   login: {
-    title: "ASMS",
-    subtitle: "Afghan Sarafi Management System ASMS",
+    title: "Radefy Sarafi Offline",
+    subtitle: "Radefy Sarafi Offline",
     username: "Username",
     password: "Password",
     usernamePlaceholder: "Enter username",
@@ -283,7 +283,7 @@ export const en: Dictionary = {
     fingerprintFailed: "Fingerprint sign-in failed. Try again or use your password.",
   },
   license: {
-    title: "Activate ASMS",
+    title: "Activate Radefy Sarafi Offline",
     subtitle: "Enter the license key for this shop",
     keyLabel: "License key",
     activate: "Activate",
@@ -291,7 +291,7 @@ export const en: Dictionary = {
     checking: "Checking license…",
     onlineRequired: "Internet is required for the first activation. After that, the desk works offline.",
     desktopOnly:
-      "Open ASMS from the desktop app window to activate. The browser preview at localhost cannot talk to the license service.",
+      "Open Radefy Sarafi Offline from the desktop app window to activate. The browser preview at localhost cannot talk to the license service.",
     contactForActivation: "Contact the developer for activation.",
     contactForKey: "Could not activate this key. Contact the developer for a license key.",
     developerPhones: "Developer WhatsApp",
@@ -360,7 +360,7 @@ export const en: Dictionary = {
     noTypeMix: "No operations yet this month.",
     postedCount: "{count} posted",
     summary: "Summary",
-    copyright: "© {year} ASMS. All rights reserved.",
+    copyright: "© {year} Radefy Sarafi Offline. All rights reserved.",
     rightsReserved: "All rights reserved.",
     companyCredits: "Company & development credits",
     developedBy: "Developed by",
@@ -490,7 +490,7 @@ export const en: Dictionary = {
     ledgerRateToAfn: "Rate to AFN (optional)",
   },
   cash: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     overview: "Main Vault physical cash by currency (read-only).",
     byCurrency: "By currency",
     totalCash: "Total cash",
@@ -1099,7 +1099,7 @@ export const en: Dictionary = {
     editPayment: "Edit payment",
   },
   dailyBook: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     forDate: "For date",
     summary: "Summary",
     entries: "Entries",
@@ -1199,7 +1199,7 @@ export const en: Dictionary = {
     hideDetails: "Hide details",
   },
   reports: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     monthly: "Monthly",
     transactions: "Transactions",
     hawala: "Hawala",
@@ -1408,11 +1408,11 @@ export const en: Dictionary = {
     afterValues: "After values",
     noValues: "No values",
     loadingAudit: "Loading audit",
-    subtitle: "Afghan Sarafi Management System ASMS",
+    subtitle: "Radefy Sarafi Offline",
     allModules: "All modules",
   },
   backup: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     createBackup: "Create backup",
     restore: "Restore",
     lastBackup: "Last backup",
@@ -1435,9 +1435,9 @@ export const en: Dictionary = {
     restoreDone: "Backup restored. Reloading the desk…",
     restoreFromFile: "Restore from File",
     restoreFromFileHint:
-      "Use Restore from File to load a backup from a USB drive, external disk, Desktop, Documents, or any folder — for example after installing ASMS on a new or repaired computer.",
+      "Use Restore from File to load a backup from a USB drive, external disk, Desktop, Documents, or any folder — for example after installing Radefy Sarafi Offline on a new or repaired computer.",
     restoreFromFileValidating: "Checking the selected backup file…",
-    restoreFromFileConfirmTitle: "Replace current ASMS data with this backup?",
+    restoreFromFileConfirmTitle: "Replace current Radefy Sarafi Offline data with this backup?",
     restoreFromFileConfirmBody: `Selected file: {path}
 
 This backup will replace all current shop data.
@@ -1446,9 +1446,9 @@ You must confirm to continue.`,
     restoreFromFileInvalidTitle: "Invalid Backup File",
     restoreFromFileIncompatibleTitle: "Incompatible Backup File",
     restoreFromFileOk: "OK",
-    restoreFromFileInvalid: `This file is not a valid ASMS backup.
+    restoreFromFileInvalid: `This file is not a valid Radefy Sarafi Offline backup.
 Your current data was not changed.`,
-    restoreFromFileIncompatible: `This backup is not compatible with this copy of ASMS.
+    restoreFromFileIncompatible: `This backup is not compatible with this copy of Radefy Sarafi Offline.
 Your current data was not changed.`,
     restoreFromFileDamaged: `This backup file is damaged or incomplete.
 Your current data was not changed.`,

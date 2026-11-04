@@ -1194,7 +1194,7 @@ export function ReportsPage() {
     async (payload: ExportPayload) => {
       const path = await exportTable(payload.filename, payload.columns, payload.rows, {
         title: payload.title,
-        businessName: "ASMS",
+        businessName: "Radefy Sarafi Offline",
         periodLabel: payload.period,
         generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
         rtl,
@@ -1771,7 +1771,7 @@ export function ReportsPage() {
       rows: payload.rows,
       meta: {
         title: payload.title,
-        businessName: "ASMS",
+        businessName: "Radefy Sarafi Offline",
         periodLabel: payload.period,
         generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
         rtl,
@@ -1788,7 +1788,7 @@ export function ReportsPage() {
       rows: payload.rows,
       meta: {
         title: payload.title,
-        businessName: "ASMS",
+        businessName: "Radefy Sarafi Offline",
         periodLabel: payload.period,
         generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
         rtl,

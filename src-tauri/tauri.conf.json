@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ASMS",
+  "productName": "Radefy Sarafi Offline",
   "version": "1.0.0",
   "identifier": "com.saraf.desktop",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "ASMS — Afghan Sarafi Management System",
+        "title": "Radefy Sarafi Offline",
         "width": 1440,
         "height": 900,
         "minWidth": 1024,
@@ -37,9 +37,9 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
-    "publisher": "ASMS",
-    "shortDescription": "Afghan Sarafi Management System",
-    "longDescription": "Offline desk app for sarafi cash, customers, hawala, exchange, and daily book.",
+    "publisher": "Radefy Systems",
+    "shortDescription": "Radefy Sarafi Offline",
+    "longDescription": "Radefy Systems offline workspace for currency exchange, hawala, cash, customers, and daily accounting.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

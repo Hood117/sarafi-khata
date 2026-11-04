@@ -100,7 +100,7 @@ export function TransactionDetailModal({
   onClose,
 }: ModalProps) {
   const t = useT();
-  const [businessName, setBusinessName] = useState("ASMS");
+  const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
 
   useEffect(() => {
     let cancelled = false;

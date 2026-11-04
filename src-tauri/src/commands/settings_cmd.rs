@@ -12,7 +12,7 @@ use crate::state::AppState;
 
 const LOCALE_KEY: &str = "app.locale";
 const BUSINESS_NAME_KEY: &str = "app.name";
-const DEFAULT_BUSINESS_NAME: &str = "ASMS";
+const DEFAULT_BUSINESS_NAME: &str = "Radefy Sarafi Offline";
 const FONT_SIZE_KEY: &str = "app.ui.fontSize";
 const FONT_FAMILY_KEY: &str = "app.ui.fontFamily";
 const BOLD_TEXT_KEY: &str = "app.ui.boldText";

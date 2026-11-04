@@ -58,7 +58,7 @@ export function HawalaDetailPage() {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeBusy, setCompleteBusy] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
-  const [businessName, setBusinessName] = useState("ASMS");
+  const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
 
   useEffect(() => {
     let cancelled = false;

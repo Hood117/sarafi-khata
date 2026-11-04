@@ -134,7 +134,7 @@ function buildExcelXml(
   meta: ExportMeta,
 ): string {
   const info = {
-    businessName: meta.businessName ?? "ASMS",
+    businessName: meta.businessName ?? "Radefy Sarafi Offline",
     title: meta.title,
     subtitle: meta.subtitle,
     periodLabel: meta.periodLabel,
@@ -465,7 +465,7 @@ export function printReportSheet(input: {
   <div class="sheet">
     <div class="brand">
       <div>
-        <h1>${escapeHtml(meta.businessName ?? "ASMS")}</h1>
+        <h1>${escapeHtml(meta.businessName ?? "Radefy Sarafi Offline")}</h1>
         <p class="title">${escapeHtml(meta.title)}</p>
       </div>
       <div class="meta">
@@ -484,7 +484,7 @@ export function printReportSheet(input: {
     </table>`
     }
     <div class="footer">
-      <span>ASMS · Reports</span>
+      <span>Radefy Sarafi Offline · Reports</span>
       <span>Confidential</span>
     </div>
   </div>
@@ -610,7 +610,7 @@ export async function savePdfReportSheet(input: {
   doc.setTextColor(navy);
   doc.setFont(bodyFont, "bold");
   doc.setFontSize(16);
-  const brand = (meta.businessName ?? "ASMS").toUpperCase();
+  const brand = (meta.businessName ?? "Radefy Sarafi Offline").toUpperCase();
   doc.text(t(brand), rtl ? pageW - margin : margin, 14, {
     align: rtl ? "right" : "left",
   });
@@ -705,7 +705,7 @@ export async function savePdfReportSheet(input: {
     doc.setFont(bodyFont, "normal");
     doc.setFontSize(8);
     doc.setTextColor(muted);
-    doc.text(t("ASMS · Reports"), rtl ? pageW - margin : margin, y, {
+    doc.text(t("Radefy Sarafi Offline · Reports"), rtl ? pageW - margin : margin, y, {
       align: rtl ? "right" : "left",
     });
     doc.text(

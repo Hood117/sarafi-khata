@@ -427,7 +427,7 @@ export function CustomerDetailPage() {
         print: t.desk.printPdf,
       };
       printTransactionReceipt({
-        businessName: appInfo.name?.trim() || "ASMS",
+        businessName: appInfo.name?.trim() || "Radefy Sarafi Offline",
         detail,
         amounts,
         typeLabel: transactionTypeLabel(t, detail.type),
@@ -656,7 +656,7 @@ export function CustomerDetailPage() {
       const codeBit = customer.code ? ` · #${customer.code}` : "";
       const meta = {
         title: `${t.customers.customerHistory} — ${customer.fullName}${codeBit}`,
-        businessName: "ASMS",
+        businessName: "Radefy Sarafi Offline",
         periodLabel: historyPeriodLabel(),
         generatedAt: new Date().toLocaleString(
           locale === "en" ? "en" : locale,

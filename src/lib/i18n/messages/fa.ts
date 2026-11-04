@@ -2,7 +2,7 @@ import type { Dictionary } from "@/lib/i18n/messages/types";
 
 /** Dari — Afghanistan sarafi / desk vocabulary */
 export const fa: Dictionary = {
-  brand: { name: "ASMS", tagline: "سیستم مدیریت صرافی افغان ASMS" },
+  brand: { name: "Radefy Sarafi Offline", tagline: "سیستم مدیریت صرافی افغان Radefy Sarafi Offline" },
   shell: { collapse: "جمع کردن", expand: "باز کردن", menu: "منو" },
   globalSearch: {
     title: "جستجو",
@@ -263,8 +263,8 @@ export const fa: Dictionary = {
     reloadApp: "بارگذاری دوباره",
   },
   login: {
-    title: "ASMS",
-    subtitle: "سیستم مدیریت صرافی افغان ASMS",
+    title: "Radefy Sarafi Offline",
+    subtitle: "سیستم مدیریت صرافی افغان Radefy Sarafi Offline",
     username: "نام کاربری",
     password: "رمز عبور",
     usernamePlaceholder: "نام کاربری را وارد کنید",
@@ -283,7 +283,7 @@ export const fa: Dictionary = {
     fingerprintFailed: "ورود با اثر انگشت نشد. دوباره بکوشید یا از رمز استفاده کنید.",
   },
   license: {
-    title: "فعال‌سازی ASMS",
+    title: "فعال‌سازی Radefy Sarafi Offline",
     subtitle: "کلید مجوز این صرافی را وارد کنید",
     keyLabel: "کلید مجوز",
     activate: "فعال‌سازی",
@@ -291,7 +291,7 @@ export const fa: Dictionary = {
     checking: "بررسی مجوز…",
     onlineRequired: "برای فعال‌سازی اول اینترنت لازم است. بعد از آن میز به‌صورت آفلاین کار می‌کند.",
     desktopOnly:
-      "برای فعال‌سازی، ASMS را از پنجرهٔ برنامهٔ دسکتاپ باز کنید. پیش‌نمایش مرورگر نمی‌تواند به سرویس مجوز وصل شود.",
+      "برای فعال‌سازی، Radefy Sarafi Offline را از پنجرهٔ برنامهٔ دسکتاپ باز کنید. پیش‌نمایش مرورگر نمی‌تواند به سرویس مجوز وصل شود.",
     contactForActivation: "برای فعال‌سازی با سازنده تماس بگیرید.",
     contactForKey: "این کلید فعال نشد. برای دریافت کلید با سازنده تماس بگیرید.",
     developerPhones: "واتساپ سازندگان",
@@ -360,7 +360,7 @@ export const fa: Dictionary = {
     noTypeMix: "هنوز عملیاتی در این ماه ثبت نشده است.",
     postedCount: "{count} ثبت‌شده",
     summary: "خلاصه",
-    copyright: "© {year} ASMS. تمامی حقوق محفوظ است.",
+    copyright: "© {year} Radefy Sarafi Offline. تمامی حقوق محفوظ است.",
     rightsReserved: "تمامی حقوق محفوظ است.",
     companyCredits: "اعتبار شرکت و توسعه",
     developedBy: "ساخته‌شده توسط",
@@ -490,7 +490,7 @@ export const fa: Dictionary = {
     ledgerRateToAfn: "نرخ به افغانی (اختیاری)",
   },
   cash: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     overview: "نقدی فیزیکی خزنه اصلی به تفکیک اسعار (فقط مشاهده).",
     byCurrency: "به تفکیک اسعار",
     totalCash: "مجموع نقدی",
@@ -1096,7 +1096,7 @@ export const fa: Dictionary = {
     editPayment: "تصحیح پرداخت",
   },
   dailyBook: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     forDate: "برای تاریخ",
     summary: "خلاصه",
     entries: "ثبت‌ها",
@@ -1196,7 +1196,7 @@ export const fa: Dictionary = {
     hideDetails: "پنهان کردن جزئیات",
   },
   reports: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     monthly: "ماهانه",
     transactions: "معاملات",
     hawala: "حواله",
@@ -1409,7 +1409,7 @@ export const fa: Dictionary = {
     allModules: "همه ماژول‌ها",
   },
   backup: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     createBackup: "ایجاد پشتیبان",
     restore: "بازگردانی",
     lastBackup: "آخرین پشتیبان",
@@ -1432,9 +1432,9 @@ export const fa: Dictionary = {
     restoreDone: "پشتیبان بازگردانی شد. میز دوباره بار می‌شود…",
     restoreFromFile: "بازگردانی از پرونده",
     restoreFromFileHint:
-      "برای بازیابی پس از نصب ASMS روی رایانهٔ جدید یا ترمیم‌شده، فایل پشتیبان را از فلش، هارد اکسترنال، دسکتاپ، اسناد یا هر پوشه انتخاب کنید.",
+      "برای بازیابی پس از نصب Radefy Sarafi Offline روی رایانهٔ جدید یا ترمیم‌شده، فایل پشتیبان را از فلش، هارد اکسترنال، دسکتاپ، اسناد یا هر پوشه انتخاب کنید.",
     restoreFromFileValidating: "در حال بررسی پروندهٔ پشتیبان…",
-    restoreFromFileConfirmTitle: "داده‌های فعلی ASMS با این پشتیبان جایگزین شود؟",
+    restoreFromFileConfirmTitle: "داده‌های فعلی Radefy Sarafi Offline با این پشتیبان جایگزین شود؟",
     restoreFromFileConfirmBody: `پروندهٔ انتخاب‌شده: {path}
 
 این پشتیبان تمام داده‌های فعلی فروشگاه را جایگزین می‌کند.
@@ -1443,9 +1443,9 @@ export const fa: Dictionary = {
     restoreFromFileInvalidTitle: "پروندهٔ پشتیبان نامعتبر",
     restoreFromFileIncompatibleTitle: "پشتیبان ناسازگار",
     restoreFromFileOk: "باشه",
-    restoreFromFileInvalid: `این پرونده یک پشتیبان معتبر ASMS نیست.
+    restoreFromFileInvalid: `این پرونده یک پشتیبان معتبر Radefy Sarafi Offline نیست.
 داده‌های فعلی تغییر نکرد.`,
-    restoreFromFileIncompatible: `این پشتیبان با این نسخهٔ ASMS سازگار نیست.
+    restoreFromFileIncompatible: `این پشتیبان با این نسخهٔ Radefy Sarafi Offline سازگار نیست.
 داده‌های فعلی تغییر نکرد.`,
     restoreFromFileDamaged: `این پروندهٔ پشتیبان خراب یا ناقص است.
 داده‌های فعلی تغییر نکرد.`,

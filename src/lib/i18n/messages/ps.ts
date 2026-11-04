@@ -2,7 +2,7 @@ import type { Dictionary } from "@/lib/i18n/messages/types";
 
 /** Pashto — common sarafi / business terms used in Afghanistan desks */
 export const ps: Dictionary = {
-  brand: { name: "ASMS", tagline: "د افغان صرافۍ مدیریت سیسټم ASMS" },
+  brand: { name: "Radefy Sarafi Offline", tagline: "د افغان صرافۍ مدیریت سیسټم Radefy Sarafi Offline" },
   shell: { collapse: "راتیټول", expand: "پراخول", menu: "مینو" },
   globalSearch: {
     title: "لټون",
@@ -263,8 +263,8 @@ export const ps: Dictionary = {
     reloadApp: "بیا بارول",
   },
   login: {
-    title: "ASMS",
-    subtitle: "د افغان صرافۍ مدیریت سیسټم ASMS",
+    title: "Radefy Sarafi Offline",
+    subtitle: "د افغان صرافۍ مدیریت سیسټم Radefy Sarafi Offline",
     username: "کارن نوم",
     password: "پټنوم",
     usernamePlaceholder: "کارن نوم ولیکئ",
@@ -283,7 +283,7 @@ export const ps: Dictionary = {
     fingerprintFailed: "د ګوتې نښې سره ننوتل ونشول. بیا هڅه وکړئ یا پټنوم وکاروئ.",
   },
   license: {
-    title: "د ASMS فعالول",
+    title: "د Radefy Sarafi Offline فعالول",
     subtitle: "د دې پلورنځي د جواز کیلي ولیکئ",
     keyLabel: "د جواز کیلي",
     activate: "فعالول",
@@ -291,7 +291,7 @@ export const ps: Dictionary = {
     checking: "جواز چک کېږي…",
     onlineRequired: "د لومړي ځل فعالولو لپاره انټرنټ اړین دی. وروسته میز آفلاین کار کوي.",
     desktopOnly:
-      "د فعالولو لپاره ASMS د ډیسټاپ اپ کړکۍ څخه پرانیزئ. د براوزر مخکتنه د جواز خدمت سره اړیکه نشی نیولی.",
+      "د فعالولو لپاره Radefy Sarafi Offline د ډیسټاپ اپ کړکۍ څخه پرانیزئ. د براوزر مخکتنه د جواز خدمت سره اړیکه نشی نیولی.",
     contactForActivation: "د فعالولو لپاره له جوړونکي سره اړیکه ونیسئ.",
     contactForKey: "دا کیلي فعال نشوه. د کیلي لپاره له جوړونکي سره اړیکه ونیسئ.",
     developerPhones: "د جوړونکو واتساپ",
@@ -360,7 +360,7 @@ export const ps: Dictionary = {
     noTypeMix: "په دې میاشت کې لا عملیات نشته.",
     postedCount: "{count} ثبت شوي",
     summary: "لنډیز",
-    copyright: "© {year} ASMS. ټول حقوق خوندي دي.",
+    copyright: "© {year} Radefy Sarafi Offline. ټول حقوق خوندي دي.",
     rightsReserved: "ټول حقوق خوندي دي.",
     companyCredits: "د شرکت او پراختیا اعتبار",
     developedBy: "جوړ شوی لخوا",
@@ -490,7 +490,7 @@ export const ps: Dictionary = {
     ledgerRateToAfn: "افغانۍ ته نرخ (اختیاري)",
   },
   cash: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     overview: "د اصلي خزانې فزیکي نغدي د اسعارو له مخې (یوازې کتنه).",
     byCurrency: "د اسعارو له مخې",
     totalCash: "ټول نغدي",
@@ -1096,7 +1096,7 @@ export const ps: Dictionary = {
     editPayment: "تادیه سمول",
   },
   dailyBook: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     forDate: "د نېټې لپاره",
     summary: "لنډیز",
     entries: "ثبتونه",
@@ -1196,7 +1196,7 @@ export const ps: Dictionary = {
     hideDetails: "جزئیات پټ کړه",
   },
   reports: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     monthly: "میاشتنی",
     transactions: "معاملات",
     hawala: "حواله",
@@ -1409,7 +1409,7 @@ export const ps: Dictionary = {
     allModules: "ټول ماډیولونه",
   },
   backup: {
-    title: "ASMS",
+    title: "Radefy Sarafi Offline",
     createBackup: "بیک اپ جوړول",
     restore: "بیرته راګرځول",
     lastBackup: "وروستی بیک اپ",
@@ -1432,9 +1432,9 @@ export const ps: Dictionary = {
     restoreDone: "بیکاپ بیرته راوګرځېد. میز بیا بارېږي…",
     restoreFromFile: "له فایل څخه بیرته راګرځول",
     restoreFromFileHint:
-      "که ASMS په نوي یا ترمیم شوي کمپیوټر نصب شي، بیکاپ د USB، بهرني ډیسک، ډیسکټاپ، اسنادو یا هر فولډر څخه غوره کړئ.",
+      "که Radefy Sarafi Offline په نوي یا ترمیم شوي کمپیوټر نصب شي، بیکاپ د USB، بهرني ډیسک، ډیسکټاپ، اسنادو یا هر فولډر څخه غوره کړئ.",
     restoreFromFileValidating: "ټاکل شوی بیکاپ فایل چک کېږي…",
-    restoreFromFileConfirmTitle: "اوسني ASMS معلومات دې بیکاپ سره بدل شي؟",
+    restoreFromFileConfirmTitle: "اوسني Radefy Sarafi Offline معلومات دې بیکاپ سره بدل شي؟",
     restoreFromFileConfirmBody: `ټاکل شوی فایل: {path}
 
 دا بیکاپ ټول اوسني دوکان معلومات بدلوي.
@@ -1443,9 +1443,9 @@ export const ps: Dictionary = {
     restoreFromFileInvalidTitle: "ناسم بیکاپ فایل",
     restoreFromFileIncompatibleTitle: "ناسازګار بیکاپ فایل",
     restoreFromFileOk: "ښه",
-    restoreFromFileInvalid: `دا فایل د ASMS باوري بیکاپ نه دی.
+    restoreFromFileInvalid: `دا فایل د Radefy Sarafi Offline باوري بیکاپ نه دی.
 اوسني معلومات نه دي بدل شوي.`,
-    restoreFromFileIncompatible: `دا بیکاپ د دې ASMS سره سازګار نه دی.
+    restoreFromFileIncompatible: `دا بیکاپ د دې Radefy Sarafi Offline سره سازګار نه دی.
 اوسني معلومات نه دي بدل شوي.`,
     restoreFromFileDamaged: `دا بیکاپ فایل خراب یا نیمګړی دی.
 اوسني معلومات نه دي بدل شوي.`,

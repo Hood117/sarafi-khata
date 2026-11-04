@@ -24,12 +24,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const appVersion = JSON.parse(
   readFileSync(path.join(root, "src-tauri", "tauri.conf.json"), "utf8"),
 ).version;
-const archive = path.join(
-  root,
-  "src-tauri",
-  "resources",
-  "next-server.tar.gz",
-);
+const archive = path.join(root, "src-tauri", "resources", "next-server.tar.gz");
 const splash = path.join(root, "src-tauri", "resources", "splash");
 const exe = path.join(root, "src-tauri", "target", "release", "saraf.exe");
 const distPortable = path.join(root, "dist", "saraf-portable");
@@ -65,10 +60,14 @@ const bundleSetup = path.join(
   "release",
   "bundle",
   "nsis",
-  `ASMS_${appVersion}_x64-setup.exe`,
+  `Radefy Sarafi Offline_${appVersion}_x64-setup.exe`,
 );
 const distSetup = path.join(root, "dist", `Saraf_${appVersion}_x64-setup.exe`);
-const distSetupAsms = path.join(root, "dist", `ASMS_${appVersion}_x64-setup.exe`);
+const distSetupAsms = path.join(
+  root,
+  "dist",
+  `Radefy Sarafi Offline_${appVersion}_x64-setup.exe`,
+);
 // Prefer Tauri's NSIS — tools/nsis often returns exit 259 on this host.
 const makensisCandidates = [
   path.join(process.env.LOCALAPPDATA || "", "tauri", "NSIS", "makensis.exe"),
@@ -125,10 +124,7 @@ function sleepMs(ms) {
   }
   spawnSync(
     "cmd.exe",
-    [
-      "/c",
-      `ping 127.0.0.1 -n ${Math.max(2, Math.ceil(ms / 1000) + 1)} >nul`,
-    ],
+    ["/c", `ping 127.0.0.1 -n ${Math.max(2, Math.ceil(ms / 1000) + 1)} >nul`],
     {
       stdio: "ignore",
       windowsHide: true,
@@ -247,7 +243,10 @@ function rebuildNsisInstaller() {
     sleepMs(1000);
   }
 
-  if (!existsSync(nsisOutput) || statSync(nsisOutput).size < MIN_INSTALLER_BYTES) {
+  if (
+    !existsSync(nsisOutput) ||
+    statSync(nsisOutput).size < MIN_INSTALLER_BYTES
+  ) {
     console.warn(
       `NSIS output missing/incomplete (exit=${result.status}, size=${existsSync(nsisOutput) ? statSync(nsisOutput).size : 0})`,
     );
@@ -326,7 +325,15 @@ if (process.platform === "win32") {
 } else {
   execFileSync(
     "tar",
-    ["-a", "-c", "-f", zipPath, "-C", path.join(root, "dist"), "saraf-portable"],
+    [
+      "-a",
+      "-c",
+      "-f",
+      zipPath,
+      "-C",
+      path.join(root, "dist"),
+      "saraf-portable",
+    ],
     { stdio: "inherit" },
   );
 }

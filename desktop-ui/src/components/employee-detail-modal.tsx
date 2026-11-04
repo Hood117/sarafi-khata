@@ -81,7 +81,7 @@ export function EmployeeDetailModal({
 }: Props) {
   const t = useT();
   const today = todayIso();
-  const [businessName, setBusinessName] = useState("ASMS");
+  const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
   const [dateFrom, setDateFrom] = useState(() => monthStart(todayIso()));
   const [dateTo, setDateTo] = useState(() => todayIso());
   const [payments, setPayments] = useState<EmployeeSalaryPaymentRow[]>([]);

@@ -41,8 +41,8 @@ if (cargoVer !== tauri.version) {
 }
 ok(`Version aligned at ${tauri.version}`);
 
-if (tauri.productName !== "ASMS") {
-  warn(`productName is "${tauri.productName}" (expected ASMS)`);
+if (tauri.productName !== "Radefy Sarafi Offline") {
+  warn(`productName is "${tauri.productName}" (expected Radefy Sarafi Offline)`);
 } else {
   ok(`Product name: ${tauri.productName}`);
 }
@@ -109,7 +109,7 @@ console.log(`
     npm run build:desktop
 
   Installer output (after build):
-    dist/ASMS_${tauri.version}_x64-setup.exe
+    dist/Radefy Sarafi Offline_${tauri.version}_x64-setup.exe
     dist/Saraf_${tauri.version}_x64-setup.exe  (copy alias)
     src-tauri/target/release/bundle/nsis/
 

@@ -78,7 +78,7 @@ export function userFacingError(
     const after = raw.match(/^DESKTOP_APP_REQUIRED:\s*(.+)$/i);
     return (
       after?.[1]?.trim() ||
-      "Open ASMS from the desktop app window, not a web browser."
+      "Open Radefy Sarafi Offline from the desktop app window, not a web browser."
     );
   }
   if (UNIQUE_TX_REF.test(raw)) return copy.duplicateReference;

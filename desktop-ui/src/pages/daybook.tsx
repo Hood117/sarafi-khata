@@ -489,7 +489,7 @@ export function DaybookPage() {
         print: t.desk.printPdf,
       };
       printTransactionReceipt({
-        businessName: appInfo.name?.trim() || "ASMS",
+        businessName: appInfo.name?.trim() || "Radefy Sarafi Offline",
         detail,
         amounts,
         typeLabel: transactionTypeLabel(t, detail.type),
@@ -648,7 +648,7 @@ export function DaybookPage() {
         toExportRows(lines),
         {
           title: t.nav.dailyBook,
-          businessName: "ASMS",
+          businessName: "Radefy Sarafi Offline",
           periodLabel,
           subtitle:
             currencyFilter === "ALL"
@@ -685,7 +685,7 @@ export function DaybookPage() {
         rows: toExportRows(lines),
         meta: {
           title: t.nav.dailyBook,
-          businessName: appInfo?.name?.trim() || "ASMS",
+          businessName: appInfo?.name?.trim() || "Radefy Sarafi Offline",
           businessDate: periodLabel,
           currencyFilter:
             currencyFilter === "ALL" ? t.dailyBook.allCurrencies : currencyFilter,

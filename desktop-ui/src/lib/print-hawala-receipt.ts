@@ -84,7 +84,7 @@ export function buildHawalaReceiptText(input: {
   const w = lineWidth(formFactor);
   const net = payoutAmount(detail);
   const lines: string[] = [
-    businessName.trim() || "ASMS",
+    businessName.trim() || "Radefy Sarafi Offline",
     labels.title,
     rule(w),
     row(labels.hawalaNumber, hawalaNumberRef(detail) || present(detail.reference), w),

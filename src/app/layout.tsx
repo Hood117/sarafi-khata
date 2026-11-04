@@ -50,8 +50,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "ASMS",
-  description: "Afghan Sarafi Management System ASMS",
+  title: "Radefy Sarafi Offline",
+  description: "Radefy Sarafi Offline",
   icons: {
     icon: [{ url: "/icon.png", type: "image/png" }],
     apple: [{ url: "/icon.png", type: "image/png" }],
