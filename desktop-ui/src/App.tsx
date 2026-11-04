@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { getLicenseStatus } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
@@ -153,10 +153,12 @@ function Lazy({ children }: { children: ReactNode }) {
 
 function RequireLicense({ children }: { children: ReactNode }) {
   const t = useT();
+  const location = useLocation();
   const [state, setState] = useState<"loading" | "ok" | "need">("loading");
 
   useEffect(() => {
     let cancelled = false;
+    setState("loading");
     void getLicenseStatus()
       .then((status) => {
         if (cancelled) return;
@@ -168,7 +170,7 @@ function RequireLicense({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [location.pathname]);
 
   if (state === "loading") {
     return (
@@ -196,6 +198,42 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
   return children;
+}
+
+/** Unknown paths: license first, then login, then home. */
+function FallbackRedirect() {
+  const t = useT();
+  const { session, bootstrapping } = useAuth();
+  const [license, setLicense] = useState<"loading" | "ok" | "need">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    void getLicenseStatus()
+      .then((status) => {
+        if (!cancelled) setLicense(status.licensed ? "ok" : "need");
+      })
+      .catch(() => {
+        if (!cancelled) setLicense("need");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (license === "loading" || bootstrapping) {
+    return (
+      <div className="app-shell">
+        <p className="muted">{t.license.checking}</p>
+      </div>
+    );
+  }
+  if (license === "need") {
+    return <Navigate to="/activate" replace />;
+  }
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+  return <Navigate to="/" replace />;
 }
 
 export function App() {
@@ -471,7 +509,7 @@ export function App() {
           }
         />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<FallbackRedirect />} />
     </Routes>
   );
 }

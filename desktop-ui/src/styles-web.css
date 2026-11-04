@@ -260,12 +260,18 @@ html .app-shell.stack{display:grid;grid-template-columns:max-content minmax(0,1f
 html .app-topbar.sidebar{
   display:flex;flex-direction:column;align-items:stretch;gap:0;
   position:sticky;top:0;height:100vh;min-height:0;
-  padding:28px 8px 0;background:#021024;color:#b5c1d3;
+  /* Compact rail — a bit wider than Commission Tracking for comfortable labels. */
+  width:14.25rem;max-width:14.25rem;box-sizing:border-box;
+  padding:28px 6px 0;background:#021024;color:#b5c1d3;
   border:0;border-inline-end:0;border-radius:0;box-shadow:none;backdrop-filter:none;z-index:40;
 }
 html .sidebar-brand.brand{
-  display:flex;align-items:center;gap:10px;color:#fff;padding:0 12px;margin-bottom:29px;
-  font-size:25px;letter-spacing:-.7px;font-weight:650;line-height:1.05;text-decoration:none;
+  display:flex;align-items:center;gap:8px;color:#fff;padding:0 8px;margin-bottom:22px;
+  font-size:15px;letter-spacing:-.4px;font-weight:650;line-height:1.15;text-decoration:none;
+  min-width:0;
+}
+html .sidebar-brand.brand > span:last-child{
+  min-width:0;max-width:100%;overflow:hidden;
 }
 html .sidebar-brand .brand-mark{
   display:grid;place-items:center;width:37px;height:39px;border-radius:10px;background:#163d6d;color:var(--accent-ice,#c1e8ff);
@@ -288,11 +294,11 @@ html .app-tabbar{flex:1;min-height:0;width:100%;overflow:auto;background:transpa
 html .app-tabbar-track{display:flex;flex-direction:column;align-items:stretch;gap:0;width:100%;padding:0}
 html .nav-group{margin-bottom:21px}
 html .nav-group>p{
-  font-size:8px;font-weight:650;letter-spacing:1.6px;color:#5d7697;padding:0 14px;margin:0 0 9px;text-transform:uppercase;
+  font-size:8px;font-weight:650;letter-spacing:1.6px;color:#5d7697;padding:0 10px;margin:0 0 9px;text-transform:uppercase;
 }
 html .app-tabbar .nav-link{
-  display:flex;align-items:center;justify-content:flex-start;gap:11px;width:100%;height:36px;min-height:36px;
-  padding:8px 13px;border-radius:6px;border:0;margin:2px 0;color:#b5c1d3;background:transparent;
+  display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;height:36px;min-height:36px;
+  padding:8px 10px;border-radius:6px;border:0;margin:2px 0;color:#b5c1d3;background:transparent;
   box-shadow:none;text-decoration:none;white-space:nowrap;text-align:start;font-size:12px;font-weight:500;
   position:relative;transition:background .15s;
 }
@@ -333,7 +339,15 @@ html .settings-menu-btn--sidebar .app-chrome-label,
 html .settings-menu-btn--sidebar .settings-menu-chevron{display:none}
 html .settings-menu-btn--sidebar svg,
 html .settings-menu-btn--sidebar .nav-icon{width:15px;height:15px;color:inherit}
-html .app-workspace{display:flex;flex-direction:column;min-width:0;min-height:0;height:100vh;overflow:hidden;background:var(--bg)}
+html .app-workspace{display:flex;flex-direction:column;min-width:0;min-height:0;height:100vh;overflow:hidden;background:transparent;position:relative}
+/* Watermark in the main desk column (panels sit on top; empty areas show the scene). */
+html .app-workspace::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:url("./assets/brand/afghan-finance-background.png") center / cover no-repeat;
+  opacity:.35;
+}
+html[data-theme="dark"] .app-workspace::before{opacity:.12}
+html .app-workspace > *{position:relative;z-index:1}
 html .app-header-bar{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
   min-height:0;margin:0;padding:8px 12px 6px;
@@ -493,8 +507,6 @@ html .app-shell[data-screen="settings"] .app-main.stack.main-content{overflow:au
 html .app-shell[data-screen="settings"] .app-main > .page-column,
 html .app-shell[data-screen="settings"] .app-main > .settings-page{overflow:visible;height:auto;flex:0 0 auto}
 html .app-shell[data-screen="dashboard"] .app-main.stack.main-content{max-width:none;padding:10px 16px 12px}
-html .app-shell[data-screen="hawala"] .app-main.stack.main-content,
-html .app-shell[data-screen="expenses"] .app-main.stack.main-content,
 html .app-shell[data-screen="partners"] .app-main.stack.main-content,
 html .app-shell[data-screen="capital"] .app-main.stack.main-content,
 html .app-shell[data-screen="trading"] .app-main.stack.main-content,
@@ -502,17 +514,25 @@ html .app-shell[data-screen="accountOrders"] .app-main.stack.main-content,
 html .app-shell[data-screen="transactions"] .app-main.stack.main-content{
   max-width:none;width:100%;margin:0;padding:10px 16px 18px;overflow:auto;
 }
+html .app-shell[data-screen="hawala"] .app-main.stack.main-content,
+html .app-shell[data-screen="expenses"] .app-main.stack.main-content{
+  max-width:none;width:100%;margin:0;padding:10px 16px 0;overflow:hidden;
+}
 html .app-shell[data-screen="daybook"] .app-main.stack.main-content,
-html .app-shell[data-screen="debtorsCreditors"] .app-main.stack.main-content{
+html .app-shell[data-screen="debtorsCreditors"] .app-main.stack.main-content,
+html .app-shell[data-screen="cash"] .app-main.stack.main-content{
   max-width:none;width:100%;margin:0;padding:10px 16px 0;overflow:hidden;
 }
 html .app-shell[data-screen="daybook"] .app-main > .daybook-page,
-html .app-shell[data-screen="debtorsCreditors"] .app-main > .dc-page{
+html .app-shell[data-screen="debtorsCreditors"] .app-main > .dc-page,
+html .app-shell[data-screen="cash"] .app-main > .cash-page{
   flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;
 }
 html .app-shell[data-screen="hawala"] .app-main > .hawala-desk-page,
 html .app-shell[data-screen="hawala"] .app-main > .commission-tracking-page,
-html .app-shell[data-screen="expenses"] .app-main > .expenses-page,
+html .app-shell[data-screen="expenses"] .app-main > .expenses-page{
+  flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;
+}
 html .app-shell[data-screen="partners"] .app-main > .partner-page,
 html .app-shell[data-screen="capital"] .app-main > .capital-page,
 html .app-shell[data-screen="accountOrders"] .app-main > .page-account-orders,

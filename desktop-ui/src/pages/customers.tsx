@@ -533,7 +533,7 @@ export function CustomersPage() {
       {editCustomer ? (
         <Modal
           title={`${t.customers.edit} — ${editCustomer.fullName}`}
-          size="wide"
+          size="xl"
           onClose={() => setEditCustomer(null)}
         >
           <CustomerEditForm

@@ -23,7 +23,9 @@ import {
 import {
   Banknote,
   BookOpen,
+  BriefcaseBusiness,
   Building2,
+  ChartNoAxesCombined,
   ClipboardList,
   Landmark,
   LayoutDashboard,
@@ -187,6 +189,18 @@ export function AppLayout() {
           screen: "accountOrders",
           label: t.nav.accountOrders,
           icon: <ClipboardList className="nav-icon" size={18} />,
+        },
+        {
+          to: "/reports",
+          screen: "reports",
+          label: t.nav.reports,
+          icon: <ChartNoAxesCombined className="nav-icon" size={18} />,
+        },
+        {
+          to: "/employees",
+          screen: "employees",
+          label: t.nav.employees,
+          icon: <BriefcaseBusiness className="nav-icon" size={18} />,
         },
       ],
     },

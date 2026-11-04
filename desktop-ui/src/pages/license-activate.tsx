@@ -1,25 +1,52 @@
-import productLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+} from "react";
 import { Navigate } from "react-router-dom";
 import { isTauri } from "@tauri-apps/api/core";
+import {
+  ArrowLeftRight,
+  Banknote,
+  Coins,
+  Globe,
+  KeyRound,
+  Landmark,
+  Mail,
+  MessageCircle,
+  ShieldCheck,
+} from "lucide-react";
 
 import {
   activateLicense,
   bypassLicenseDev,
   getLicenseStatus,
+  openExternalUrl,
   type LicenseStatus,
 } from "@desktop/api";
-import { useT } from "@desktop/i18n";
+import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
+import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   APP_DEVELOPERS,
   formatWhatsAppDisplay,
 } from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/app-error";
-import { openWhatsApp } from "@desktop/lib/whatsapp";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
+import { openWhatsApp } from "@desktop/lib/whatsapp";
+import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
 
 export function LicenseActivatePage() {
   const t = useT();
+  const { locale, setLocale } = useLocale();
+  const localeLabels: Record<AppLocale, string> = {
+    en: t.settings.languageEnglish,
+    fa: t.settings.languageDari,
+    ps: t.settings.languagePashto,
+  };
   const inDesktop = isTauri();
   const [status, setStatus] = useState<LicenseStatus | null>(null);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -60,6 +87,12 @@ export function LicenseActivatePage() {
     };
   }, [reload, t.license.contactForKey, t.license.desktopOnly, inDesktop]);
 
+  function handleCompanyLink(event: MouseEvent<HTMLAnchorElement>) {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    event.preventDefault();
+    void openExternalUrl(event.currentTarget.href).catch(() => undefined);
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!inDesktop) {
@@ -97,7 +130,7 @@ export function LicenseActivatePage() {
 
   if (bootstrapping) {
     return (
-      <div ref={shellRef} className="auth-page login-shell">
+      <div ref={shellRef} className="auth-page login-shell radefy-login">
         <aside className="auth-aside" />
         <section className="auth-main">
           <p className="muted">{t.license.checking}</p>
@@ -106,51 +139,101 @@ export function LicenseActivatePage() {
     );
   }
 
-  if (status?.licensed && status.reason !== "dev_bypass") {
-    return <Navigate to="/login" replace />;
-  }
-
-  // Dev bypass: go straight to login (no license file required).
-  if (status?.licensed && status.reason === "dev_bypass") {
+  if (status?.licensed) {
     return <Navigate to="/login" replace />;
   }
 
   return (
-    <div ref={shellRef} className="auth-page login-shell">
-      <aside className="auth-aside">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            <img
-              src={productLogo}
-              alt=""
-              width="32"
-              height="32"
-              style={{
-                objectFit: "contain",
-                background: "white",
-                borderRadius: 8,
-              }}
-            />
-          </span>
+    <div ref={shellRef} className="auth-page login-shell radefy-login radefy-license">
+      <aside className="auth-aside radefy-aside">
+        <a
+          className="radefy-company"
+          onClick={handleCompanyLink}
+          href="https://www.radefysystems.com/"
+          target="_blank"
+          rel="noreferrer"
+          dir="ltr"
+        >
+          <img
+            src={radefyLogo}
+            alt="Radefy Sarafi Offline logo"
+            width="42"
+            height="42"
+          />
           <span>
-            {t.brand.name}
-            <span className="brand-sub">{t.license.title}</span>
+            <strong>RADEFY</strong>
+            <small>SYSTEMS</small>
           </span>
+        </a>
+        <div className="radefy-centerpiece">
+          <div className="radefy-visual" aria-hidden="true">
+            <span className="radefy-orbit orbit-one">
+              <KeyRound />
+            </span>
+            <span className="radefy-orbit orbit-two">
+              <ShieldCheck />
+            </span>
+            <span className="radefy-orbit orbit-three">
+              <Landmark />
+            </span>
+            <span className="radefy-orbit orbit-four">
+              <Coins />
+            </span>
+            <span className="radefy-orbit orbit-five">
+              <Banknote />
+            </span>
+            <div className="radefy-exchange">
+              <img src={afghaniCoin} alt="" className="radefy-afghani-coin" />
+            </div>
+          </div>
+          <div className="radefy-product">
+            <span className="eyebrow">RADEFY SYSTEMS · LICENSE</span>
+            <h2 dir="ltr">
+              Activate
+              <br />
+              <em>Sarafi Offline</em>
+            </h2>
+          </div>
         </div>
-        <div>
-          <span className="eyebrow">{t.license.title}</span>
-          <h2>{t.license.subtitle}</h2>
-          <p>{t.license.onlineRequired}</p>
-        </div>
-        <small>{t.license.contactForActivation}</small>
+        <footer className="radefy-contact" dir="ltr">
+          <a
+            onClick={handleCompanyLink}
+            href="https://www.radefysystems.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Globe size={15} />
+            radefysystems.com
+          </a>
+          <a onClick={handleCompanyLink} href="mailto:hello@radefysystems.com">
+            <Mail size={15} />
+            hello@radefysystems.com
+          </a>
+          <small>© {new Date().getFullYear()} Radefy Systems</small>
+        </footer>
       </aside>
+
       <section className="auth-main">
         <div className="auth-form login-card stack">
-          <span className="eyebrow">{t.license.title}</span>
+          <label className="auth-lang">
+            {t.settings.language}
+            <select
+              value={locale}
+              onChange={(e) => void setLocale(e.target.value as AppLocale)}
+            >
+              {APP_LOCALES.map((code) => (
+                <option key={code} value={code}>
+                  {localeLabels[code]}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <h1>{t.license.activate}</h1>
           <p>{t.license.subtitle}</p>
-          <p className="muted" style={{ margin: 0 }}>
-            {t.license.onlineRequired}
+          <p className="radefy-local">
+            <ArrowLeftRight size={14} aria-hidden />
+            <span>{t.license.onlineRequired}</span>
           </p>
 
           {!inDesktop ? <p className="error">{t.license.desktopOnly}</p> : null}
@@ -159,6 +242,8 @@ export function LicenseActivatePage() {
             <label>
               {t.license.keyLabel}
               <input
+                className="ltr-text"
+                dir="ltr"
                 autoFocus={inDesktop}
                 required
                 value={licenseKey}
@@ -184,7 +269,7 @@ export function LicenseActivatePage() {
           {status?.allowDevBypass ? (
             <button
               type="button"
-              className="btn"
+              className="btn radefy-license-secondary"
               disabled={!inDesktop || busy}
               onClick={() => void handleDevEnter()}
             >
@@ -192,32 +277,32 @@ export function LicenseActivatePage() {
             </button>
           ) : null}
 
-          <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-            {t.license.contactForActivation}
-          </p>
-
-          <div className="stack" style={{ gap: "0.35rem" }}>
-            <p className="muted" style={{ margin: 0, fontSize: "0.85rem" }}>
-              {t.license.developerPhones}
-            </p>
-            <ul
-              className="license-dev-phones"
-              style={{ listStyle: "none", margin: 0, padding: 0 }}
-            >
+          <div className="radefy-license-support">
+            <p>{t.license.contactForActivation}</p>
+            <p className="radefy-license-support-label">{t.license.developerPhones}</p>
+            <ul className="radefy-license-phones">
               {APP_DEVELOPERS.map((dev) => (
-                <li key={dev.whatsapp} style={{ margin: 0 }}>
+                <li key={dev.whatsapp}>
                   <button
                     type="button"
-                    className="btn"
-                    style={{ width: "100%", justifyContent: "flex-start" }}
+                    className="radefy-license-wa"
                     onClick={() => void openWhatsApp(dev.whatsapp, "")}
                     title={t.dashboard.whatsapp}
                   >
-                    {dev.name}: {formatWhatsAppDisplay(dev.whatsapp)}
+                    <MessageCircle size={16} aria-hidden />
+                    <span>
+                      <strong>{dev.name}</strong>
+                      <small dir="ltr">{formatWhatsAppDisplay(dev.whatsapp)}</small>
+                    </span>
                   </button>
                 </li>
               ))}
             </ul>
+          </div>
+
+          <div className="radefy-form-footer">
+            <ShieldCheck size={15} />
+            <span>Radefy Sarafi Offline · License</span>
           </div>
         </div>
       </section>

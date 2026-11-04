@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-use tauri::State;
+use tauri::{AppHandle, State};
 
+use super::license::require_active_license;
 use crate::error::AppError;
 use crate::fingerprint::{EnrolledFingerprint, FingerprintService};
 use crate::state::AppState;
@@ -293,9 +294,11 @@ fn load_user_fingerprint_templates(
 
 #[tauri::command]
 pub fn login(
+  app: AppHandle,
   state: State<'_, AppState>,
   input: LoginInput,
 ) -> Result<AuthSession, AppError> {
+  require_active_license(&app)?;
   let username = input.username.trim().to_lowercase();
   if username.is_empty() || input.password.is_empty() {
     return Err(AppError::Validation(
@@ -357,9 +360,11 @@ pub fn login(
 /// Unauthenticated — used on the login screen only. Never matches Customer templates.
 #[tauri::command]
 pub async fn login_with_fingerprint(
+  app: AppHandle,
   fingerprint: State<'_, FingerprintService>,
   state: State<'_, AppState>,
 ) -> Result<AuthSession, AppError> {
+  require_active_license(&app)?;
   let (version, enrolled) = {
     let conn = state.db.lock();
     load_user_fingerprint_templates(&conn)?

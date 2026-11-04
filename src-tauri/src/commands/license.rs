@@ -123,12 +123,32 @@ fn local_ok(app: &AppHandle, fingerprint: &str) -> Result<Option<LicenseRecord>,
   Ok(None)
 }
 
-/// TEMP for local desk testing — set to `false` before client shipping so
-/// activation is required again (and remove the Enter skip button path).
-const ALLOW_DEV_LICENSE_SKIP: bool = true;
+/// Local desk testing only. Must stay `false` for shipped installers so shops
+/// always activate with a real key before login.
+const ALLOW_DEV_LICENSE_SKIP: bool = false;
 
 fn allow_dev_license_skip() -> bool {
-  ALLOW_DEV_LICENSE_SKIP || cfg!(debug_assertions)
+  // Debug builds may still skip via env; release never ships with a skip button.
+  ALLOW_DEV_LICENSE_SKIP
+    || (cfg!(debug_assertions)
+      && matches!(
+        std::env::var("SARAF_ALLOW_DEV_LICENSE_SKIP").as_deref(),
+        Ok("1") | Ok("true") | Ok("yes")
+      ))
+}
+
+/// Block login / desk use until this machine has an active local license.
+pub fn require_active_license(app: &AppHandle) -> Result<(), AppError> {
+  if !license_gate_enforced() {
+    return Ok(());
+  }
+  let fingerprint = machine_fingerprint();
+  if local_ok(app, &fingerprint)?.is_some() {
+    return Ok(());
+  }
+  Err(AppError::Auth(
+    "Activate this shop with a license key before signing in.".into(),
+  ))
 }
 
 fn status_from_parts(

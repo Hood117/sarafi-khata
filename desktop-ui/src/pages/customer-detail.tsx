@@ -1240,7 +1240,7 @@ export function CustomerDetailPage() {
       {showEdit && customer ? (
         <Modal
           title={t.customers.editCustomerTitle.replace("{name}", customer.fullName)}
-          size="wide"
+          size="xl"
           onClose={() => setShowEdit(false)}
         >
           <CustomerEditForm

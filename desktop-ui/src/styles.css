@@ -450,15 +450,20 @@ a {
   border-color: transparent;
 }
 
+/* Soft Afghan finance watermark behind every desk screen (not login/license). */
 .app-shell::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.055;
+  opacity: 0.3;
   z-index: -1;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%230f6b4c' stroke-width='1.2' opacity='0.9'%3E%3Ccircle cx='36' cy='42' r='14'/%3E%3Cpath d='M36 34v16M30 42h12'/%3E%3Crect x='88' y='28' width='34' height='22' rx='2'/%3E%3Ccircle cx='105' cy='39' r='5'/%3E%3Cpath d='M168 34h28v20h-28zM172 40h8M184 40h8M172 48h20'/%3E%3Ccircle cx='52' cy='128' r='11'/%3E%3Cpath d='M52 122v12M47 128h10'/%3E%3Crect x='118' y='112' width='40' height='26' rx='2'/%3E%3Cpath d='M126 120h24M126 128h16M126 136h20'/%3E%3Cpath d='M28 188c8-10 24-10 32 0M36 176v20M52 176v20'/%3E%3Ccircle cx='168' cy='178' r='13'/%3E%3Cpath d='M168 171v14M162 178h12'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 220px 220px;
+  background: url("./assets/brand/afghan-finance-background.png") center / cover
+    no-repeat;
+}
+
+html[data-theme="dark"] .app-shell::before {
+  opacity: 0.07;
 }
 
 .app-shell::after {
@@ -542,6 +547,58 @@ a {
   --brand-soft: #d4eef0;
   --accent: #c4922a;
   --accent-soft: rgba(196, 146, 42, 0.14);
+  overflow: hidden;
+}
+
+.app-shell[data-screen="cash"] > .app-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell[data-screen="cash"] .app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.app-shell[data-screen="cash"] .app-main > .cash-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cash-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cash-page > .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.cash-page .records-chrome {
+  flex: 0 0 auto;
+}
+
+.cash-page .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .app-shell[data-screen="vaults"] {
@@ -636,17 +693,51 @@ a {
 .app-shell[data-screen="hawala"] .app-main {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-bottom: 1rem;
+  padding-bottom: 0;
 }
 
 .app-shell[data-screen="hawala"] .app-main > .hawala-desk-page,
 .app-shell[data-screen="hawala"] .app-main > .commission-tracking-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hawala-desk-page,
+.commission-tracking-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hawala-desk-page > .panel.records-panel,
+.commission-tracking-page > .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.hawala-desk-page .records-chrome,
+.hawala-desk-page .records-pagination,
+.commission-tracking-page .records-chrome,
+.commission-tracking-page .records-pagination {
   flex: 0 0 auto;
-  height: auto;
-  overflow: visible;
+}
+
+.hawala-desk-page .table-scroll,
+.commission-tracking-page .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .app-shell[data-screen="partners"] {
@@ -747,14 +838,45 @@ a {
 .app-shell[data-screen="expenses"] .app-main {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
-  padding-bottom: 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
 }
 
 .app-shell[data-screen="expenses"] .app-main > .expenses-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.expenses-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.expenses-page > .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.expenses-page .records-chrome,
+.expenses-page .records-pagination {
   flex: 0 0 auto;
-  height: auto;
-  overflow: visible;
+}
+
+.expenses-page .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .app-shell[data-screen="employees"] {
@@ -4760,7 +4882,8 @@ html[data-font-family="cairo"] .stat-value {
   --qa-accent: #8b6fd1;
   --qa-accent-deep: #6b52ab;
   width: min(100%, 68rem);
-  height: fit-content;
+  height: auto;
+  min-height: 0;
   max-height: calc(100vh - 0.7rem);
   margin-block: 0;
 }
@@ -4859,8 +4982,9 @@ html[data-font-family="cairo"] .stat-value {
 }
 
 .modal-panel-xl:has(.customer-desk-form--create) .modal-body {
-  flex: 0 1 auto;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   padding: 0.3rem 0.45rem 0.35rem;
   background: color-mix(in srgb, var(--qa-accent) 2.5%, var(--surface-solid));
 }
@@ -5946,18 +6070,15 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 
 .customer-desk-form--create {
   gap: 0.35rem;
-  flex: 0 0 auto;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .modal-body:has(> .customer-desk-form) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.modal-body:has(> .customer-desk-form--create) {
-  overflow: visible;
 }
 
 .customer-desk-scroll {
@@ -5972,8 +6093,10 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 }
 
 .customer-desk-form--create .customer-desk-scroll {
-  flex: 0 0 auto;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   gap: 0.4rem;
   padding-bottom: 0;
 }
@@ -5988,7 +6111,6 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 
 .customer-desk-form--create .customer-create-layout {
   gap: 0.4rem 0.5rem;
-  overflow: visible;
 }
 
 .customer-create-main,

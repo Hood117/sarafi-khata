@@ -4,8 +4,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "@desktop/auth";
 import {
-  BriefcaseBusiness,
-  ChartNoAxesCombined,
   ChevronDown,
   Coins,
   Database,
@@ -147,6 +145,7 @@ export function SettingsMenu({ variant = "header" }: SettingsMenuProps) {
     [close, navigate],
   );
 
+  /** Desk links for Reports / Employees live in the sidebar, not this menu. */
   const items = useMemo(() => {
     const next: MenuItem[] = [];
     if (canAccessPath(session, "/settings")) {
@@ -155,22 +154,6 @@ export function SettingsMenu({ variant = "header" }: SettingsMenuProps) {
         label: t.settings.general,
         icon: <Settings className="nav-icon" size={18} />,
         onSelect: () => go("/settings"),
-      });
-    }
-    if (canAccessPath(session, "/reports")) {
-      next.push({
-        id: "reports",
-        label: t.nav.reports,
-        icon: <ChartNoAxesCombined className="nav-icon" size={18} />,
-        onSelect: () => go("/reports"),
-      });
-    }
-    if (canAccessPath(session, "/employees")) {
-      next.push({
-        id: "employees",
-        label: t.nav.employees,
-        icon: <BriefcaseBusiness className="nav-icon" size={18} />,
-        onSelect: () => go("/employees"),
       });
     }
     if (canAccessPath(session, "/rates")) {

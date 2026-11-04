@@ -941,8 +941,7 @@ export function CustomerEditForm({
     })[field](value);
   }
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function saveCustomer() {
     if (!session || customer.isArchived) return;
     if (!fullName.trim()) {
       setError(`${t.common.fullName} *`);
@@ -974,50 +973,96 @@ export function CustomerEditForm({
     }
   }
 
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    await saveCustomer();
+  }
+
+  const formLocked = customer.isArchived || enrollBusy || busy;
+
   return (
-    <form className="stack customer-desk-form" onSubmit={(e) => void handleSubmit(e)}>
-      <div className="customer-desk-scroll">
-        {customer.isArchived ? (
-          <p className="muted" style={{ margin: 0 }}>
-            {t.customers.archivedEditHint}
-          </p>
-        ) : null}
-        <CustomerFormFields
-          fullName={fullName}
-          fatherName={fatherName}
-          phone={phone}
-          address={address}
-          nationalId={nationalId}
-          notes={notes}
-          customerType={customerType}
-          photo={photo}
-          disabled={customer.isArchived || enrollBusy || busy}
-          onChange={onChange}
-          onPhotoChange={setPhoto}
-        />
-        {!customer.isArchived ? (
-          <OpeningKataFields
-            currencies={currencies}
-            lines={openingLines}
-            onChange={updateLine}
-            onCurrenciesChange={setCurrencies}
-            onAdd={() =>
-              setOpeningLines((rows) => [
-                ...rows,
-                emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
-              ])
-            }
-            onRemove={(index) => setOpeningLines((rows) => rows.filter((_, i) => i !== index))}
-          />
-        ) : null}
-        {!customer.isArchived ? (
-          <CustomerFingerprintEnrollBlock
-            customerId={customer.id}
-            disabled={busy}
-            hint={t.customers.enrollFingerprintHint}
-            onBusyChange={setEnrollBusy}
-          />
-        ) : null}
+    <form
+      className="stack customer-desk-form customer-desk-form--create"
+      data-desk-form
+      onSubmit={(e) => void handleSubmit(e)}
+      onKeyDown={(e) =>
+        handleDeskFormKeyDown(e, {
+          busy: formLocked,
+          onSubmit: () => {
+            if (!customer.isArchived) void saveCustomer();
+          },
+        })
+      }
+    >
+      <div className="customer-desk-scroll customer-create-layout">
+        <div className="customer-create-main">
+          {customer.isArchived ? (
+            <p className="muted customer-create-edit-banner" style={{ margin: 0 }}>
+              {t.customers.archivedEditHint}
+            </p>
+          ) : null}
+          <section className="customer-create-section customer-create-section--identity">
+            <header className="customer-create-section-head">
+              <h3 className="customer-create-section-title">{t.customers.edit}</h3>
+            </header>
+            <CustomerFormFields
+              fullName={fullName}
+              fatherName={fatherName}
+              phone={phone}
+              address={address}
+              nationalId={nationalId}
+              notes={notes}
+              customerType={customerType}
+              photo={photo}
+              disabled={formLocked}
+              showNotes={false}
+              showPhoto={false}
+              onChange={onChange}
+              onPhotoChange={setPhoto}
+            />
+          </section>
+          {!customer.isArchived ? (
+            <section className="customer-create-section customer-create-section--opening">
+              <OpeningKataFields
+                currencies={currencies}
+                lines={openingLines}
+                onChange={updateLine}
+                onCurrenciesChange={setCurrencies}
+                onAdd={() =>
+                  setOpeningLines((rows) => [
+                    ...rows,
+                    emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
+                  ])
+                }
+                onRemove={(index) =>
+                  setOpeningLines((rows) => rows.filter((_, i) => i !== index))
+                }
+                showLineNotes={false}
+              />
+            </section>
+          ) : null}
+        </div>
+        <aside className="customer-create-aside">
+          <section className="customer-create-section customer-create-section--photo">
+            <header className="customer-create-section-head">
+              <span className="customer-create-section-kicker">{t.customers.photo}</span>
+              <h3 className="customer-create-section-title">{t.customers.photoOptional}</h3>
+            </header>
+            <CustomerPhotoField
+              value={photo}
+              disabled={formLocked}
+              onChange={setPhoto}
+            />
+          </section>
+          {!customer.isArchived ? (
+            <CustomerFingerprintEnrollBlock
+              customerId={customer.id}
+              disabled={busy}
+              hint={t.customers.enrollFingerprintHint}
+              onBusyChange={setEnrollBusy}
+            />
+          ) : null}
+        </aside>
       </div>
       <div className="customer-desk-footer">
         <ModalErrorBanner message={error} />

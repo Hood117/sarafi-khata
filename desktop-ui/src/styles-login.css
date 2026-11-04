@@ -1,4 +1,4 @@
-/* Scoped to the offline login; shared license and application surfaces stay independent. */
+/* Scoped to offline login + license activation (same Radefy auth shell). */
 html .auth-page.login-shell.radefy-login {
   --login-blue: var(--primary, #052659);
   display: grid;
@@ -408,14 +408,135 @@ html .auth-page.radefy-login .radefy-aside {
 
 /* Product name wraps inside the existing compact sidebar. */
 html .sidebar-brand.brand {
-  font-size: 16px;
+  font-size: 15px;
   letter-spacing: -0.3px;
 }
 html .sidebar-brand.brand > span:last-child {
-  max-width: 150px;
-  line-height: 1.3;
+  max-width: 10rem;
+  line-height: 1.25;
 }
 html .sidebar-brand .brand-mark {
   flex-shrink: 0;
   background: white;
+}
+
+/* ---------- License activation (same shell, form extras) ---------- */
+
+html .auth-page.radefy-login.radefy-license .auth-form.login-card {
+  max-width: 360px;
+  gap: 14px;
+}
+
+html .auth-page.radefy-login .btn.radefy-license-secondary {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid #ffffff35;
+  background: #02102440;
+  color: #dfebf8;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+html .auth-page.radefy-login .btn.radefy-license-secondary:hover:not(:disabled) {
+  background: #02102466;
+  border-color: #c1e8ff88;
+  color: #fff;
+}
+
+html .auth-page.radefy-login .radefy-license-support {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid #ffffff22;
+}
+
+html .auth-page.radefy-login .radefy-license-support > p {
+  margin: 0;
+  color: #c1d2e6;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+html .auth-page.radefy-login .radefy-license-support-label {
+  font-size: 10px !important;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #a7c1df !important;
+}
+
+html .auth-page.radefy-login .radefy-license-phones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+html .auth-page.radefy-login .radefy-license-wa {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 1px solid #ffffff28;
+  border-radius: 12px;
+  background: #02102455;
+  color: #fff;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+}
+
+html .auth-page.radefy-login .radefy-license-wa:hover {
+  background: #02102477;
+  border-color: #c1e8ff66;
+}
+
+html .auth-page.radefy-login .radefy-license-wa svg {
+  flex: 0 0 auto;
+  color: #c1e8ff;
+}
+
+html .auth-page.radefy-login .radefy-license-wa span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+html .auth-page.radefy-login .radefy-license-wa strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+}
+
+html .auth-page.radefy-login .radefy-license-wa small {
+  font-size: 11px;
+  color: #a7c1df;
+  letter-spacing: 0.2px;
+}
+
+html .auth-page.radefy-login.radefy-license .auth-main > .muted,
+html .auth-page.radefy-login .auth-main > .muted {
+  color: #c1d2e6;
+}
+
+html[data-ui] .auth-page.radefy-login .auth-form .btn.radefy-license-secondary {
+  background: #02102440 !important;
+  color: #dfebf8 !important;
+  border: 1px solid #ffffff35 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+html[data-ui] .auth-page.radefy-login .auth-form .btn.radefy-license-secondary:hover:not(:disabled) {
+  background: #02102466 !important;
+  border-color: #c1e8ff88 !important;
+  color: #fff !important;
 }

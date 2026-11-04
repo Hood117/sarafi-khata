@@ -7,7 +7,8 @@ html[data-ui="web"] .workspace-page {
 
 html[data-ui="web"] .customers-page.workspace-page,
 html[data-ui="web"] .customer-detail-page.workspace-page,
-html[data-ui="web"] .dc-page.workspace-page {
+html[data-ui="web"] .dc-page.workspace-page,
+html[data-ui="web"] .cash-page.workspace-page {
   flex: 1 1 auto;
   min-height: 0;
   gap: 8px;
@@ -17,7 +18,8 @@ html[data-ui="web"] .dc-page.workspace-page {
 }
 
 html[data-ui="web"] .customers-page .panel.records-panel,
-html[data-ui="web"] .dc-page .panel.records-panel {
+html[data-ui="web"] .dc-page .panel.records-panel,
+html[data-ui="web"] .cash-page .panel.records-panel {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
@@ -28,7 +30,9 @@ html[data-ui="web"] .dc-page .panel.records-panel {
 html[data-ui="web"] .customers-page .table-scroll,
 html[data-ui="web"] .customers-page .records-panel .table-scroll,
 html[data-ui="web"] .dc-page .table-scroll,
-html[data-ui="web"] .dc-page .records-panel .table-scroll {
+html[data-ui="web"] .dc-page .records-panel .table-scroll,
+html[data-ui="web"] .cash-page .table-scroll,
+html[data-ui="web"] .cash-page .records-panel .table-scroll {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
@@ -52,12 +56,40 @@ html[data-ui="web"] .customer-detail-page .customer-history-scroll {
 }
 
 html[data-ui="web"] .panel.records-panel {
+  position: relative;
+  isolation: isolate;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: var(--shadow-sm);
-  overflow: visible;
+  overflow: hidden;
   padding: 0;
+}
+
+/* Soft scene in the empty white of list panels (Cash, Hawala, …). */
+html[data-ui="web"] .panel.records-panel .table-scroll {
+  position: relative;
+  isolation: isolate;
+}
+
+html[data-ui="web"] .panel.records-panel .table-scroll::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("./assets/brand/afghan-finance-background.png") center / cover
+    no-repeat;
+  opacity: 0.35;
+}
+
+html[data-ui="web"] .panel.records-panel .table-scroll > table {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme="dark"][data-ui="web"] .panel.records-panel .table-scroll::before {
+  opacity: 0.1;
 }
 
 html[data-ui="web"] .records-chrome {
@@ -1032,8 +1064,27 @@ html[data-ui="web"] .page-account-orders .panel.records-panel {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow: hidden;
+}
+
+html[data-ui="web"] .hawala-desk-page.workspace-page,
+html[data-ui="web"] .commission-tracking-page.workspace-page,
+html[data-ui="web"] .expenses-page.workspace-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+html[data-ui="web"] .hawala-desk-page .panel.records-panel,
+html[data-ui="web"] .commission-tracking-page .panel.records-panel:last-of-type,
+html[data-ui="web"] .expenses-page .panel.records-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 html[data-ui="web"] .hawala-desk-page .records-panel .table-scroll,
@@ -1042,9 +1093,16 @@ html[data-ui="web"] .expenses-page .records-panel .table-scroll,
 html[data-ui="web"] .partner-page .records-panel .table-scroll,
 html[data-ui="web"] .transactions-page .records-panel .table-scroll,
 html[data-ui="web"] .page-account-orders .table-scroll {
-  max-height: min(58vh, 36rem);
   border: 0;
   border-radius: 0;
+}
+
+html[data-ui="web"] .hawala-desk-page .records-panel .table-scroll,
+html[data-ui="web"] .commission-tracking-page .records-panel .table-scroll,
+html[data-ui="web"] .expenses-page .records-panel .table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
 }
 
 html[data-ui="web"] .dc-page .panel.records-panel {
