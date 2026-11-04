@@ -1,0 +1,407 @@
+/* Scoped to the offline login; shared license and application surfaces stay independent. */
+html .auth-page.login-shell.radefy-login {
+  --login-blue: var(--primary, #052659);
+  display: grid;
+  grid-template-columns: 55% 45%;
+  direction: ltr;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: var(--login-blue);
+  overflow: hidden;
+  box-shadow: none;
+  flex: 0 0 auto;
+}
+html .auth-page.radefy-login .radefy-aside {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 38px 58px 32px 42px;
+  background: var(--surface, #fff);
+  color: var(--fg, #192b42);
+  border-radius: 0 43% 43% 0 / 0 47% 47% 0;
+}
+.radefy-company {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  text-decoration: none;
+  color: var(--fg);
+}
+.radefy-company img {
+  padding: 5px;
+  background: white;
+  border-radius: 9px;
+  box-sizing: content-box;
+}
+.radefy-company strong {
+  display: block;
+  font-size: 19px;
+  letter-spacing: 3px;
+  line-height: 1.3;
+}
+html .radefy-company small {
+  display: block;
+  color: var(--fg-muted);
+  font-size: 9px;
+  letter-spacing: 4px;
+}
+.radefy-visual {
+  position: relative;
+  height: 240px;
+  width: 100%;
+  max-width: 400px;
+  margin: 8px 0 0;
+}
+.radefy-exchange {
+  position: absolute;
+  inset: 36px 60px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--login-blue);
+  background: transparent;
+  border: 0;
+}
+.radefy-exchange > .radefy-afghani-coin {
+  width: 190px;
+  height: 190px;
+  object-fit: contain;
+}
+.radefy-orbit {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--accent-blue);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.radefy-orbit svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.5;
+}
+.orbit-one {
+  top: 8px;
+  left: 20%;
+  transform: rotate(-12deg);
+}
+.orbit-two {
+  top: 35px;
+  right: 8%;
+  transform: rotate(14deg);
+}
+.orbit-three {
+  top: 110px;
+  left: 0;
+  transform: rotate(-9deg);
+}
+.orbit-four {
+  bottom: 0;
+  left: 15%;
+  transform: rotate(10deg);
+}
+.orbit-five {
+  bottom: 15px;
+  right: 4%;
+  transform: rotate(-8deg);
+}
+html .auth-page.radefy-login .radefy-product .eyebrow {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--accent-blue);
+}
+html .auth-page.radefy-login .radefy-product h2 {
+  margin: 12px 0;
+  font-family: var(--font-ui);
+  font-size: clamp(28px, 3.2vw, 43px);
+  font-weight: 650;
+  line-height: 1.18;
+  letter-spacing: -1.4px;
+  color: var(--login-blue);
+}
+.radefy-product em {
+  color: var(--accent-blue);
+  font-style: normal;
+  font-weight: 400;
+}
+html .auth-page.radefy-login .radefy-product p {
+  color: var(--fg-muted);
+  font-size: 13px;
+  max-width: 32ch;
+  line-height: 1.8;
+}
+.radefy-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: auto;
+}
+.radefy-contact a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: fit-content;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-decoration: none;
+}
+.radefy-contact a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+html .auth-page.radefy-login .radefy-contact small {
+  color: var(--fg-muted);
+  font-size: 10px;
+  margin-top: 7px;
+}
+html .auth-page.radefy-login .auth-main {
+  background: transparent;
+  display: grid;
+  place-items: center;
+  padding: 42px 50px 36px 22px;
+  overflow: visible;
+}
+html .auth-page.radefy-login .auth-form.login-card {
+  width: 100%;
+  max-width: 330px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  gap: 18px;
+  color: #fff;
+}
+html .auth-page.radefy-login .login-card::before {
+  display: none;
+}
+html .auth-page.radefy-login .auth-form h1 {
+  color: #fff;
+  font-size: 34px;
+  letter-spacing: -1px;
+}
+html .auth-page.radefy-login .auth-form > p {
+  color: #c1d2e6;
+  font-size: 13px;
+  line-height: 1.8;
+}
+html .auth-page.radefy-login .auth-form .radefy-local {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c1e8ff;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+html .auth-page.radefy-login .auth-lang {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c1d2e6;
+  font-size: 11px;
+  margin-bottom: 16px;
+}
+html .auth-page.radefy-login .auth-lang select {
+  background: #ffffff0d;
+  color: #fff;
+  border: 1px solid #ffffff30;
+  border-radius: 9px;
+  padding: 7px 9px;
+  width: auto;
+}
+.radefy-login .auth-lang option {
+  color: #192b42;
+  background: #fff;
+}
+html .auth-page.radefy-login .login-mode-tabs {
+  padding: 4px;
+  background: #02102455;
+  border: 1px solid #ffffff1a;
+}
+html .auth-page.radefy-login .login-mode-tab {
+  color: #c1d2e6;
+  padding: 10px 6px;
+}
+html .auth-page.radefy-login .login-mode-tab.is-active {
+  background: #c1e8ff;
+  color: #052659;
+}
+html .auth-page.radefy-login form.stack {
+  gap: 18px;
+}
+html .auth-page.radefy-login .auth-form label {
+  color: #dfebf8;
+  font-size: 12px;
+}
+html .auth-page.radefy-login .auth-form input {
+  margin-top: 8px;
+  min-height: 46px;
+  border: 1px solid #ffffff28;
+  border-radius: 12px;
+  background: #02102455;
+  color: #fff;
+  box-shadow: none;
+}
+html .auth-page.radefy-login input::placeholder {
+  color: #9eb8d9;
+}
+html .auth-page.radefy-login .btn.primary {
+  min-height: 46px;
+  margin-top: 6px;
+  border: 1px solid #c1e8ff;
+  border-radius: 12px;
+  background: #c1e8ff;
+  color: #052659;
+  font-weight: 700;
+}
+html .auth-page.radefy-login .btn.primary:hover {
+  background: #e0f3ff;
+}
+html .auth-page.radefy-login .btn.primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+html .auth-page.radefy-login .error {
+  color: #ffcad0;
+  background: #a61b1b22;
+  padding: 10px;
+  border-radius: 8px;
+}
+.radefy-form-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  color: #a7c1df;
+  font-size: 10px;
+  margin-top: 24px;
+}
+.radefy-login a:focus-visible,
+.radefy-login button:focus-visible,
+.radefy-login select:focus-visible,
+.radefy-login input:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 4px;
+}
+html[dir="rtl"] .radefy-login .auth-form {
+  direction: rtl;
+}
+@media (max-width: 800px) {
+  html .auth-page.login-shell.radefy-login {
+    width: 100%;
+    grid-template-columns: 1fr;
+    margin: 0;
+    height: auto;
+    min-height: 100dvh;
+    border-radius: 0;
+    overflow-y: auto;
+  }
+  html .auth-page.radefy-login .radefy-aside {
+    padding: 24px;
+    border-radius: 0 0 45px 0;
+    gap: 12px;
+  }
+  .radefy-visual {
+    display: none;
+  }
+  html .auth-page.radefy-login .radefy-product h2 {
+    font-size: 28px;
+  }
+  .radefy-contact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+  }
+  .radefy-contact small {
+    width: 100%;
+  }
+  html .auth-page.radefy-login .auth-main {
+    padding: 28px 24px;
+  }
+  html .auth-page.radefy-login .auth-lang {
+    margin-bottom: 0;
+  }
+}
+/* Existing shared auth buttons use !important; keep this scoped override explicit. */
+html[data-ui] .auth-page.radefy-login .auth-form .btn.primary {
+  background: #c1e8ff !important;
+  color: #052659 !important;
+  border: 1px solid #c1e8ff !important;
+  border-radius: 12px !important;
+}
+html[data-ui] .auth-page.radefy-login .auth-form .btn.primary:hover {
+  background: #e0f3ff !important;
+}
+
+/* The authentication route owns the viewport, including the root shell. */
+html:has(.radefy-login),
+body:has(.radefy-login),
+#root:has(.radefy-login) {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100dvh;
+}
+
+/* Low-contrast local artwork stays behind all readable content. */
+html .auth-page.radefy-login .radefy-aside {
+  isolation: isolate;
+  overflow: hidden;
+}
+.radefy-aside::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("./assets/brand/afghan-finance-background.png") center / cover
+    no-repeat;
+  opacity: 0.38;
+}
+
+/* Keep the illustration and product title together at the panel's center. */
+html .auth-page.radefy-login .radefy-aside {
+  align-items: stretch;
+  justify-content: space-between;
+}
+.radefy-centerpiece {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 24px;
+  margin-block: auto;
+  padding-block: 28px;
+  text-align: center;
+}
+.radefy-centerpiece .radefy-visual {
+  margin: 0 auto;
+}
+.radefy-centerpiece .radefy-product {
+  width: 100%;
+}
+.radefy-login .radefy-contact {
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  margin-top: 0;
+}
+@media (max-width: 800px) {
+  .radefy-centerpiece {
+    padding-block: 12px;
+    gap: 12px;
+  }
+}

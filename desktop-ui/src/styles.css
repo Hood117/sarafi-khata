@@ -4750,11 +4750,19 @@ html[data-font-family="cairo"] .stat-value {
   background: var(--surface-solid);
 }
 
+.modal-backdrop:has(.customer-desk-form--create) {
+  align-items: center;
+  padding: 0.35rem;
+  overflow: hidden;
+}
+
 .modal-panel-xl:has(.customer-desk-form--create) {
   --qa-accent: #8b6fd1;
   --qa-accent-deep: #6b52ab;
   width: min(100%, 68rem);
-  max-height: min(94vh, 44rem);
+  height: fit-content;
+  max-height: calc(100vh - 0.7rem);
+  margin-block: 0;
 }
 
 .modal-panel-xl:has(.desk-qa-form) {
@@ -4845,10 +4853,21 @@ html[data-font-family="cairo"] .stat-value {
   color: var(--qa-accent-deep);
 }
 
-.modal-panel-xl:has(.customer-desk-form--create) .modal-body,
 .modal-panel-wide:has(.hawala-complete-form) .modal-body {
   padding: var(--space-md) var(--space-xl) var(--space-xl);
   background: color-mix(in srgb, var(--qa-accent) 2.5%, var(--surface-solid));
+}
+
+.modal-panel-xl:has(.customer-desk-form--create) .modal-body {
+  flex: 0 1 auto;
+  overflow: visible;
+  padding: 0.3rem 0.45rem 0.35rem;
+  background: color-mix(in srgb, var(--qa-accent) 2.5%, var(--surface-solid));
+}
+
+.modal-panel-xl:has(.customer-desk-form--create) .modal-body > :last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* Quick-action forms: fit content, no inner scroll on normal desk heights */
@@ -5925,10 +5944,20 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   overflow: hidden;
 }
 
+.customer-desk-form--create {
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
 .modal-body:has(> .customer-desk-form) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.modal-body:has(> .customer-desk-form--create) {
+  overflow: visible;
 }
 
 .customer-desk-scroll {
@@ -5942,6 +5971,13 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   padding-bottom: 0.2rem;
 }
 
+.customer-desk-form--create .customer-desk-scroll {
+  flex: 0 0 auto;
+  overflow: visible;
+  gap: 0.4rem;
+  padding-bottom: 0;
+}
+
 .customer-create-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(16rem, 0.95fr);
@@ -5950,12 +5986,22 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   overflow: auto;
 }
 
+.customer-desk-form--create .customer-create-layout {
+  gap: 0.4rem 0.5rem;
+  overflow: visible;
+}
+
 .customer-create-main,
 .customer-create-aside {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
+}
+
+.customer-desk-form--create .customer-create-main,
+.customer-desk-form--create .customer-create-aside {
+  gap: 0.4rem;
 }
 
 .customer-create-section {
@@ -6063,10 +6109,38 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   grid-column: auto;
 }
 
+.customer-desk-form--create .customer-create-section {
+  padding: 0.4rem 0.5rem 0.45rem;
+  box-shadow: none;
+}
+
+.customer-desk-form--create .customer-create-section-head {
+  margin-bottom: 0.3rem;
+}
+
+.customer-desk-form--create .customer-form-grid {
+  gap: 0.35rem 0.6rem;
+}
+
+.customer-desk-form--create .opening-kata-fields,
+.customer-desk-form--create .customer-opening-block {
+  gap: 0.35rem;
+}
+
+.customer-desk-form--create .customer-opening-block {
+  padding: 0.4rem 0.5rem;
+}
+
+.customer-desk-form--create .customer-create-aside .fp-enroll-panel {
+  gap: 0.4rem;
+  margin-top: 0;
+  padding: 0.45rem 0.55rem;
+}
+
 .customer-desk-form--create .customer-photo-slot {
   width: 100%;
-  max-width: 11.5rem;
-  height: 11.5rem;
+  max-width: 8rem;
+  height: 8rem;
   flex: 0 0 auto;
   border-color: color-mix(in srgb, #d97706 35%, transparent);
   background: color-mix(in srgb, #fff 80%, #fef3c7);
@@ -6079,14 +6153,10 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 
 .customer-desk-form--create > .modal-form-footer,
 .customer-desk-form--create > .customer-desk-footer {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--brand) 6%, #fff) 0%,
-      #fff 100%
-    );
+  background: transparent;
   border-top: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
-  padding-top: 0.55rem;
+  padding-top: 0.3rem;
+  margin-top: 0;
 }
 
 @media (max-width: 900px) {
@@ -6100,7 +6170,7 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 
   .modal-panel-xl:has(.customer-desk-form--create) {
     width: min(100%, 48rem);
-    max-height: 92vh;
+    max-height: calc(100vh - 0.7rem);
   }
 }
 

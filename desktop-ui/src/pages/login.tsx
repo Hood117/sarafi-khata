@@ -4,15 +4,26 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent,
 } from "react";
 import { Navigate } from "react-router-dom";
 
-import { getAppInfo, type AppInfo } from "@desktop/api";
+import { getAppInfo, openExternalUrl, type AppInfo } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
-import { ArrowLeftRight } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Banknote,
+  Coins,
+  Globe,
+  Landmark,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
+import radefyLogo from "@desktop/assets/brand/radefy-logo.svg";
+import afghaniCoin from "@desktop/assets/brand/afghani-coin.png";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 type LoginMode = "password" | "fingerprint";
@@ -38,6 +49,14 @@ export function LoginPage() {
   const shellRef = useRef<HTMLDivElement | null>(null);
   useAuthShellMotion(shellRef, bootstrapping || Boolean(session));
 
+  function handleCompanyLink(event: MouseEvent<HTMLAnchorElement>) {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    event.preventDefault();
+    void openExternalUrl(event.currentTarget.href).catch(() => {
+      setError(t.login.unableToSignIn);
+    });
+  }
+
   function focusPassword() {
     const el = passwordRef.current;
     if (!el) return;
@@ -46,7 +65,11 @@ export function LoginPage() {
   }
 
   function onUsernameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== "Enter" && event.code !== "Enter" && event.code !== "NumpadEnter") {
+    if (
+      event.key !== "Enter" &&
+      event.code !== "Enter" &&
+      event.code !== "NumpadEnter"
+    ) {
       return;
     }
     event.preventDefault();
@@ -62,7 +85,7 @@ export function LoginPage() {
 
   if (bootstrapping) {
     return (
-      <div ref={shellRef} className="auth-page login-shell">
+      <div ref={shellRef} className="auth-page login-shell radefy-login">
         <aside className="auth-aside" />
         <section className="auth-main">
           <p className="muted">…</p>
@@ -114,120 +137,186 @@ export function LoginPage() {
   }
 
   return (
-    <div ref={shellRef} className="auth-page login-shell">
-      <aside className="auth-aside">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden>
-            <ArrowLeftRight className="nav-icon" size={23} />
-          </span>
+    <div ref={shellRef} className="auth-page login-shell radefy-login">
+      <aside className="auth-aside radefy-aside">
+        <a
+          className="radefy-company"
+          onClick={handleCompanyLink}
+          href="https://www.radefysystems.com/"
+          target="_blank"
+          rel="noreferrer"
+          dir="ltr"
+        >
+          <img
+            src={radefyLogo}
+            alt="Radefy Systems logo"
+            width="42"
+            height="42"
+          />
           <span>
-            {t.brand.name}
-            <span className="brand-sub">{t.login.localOnly}</span>
+            <strong>RADEFY</strong>
+            <small>SYSTEMS</small>
           </span>
+        </a>
+        <div className="radefy-centerpiece">
+          <div className="radefy-visual" aria-hidden="true">
+            <span className="radefy-orbit orbit-one">
+              <ArrowLeftRight />
+            </span>
+            <span className="radefy-orbit orbit-two">
+              <Banknote />
+            </span>
+            <span className="radefy-orbit orbit-three">
+              <Landmark />
+            </span>
+            <span className="radefy-orbit orbit-four">
+              <Coins />
+            </span>
+            <span className="radefy-orbit orbit-five">
+              <ShieldCheck />
+            </span>
+            <div className="radefy-exchange">
+              <img src={afghaniCoin} alt="" className="radefy-afghani-coin" />
+            </div>
+          </div>
+          <div className="radefy-product">
+            <span className="eyebrow">RADEFY SYSTEMS · SARAFI</span>
+            <h2 dir="ltr">
+              Radefy Sarafi
+              <br />
+              <em>Offline</em>
+            </h2>
+          </div>
         </div>
-        <div>
-          <span className="eyebrow">{t.login.localOnly}</span>
-          <h2>{t.brand.tagline}</h2>
-          <p>{t.login.subtitle}</p>
-        </div>
-        <small>{info ? `${info.backend} · v${info.version}` : t.brand.name}</small>
+        <footer className="radefy-contact" dir="ltr">
+          <a
+            onClick={handleCompanyLink}
+            href="https://www.radefysystems.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Globe size={15} />
+            radefysystems.com
+          </a>
+          <a onClick={handleCompanyLink} href="mailto:hello@radefysystems.com">
+            <Mail size={15} />
+            hello@radefysystems.com
+          </a>
+          <small>© {new Date().getFullYear()} Radefy Systems</small>
+        </footer>
       </aside>
       <section className="auth-main">
-      <div className="auth-form login-card stack">
-        <label className="auth-lang">
-          {t.settings.language}
-          <select
-            value={locale}
-            onChange={(e) => void setLocale(e.target.value as AppLocale)}
-          >
-            {APP_LOCALES.map((code) => (
-              <option key={code} value={code}>
-                {localeLabels[code]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="eyebrow">{t.login.localOnly}</span>
-        <h1>{t.login.signIn}</h1>
-        <p>{t.login.subtitle}</p>
+        <div className="auth-form login-card stack">
+          <label className="auth-lang">
+            {t.settings.language}
+            <select
+              value={locale}
+              onChange={(e) => void setLocale(e.target.value as AppLocale)}
+            >
+              {APP_LOCALES.map((code) => (
+                <option key={code} value={code}>
+                  {localeLabels[code]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <h1>{t.login.signIn}</h1>
 
-        <div className="login-mode-tabs" role="tablist" aria-label={t.login.signIn}>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "password"}
-            className={mode === "password" ? "login-mode-tab is-active" : "login-mode-tab"}
-            onClick={() => {
-              setMode("password");
-              setError(null);
-            }}
+          <div
+            className="login-mode-tabs"
+            role="tablist"
+            aria-label={t.login.signIn}
           >
-            {t.login.modePassword}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "fingerprint"}
-            className={
-              mode === "fingerprint" ? "login-mode-tab is-active" : "login-mode-tab"
-            }
-            onClick={() => {
-              setMode("fingerprint");
-              setError(null);
-            }}
-          >
-            {t.login.modeFingerprint}
-          </button>
-        </div>
-
-        {mode === "password" ? (
-          <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
-            <label>
-              {t.login.username}
-              <input
-                ref={usernameRef}
-                className="ltr-text"
-                dir="ltr"
-                autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyDown={onUsernameKeyDown}
-                placeholder={t.login.usernamePlaceholder}
-              />
-            </label>
-            <label>
-              {t.login.password}
-              <input
-                ref={passwordRef}
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (error) setError(null);
-                }}
-                placeholder={t.login.passwordPlaceholder}
-              />
-            </label>
-            {error ? <p className="error">{error}</p> : null}
-            <button type="submit" className="btn primary" disabled={busy}>
-              {busy ? t.login.signingIn : t.login.signIn}
-            </button>
-          </form>
-        ) : (
-          <div className="stack login-fingerprint-panel">
-            {error ? <p className="error">{error}</p> : null}
             <button
               type="button"
-              className="btn primary"
-              disabled={busy}
-              onClick={() => void handleFingerprintSignIn()}
+              role="tab"
+              aria-selected={mode === "password"}
+              className={
+                mode === "password"
+                  ? "login-mode-tab is-active"
+                  : "login-mode-tab"
+              }
+              onClick={() => {
+                setMode("password");
+                setError(null);
+              }}
             >
-              {busy ? t.login.fingerprintScanning : t.login.fingerprintScan}
+              {t.login.modePassword}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "fingerprint"}
+              className={
+                mode === "fingerprint"
+                  ? "login-mode-tab is-active"
+                  : "login-mode-tab"
+              }
+              onClick={() => {
+                setMode("fingerprint");
+                setError(null);
+              }}
+            >
+              {t.login.modeFingerprint}
             </button>
           </div>
-        )}
-      </div>
+
+          {mode === "password" ? (
+            <form className="stack" onSubmit={(e) => void handleSubmit(e)}>
+              <label>
+                {t.login.username}
+                <input
+                  ref={usernameRef}
+                  className="ltr-text"
+                  dir="ltr"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  onKeyDown={onUsernameKeyDown}
+                  placeholder={t.login.usernamePlaceholder}
+                />
+              </label>
+              <label>
+                {t.login.password}
+                <input
+                  ref={passwordRef}
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder={t.login.passwordPlaceholder}
+                />
+              </label>
+              {error ? <p className="error">{error}</p> : null}
+              <button type="submit" className="btn primary" disabled={busy}>
+                {busy ? t.login.signingIn : t.login.signIn}
+              </button>
+            </form>
+          ) : (
+            <div className="stack login-fingerprint-panel">
+              {error ? <p className="error">{error}</p> : null}
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy}
+                onClick={() => void handleFingerprintSignIn()}
+              >
+                {busy ? t.login.fingerprintScanning : t.login.fingerprintScan}
+              </button>
+            </div>
+          )}
+          <div className="radefy-form-footer">
+            <ShieldCheck size={15} />
+            <span>
+              {info
+                ? `Radefy Sarafi Offline · v${info.version}`
+                : "Radefy Sarafi Offline"}
+            </span>
+          </div>
+        </div>
       </section>
     </div>
   );
