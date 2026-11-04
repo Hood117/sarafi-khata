@@ -369,7 +369,7 @@ html .auth-page.radefy-login .radefy-aside {
   pointer-events: none;
   background: url("./assets/brand/afghan-finance-background.png") center / cover
     no-repeat;
-  opacity: 0.38;
+  opacity: 1;
 }
 
 /* Keep the illustration and product title together at the panel's center. */

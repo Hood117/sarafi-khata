@@ -23,7 +23,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
-import afghaniCoin from "@desktop/assets/brand/afghani-coin.png";
+import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 type LoginMode = "password" | "fingerprint";
