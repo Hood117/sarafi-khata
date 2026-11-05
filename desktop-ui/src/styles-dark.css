@@ -1494,7 +1494,7 @@ html[data-theme="dark"] .hawala-complete-section--collector {
 }
 
 html[data-theme="dark"] .hawala-complete-section--fingerprint {
-  background: color-mix(in srgb, #a78bfa 12%, var(--control-bg));
+  background: color-mix(in srgb, var(--brand) 14%, var(--control-bg));
 }
 
 html[data-theme="dark"] .hawala-complete-section--fingerprint.is-verified {
@@ -1525,12 +1525,6 @@ html[data-theme="dark"] .hawala-complete-section input {
   background: var(--control-bg);
   border-color: var(--line-strong);
   color: var(--ink);
-}
-
-html[data-theme="dark"] .hawala-fp-hero-core {
-  background: color-mix(in srgb, #a78bfa 16%, var(--control-bg));
-  color: var(--ink);
-  box-shadow: none;
 }
 
 html[data-theme="dark"] .hawala-complete-footer {

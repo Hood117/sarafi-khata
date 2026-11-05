@@ -33,9 +33,20 @@ import {
   parseMoney,
   statusBadgeClass,
 } from "@desktop/pages/hawala-helpers";
+import {
+  FingerprintScanStage,
+  type FingerprintScanStatus,
+} from "@desktop/components/fingerprint-scan-stage";
 import { Modal } from "@desktop/ui/modal";
 
 type FpVerifyState = "ready" | "scanning" | "verified" | "failed";
+
+function hawalaFpStageStatus(state: FpVerifyState): FingerprintScanStatus {
+  if (state === "scanning") return "scanning";
+  if (state === "verified") return "success";
+  if (state === "failed") return "error";
+  return "idle";
+}
 
 export function payoutAmount(detail: HawalaDetail): string {
   const net = (detail.receiveAmount ?? "").trim();
@@ -566,12 +577,10 @@ export function CompleteReceiveHawalaModal({
                   </span>
                   <h3 className="hawala-complete-section-title">{fpStatusLabel}</h3>
                 </header>
-                <div className="hawala-fp-hero" aria-hidden>
-                  <span className="hawala-fp-hero-ring" />
-                  <span className="hawala-fp-hero-core">
-                    {fpState === "verified" ? "✓" : fpState === "failed" ? "!" : "◉"}
-                  </span>
-                </div>
+                <FingerprintScanStage
+                  status={hawalaFpStageStatus(fpState)}
+                  size="compact"
+                />
                 {fpMessage && (fpState === "failed" || fpState === "verified") ? (
                   <p
                     className={fpState === "failed" ? "error" : "muted"}

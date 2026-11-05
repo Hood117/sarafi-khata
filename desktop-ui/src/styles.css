@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --ink: #12241c;
   --ink-soft: rgba(18, 36, 28, 0.68);
@@ -4404,7 +4404,7 @@ tr.hawala-row-pending td {
   align-items: stretch;
 }
 
-.login-fp-stage {
+.fp-scan-stage {
   position: relative;
   display: grid;
   place-items: center;
@@ -4413,7 +4413,7 @@ tr.hawala-row-pending td {
   margin: 0.35rem auto 0.15rem;
 }
 
-.login-fp-ring {
+.fp-scan-ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
@@ -4421,17 +4421,17 @@ tr.hawala-row-pending td {
   pointer-events: none;
 }
 
-.login-fp-ring--mid {
+.fp-scan-ring--mid {
   inset: 14px;
   border-color: color-mix(in srgb, var(--brand, #052659) 38%, transparent);
 }
 
-.login-fp-ring--inner {
+.fp-scan-ring--inner {
   inset: 28px;
   border-color: color-mix(in srgb, var(--brand, #052659) 48%, transparent);
 }
 
-.login-fp-sensor {
+.fp-scan-sensor {
   position: relative;
   z-index: 1;
   display: grid;
@@ -4445,7 +4445,7 @@ tr.hawala-row-pending td {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
-.login-fp-icon {
+.fp-scan-icon {
   width: 40px;
   height: 40px;
   color: var(--brand, #052659);
@@ -4453,7 +4453,7 @@ tr.hawala-row-pending td {
   z-index: 2;
 }
 
-.login-fp-glow {
+.fp-scan-glow {
   position: absolute;
   inset: 8px;
   border-radius: 50%;
@@ -4466,7 +4466,7 @@ tr.hawala-row-pending td {
   pointer-events: none;
 }
 
-.login-fp-scanline {
+.fp-scan-scanline {
   position: absolute;
   left: 10%;
   right: 10%;
@@ -4484,7 +4484,7 @@ tr.hawala-row-pending td {
   pointer-events: none;
 }
 
-.login-fp-hint {
+.fp-scan-hint {
   margin: 0;
   text-align: center;
   font-size: 0.82rem;
@@ -4492,66 +4492,157 @@ tr.hawala-row-pending td {
   color: var(--ink-soft, #5b6b7c);
 }
 
-.login-fp-stage.is-idle .login-fp-ring--outer {
-  animation: login-fp-breathe 2.8s ease-in-out infinite;
+.fp-scan-stage.is-idle .fp-scan-ring--outer {
+  animation: fp-scan-breathe 2.8s ease-in-out infinite;
 }
 
-.login-fp-stage.is-idle .login-fp-ring--mid {
-  animation: login-fp-breathe 2.8s ease-in-out 0.25s infinite;
+.fp-scan-stage.is-idle .fp-scan-ring--mid {
+  animation: fp-scan-breathe 2.8s ease-in-out 0.25s infinite;
 }
 
-.login-fp-stage.is-idle .login-fp-ring--inner {
-  animation: login-fp-breathe 2.8s ease-in-out 0.5s infinite;
+.fp-scan-stage.is-idle .fp-scan-ring--inner {
+  animation: fp-scan-breathe 2.8s ease-in-out 0.5s infinite;
 }
 
-.login-fp-stage.is-idle .login-fp-icon {
-  animation: login-fp-icon-soft 2.8s ease-in-out infinite;
+.fp-scan-stage.is-idle .fp-scan-icon {
+  animation: fp-scan-icon-soft 2.8s ease-in-out infinite;
 }
 
-.login-fp-stage.is-scanning .login-fp-ring {
-  animation: login-fp-pulse 1.45s cubic-bezier(0.22, 0.8, 0.28, 1) infinite;
+.fp-scan-stage.is-scanning .fp-scan-ring {
+  animation: fp-scan-pulse 1.45s cubic-bezier(0.22, 0.8, 0.28, 1) infinite;
 }
 
-.login-fp-stage.is-scanning .login-fp-ring--mid {
+.fp-scan-stage.is-scanning .fp-scan-ring--mid {
   animation-delay: 0.18s;
 }
 
-.login-fp-stage.is-scanning .login-fp-ring--inner {
+.fp-scan-stage.is-scanning .fp-scan-ring--inner {
   animation-delay: 0.36s;
 }
 
-.login-fp-stage.is-scanning .login-fp-sensor {
+.fp-scan-stage.is-scanning .fp-scan-sensor {
   border-color: color-mix(in srgb, #7ec8ff 55%, var(--brand, #052659));
   box-shadow:
     0 0 0 4px color-mix(in srgb, #7ec8ff 14%, transparent),
     inset 0 0 18px color-mix(in srgb, #7ec8ff 18%, transparent);
 }
 
-.login-fp-stage.is-scanning .login-fp-icon {
+.fp-scan-stage.is-scanning .fp-scan-icon {
   color: #0a3d7a;
-  animation: login-fp-icon-scan 1.2s ease-in-out infinite;
+  animation: fp-scan-icon-scan 1.2s ease-in-out infinite;
 }
 
-.login-fp-stage.is-scanning .login-fp-scanline {
+.fp-scan-stage.is-scanning .fp-scan-scanline {
   opacity: 1;
-  animation: login-fp-scan 1.35s ease-in-out infinite;
+  animation: fp-scan-scan 1.35s ease-in-out infinite;
 }
 
-.login-fp-stage.is-scanning .login-fp-glow {
+.fp-scan-stage.is-scanning .fp-scan-glow {
   opacity: 1;
-  animation: login-fp-glow 1.35s ease-in-out infinite;
+  animation: fp-scan-glow 1.35s ease-in-out infinite;
 }
 
-.login-fp-stage.is-error .login-fp-sensor {
+.fp-scan-stage.is-error .fp-scan-sensor {
   border-color: color-mix(in srgb, #c0392b 45%, transparent);
-  animation: login-fp-shake 0.45s ease-out;
+  animation: fp-scan-shake 0.45s ease-out;
 }
 
-.login-fp-stage.is-error .login-fp-icon {
+.fp-scan-stage.is-error .fp-scan-icon {
   color: #b42318;
 }
 
-@keyframes login-fp-breathe {
+.fp-scan-stage.is-lift .fp-scan-ring {
+  animation: fp-scan-breathe 1.4s ease-in-out infinite;
+}
+
+.fp-scan-stage.is-lift .fp-scan-sensor {
+  border-color: color-mix(in srgb, #d97706 45%, var(--brand, #052659));
+  box-shadow: 0 0 0 4px color-mix(in srgb, #d97706 12%, transparent);
+}
+
+.fp-scan-stage.is-lift .fp-scan-icon {
+  color: #9a5b0a;
+  animation: fp-scan-icon-lift 1.1s ease-in-out infinite;
+}
+
+.fp-scan-stage.is-success .fp-scan-ring {
+  border-color: color-mix(in srgb, #16a34a 42%, transparent);
+  animation: none;
+  opacity: 1;
+}
+
+.fp-scan-stage.is-success .fp-scan-sensor {
+  border-color: color-mix(in srgb, #16a34a 55%, transparent);
+  background: color-mix(in srgb, #16a34a 12%, #fff);
+  box-shadow: 0 0 0 4px color-mix(in srgb, #16a34a 14%, transparent);
+}
+
+.fp-scan-stage.is-success .fp-scan-icon {
+  color: #166534;
+  animation: none;
+}
+
+.fp-scan-stage--compact {
+  width: 124px;
+  height: 124px;
+}
+
+.fp-scan-stage--compact .fp-scan-ring--mid {
+  inset: 12px;
+}
+
+.fp-scan-stage--compact .fp-scan-ring--inner {
+  inset: 24px;
+}
+
+.fp-scan-stage--compact .fp-scan-sensor {
+  width: 66px;
+  height: 66px;
+}
+
+.fp-scan-stage--compact .fp-scan-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.fp-enroll-progress {
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0.15rem 0 0.25rem;
+}
+
+.fp-enroll-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand, #052659) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand, #052659) 22%, transparent);
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.fp-enroll-dot--active {
+  background: color-mix(in srgb, #7ec8ff 70%, var(--brand, #052659));
+  border-color: color-mix(in srgb, #7ec8ff 55%, transparent);
+  transform: scale(1.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #7ec8ff 18%, transparent);
+}
+
+.fp-enroll-dot--lift {
+  background: color-mix(in srgb, #d97706 55%, #fff);
+  border-color: color-mix(in srgb, #d97706 45%, transparent);
+  transform: scale(1.12);
+}
+
+.fp-enroll-dot--done {
+  background: #16a34a;
+  border-color: #15803d;
+}
+
+@keyframes fp-scan-breathe {
   0%,
   100% {
     transform: scale(1);
@@ -4563,7 +4654,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-pulse {
+@keyframes fp-scan-pulse {
   0% {
     transform: scale(0.92);
     opacity: 0.85;
@@ -4578,7 +4669,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-scan {
+@keyframes fp-scan-scan {
   0% {
     top: 14%;
     opacity: 0;
@@ -4595,7 +4686,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-glow {
+@keyframes fp-scan-glow {
   0%,
   100% {
     opacity: 0.35;
@@ -4607,7 +4698,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-icon-soft {
+@keyframes fp-scan-icon-soft {
   0%,
   100% {
     transform: scale(1);
@@ -4619,7 +4710,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-icon-scan {
+@keyframes fp-scan-icon-scan {
   0%,
   100% {
     transform: scale(1);
@@ -4631,7 +4722,7 @@ tr.hawala-row-pending td {
   }
 }
 
-@keyframes login-fp-shake {
+@keyframes fp-scan-shake {
   0%,
   100% {
     transform: translateX(0);
@@ -4650,18 +4741,32 @@ tr.hawala-row-pending td {
   }
 }
 
+@keyframes fp-scan-icon-lift {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .login-fp-stage.is-idle .login-fp-ring,
-  .login-fp-stage.is-idle .login-fp-icon,
-  .login-fp-stage.is-scanning .login-fp-ring,
-  .login-fp-stage.is-scanning .login-fp-icon,
-  .login-fp-stage.is-scanning .login-fp-scanline,
-  .login-fp-stage.is-scanning .login-fp-glow,
-  .login-fp-stage.is-error .login-fp-sensor {
+  .fp-scan-stage.is-idle .fp-scan-ring,
+  .fp-scan-stage.is-idle .fp-scan-icon,
+  .fp-scan-stage.is-scanning .fp-scan-ring,
+  .fp-scan-stage.is-scanning .fp-scan-icon,
+  .fp-scan-stage.is-scanning .fp-scan-scanline,
+  .fp-scan-stage.is-scanning .fp-scan-glow,
+  .fp-scan-stage.is-lift .fp-scan-ring,
+  .fp-scan-stage.is-lift .fp-scan-icon,
+  .fp-scan-stage.is-error .fp-scan-sensor {
     animation: none !important;
   }
 
-  .login-fp-stage.is-scanning .login-fp-scanline {
+  .fp-scan-stage.is-scanning .fp-scan-scanline {
     opacity: 0.85;
     top: 48%;
   }
@@ -11071,10 +11176,10 @@ button.partner-settle-btn:disabled {
   background:
     linear-gradient(
       145deg,
-      color-mix(in srgb, #7c3aed 12%, #fff) 0%,
-      color-mix(in srgb, #7c3aed 3%, #fff) 100%
+      color-mix(in srgb, var(--brand, #052659) 12%, #fff) 0%,
+      color-mix(in srgb, var(--brand, #052659) 3%, #fff) 100%
     );
-  border-color: color-mix(in srgb, #7c3aed 26%, transparent);
+  border-color: color-mix(in srgb, var(--brand, #052659) 26%, transparent);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -11083,7 +11188,7 @@ button.partner-settle-btn:disabled {
 }
 
 .hawala-complete-section--fingerprint .hawala-complete-section-kicker {
-  color: #5b21b6;
+  color: var(--brand, #052659);
 }
 
 .hawala-complete-section--fingerprint.is-verified {
@@ -11112,7 +11217,7 @@ button.partner-settle-btn:disabled {
 }
 
 .hawala-complete-section--fingerprint.is-scanning {
-  box-shadow: 0 0 0 3px color-mix(in srgb, #7c3aed 18%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #7ec8ff 22%, transparent);
 }
 
 .hawala-complete-section--receipt {

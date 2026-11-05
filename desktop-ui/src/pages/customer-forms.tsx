@@ -15,6 +15,10 @@ import {
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { CustomerPhotoField } from "@desktop/components/customer-photo-field";
+import {
+  FingerprintScanStage,
+  type FingerprintScanStatus,
+} from "@desktop/components/fingerprint-scan-stage";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import {
@@ -691,6 +695,26 @@ function enrollScanState(
   return "idle";
 }
 
+function enrollStageStatus(
+  phase: EnrollUiPhase,
+  busy: boolean,
+): FingerprintScanStatus {
+  if (phase === "failure") return "error";
+  if (phase === "success" || phase === "captured3") return "success";
+  if (
+    phase === "captured1" ||
+    phase === "captured2" ||
+    phase === "remove1" ||
+    phase === "remove2"
+  ) {
+    return "lift";
+  }
+  if (busy || phase === "scan1" || phase === "scan2" || phase === "scan3") {
+    return "scanning";
+  }
+  return "idle";
+}
+
 /** Shared enroll UI for create and edit flows. */
 function CustomerFingerprintEnrollBlock({
   customerId,
@@ -825,31 +849,20 @@ function CustomerFingerprintEnrollBlock({
         </button>
       </div>
 
-      <div className="fp-enroll-steps" aria-live="polite">
+      <FingerprintScanStage
+        status={enrollStageStatus(enrollPhase, enrollBusy)}
+        size="compact"
+      />
+
+      <div className="fp-enroll-progress" aria-live="polite">
         {([1, 2, 3] as const).map((scan) => {
           const state = enrollScanState(enrollPhase, scan);
           return (
-            <div
+            <span
               key={scan}
-              className={`fp-enroll-step fp-enroll-step--${state}`}
-              data-scan={scan}
-            >
-              <div className="fp-enroll-finger">
-                <span className="fp-enroll-finger-ring" />
-                <span className="fp-enroll-finger-core">
-                  {state === "done" ? "✓" : scan}
-                </span>
-              </div>
-              <span className="fp-enroll-step-label">
-                {state === "lift"
-                  ? t.customers.enrollLiftShort
-                  : state === "active"
-                    ? t.customers.enrollScanShort
-                    : state === "done"
-                      ? t.customers.enrollDone
-                      : `${t.customers.enrollReady} ${scan}`}
-              </span>
-            </div>
+              className={`fp-enroll-dot fp-enroll-dot--${state}`}
+              title={`${t.customers.enrollReady} ${scan}`}
+            />
           );
         })}
       </div>

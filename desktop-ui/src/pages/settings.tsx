@@ -48,6 +48,10 @@ import {
 } from "@desktop/components/authorization-pin-modal";
 import { SettingsPrinterPanel } from "@desktop/components/settings-printer-panel";
 import { clearVaultUnlockSession } from "@desktop/components/vault-unlock-gate";
+import {
+  FingerprintScanStage,
+  type FingerprintScanStatus,
+} from "@desktop/components/fingerprint-scan-stage";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
 import { canAccessScreen, isAdminRole, isSystemAdminUsername } from "@desktop/lib/permissions";
@@ -1728,6 +1732,29 @@ function userEnrollScanState(
   return "idle";
 }
 
+function userEnrollStageStatus(
+  phase: UserEnrollUiPhase,
+  busy: boolean,
+  enrolled: boolean,
+): FingerprintScanStatus {
+  if (phase === "failure") return "error";
+  if (phase === "success" || phase === "captured3" || (enrolled && phase === "ready")) {
+    return "success";
+  }
+  if (
+    phase === "captured1" ||
+    phase === "captured2" ||
+    phase === "remove1" ||
+    phase === "remove2"
+  ) {
+    return "lift";
+  }
+  if (busy || phase === "scan1" || phase === "scan2" || phase === "scan3") {
+    return "scanning";
+  }
+  return "idle";
+}
+
 /** Enroll / clear fingerprint for desk-user sign-in (create stays open after save). */
 function UserFingerprintEnrollBlock({
   userId,
@@ -1878,31 +1905,20 @@ function UserFingerprintEnrollBlock({
         </div>
       </div>
 
-      <div className="fp-enroll-steps" aria-live="polite">
+      <FingerprintScanStage
+        status={userEnrollStageStatus(enrollPhase, enrollBusy, enrolled)}
+        size="compact"
+      />
+
+      <div className="fp-enroll-progress" aria-live="polite">
         {([1, 2, 3] as const).map((scan) => {
           const state = userEnrollScanState(enrollPhase, scan);
           return (
-            <div
+            <span
               key={scan}
-              className={`fp-enroll-step fp-enroll-step--${state}`}
-              data-scan={scan}
-            >
-              <div className="fp-enroll-finger">
-                <span className="fp-enroll-finger-ring" />
-                <span className="fp-enroll-finger-core">
-                  {state === "done" ? "✓" : scan}
-                </span>
-              </div>
-              <span className="fp-enroll-step-label">
-                {state === "lift"
-                  ? t.customers.enrollLiftShort
-                  : state === "active"
-                    ? t.customers.enrollScanShort
-                    : state === "done"
-                      ? t.customers.enrollDone
-                      : `${t.customers.enrollReady} ${scan}`}
-              </span>
-            </div>
+              className={`fp-enroll-dot fp-enroll-dot--${state}`}
+              title={`${t.customers.enrollReady} ${scan}`}
+            />
           );
         })}
       </div>

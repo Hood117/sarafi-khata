@@ -17,7 +17,6 @@ import {
   ArrowLeftRight,
   Banknote,
   Coins,
-  Fingerprint,
   Globe,
   Landmark,
   Mail,
@@ -25,6 +24,7 @@ import {
 } from "lucide-react";
 import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
 import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
+import { FingerprintScanStage } from "@desktop/components/fingerprint-scan-stage";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 type LoginMode = "password" | "fingerprint";
@@ -298,26 +298,10 @@ export function LoginPage() {
             </form>
           ) : (
             <div className="stack login-fingerprint-panel">
-              <div
-                className={
-                  busy
-                    ? "login-fp-stage is-scanning"
-                    : error
-                      ? "login-fp-stage is-error"
-                      : "login-fp-stage is-idle"
-                }
-                aria-hidden="true"
-              >
-                <span className="login-fp-ring login-fp-ring--outer" />
-                <span className="login-fp-ring login-fp-ring--mid" />
-                <span className="login-fp-ring login-fp-ring--inner" />
-                <div className="login-fp-sensor">
-                  <Fingerprint className="login-fp-icon" strokeWidth={1.6} />
-                  <span className="login-fp-scanline" />
-                  <span className="login-fp-glow" />
-                </div>
-              </div>
-              <p className="login-fp-hint">
+              <FingerprintScanStage
+                status={busy ? "scanning" : error ? "error" : "idle"}
+              />
+              <p className="fp-scan-hint">
                 {busy ? t.login.fingerprintScanning : t.login.fingerprintHint}
               </p>
               {error ? <p className="error">{error}</p> : null}

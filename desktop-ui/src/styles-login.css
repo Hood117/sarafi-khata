@@ -1,4 +1,4 @@
-/* Scoped to offline login + license activation (same Radefy auth shell). */
+﻿/* Scoped to offline login + license activation (same Radefy auth shell). */
 html .auth-page.login-shell.radefy-login {
   --login-blue: var(--primary, #052659);
   display: grid;
@@ -242,21 +242,21 @@ html .auth-page.radefy-login .login-mode-tab.is-active {
 html .auth-page.radefy-login .login-fingerprint-panel {
   gap: 14px;
 }
-html .auth-page.radefy-login .login-fp-stage {
+html .auth-page.radefy-login .fp-scan-stage {
   width: 156px;
   height: 156px;
   margin-top: 8px;
 }
-html .auth-page.radefy-login .login-fp-ring {
+html .auth-page.radefy-login .fp-scan-ring {
   border-color: #c1e8ff33;
 }
-html .auth-page.radefy-login .login-fp-ring--mid {
+html .auth-page.radefy-login .fp-scan-ring--mid {
   border-color: #c1e8ff55;
 }
-html .auth-page.radefy-login .login-fp-ring--inner {
+html .auth-page.radefy-login .fp-scan-ring--inner {
   border-color: #c1e8ff77;
 }
-html .auth-page.radefy-login .login-fp-sensor {
+html .auth-page.radefy-login .fp-scan-sensor {
   width: 84px;
   height: 84px;
   background: linear-gradient(160deg, #0a2a55 0%, #021024 100%);
@@ -265,33 +265,33 @@ html .auth-page.radefy-login .login-fp-sensor {
     inset 0 0 0 1px #ffffff14,
     0 8px 24px #00000033;
 }
-html .auth-page.radefy-login .login-fp-icon {
+html .auth-page.radefy-login .fp-scan-icon {
   width: 42px;
   height: 42px;
   color: #c1e8ff;
 }
-html .auth-page.radefy-login .login-fp-glow {
+html .auth-page.radefy-login .fp-scan-glow {
   background: radial-gradient(circle, #c1e8ff55 0%, transparent 70%);
 }
-html .auth-page.radefy-login .login-fp-hint {
+html .auth-page.radefy-login .fp-scan-hint {
   color: #a7c1df;
   font-size: 12px;
 }
-html .auth-page.radefy-login .login-fp-stage.is-scanning .login-fp-sensor {
+html .auth-page.radefy-login .fp-scan-stage.is-scanning .fp-scan-sensor {
   border-color: #c1e8ff;
   box-shadow:
     0 0 0 5px #c1e8ff22,
     inset 0 0 22px #c1e8ff33,
     0 10px 28px #00000044;
 }
-html .auth-page.radefy-login .login-fp-stage.is-scanning .login-fp-icon {
+html .auth-page.radefy-login .fp-scan-stage.is-scanning .fp-scan-icon {
   color: #e8f7ff;
 }
-html .auth-page.radefy-login .login-fp-stage.is-error .login-fp-sensor {
+html .auth-page.radefy-login .fp-scan-stage.is-error .fp-scan-sensor {
   border-color: #ff8f9a88;
   box-shadow: 0 0 0 4px #a61b1b22;
 }
-html .auth-page.radefy-login .login-fp-stage.is-error .login-fp-icon {
+html .auth-page.radefy-login .fp-scan-stage.is-error .fp-scan-icon {
   color: #ffcad0;
 }
 html .auth-page.radefy-login form.stack {
