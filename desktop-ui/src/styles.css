@@ -4401,6 +4401,270 @@ tr.hawala-row-pending td {
 
 .login-fingerprint-panel {
   gap: 0.75rem;
+  align-items: stretch;
+}
+
+.login-fp-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 148px;
+  height: 148px;
+  margin: 0.35rem auto 0.15rem;
+}
+
+.login-fp-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--brand, #052659) 28%, transparent);
+  pointer-events: none;
+}
+
+.login-fp-ring--mid {
+  inset: 14px;
+  border-color: color-mix(in srgb, var(--brand, #052659) 38%, transparent);
+}
+
+.login-fp-ring--inner {
+  inset: 28px;
+  border-color: color-mix(in srgb, var(--brand, #052659) 48%, transparent);
+}
+
+.login-fp-sensor {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--brand, #052659) 10%, #fff);
+  border: 1px solid color-mix(in srgb, var(--brand, #052659) 22%, transparent);
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.login-fp-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--brand, #052659);
+  position: relative;
+  z-index: 2;
+}
+
+.login-fp-glow {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand, #052659) 22%, transparent) 0%,
+    transparent 70%
+  );
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.login-fp-scanline {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, #7ec8ff 80%, #fff),
+    transparent
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, #7ec8ff 55%, transparent);
+  opacity: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.login-fp-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-soft, #5b6b7c);
+}
+
+.login-fp-stage.is-idle .login-fp-ring--outer {
+  animation: login-fp-breathe 2.8s ease-in-out infinite;
+}
+
+.login-fp-stage.is-idle .login-fp-ring--mid {
+  animation: login-fp-breathe 2.8s ease-in-out 0.25s infinite;
+}
+
+.login-fp-stage.is-idle .login-fp-ring--inner {
+  animation: login-fp-breathe 2.8s ease-in-out 0.5s infinite;
+}
+
+.login-fp-stage.is-idle .login-fp-icon {
+  animation: login-fp-icon-soft 2.8s ease-in-out infinite;
+}
+
+.login-fp-stage.is-scanning .login-fp-ring {
+  animation: login-fp-pulse 1.45s cubic-bezier(0.22, 0.8, 0.28, 1) infinite;
+}
+
+.login-fp-stage.is-scanning .login-fp-ring--mid {
+  animation-delay: 0.18s;
+}
+
+.login-fp-stage.is-scanning .login-fp-ring--inner {
+  animation-delay: 0.36s;
+}
+
+.login-fp-stage.is-scanning .login-fp-sensor {
+  border-color: color-mix(in srgb, #7ec8ff 55%, var(--brand, #052659));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, #7ec8ff 14%, transparent),
+    inset 0 0 18px color-mix(in srgb, #7ec8ff 18%, transparent);
+}
+
+.login-fp-stage.is-scanning .login-fp-icon {
+  color: #0a3d7a;
+  animation: login-fp-icon-scan 1.2s ease-in-out infinite;
+}
+
+.login-fp-stage.is-scanning .login-fp-scanline {
+  opacity: 1;
+  animation: login-fp-scan 1.35s ease-in-out infinite;
+}
+
+.login-fp-stage.is-scanning .login-fp-glow {
+  opacity: 1;
+  animation: login-fp-glow 1.35s ease-in-out infinite;
+}
+
+.login-fp-stage.is-error .login-fp-sensor {
+  border-color: color-mix(in srgb, #c0392b 45%, transparent);
+  animation: login-fp-shake 0.45s ease-out;
+}
+
+.login-fp-stage.is-error .login-fp-icon {
+  color: #b42318;
+}
+
+@keyframes login-fp-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes login-fp-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+@keyframes login-fp-scan {
+  0% {
+    top: 14%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: 86%;
+    opacity: 0;
+  }
+}
+
+@keyframes login-fp-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes login-fp-icon-soft {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.82;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes login-fp-icon-scan {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.06);
+    filter: brightness(1.15);
+  }
+}
+
+@keyframes login-fp-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-fp-stage.is-idle .login-fp-ring,
+  .login-fp-stage.is-idle .login-fp-icon,
+  .login-fp-stage.is-scanning .login-fp-ring,
+  .login-fp-stage.is-scanning .login-fp-icon,
+  .login-fp-stage.is-scanning .login-fp-scanline,
+  .login-fp-stage.is-scanning .login-fp-glow,
+  .login-fp-stage.is-error .login-fp-sensor {
+    animation: none !important;
+  }
+
+  .login-fp-stage.is-scanning .login-fp-scanline {
+    opacity: 0.85;
+    top: 48%;
+  }
 }
 
 @media print {
