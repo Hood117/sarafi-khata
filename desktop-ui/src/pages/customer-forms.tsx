@@ -14,6 +14,7 @@ import {
   type FingerprintEnrollProgress,
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
+import { CustomerPhotoField } from "@desktop/components/customer-photo-field";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import {
@@ -22,7 +23,6 @@ import {
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
-import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import {
   pauseFingerprintIdentify,
   resumeFingerprintIdentify,
@@ -36,13 +36,14 @@ import {
   focusFirstIncompleteDeskField,
   handleDeskFormKeyDown,
 } from "@desktop/lib/form-keyboard";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import {
   emptyOpeningLine,
   OpeningKataFields,
   type OpeningLine,
 } from "@desktop/ui/opening-kata-fields";
+import { Modal } from "@desktop/ui/modal";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
-import { CustomerPhotoField } from "@desktop/components/customer-photo-field";
 
 function mapOpeningKata(lines: OpeningLine[]) {
   return lines
@@ -250,17 +251,16 @@ function useCurrenciesAndOpening(
 }
 
 export function CustomerCreateForm({
-  onCancel,
+  open,
+  onClose,
   onCreated,
   onSaved,
-  onEditingChange,
 }: {
-  onCancel: () => void;
+  open: boolean;
+  onClose: () => void;
   onCreated: (customer: CustomerDetail) => void;
   /** Called after an update of an existing customer (Previous → edit). */
   onSaved?: (customer: CustomerDetail) => void;
-  /** Lets the parent update the modal title (new vs edit). */
-  onEditingChange?: (editing: boolean, name?: string) => void;
 }) {
   const { session } = useAuth();
   const t = useT();
@@ -307,7 +307,6 @@ export function CustomerCreateForm({
     setAwaitingEnroll(null);
     setSaveAndNewAfterEnroll(false);
     setNameFocusKey((k) => k + 1);
-    onEditingChange?.(false);
   }
 
   function applyCustomer(customer: CustomerDetail) {
@@ -336,7 +335,6 @@ export function CustomerCreateForm({
       ]);
     }
     setError(null);
-    onEditingChange?.(true, customer.fullName);
   }
 
   function onChange(
@@ -430,11 +428,11 @@ export function CustomerCreateForm({
       setEditing(saved);
       setAwaitingEnroll(saved);
       setSaveAndNewAfterEnroll(false);
-      onEditingChange?.(true, saved.fullName);
       return;
     }
     onSaved?.(saved);
-    onCancel();
+    resetBlank();
+    onClose();
   }
 
   async function handleSaveAndNew() {
@@ -446,7 +444,6 @@ export function CustomerCreateForm({
       setEditing(saved);
       setAwaitingEnroll(saved);
       setSaveAndNewAfterEnroll(true);
-      onEditingChange?.(true, saved.fullName);
       return;
     }
     resetBlank();
@@ -458,7 +455,18 @@ export function CustomerCreateForm({
       return;
     }
     if (awaitingEnroll) onSaved?.(awaitingEnroll);
-    onCancel();
+    resetBlank();
+    onClose();
+  }
+
+  function softClose() {
+    setError(null);
+    onClose();
+  }
+
+  function hardCancel() {
+    resetBlank();
+    onClose();
   }
 
   async function handlePrevious() {
@@ -479,134 +487,140 @@ export function CustomerCreateForm({
   }
 
   const formLocked = Boolean(awaitingEnroll) || busy;
+  const modalTitle = editing
+    ? `${t.customers.edit}${editing.fullName ? ` — ${editing.fullName}` : ""}`
+    : t.customers.add;
+
+  if (!open) return null;
 
   return (
-    <div
-      ref={formRootRef}
-      className="stack customer-desk-form customer-desk-form--create"
-      data-desk-form
-      onKeyDown={(e) =>
-        handleDeskFormKeyDown(e, {
-          busy: formLocked,
-          onSubmit: () => {
-            if (awaitingEnroll) finishAfterEnroll();
-            else void handleSave();
-          },
-        })
-      }
-    >
-      <div className="customer-desk-scroll customer-create-layout">
-        <div className="customer-create-main">
-          {editing ? (
-            <p className="muted customer-create-edit-banner" style={{ margin: 0 }}>
-              {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
-              {editing.fullName}
-              {editing.code ? ` · ${editing.code}` : ""}
-            </p>
-          ) : null}
-          <section className="customer-create-section customer-create-section--identity">
-            <header className="customer-create-section-head">
-              <h3 className="customer-create-section-title">{t.customers.add}</h3>
-            </header>
-            <CustomerFormFields
-              fullName={fullName}
-              fatherName={fatherName}
-              phone={phone}
-              address={address}
-              nationalId={nationalId}
-              notes={notes}
-              customerType={customerType}
-              photo={photo}
-              disabled={formLocked}
-              nameAutoFocus={!editing && !awaitingEnroll}
-              nameFocusKey={nameFocusKey}
-              showNotes={false}
-              showPhoto={false}
-              onChange={onChange}
-              onPhotoChange={setPhoto}
-            />
-          </section>
-          <section className="customer-create-section customer-create-section--opening">
-            <OpeningKataFields
-              currencies={currencies}
-              lines={openingLines}
-              onChange={updateLine}
-              onCurrenciesChange={setCurrencies}
-              onAdd={() =>
-                setOpeningLines((rows) => [
-                  ...rows,
-                  emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
-                ])
-              }
-              onRemove={(index) =>
-                setOpeningLines((rows) => rows.filter((_, i) => i !== index))
-              }
-              showLineNotes={false}
-            />
-          </section>
-        </div>
-        <aside className="customer-create-aside">
-          <section className="customer-create-section customer-create-section--photo">
-            <header className="customer-create-section-head">
-              <span className="customer-create-section-kicker">{t.customers.photo}</span>
-              <h3 className="customer-create-section-title">{t.customers.photoOptional}</h3>
-            </header>
-            <CustomerPhotoField
-              value={photo}
-              disabled={formLocked}
-              onChange={setPhoto}
-            />
-          </section>
-          <CustomerFingerprintEnrollBlock
-            customerId={awaitingEnroll?.id ?? ""}
-            hint={awaitingEnroll ? t.customers.enrollAfterCreateHint : ""}
-            ensureCustomerId={async () => {
-              if (awaitingEnroll?.id) return awaitingEnroll.id;
-              const wasCreating = !editing;
-              const saved = await persist();
-              if (!saved) return null;
-              if (wasCreating) {
-                setEditing(saved);
-                setAwaitingEnroll(saved);
-                setSaveAndNewAfterEnroll(false);
-                onEditingChange?.(true, saved.fullName);
-              }
-              return saved.id;
-            }}
-            onBusyChange={setBusy}
-          />
-        </aside>
-      </div>
-      {awaitingEnroll ? (
-        <div className="customer-desk-footer">
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn primary"
-              data-desk-action="save"
-              disabled={busy}
-              onClick={() => finishAfterEnroll()}
-            >
-              {t.customers.enrollDone}
-            </button>
+    <Modal title={modalTitle} size="xl" onClose={softClose}>
+      <div
+        ref={formRootRef}
+        className="stack customer-desk-form customer-desk-form--create"
+        data-desk-form
+        onKeyDown={(e) =>
+          handleDeskFormKeyDown(e, {
+            busy: formLocked,
+            onSubmit: () => {
+              if (awaitingEnroll) finishAfterEnroll();
+              else void handleSave();
+            },
+          })
+        }
+      >
+        <div className="customer-desk-scroll customer-create-layout">
+          <div className="customer-create-main">
+            {editing ? (
+              <p className="muted customer-create-edit-banner" style={{ margin: 0 }}>
+                {awaitingEnroll ? t.customers.saveCustomer : t.customers.edit}:{" "}
+                {editing.fullName}
+                {editing.code ? ` · ${editing.code}` : ""}
+              </p>
+            ) : null}
+            <section className="customer-create-section customer-create-section--identity">
+              <header className="customer-create-section-head">
+                <h3 className="customer-create-section-title">{t.customers.add}</h3>
+              </header>
+              <CustomerFormFields
+                fullName={fullName}
+                fatherName={fatherName}
+                phone={phone}
+                address={address}
+                nationalId={nationalId}
+                notes={notes}
+                customerType={customerType}
+                photo={photo}
+                disabled={formLocked}
+                nameAutoFocus={!editing && !awaitingEnroll}
+                nameFocusKey={nameFocusKey}
+                showNotes={false}
+                showPhoto={false}
+                onChange={onChange}
+                onPhotoChange={setPhoto}
+              />
+            </section>
+            <section className="customer-create-section customer-create-section--opening">
+              <OpeningKataFields
+                currencies={currencies}
+                lines={openingLines}
+                onChange={updateLine}
+                onCurrenciesChange={setCurrencies}
+                onAdd={() =>
+                  setOpeningLines((rows) => [
+                    ...rows,
+                    emptyOpeningLine(defaultCcy, t.openingKata.defaultDescription),
+                  ])
+                }
+                onRemove={(index) =>
+                  setOpeningLines((rows) => rows.filter((_, i) => i !== index))
+                }
+                showLineNotes={false}
+              />
+            </section>
           </div>
+          <aside className="customer-create-aside">
+            <section className="customer-create-section customer-create-section--photo">
+              <header className="customer-create-section-head">
+                <span className="customer-create-section-kicker">{t.customers.photo}</span>
+                <h3 className="customer-create-section-title">{t.customers.photoOptional}</h3>
+              </header>
+              <CustomerPhotoField
+                value={photo}
+                disabled={formLocked}
+                onChange={setPhoto}
+              />
+            </section>
+            <CustomerFingerprintEnrollBlock
+              customerId={awaitingEnroll?.id ?? ""}
+              hint={awaitingEnroll ? t.customers.enrollAfterCreateHint : ""}
+              ensureCustomerId={async () => {
+                if (awaitingEnroll?.id) return awaitingEnroll.id;
+                const wasCreating = !editing;
+                const saved = await persist();
+                if (!saved) return null;
+                if (wasCreating) {
+                  setEditing(saved);
+                  setAwaitingEnroll(saved);
+                  setSaveAndNewAfterEnroll(false);
+                }
+                return saved.id;
+              }}
+              onBusyChange={setBusy}
+            />
+          </aside>
         </div>
-      ) : (
-        <ModalFormActions
-          inline
-          busy={busy}
-          error={error}
-          previousLabel={t.common.previous}
-          saveLabel={busy ? t.common.saving : t.common.save}
-          saveAndNewLabel={t.hawala.saveAndNew}
-          cancelLabel={t.common.cancel}
-          onPrevious={() => void handlePrevious()}
-          onSave={() => void handleSave()}
-          onSaveAndNew={() => void handleSaveAndNew()}
-          onCancel={onCancel}
-        />
-      )}
-    </div>
+        {awaitingEnroll ? (
+          <div className="customer-desk-footer">
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn primary"
+                data-desk-action="save"
+                disabled={busy}
+                onClick={() => finishAfterEnroll()}
+              >
+                {t.customers.enrollDone}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <ModalFormActions
+            inline
+            busy={busy}
+            error={error}
+            previousLabel={t.common.previous}
+            saveLabel={busy ? t.common.saving : t.common.save}
+            saveAndNewLabel={t.hawala.saveAndNew}
+            cancelLabel={t.common.cancel}
+            onPrevious={() => void handlePrevious()}
+            onSave={() => void handleSave()}
+            onSaveAndNew={() => void handleSaveAndNew()}
+            onCancel={hardCancel}
+          />
+        )}
+      </div>
+    </Modal>
   );
 }
 

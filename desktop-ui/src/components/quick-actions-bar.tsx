@@ -29,7 +29,6 @@ import {
   canWriteScreen,
 } from "@desktop/lib/permissions";
 import { CustomerCreateForm } from "@desktop/pages/customer-forms";
-import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
 export const DESK_MOVEMENT_SAVED_EVENT = "desk:movement-saved";
@@ -69,11 +68,9 @@ export function QuickActionsBar() {
   const [open, setOpen] = useState<ActionId | null>(null);
   const [hotIndex, setHotIndex] = useState<number | null>(null);
   const [flashSuccess, setFlashSuccess] = useState<string | null>(null);
-  const [customerModalTitle, setCustomerModalTitle] = useState(t.customers.add);
 
   function close() {
     setOpen(null);
-    setCustomerModalTitle(t.customers.add);
   }
 
   function onSaved() {
@@ -157,14 +154,11 @@ export function QuickActionsBar() {
       const detail = (event as CustomEvent<DeskOpenQuickActionDetail>).detail;
       const id = detail?.id;
       if (!id || !allowedIds.has(id)) return;
-      if (id === "newCustomer") {
-        setCustomerModalTitle(t.customers.add);
-      }
       setOpen(id);
     };
     window.addEventListener(DESK_OPEN_QUICK_ACTION_EVENT, onOpen);
     return () => window.removeEventListener(DESK_OPEN_QUICK_ACTION_EVENT, onOpen);
-  }, [allowedIds, t.customers.add]);
+  }, [allowedIds]);
 
   const showCalculator = canAccessPath(session, "/calculator");
   const calculatorActive = location.pathname.startsWith("/calculator");
@@ -185,9 +179,6 @@ export function QuickActionsBar() {
       tone: action.tone,
       selected: open === action.id,
       onClick: () => {
-        if (action.id === "newCustomer") {
-          setCustomerModalTitle(t.customers.add);
-        }
         setOpen(action.id);
       },
     })),
@@ -303,27 +294,17 @@ export function QuickActionsBar() {
         onSaved={onSaved}
       />
 
-      {open === "newCustomer" ? (
-        <Modal title={customerModalTitle} size="xl" onClose={close}>
-          <CustomerCreateForm
-            onCancel={close}
-            onEditingChange={(editing, name) => {
-              setCustomerModalTitle(
-                editing
-                  ? `${t.customers.edit}${name ? ` — ${name}` : ""}`
-                  : t.customers.add,
-              );
-            }}
-            onCreated={(created) => {
-              notifyCustomerCreated(created.id);
-            }}
-            onSaved={(saved) => {
-              notifyCustomerCreated(saved.id);
-              setFlashSuccess(t.common.success);
-            }}
-          />
-        </Modal>
-      ) : null}
+      <CustomerCreateForm
+        open={open === "newCustomer"}
+        onClose={close}
+        onCreated={(created) => {
+          notifyCustomerCreated(created.id);
+        }}
+        onSaved={(saved) => {
+          notifyCustomerCreated(saved.id);
+          setFlashSuccess(t.common.success);
+        }}
+      />
 
       {flashSuccess ? (
         <SuccessModal

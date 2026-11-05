@@ -292,9 +292,9 @@ export const en: Dictionary = {
     onlineRequired: "Internet is required for the first activation. After that, the desk works offline.",
     desktopOnly:
       "Open Radefy Sarafi Offline from the desktop app window to activate. The browser preview at localhost cannot talk to the license service.",
-    contactForActivation: "Contact the developer for activation.",
-    contactForKey: "Could not activate this key. Contact the developer for a license key.",
-    developerPhones: "Developer WhatsApp",
+    contactForActivation: "Contact the company for activation.",
+    contactForKey: "Could not activate this key. Contact the company for a license key.",
+    companyContact: "Company contact",
     devEnter: "Enter (skip key for now)",
   },
   session: {

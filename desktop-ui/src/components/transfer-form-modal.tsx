@@ -35,6 +35,7 @@ import {
   leftToRight,
   type MovementRateBase,
 } from "@desktop/lib/movement-fx";
+import { useDeskFormDraftRetain } from "@desktop/lib/desk-form-draft";
 import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
@@ -166,6 +167,7 @@ export function TransferFormModal({
   const submittingRef = useRef(false);
   /** Cursor for Previous cycling — never used as replaceTransactionId. */
   const templateCursorRef = useRef<string | null>(null);
+  const { retainDraft, discardDraft, shouldRetainDraft } = useDeskFormDraftRetain();
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [form, setForm] = useState(() => emptyForm());
@@ -245,9 +247,13 @@ export function TransferFormModal({
         const defaultCcy = pickDefaultCurrency(page.items);
 
         if (editTransactionId) {
+          discardDraft();
           const snap = await getMovementForEdit(editTransactionId);
           if (cancelled) return;
           applySnapshot(snap, "edit");
+        } else if (shouldRetainDraft()) {
+          clearSuggestState();
+          setError(null);
         } else {
           templateCursorRef.current = null;
           setReplaceId(null);
@@ -415,7 +421,15 @@ export function TransferFormModal({
     t.desk,
   ]);
 
+  function softClose() {
+    retainDraft();
+    clearSuggestState();
+    setError(null);
+    onClose();
+  }
+
   function resetForm(keepOpen: boolean) {
+    discardDraft();
     const defaultCcy = pickDefaultCurrency(currencies) || form.currencyCode;
     templateCursorRef.current = null;
     setReplaceId(null);
@@ -626,7 +640,7 @@ export function TransferFormModal({
   return (
     <>
       {open ? (
-        <Modal title={title} size="xl" onClose={() => resetForm(false)}>
+        <Modal title={title} size="xl" onClose={softClose}>
           <div
             className="stack movement-form-compact hawala-form-compact desk-qa-form"
             data-desk-form

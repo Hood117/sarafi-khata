@@ -33,6 +33,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { useDeskFormDraftRetain } from "@desktop/lib/desk-form-draft";
 import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
@@ -115,6 +116,7 @@ export function ExchangeFormModal({
   const amountRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLLabelElement>(null);
   const submittingRef = useRef(false);
+  const { retainDraft, discardDraft, shouldRetainDraft } = useDeskFormDraftRetain();
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
@@ -190,6 +192,7 @@ export function ExchangeFormModal({
         const sell = pickSecondaryCurrency(page.items, buy);
 
         if (editTransactionId) {
+          discardDraft();
           try {
             const deal = await getExchangeDealDetail(editTransactionId);
             if (cancelled) return;
@@ -198,6 +201,14 @@ export function ExchangeFormModal({
           } catch (err: unknown) {
             if (!cancelled) setError(errorMessage(err));
           }
+        }
+
+        if (shouldRetainDraft()) {
+          setSuggestions([]);
+          setPartnerSuggestions([]);
+          setShowSuggestions(false);
+          setError(null);
+          return;
         }
 
         setReplaceId(null);
@@ -360,7 +371,17 @@ export function ExchangeFormModal({
     lastEdited,
   ]);
 
+  function softClose() {
+    retainDraft();
+    setSuggestions([]);
+    setPartnerSuggestions([]);
+    setShowSuggestions(false);
+    setError(null);
+    onClose();
+  }
+
   function resetForm(keepOpen: boolean) {
+    discardDraft();
     const buy = pickDefaultCurrency(currencies) || form.buyCurrency;
     const sell = pickSecondaryCurrency(currencies, buy) || form.sellCurrency;
     setForm(emptyForm(buy, sell));
@@ -808,7 +829,7 @@ export function ExchangeFormModal({
   return (
     <>
       {open ? (
-        <Modal title={t.dashboard.exchangeBuySell} size="xl" onClose={() => resetForm(false)}>
+        <Modal title={t.dashboard.exchangeBuySell} size="xl" onClose={softClose}>
           <div
             className="hawala-form-compact exchange-form-compact desk-qa-form"
             data-desk-form

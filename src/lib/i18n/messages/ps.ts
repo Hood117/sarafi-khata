@@ -292,9 +292,9 @@ export const ps: Dictionary = {
     onlineRequired: "د لومړي ځل فعالولو لپاره انټرنټ اړین دی. وروسته میز آفلاین کار کوي.",
     desktopOnly:
       "د فعالولو لپاره Radefy Sarafi Offline د ډیسټاپ اپ کړکۍ څخه پرانیزئ. د براوزر مخکتنه د جواز خدمت سره اړیکه نشی نیولی.",
-    contactForActivation: "د فعالولو لپاره له جوړونکي سره اړیکه ونیسئ.",
-    contactForKey: "دا کیلي فعال نشوه. د کیلي لپاره له جوړونکي سره اړیکه ونیسئ.",
-    developerPhones: "د جوړونکو واتساپ",
+    contactForActivation: "د فعالولو لپاره له شرکت سره اړیکه ونیسئ.",
+    contactForKey: "دا کیلي فعال نشوه. د کیلي لپاره له شرکت سره اړیکه ونیسئ.",
+    companyContact: "د شرکت اړیکه",
     devEnter: "ننوتل (اوس پرته له کیلي)",
   },
   session: {

@@ -291,7 +291,7 @@ export type Dictionary = {
     desktopOnly: string;
     contactForActivation: string;
     contactForKey: string;
-    developerPhones: string;
+    companyContact: string;
     /** TEMP: skip activation during local development. */
     devEnter: string;
   };

@@ -28,6 +28,7 @@ import {
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import { useDeskFormDraftRetain } from "@desktop/lib/desk-form-draft";
 import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
@@ -116,6 +117,7 @@ export function SendHawalaFormModal({
   const senderSearchRef = useRef<HTMLLabelElement>(null);
   const receiverSearchRef = useRef<HTMLLabelElement>(null);
   const submittingRef = useRef(false);
+  const { retainDraft, discardDraft, shouldRetainDraft } = useDeskFormDraftRetain();
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [form, setForm] = useState(() => emptyForm());
@@ -250,6 +252,7 @@ export function SendHawalaFormModal({
         const currency = pickDefaultCurrency(page.items);
 
         if (editTransactionId) {
+          discardDraft();
           try {
             const detail = await getHawala(editTransactionId);
             if (cancelled) return;
@@ -258,6 +261,12 @@ export function SendHawalaFormModal({
           } catch (err: unknown) {
             if (!cancelled) setError(errorMessage(err));
           }
+        }
+
+        if (shouldRetainDraft()) {
+          clearSuggestState();
+          setError(null);
+          return;
         }
 
         setReplaceId(null);
@@ -417,7 +426,15 @@ export function SendHawalaFormModal({
     }
   }
 
+  function softClose() {
+    retainDraft();
+    clearSuggestState();
+    setError(null);
+    onClose();
+  }
+
   function resetForm(keepOpen: boolean) {
+    discardDraft();
     const currency = pickDefaultCurrency(currencies) || form.currencyCode;
     setForm(emptyForm(currency));
     setVoucherNo("");
@@ -682,7 +699,7 @@ export function SendHawalaFormModal({
   return (
     <>
       {open ? (
-        <Modal title={title} size="xl" onClose={() => resetForm(false)}>
+        <Modal title={title} size="xl" onClose={softClose}>
           <div
             className="stack movement-form-compact desk-qa-form"
             data-desk-form

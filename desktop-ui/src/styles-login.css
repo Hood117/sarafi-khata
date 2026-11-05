@@ -466,6 +466,42 @@ html .auth-page.radefy-login .radefy-license-support-label {
   color: #a7c1df !important;
 }
 
+html .auth-page.radefy-login .radefy-license-company {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff28;
+  border-radius: 12px;
+  background: #02102455;
+}
+
+html .auth-page.radefy-login .radefy-license-company > strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+}
+
+html .auth-page.radefy-login .radefy-license-company-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #c1e8ff;
+  font-size: 12px;
+  text-decoration: none;
+  width: fit-content;
+}
+
+html .auth-page.radefy-login .radefy-license-company-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+html .auth-page.radefy-login .radefy-license-company-link svg {
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
 html .auth-page.radefy-login .radefy-license-phones {
   list-style: none;
   margin: 0;

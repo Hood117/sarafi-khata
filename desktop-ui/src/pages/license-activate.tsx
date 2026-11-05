@@ -32,7 +32,8 @@ import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
 import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
 import { useLocale, useT } from "@desktop/i18n";
 import {
-  APP_DEVELOPERS,
+  APP_COMPANY,
+  APP_LICENSE_CONTACT,
   formatWhatsAppDisplay,
 } from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/app-error";
@@ -300,24 +301,47 @@ export function LicenseActivatePage() {
 
           <div className="radefy-license-support">
             <p>{t.license.contactForActivation}</p>
-            <p className="radefy-license-support-label">{t.license.developerPhones}</p>
+            <div className="radefy-license-company">
+              <strong>{APP_COMPANY.name}</strong>
+              <a
+                className="radefy-license-company-link"
+                onClick={handleCompanyLink}
+                href={APP_COMPANY.url}
+                target="_blank"
+                rel="noreferrer"
+                dir="ltr"
+              >
+                <Globe size={14} aria-hidden />
+                {APP_COMPANY.websiteLabel}
+              </a>
+              <a
+                className="radefy-license-company-link"
+                onClick={handleCompanyLink}
+                href={`mailto:${APP_COMPANY.email}`}
+                dir="ltr"
+              >
+                <Mail size={14} aria-hidden />
+                {APP_COMPANY.email}
+              </a>
+            </div>
+            <p className="radefy-license-support-label">{t.license.companyContact}</p>
             <ul className="radefy-license-phones">
-              {APP_DEVELOPERS.map((dev) => (
-                <li key={dev.whatsapp}>
-                  <button
-                    type="button"
-                    className="radefy-license-wa"
-                    onClick={() => void openWhatsApp(dev.whatsapp, "")}
-                    title={t.dashboard.whatsapp}
-                  >
-                    <MessageCircle size={16} aria-hidden />
-                    <span>
-                      <strong>{dev.name}</strong>
-                      <small dir="ltr">{formatWhatsAppDisplay(dev.whatsapp)}</small>
-                    </span>
-                  </button>
-                </li>
-              ))}
+              <li>
+                <button
+                  type="button"
+                  className="radefy-license-wa"
+                  onClick={() => void openWhatsApp(APP_LICENSE_CONTACT.whatsapp, "")}
+                  title={t.dashboard.whatsapp}
+                >
+                  <MessageCircle size={16} aria-hidden />
+                  <span>
+                    <strong>{APP_LICENSE_CONTACT.name}</strong>
+                    <small dir="ltr">
+                      {formatWhatsAppDisplay(APP_LICENSE_CONTACT.whatsapp)}
+                    </small>
+                  </span>
+                </button>
+              </li>
             </ul>
           </div>
 
