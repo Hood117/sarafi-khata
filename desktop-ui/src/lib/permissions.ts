@@ -73,6 +73,7 @@ export function pathToScreenId(path: string): string {
   if (path.startsWith("/rates")) return "rates";
   if (path.startsWith("/calculator")) return "calculator";
   if (path.startsWith("/settings")) return "settings";
+  if (path.startsWith("/support")) return "support";
   if (path.startsWith("/movements")) return "cash";
   return path.replace(/^\//, "").split("/")[0] || "dashboard";
 }
@@ -122,6 +123,8 @@ export function canAccessPath(
   session: AuthSession | null | undefined,
   path: string,
 ): boolean {
+  // Support / About is available to every signed-in desk user.
+  if (path.startsWith("/support")) return Boolean(session);
   return canAccessScreen(session, pathToScreenId(path));
 }
 

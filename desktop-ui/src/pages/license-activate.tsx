@@ -28,7 +28,7 @@ import {
   openExternalUrl,
   type LicenseStatus,
 } from "@desktop/api";
-import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
+import radefyWordmark from "@desktop/assets/brand/radefy-systems-wordmark.png";
 import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
 import { useLocale, useT } from "@desktop/i18n";
 import {
@@ -175,15 +175,10 @@ export function LicenseActivatePage() {
           dir="ltr"
         >
           <img
-            src={radefyLogo}
-            alt="Radefy Sarafi Offline logo"
-            width="42"
-            height="42"
+            className="radefy-company-wordmark"
+            src={radefyWordmark}
+            alt="Radefy Systems"
           />
-          <span>
-            <strong>RADEFY</strong>
-            <small>SYSTEMS</small>
-          </span>
         </a>
         <div className="radefy-centerpiece">
           <div className="radefy-visual" aria-hidden="true">

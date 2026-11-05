@@ -1,4 +1,4 @@
-import productLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
+import productLogo from "@desktop/assets/brand/radefy-logo.svg";
 import {
   useCallback,
   useEffect,
@@ -228,15 +228,11 @@ export function AppLayout() {
           <NavLink to="/" end className="sidebar-brand brand">
             <span className="brand-mark" aria-hidden>
               <img
+                className="sidebar-brand-logo"
                 src={productLogo}
                 alt=""
                 width="32"
                 height="32"
-                style={{
-                  objectFit: "contain",
-                  background: "white",
-                  borderRadius: 8,
-                }}
               />
             </span>
             <span>

@@ -8,6 +8,7 @@ import {
   Coins,
   Database,
   DatabaseBackup,
+  Headphones,
   LogOut,
   Repeat2,
   Settings,
@@ -192,6 +193,12 @@ export function SettingsMenu({ variant = "header" }: SettingsMenuProps) {
         onSelect: () => go("/settings?tab=database"),
       });
     }
+    next.push({
+      id: "support",
+      label: t.nav.support,
+      icon: <Headphones className="nav-icon" size={18} />,
+      onSelect: () => go("/support"),
+    });
     next.push({
       id: "signout",
       label: t.session.signOut,

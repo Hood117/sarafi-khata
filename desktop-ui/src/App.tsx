@@ -138,6 +138,11 @@ const CalculatorPage = lazy(() =>
     default: m.CalculatorPage,
   })),
 );
+const SupportPage = lazy(() =>
+  import("@desktop/pages/support").then((m) => ({
+    default: m.SupportPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -505,6 +510,14 @@ export function App() {
           element={
             <Lazy>
               <SettingsPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="support"
+          element={
+            <Lazy>
+              <SupportPage />
             </Lazy>
           }
         />

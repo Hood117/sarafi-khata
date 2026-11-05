@@ -37,6 +37,7 @@ export type Dictionary = {
     reports: string;
     settings: string;
     calculator: string;
+    support: string;
   };
   pages: {
     dashboard: string;
@@ -77,6 +78,7 @@ export type Dictionary = {
     partnerProfile: string;
     exchangeDetails: string;
     transferDetails: string;
+    support: string;
   };
   common: {
     save: string;
@@ -295,6 +297,35 @@ export type Dictionary = {
     companyContact: string;
     /** TEMP: skip activation during local development. */
     devEnter: string;
+  };
+  support: {
+    title: string;
+    subtitle: string;
+    kicker: string;
+    basedIn: string;
+    chatNow: string;
+    visitWebsite: string;
+    helpTopics: string;
+    topicLicense: string;
+    topicTraining: string;
+    topicEmail: string;
+    topicWebsite: string;
+    company: string;
+    companyBlurb: string;
+    website: string;
+    email: string;
+    contact: string;
+    contactRole: string;
+    contactHint: string;
+    whatsapp: string;
+    product: string;
+    version: string;
+    license: string;
+    licensed: string;
+    notLicensed: string;
+    licensedTo: string;
+    offlineNote: string;
+    needHelpBody: string;
   };
   session: {
     signOut: string;
