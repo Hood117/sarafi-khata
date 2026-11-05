@@ -1486,11 +1486,6 @@ export type Dictionary = {
     textSizeDefault: string;
     textSizeLarge: string;
     textSizeExtraLarge: string;
-    fontFamily: string;
-    fontFamilyHint: string;
-    fontFamilyDefault: string;
-    fontFamilyTajawal: string;
-    fontFamilyCairo: string;
     appearance: string;
     themeLight: string;
     themeDark: string;

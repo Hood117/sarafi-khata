@@ -1545,12 +1545,6 @@ export const fa: Dictionary = {
     textSizeDefault: "پیش‌فرض",
     textSizeLarge: "بزرگ",
     textSizeExtraLarge: "خیلی بزرگ",
-    fontFamily: "قلم",
-    fontFamilyHint:
-      "پیش‌فرض برای دری و پشتو Noto Sans Arabic است. تجوال و قاهره قلم‌های اختیاری عربی هستند.",
-    fontFamilyDefault: "پیش‌فرض (Noto Sans Arabic)",
-    fontFamilyTajawal: "تجوال",
-    fontFamilyCairo: "قاهره (Cairo)",
     appearance: "ظاهر",
     themeLight: "روشن",
     themeDark: "تاریک",

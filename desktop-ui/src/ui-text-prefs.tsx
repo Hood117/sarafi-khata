@@ -11,7 +11,7 @@ import {
 import { getUiTextPrefs, setUiTextPrefs } from "@desktop/api";
 
 export type UiFontSize = "small" | "default" | "large" | "extra-large";
-export type UiFontFamily = "default" | "tajawal" | "cairo";
+export type UiFontFamily = "default";
 
 const FONT_SIZE_KEY = "saraf.ui.fontSize";
 const FONT_FAMILY_KEY = "saraf.ui.fontFamily";
@@ -35,11 +35,7 @@ const FONT_SIZES: readonly UiFontSize[] = [
   "extra-large",
 ] as const;
 
-const FONT_FAMILIES: readonly UiFontFamily[] = [
-  "default",
-  "tajawal",
-  "cairo",
-] as const;
+const FONT_FAMILIES: readonly UiFontFamily[] = ["default"] as const;
 
 export function isUiFontSize(value: string): value is UiFontSize {
   return (FONT_SIZES as readonly string[]).includes(value);

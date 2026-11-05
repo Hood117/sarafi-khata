@@ -239,20 +239,6 @@
       ui-sans-serif, system-ui, sans-serif;
   }
 
-  html[data-font-family="tajawal"] {
-    --font-sans: var(--font-tajawal-face), var(--font-arabic-face),
-      ui-sans-serif, system-ui, sans-serif;
-    --font-heading: var(--font-tajawal-face), var(--font-arabic-face),
-      ui-sans-serif, system-ui, sans-serif;
-  }
-
-  html[data-font-family="cairo"] {
-    --font-sans: var(--font-cairo-face), var(--font-arabic-face), ui-sans-serif,
-      system-ui, sans-serif;
-    --font-heading: var(--font-cairo-face), var(--font-arabic-face),
-      ui-sans-serif, system-ui, sans-serif;
-  }
-
   html[dir="rtl"] body {
     direction: rtl;
   }

@@ -4628,35 +4628,6 @@ html[lang^="ps"] .stat-value {
   font-weight: 700;
 }
 
-/* Selectable Arabic UI fonts (override locale defaults) */
-html[data-font-family="tajawal"] {
-  --font-ui: "Tajawal", "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-  --font-display: "Tajawal", "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-}
-
-html[data-font-family="cairo"] {
-  --font-ui: "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-  --font-display: "Cairo", "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif;
-}
-
-html[data-font-family="tajawal"] body,
-html[data-font-family="cairo"] body {
-  font-family: var(--font-ui);
-  letter-spacing: 0;
-}
-
-html[data-font-family="tajawal"] .brand,
-html[data-font-family="tajawal"] h1,
-html[data-font-family="tajawal"] .section-title,
-html[data-font-family="tajawal"] .stat-value,
-html[data-font-family="cairo"] .brand,
-html[data-font-family="cairo"] h1,
-html[data-font-family="cairo"] .section-title,
-html[data-font-family="cairo"] .stat-value {
-  font-family: var(--font-display);
-  font-weight: 700;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;

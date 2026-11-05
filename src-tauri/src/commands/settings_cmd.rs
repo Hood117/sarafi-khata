@@ -76,11 +76,9 @@ fn normalize_font_size(raw: &str) -> Result<String, AppError> {
 
 fn normalize_font_family(raw: &str) -> Result<String, AppError> {
   match raw.trim().to_ascii_lowercase().as_str() {
-    "default" | "tajawal" | "cairo" => Ok(raw.trim().to_ascii_lowercase()),
-    "tajawol" => Ok("tajawal".into()),
-    _ => Err(AppError::Validation(
-      "fontFamily must be default, tajawal, or cairo".into(),
-    )),
+    // Legacy Tajawal/Cairo prefs map to the single Arabic UI font.
+    "default" | "tajawal" | "tajawol" | "cairo" => Ok(DEFAULT_FONT_FAMILY.into()),
+    _ => Err(AppError::Validation("fontFamily must be default".into())),
   }
 }
 
