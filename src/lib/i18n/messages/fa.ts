@@ -280,6 +280,7 @@ export const fa: Dictionary = {
     fingerprintHint: "انگشت ثبت‌شده را روی دستگاه بگذارید تا وارد شوید.",
     fingerprintScan: "اسکن اثر انگشت",
     fingerprintScanning: "در انتظار اثر انگشت…",
+    fingerprintNoFinger: "انگشتی تشخیص داده نشد. انگشت خود را روی دستگاه بگذارید.",
     fingerprintFailed: "ورود با اثر انگشت نشد. دوباره بکوشید یا از رمز استفاده کنید.",
   },
   license: {

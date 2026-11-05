@@ -4492,6 +4492,10 @@ tr.hawala-row-pending td {
   color: var(--ink-soft, #5b6b7c);
 }
 
+.fp-scan-hint.is-error {
+  color: #b42318;
+}
+
 .fp-scan-stage.is-idle .fp-scan-ring--outer {
   animation: fp-scan-breathe 2.8s ease-in-out infinite;
 }

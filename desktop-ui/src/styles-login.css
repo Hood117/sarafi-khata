@@ -277,6 +277,9 @@ html .auth-page.radefy-login .fp-scan-hint {
   color: #a7c1df;
   font-size: 12px;
 }
+html .auth-page.radefy-login .fp-scan-hint.is-error {
+  color: #ffcad0;
+}
 html .auth-page.radefy-login .fp-scan-stage.is-scanning .fp-scan-sensor {
   border-color: #c1e8ff;
   box-shadow:

@@ -25,9 +25,20 @@ import {
 import radefyLogo from "@desktop/assets/brand/radefy-sarafi-logo.png";
 import afghaniCoin from "@desktop/assets/brand/afghani-five-coin-angled.png";
 import { FingerprintScanStage } from "@desktop/components/fingerprint-scan-stage";
+import {
+  isUnmatchedFingerprint,
+  notifyWrongFingerprint,
+  playFingerprintSound,
+} from "@desktop/lib/fingerprint-sounds";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 
 type LoginMode = "password" | "fingerprint";
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 export function LoginPage() {
   const { session, bootstrapping, login, loginWithFingerprint } = useAuth();
@@ -84,6 +95,68 @@ export function LoginPage() {
       .catch(() => undefined);
   }, []);
 
+  // Fingerprint tab: wait on the reader continuously — no Scan button.
+  useEffect(() => {
+    if (bootstrapping || session || mode !== "fingerprint") return;
+
+    let cancelled = false;
+    setError(null);
+
+    void (async () => {
+      while (!cancelled) {
+        try {
+          await loginWithFingerprint();
+          if (cancelled) return;
+          playFingerprintSound("success");
+          return;
+        } catch (err: unknown) {
+          if (cancelled) return;
+          const msg = errorMessage(err, t.login.fingerprintFailed);
+          const lower = msg.toLowerCase();
+          if (
+            lower.includes("timed out") ||
+            lower.includes("waiting for a fingerprint") ||
+            lower.includes("place a finger")
+          ) {
+            setError(t.login.fingerprintNoFinger);
+            await sleep(2500);
+            if (cancelled) return;
+            setError(null);
+            continue;
+          }
+          if (isUnmatchedFingerprint(msg) || lower.includes("not recognized")) {
+            notifyWrongFingerprint();
+            setError(msg);
+            await sleep(900);
+            if (cancelled) return;
+            setError(null);
+            continue;
+          }
+          setError(msg);
+          await sleep(
+            lower.includes("no fingerprint reader") ||
+              lower.includes("no desk users") ||
+              lower.includes("not enrolled")
+              ? 1800
+              : 700,
+          );
+          if (cancelled) return;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bootstrapping,
+    session,
+    mode,
+    loginWithFingerprint,
+    t.login.fingerprintFailed,
+    t.login.fingerprintNoFinger,
+  ]);
+
   if (bootstrapping) {
     return (
       <div ref={shellRef} className="auth-page login-shell radefy-login">
@@ -119,19 +192,6 @@ export function LoginPage() {
       await login(user, pass);
     } catch (err: unknown) {
       setError(errorMessage(err, t.login.unableToSignIn));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleFingerprintSignIn() {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await loginWithFingerprint();
-    } catch (err: unknown) {
-      setError(errorMessage(err, t.login.fingerprintFailed));
     } finally {
       setBusy(false);
     }
@@ -298,21 +358,10 @@ export function LoginPage() {
             </form>
           ) : (
             <div className="stack login-fingerprint-panel">
-              <FingerprintScanStage
-                status={busy ? "scanning" : error ? "error" : "idle"}
-              />
-              <p className="fp-scan-hint">
-                {busy ? t.login.fingerprintScanning : t.login.fingerprintHint}
+              <FingerprintScanStage status={error ? "error" : "scanning"} />
+              <p className={error ? "fp-scan-hint is-error" : "fp-scan-hint"}>
+                {error || t.login.fingerprintHint}
               </p>
-              {error ? <p className="error">{error}</p> : null}
-              <button
-                type="button"
-                className="btn primary login-fp-action"
-                disabled={busy}
-                onClick={() => void handleFingerprintSignIn()}
-              >
-                {busy ? t.login.fingerprintScanning : t.login.fingerprintScan}
-              </button>
             </div>
           )}
           <div className="radefy-form-footer">

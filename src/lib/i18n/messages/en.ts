@@ -280,6 +280,7 @@ export const en: Dictionary = {
     fingerprintHint: "Place your enrolled finger on the reader to sign in.",
     fingerprintScan: "Scan fingerprint",
     fingerprintScanning: "Waiting for fingerprint…",
+    fingerprintNoFinger: "No finger detected. Place your finger on the reader.",
     fingerprintFailed: "Fingerprint sign-in failed. Try again or use your password.",
   },
   license: {

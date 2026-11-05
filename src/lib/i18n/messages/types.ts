@@ -278,6 +278,7 @@ export type Dictionary = {
     fingerprintHint: string;
     fingerprintScan: string;
     fingerprintScanning: string;
+    fingerprintNoFinger: string;
     fingerprintFailed: string;
   };
   license: {

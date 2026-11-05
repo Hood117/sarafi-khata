@@ -280,6 +280,7 @@ export const ps: Dictionary = {
     fingerprintHint: "د ننوتلو لپاره خپله ثبت شوې ګوته په لوستونکي کېږدئ.",
     fingerprintScan: "د ګوتې نښه سکین کړئ",
     fingerprintScanning: "د ګوتې نښې ته انتظار…",
+    fingerprintNoFinger: "ګوته ونه موندل شوه. خپله ګوته په لوستونکي کېږدئ.",
     fingerprintFailed: "د ګوتې نښې سره ننوتل ونشول. بیا هڅه وکړئ یا پټنوم وکاروئ.",
   },
   license: {

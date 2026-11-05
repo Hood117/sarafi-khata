@@ -23,7 +23,7 @@ const CAPTURE_TIMEOUT: Duration = Duration::from_secs(30);
 /// Responsive poll while listening — finger should register within ~1 tick.
 const IDENTIFY_POLL_INTERVAL: Duration = Duration::from_millis(200);
 /// Stay on the reader longer so we are not “deaf” between IPC rounds.
-const IDENTIFY_TIMEOUT: Duration = Duration::from_secs(8);
+const IDENTIFY_TIMEOUT: Duration = Duration::from_secs(15);
 const FINGER_OFF_STREAK: u32 = 5;
 const ENROLL_SCAN_COUNT: usize = 3;
 
