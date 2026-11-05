@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type FormEvent,
   type MouseEvent,
 } from "react";
@@ -35,6 +36,10 @@ import {
   formatWhatsAppDisplay,
 } from "@desktop/lib/app-developers";
 import { errorMessage } from "@desktop/lib/app-error";
+import {
+  formatLicenseKeyInput,
+  licenseKeyCaretAfterAlnum,
+} from "@desktop/lib/license-key-input";
 import { useAuthShellMotion } from "@desktop/lib/use-auth-shell-motion";
 import { openWhatsApp } from "@desktop/lib/whatsapp";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
@@ -93,6 +98,20 @@ export function LicenseActivatePage() {
     void openExternalUrl(event.currentTarget.href).catch(() => undefined);
   }
 
+  function handleLicenseKeyChange(event: ChangeEvent<HTMLInputElement>) {
+    const el = event.target;
+    const cursor = el.selectionStart ?? el.value.length;
+    const alnumBeforeCursor = el.value
+      .slice(0, cursor)
+      .replace(/[^A-Za-z0-9]/g, "").length;
+    const formatted = formatLicenseKeyInput(el.value);
+    setLicenseKey(formatted);
+    requestAnimationFrame(() => {
+      const nextPos = licenseKeyCaretAfterAlnum(formatted, alnumBeforeCursor);
+      el.setSelectionRange(nextPos, nextPos);
+    });
+  }
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!inDesktop) {
@@ -102,7 +121,7 @@ export function LicenseActivatePage() {
     setBusy(true);
     setError(null);
     try {
-      await activateLicense(licenseKey.trim());
+      await activateLicense(formatLicenseKeyInput(licenseKey));
       await reload();
     } catch (err: unknown) {
       setError(errorMessage(err, t.license.contactForKey));
@@ -248,7 +267,9 @@ export function LicenseActivatePage() {
                 required
                 value={licenseKey}
                 placeholder="SARAF-XXXX-XXXX-XXXX"
-                onChange={(e) => setLicenseKey(e.target.value.toUpperCase())}
+                maxLength={20}
+                inputMode="text"
+                onChange={handleLicenseKeyChange}
                 spellCheck={false}
                 autoComplete="off"
                 disabled={!inDesktop}
