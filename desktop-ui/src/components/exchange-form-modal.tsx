@@ -89,7 +89,7 @@ function emptyForm(buyCurrency = "", sellCurrency = "") {
   return {
     reference: "",
     valueDate: todayIso(),
-    partyMode: "walkin" as PartyMode,
+    partyMode: "customer" as PartyMode,
     dealSide: "buy" as DealSide,
     buyAmount: "",
     buyCurrency,
