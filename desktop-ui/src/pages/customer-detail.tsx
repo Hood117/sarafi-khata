@@ -52,20 +52,9 @@ import { useLocale, useT } from "@desktop/i18n";
 import { endSubmit, errorMessage, tryBeginSubmit } from "@desktop/lib/datetime";
 import {
   localizeCurrencyCodesInText,
+  localizedCurrencyName,
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
-
-function signedMoney(amount: number | string | null | undefined): number {
-  const n =
-    typeof amount === "number"
-      ? amount
-      : Number.parseFloat(
-          String(amount ?? "")
-            .replace(/,/g, "")
-            .replace(/−/g, "-"),
-        );
-  return Number.isFinite(n) ? n : 0;
-}
 import {
   EMPTY_JOURNAL_FILTER_TOTALS,
   journalFilterTotals,
@@ -99,6 +88,18 @@ import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SuccessModal } from "@desktop/ui/success-modal";
+
+function signedMoney(amount: number | string | null | undefined): number {
+  const n =
+    typeof amount === "number"
+      ? amount
+      : Number.parseFloat(
+          String(amount ?? "")
+            .replace(/,/g, "")
+            .replace(/−/g, "-"),
+        );
+  return Number.isFinite(n) ? n : 0;
+}
 
 function isEditableCustomerMovement(type: string, reference?: string | null) {
   const upper = type.toUpperCase();
@@ -960,15 +961,7 @@ export function CustomerDetailPage() {
                   {balances.length === 0 ? (
                     <p className="muted" style={{ margin: 0 }}>{t.common.noData}</p>
                   ) : (
-                    balances.map((b) => {
-                      const side = signedMoney(b.balanceDisplay);
-                      const sideLabel =
-                        side > 0
-                          ? t.customers.balanceJama
-                          : side < 0
-                            ? t.customers.balanceBanam
-                            : null;
-                      return (
+                    balances.map((b) => (
                         <button
                           type="button"
                           key={b.currencyCode}
@@ -980,6 +973,7 @@ export function CustomerDetailPage() {
                             .filter(Boolean)
                             .join(" ")}
                           aria-pressed={ledgerCurrency === b.currencyCode}
+                          title={`${b.balanceDisplay} ${b.currencyCode}`}
                           onClick={() =>
                             setLedgerCurrency((current) =>
                               current === b.currencyCode ? "ALL" : b.currencyCode,
@@ -991,19 +985,15 @@ export function CustomerDetailPage() {
                             className="cash-currency-flag"
                             size="sm"
                           />
-                          <span
-                            className="customer-balance-amount"
-                            dir="ltr"
-                          >
-                            {b.balanceDisplay}
+                          <span className="customer-money-code">
+                            {localizedCurrencyName(
+                              b.currencyCode,
+                              locale,
+                              b.currencyCode,
+                            )}
                           </span>
-                          <span className="customer-money-code">{b.currencyCode}</span>
-                          {sideLabel ? (
-                            <span className="customer-money-side">{sideLabel}</span>
-                          ) : null}
                         </button>
-                      );
-                    })
+                      ))
                   )}
                 </div>
                 {customer.isArchived ? null : (
@@ -1113,12 +1103,12 @@ export function CustomerDetailPage() {
                             <span
                               key={row.code}
                               className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
+                              title={`${row.amount} ${row.code}`}
                             >
                               <CurrencyFlag code={row.code} size="sm" />
-                              <span className="customer-history-closing-amount" dir="ltr">
-                                {row.amount}
+                              <span className="customer-history-closing-code">
+                                {localizedCurrencyName(row.code, locale, row.code)}
                               </span>
-                              <span className="customer-history-closing-code">{row.code}</span>
                               {sideLabel ? (
                                 <span className="customer-money-side">{sideLabel}</span>
                               ) : null}

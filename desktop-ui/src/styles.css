@@ -7592,11 +7592,8 @@ html[dir="rtl"] .customer-ledger-fab {
 }
 
 .customer-money-cell .customer-balance-amount {
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  line-height: 1;
+  /* Amounts belong in the ledger balance column / footer — hide on top chips. */
+  display: none !important;
 }
 
 .customer-money-side {
@@ -8128,6 +8125,8 @@ html[dir="rtl"] .customer-ledger-fab {
 }
 
 .customer-history-closing-amount {
+  /* Kept for print/export titles; chips no longer render amounts. */
+  display: none !important;
   font-size: 0.92rem;
 }
 

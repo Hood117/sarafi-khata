@@ -18,6 +18,7 @@ import {
 } from "@desktop/lib/movement-description";
 import { currenciesDiffer, formatFxAmount } from "@desktop/lib/movement-fx";
 import { newInternalRef } from "@desktop/lib/tx-ref";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
 
 type Side = "debit" | "credit";
@@ -31,7 +32,7 @@ type Props = {
 };
 
 function toNumber(value: string): number {
-  return Number(value.replace(/,/g, ""));
+  return Number(normalizeAmountInput(value));
 }
 
 export function InlineLedgerEntryRow({
@@ -46,9 +47,10 @@ export function InlineLedgerEntryRow({
   const { session } = useAuth();
   const rowRef = useRef<HTMLTableRowElement>(null);
   const creditRef = useRef<HTMLInputElement>(null);
+  const savingRef = useRef(false);
 
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
-  const [afnCode, setAfnCode] = useState("AFN");
+  const [shopDefaultCode, setShopDefaultCode] = useState("AFN");
   const [note, setNote] = useState("");
   const [side, setSide] = useState<Side>("credit");
   const [amount, setAmount] = useState("");
@@ -62,33 +64,51 @@ export function InlineLedgerEntryRow({
     creditRef.current?.focus();
     listCurrenciesPage({ activeOnly: true, pageSize: 100 })
       .then((page) => {
-        const code = pickDefaultCurrency(page.items);
-        setCurrencies(page.items);
-        setAfnCode(code);
+        const active = page.items.filter((c) => c.isActive !== false);
+        const code = pickDefaultCurrency(active);
+        setCurrencies(active);
+        setShopDefaultCode(code);
         setCurrency(code);
       })
       .catch((err: unknown) => setError(errorMessage(err)));
   }, []);
 
-  const foreign = currency !== "" && currenciesDiffer(currency, afnCode);
+  const foreign =
+    currency !== "" && currenciesDiffer(currency, shopDefaultCode);
   const rateNum = toNumber(rate);
-  const useRate = foreign && rateNum > 0;
-  const afnAmount = useRate ? formatFxAmount(toNumber(amount) * rateNum) : "";
+  const converting = foreign && rate.trim() !== "" && rateNum > 0;
+  const accountAmount = converting
+    ? formatFxAmount(toNumber(amount) * rateNum)
+    : "";
 
-  function autoNote(nextSide: Side, nextAmount: string, nextCurrency: string, nextRate: string) {
+  function autoNote(
+    nextSide: Side,
+    nextAmount: string,
+    nextCurrency: string,
+    nextRate: string,
+  ) {
     if (!(toNumber(nextAmount) > 0)) return "";
-    const fxRate = currenciesDiffer(nextCurrency, afnCode) ? toNumber(nextRate) : 0;
-    const ledgerCurrency = fxRate > 0 ? afnCode : nextCurrency;
+    const fxRate =
+      currenciesDiffer(nextCurrency, shopDefaultCode) && nextRate.trim() !== ""
+        ? toNumber(nextRate)
+        : 0;
+    const useFx = fxRate > 0;
+    // Same as deposit/withdraw: account currency is selected currency unless FX rate converts to shop default.
+    const ledgerCurrency = useFx ? shopDefaultCode : nextCurrency;
     const opts = {
       customerName,
-      amount: fxRate > 0 ? formatFxAmount(toNumber(nextAmount) * fxRate) : nextAmount,
+      amount: useFx
+        ? formatFxAmount(toNumber(nextAmount) * fxRate)
+        : normalizeAmountInput(nextAmount),
       currency: ledgerCurrency,
-      cashAmount: fxRate > 0 ? nextAmount : null,
-      cashCurrency: fxRate > 0 ? nextCurrency : null,
+      cashAmount: useFx ? normalizeAmountInput(nextAmount) : null,
+      cashCurrency: useFx ? nextCurrency : null,
       locale,
     };
     if (nextSide === "debit") return buildWithdrawDescription(t.desk, opts);
-    const bal = balances.find((b) => b.currencyCode.toUpperCase() === ledgerCurrency.toUpperCase());
+    const bal = balances.find(
+      (b) => b.currencyCode.toUpperCase() === ledgerCurrency.toUpperCase(),
+    );
     return buildDepositDescription(t.desk, {
       ...opts,
       isDebtRepayment: bal ? toNumber(bal.balanceDisplay) < 0 : false,
@@ -96,27 +116,54 @@ export function InlineLedgerEntryRow({
   }
 
   function typeAmount(nextSide: Side, value: string) {
+    const cleaned = normalizeAmountInput(value);
     setSide(nextSide);
-    setAmount(value);
-    setNote(autoNote(nextSide, value, currency, rate));
+    setAmount(cleaned);
+    setNote(autoNote(nextSide, cleaned, currency, rate));
     setError(null);
   }
 
   async function save() {
-    if (!session || saving) return;
-    if (!(toNumber(amount) > 0)) {
+    if (!session || savingRef.current) return;
+    const amountClean = normalizeAmountInput(amount);
+    if (!(Number(amountClean) > 0)) {
       setError(t.desk.enterAmount);
       return;
     }
+    if (!currency.trim()) {
+      setError(t.common.currency);
+      return;
+    }
+
+    const foreignNow = currenciesDiffer(currency, shopDefaultCode);
+    const rateClean = normalizeAmountInput(rate);
+    const rateN = Number(rateClean);
+    // Optional FX: only when a positive rate is entered for a non-default currency.
+    // Otherwise post the selected currency to the customer account (same as deposit/withdraw).
+    if (foreignNow && rate.trim() !== "" && !(rateN > 0)) {
+      setError(t.desk.rateRequired);
+      return;
+    }
+    const useFx = foreignNow && rateN > 0;
+    const accountAmt = useFx
+      ? formatFxAmount(Number(amountClean) * rateN)
+      : amountClean;
+    if (!(Number(accountAmt) > 0)) {
+      setError(t.desk.enterAmount);
+      return;
+    }
+
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     const input = {
       customerId,
-      currencyCode: useRate ? afnCode : currency,
-      amount: useRate ? afnAmount : amount.trim(),
-      cashCurrencyCode: useRate ? currency : undefined,
-      cashAmount: useRate ? amount.trim() : undefined,
-      highCurrencyCode: useRate ? currency : undefined,
+      currencyCode: useFx ? shopDefaultCode : currency.trim().toUpperCase(),
+      amount: accountAmt,
+      cashCurrencyCode: useFx ? currency.trim().toUpperCase() : undefined,
+      cashAmount: useFx ? amountClean : undefined,
+      highCurrencyCode: useFx ? currency.trim().toUpperCase() : undefined,
+      boardRate: useFx ? rateClean : undefined,
       valueDate: `${todayIso()} ${nowTime()}:00`,
       reference: newInternalRef(side === "credit" ? "DEP" : "WD"),
       description: note.trim() || undefined,
@@ -129,6 +176,7 @@ export function InlineLedgerEntryRow({
       onSaved();
     } catch (err: unknown) {
       setError(errorMessage(err, t.errors.genericTryAgain));
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -183,13 +231,15 @@ export function InlineLedgerEntryRow({
               aria-label={t.common.currency}
               value={currency}
               onChange={(e) => {
-                setCurrency(e.target.value);
+                const code = e.target.value;
+                setCurrency(code);
                 setRate("");
-                setNote(autoNote(side, amount, e.target.value, ""));
+                setNote(autoNote(side, amount, code, ""));
+                setError(null);
               }}
             >
               {currencies.map((c) => (
-                <option key={c.code} value={c.code}>
+                <option key={c.id || c.code} value={c.code}>
                   {localizedCurrencyName(c.code, locale, c.name)}
                 </option>
               ))}
@@ -203,14 +253,17 @@ export function InlineLedgerEntryRow({
               title={t.customers.ledgerRateToAfn}
               value={rate}
               onChange={(e) => {
-                setRate(e.target.value);
-                setNote(autoNote(side, amount, currency, e.target.value));
+                const cleaned = normalizeAmountInput(e.target.value);
+                setRate(cleaned);
+                setNote(autoNote(side, amount, currency, cleaned));
+                setError(null);
               }}
             />
           ) : null}
-          {afnAmount ? (
+          {converting && accountAmount ? (
             <small className="ledger-draft-preview">
-              = {afnAmount} {localizedCurrencyName(afnCode, locale, afnCode)}
+              = {accountAmount}{" "}
+              {localizedCurrencyName(shopDefaultCode, locale, shopDefaultCode)}
             </small>
           ) : null}
         </td>
