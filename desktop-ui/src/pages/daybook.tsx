@@ -41,7 +41,10 @@ import {
   colorizeAmountsInText,
   descriptionToneFromJournalRow,
 } from "@desktop/lib/colorize-amounts";
-import { moneyToneClass } from "@desktop/lib/currency-labels";
+import {
+  localizeCurrencyCodesInText,
+  moneyToneClass,
+} from "@desktop/lib/currency-labels";
 import { errorMessage, endSubmit, todayIso, tryBeginSubmit } from "@desktop/lib/datetime";
 import { journalTxRef } from "@desktop/lib/tx-ref";
 import {
@@ -891,7 +894,10 @@ export function DaybookPage() {
                               />
                               <span className="col-description-text">
                                 {colorizeAmountsInText(
-                                  line.description || "",
+                                  localizeCurrencyCodesInText(
+                                    line.description || "",
+                                    locale,
+                                  ),
                                   descriptionToneFromJournalRow(line),
                                 )}
                               </span>

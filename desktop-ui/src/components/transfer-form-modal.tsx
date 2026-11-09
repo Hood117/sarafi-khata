@@ -20,7 +20,7 @@ import {
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { MovementFxAmountFields } from "@desktop/components/movement-fx-amount-fields";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
@@ -160,6 +160,7 @@ export function TransferFormModal({
   editTransactionId = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const fromWrapRef = useRef<HTMLLabelElement>(null);
   const toWrapRef = useRef<HTMLLabelElement>(null);
@@ -405,6 +406,7 @@ export function TransferFormModal({
       currency: form.currencyCode,
       receiveAmount: form.receiveAmount,
       receiveCurrency: form.receiveCurrencyCode,
+      locale,
     });
     setForm((prev) =>
       prev.description === next ? prev : { ...prev, description: next },
@@ -418,6 +420,7 @@ export function TransferFormModal({
     form.receiveCurrencyCode,
     form.fromCustomerLabel,
     form.toCustomerLabel,
+    locale,
     t.desk,
   ]);
 

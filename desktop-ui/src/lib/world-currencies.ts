@@ -1,5 +1,8 @@
 /** World ISO 4217 currency catalog for Settings → Currencies (add to system). */
 
+import { currencySearchHaystack } from "@desktop/lib/currency-labels";
+import type { AppLocale } from "@/lib/i18n/locale";
+
 export type WorldCurrency = {
   code: string;
   name: string;
@@ -162,11 +165,13 @@ export const WORLD_CURRENCIES: WorldCurrency[] = [
   { code: "ZWL", name: "Zimbabwean Dollar", symbol: "$", decimalPlaces: 2 },
 ];
 
-export function searchWorldCurrencies(query: string): WorldCurrency[] {
+export function searchWorldCurrencies(
+  query: string,
+  locale: AppLocale = "en",
+): WorldCurrency[] {
   const q = query.trim().toLowerCase();
   if (!q) return WORLD_CURRENCIES;
-  return WORLD_CURRENCIES.filter((c) => {
-    const hay = `${c.code} ${c.name} ${c.symbol}`.toLowerCase();
-    return hay.includes(q);
-  });
+  return WORLD_CURRENCIES.filter((c) =>
+    currencySearchHaystack(c, locale).includes(q),
+  );
 }

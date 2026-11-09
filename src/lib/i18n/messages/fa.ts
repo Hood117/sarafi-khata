@@ -804,6 +804,11 @@ export const fa: Dictionary = {
     partnerCommissionAmount: "کمیشن همکار",
     ownCommissionAmount: "کمیشن من",
     postedSuccess: "{direction} ثبت شد: {reference}",
+    descVia:
+      "{sender} مبلغ {amount} {currency} را از طریق {account} به {receiver} فرستاد.",
+    descFrom:
+      "{sender} مبلغ {amount} {currency} را از طرف {from} به {receiver} فرستاد.",
+    descSimple: "{sender} مبلغ {amount} {currency} را به {receiver} فرستاد.",
     archivedOk: "حواله بایگانی شد.",
     archivedSoftOk: "حواله بایگانی شد (حذف نرم).",
     restoredOk: "حواله بازیابی شد.",
@@ -1511,6 +1516,11 @@ export const fa: Dictionary = {
     addToSystem: "افزودن",
     alreadyInSystem: "افزوده شده",
     inSystem: "در سیستم",
+    selectedCount: "{count} انتخاب شد",
+    selectAll: "انتخاب همه",
+    clearSelection: "پاک کردن",
+    deactivateSelected: "غیرفعال‌سازی انتخاب‌شده‌ها",
+    addSelected: "افزودن انتخاب‌شده‌ها",
   },
   exchangeRates: {
     add: "افزودن نرخ",

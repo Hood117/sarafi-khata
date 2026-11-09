@@ -5,7 +5,11 @@ import {
   getExchangeDealDetail,
   type ExchangeDealDetail,
 } from "@desktop/api";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import {
+  localizeCurrencyCodesInText,
+  localizedCurrencyName,
+} from "@desktop/lib/currency-labels";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
@@ -86,6 +90,7 @@ export function ExchangeDealDetailModal({
   onClose,
 }: ModalProps) {
   const t = useT();
+  const { locale } = useLocale();
   const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
 
   useEffect(() => {
@@ -112,7 +117,11 @@ export function ExchangeDealDetailModal({
   if (!detail && !busy && !error) return null;
 
   const summary = detail
-    ? `${partyName(detail)} exchanged ${detail.fromAmount} ${detail.fromCurrency} → ${detail.toAmount} ${detail.toCurrency}`
+    ? localizeCurrencyCodesInText(
+        (detail.description ?? "").trim() ||
+          `${partyName(detail)} exchanged ${detail.fromAmount} ${localizedCurrencyName(detail.fromCurrency, locale, detail.fromCurrency)} → ${detail.toAmount} ${localizedCurrencyName(detail.toCurrency, locale, detail.toCurrency)}`,
+        locale,
+      )
     : "";
   const pnlLabel = detail
     ? detail.isProfit

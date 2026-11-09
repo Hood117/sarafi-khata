@@ -2,7 +2,8 @@ import { useEffect, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 import { getAppInfo, type ExpenseRow } from "@desktop/api";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 
@@ -50,6 +51,7 @@ type ModalProps = {
  */
 export function ExpenseDetailModal({ detail, onClose }: ModalProps) {
   const t = useT();
+  const { locale } = useLocale();
   const [businessName, setBusinessName] = useState("Radefy Sarafi Offline");
 
   useEffect(() => {
@@ -124,11 +126,13 @@ export function ExpenseDetailModal({ detail, onClose }: ModalProps) {
               <span className="muted">{t.common.currency}</span>
               <div>
                 {currency}
-                {detail.currencyName ? (
-                  <div className="muted" style={{ fontSize: "0.85rem" }}>
-                    {detail.currencyName}
-                  </div>
-                ) : null}
+                <div className="muted" style={{ fontSize: "0.85rem" }}>
+                  {localizedCurrencyName(
+                    detail.currencyCode,
+                    locale,
+                    detail.currencyName,
+                  )}
+                </div>
               </div>
             </div>
             <div>

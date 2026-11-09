@@ -24,7 +24,8 @@ import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { Pagination } from "@desktop/ui/pagination";
 import { Stat } from "@desktop/ui/stat";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import {
   endSubmit,
   errorMessage,
@@ -40,6 +41,7 @@ import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 
 export function ExpensesPage() {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const [categories, setCategories] = useState<ExpenseCategoryOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
@@ -311,11 +313,13 @@ export function ExpensesPage() {
                     <td>
                       {row.currencyCode}
                       {row.currencySymbol ? ` (${row.currencySymbol})` : ""}
-                      {row.currencyName ? (
-                        <div className="muted" style={{ fontSize: "0.8rem" }}>
-                          {row.currencyName}
-                        </div>
-                      ) : null}
+                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        {localizedCurrencyName(
+                          row.currencyCode,
+                          locale,
+                          row.currencyName,
+                        )}
+                      </div>
                     </td>
                     <td>{txDisplayRef(row)}</td>
                     <td>{row.cashWalletName ?? "—"}</td>

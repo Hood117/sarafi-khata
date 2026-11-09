@@ -1,5 +1,8 @@
 /** Build localized movement descriptions shown in forms and stored on the transaction. */
 
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
+import type { AppLocale } from "@/lib/i18n/locale";
+
 export type MovementDescT = {
   movementDescDepositSelf: string;
   movementDescDepositOther: string;
@@ -15,6 +18,12 @@ export type MovementDescT = {
   movementDescTransferFx: string;
 };
 
+export type HawalaDescT = {
+  descVia: string;
+  descFrom: string;
+  descSimple: string;
+};
+
 function fill(
   template: string,
   vars: Record<string, string>,
@@ -24,6 +33,12 @@ function fill(
     out = out.split(`{${key}}`).join(value);
   }
   return out;
+}
+
+function moneyLabel(code: string, locale: AppLocale): string {
+  const trimmed = code.trim();
+  if (!trimmed) return "";
+  return localizedCurrencyName(trimmed, locale, trimmed);
 }
 
 function isFx(
@@ -52,15 +67,18 @@ export function buildDepositDescription(
     actedByName?: string | null;
     /** True when customer balance in this currency is negative (owes Sarafi). */
     isDebtRepayment?: boolean;
+    locale: AppLocale;
   },
 ): string {
   const name = opts.customerName.trim() || "—";
   const amount = opts.amount.trim() || "0";
-  const currency = opts.currency.trim() || "";
+  const currencyCode = opts.currency.trim() || "";
+  const currency = moneyLabel(currencyCode, opts.locale);
   const actor = opts.actedByName?.trim();
   const cashAmount = opts.cashAmount?.trim() || amount;
-  const cashCurrency = opts.cashCurrency?.trim() || currency;
-  const fx = isFx(amount, currency, cashAmount, cashCurrency);
+  const cashCurrencyCode = opts.cashCurrency?.trim() || currencyCode;
+  const cashCurrency = moneyLabel(cashCurrencyCode, opts.locale);
+  const fx = isFx(amount, currencyCode, cashAmount, cashCurrencyCode);
 
   if (opts.isDebtRepayment) {
     if (fx) {
@@ -108,15 +126,18 @@ export function buildWithdrawDescription(
     cashAmount?: string | null;
     cashCurrency?: string | null;
     actedByName?: string | null;
+    locale: AppLocale;
   },
 ): string {
   const name = opts.customerName.trim() || "—";
   const amount = opts.amount.trim() || "0";
-  const currency = opts.currency.trim() || "";
+  const currencyCode = opts.currency.trim() || "";
+  const currency = moneyLabel(currencyCode, opts.locale);
   const actor = opts.actedByName?.trim();
   const cashAmount = opts.cashAmount?.trim() || amount;
-  const cashCurrency = opts.cashCurrency?.trim() || currency;
-  if (isFx(amount, currency, cashAmount, cashCurrency)) {
+  const cashCurrencyCode = opts.cashCurrency?.trim() || currencyCode;
+  const cashCurrency = moneyLabel(cashCurrencyCode, opts.locale);
+  if (isFx(amount, currencyCode, cashAmount, cashCurrencyCode)) {
     const vars = {
       name,
       cashAmount,
@@ -149,15 +170,18 @@ export function buildTransferDescription(
     currency: string;
     receiveAmount?: string | null;
     receiveCurrency?: string | null;
+    locale: AppLocale;
   },
 ): string {
   const from = opts.fromName.trim() || "—";
   const to = opts.toName.trim() || "—";
   const amount = opts.amount.trim() || "0";
-  const currency = opts.currency.trim() || "";
+  const currencyCode = opts.currency.trim() || "";
+  const currency = moneyLabel(currencyCode, opts.locale);
   const receiveAmount = opts.receiveAmount?.trim() || amount;
-  const receiveCurrency = opts.receiveCurrency?.trim() || currency;
-  if (isFx(amount, currency, receiveAmount, receiveCurrency)) {
+  const receiveCurrencyCode = opts.receiveCurrency?.trim() || currencyCode;
+  const receiveCurrency = moneyLabel(receiveCurrencyCode, opts.locale);
+  if (isFx(amount, currencyCode, receiveAmount, receiveCurrencyCode)) {
     return fill(t.movementDescTransferFx, {
       from,
       to,
@@ -173,4 +197,31 @@ export function buildTransferDescription(
     amount,
     currency,
   });
+}
+
+export function buildHawalaDescription(
+  t: HawalaDescT,
+  opts: {
+    senderName: string;
+    receiverName: string;
+    amount: string;
+    currency: string;
+    viaAccount?: string | null;
+    onBehalfOf?: string | null;
+    locale: AppLocale;
+  },
+): string {
+  const sender = opts.senderName.trim() || "—";
+  const receiver = opts.receiverName.trim() || "—";
+  const amount = opts.amount.trim() || "0";
+  const currency = moneyLabel(opts.currency, opts.locale);
+  const via = opts.viaAccount?.trim();
+  const from = opts.onBehalfOf?.trim();
+  if (via) {
+    return fill(t.descVia, { sender, receiver, amount, currency, account: via });
+  }
+  if (from) {
+    return fill(t.descFrom, { sender, receiver, amount, currency, from });
+  }
+  return fill(t.descSimple, { sender, receiver, amount, currency });
 }

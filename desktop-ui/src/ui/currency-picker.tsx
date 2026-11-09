@@ -142,8 +142,7 @@ export function CurrencyPicker({
     const worldFiltered = WORLD_CURRENCIES.filter((w) => {
       if (systemCodes.has(w.code.toUpperCase())) return false;
       if (!q) return false; // only suggest world adds when searching
-      const hay = `${w.code} ${w.name} ${w.symbol}`.toLowerCase();
-      return hay.includes(q);
+      return currencySearchHaystack(w, locale).includes(q);
     }).slice(0, 12);
     for (const item of sortCodes(worldFiltered)) {
       out.push({ kind: "world", item });
@@ -436,7 +435,9 @@ export function CurrencyPicker({
                     <span>{w.code}</span>
                   </span>
                   <span className="customer-suggest-meta">
-                    <span className="muted">{w.name}</span>
+                    <span className="muted">
+                      {localizedCurrencyName(w.code, locale, w.name)}
+                    </span>
                     <span className="currency-suggest-action">
                       {t.currencies.addToSystem}
                     </span>

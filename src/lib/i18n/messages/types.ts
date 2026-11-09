@@ -789,6 +789,12 @@ export type Dictionary = {
     partnerCommissionAmount: string;
     ownCommissionAmount: string;
     postedSuccess: string;
+    /** "{sender} sent {amount} {currency} to {receiver} via {account}." */
+    descVia: string;
+    /** "{sender} sent {amount} {currency} to {receiver} from {from}." */
+    descFrom: string;
+    /** "{sender} sent {amount} {currency} to {receiver}." */
+    descSimple: string;
     archivedOk: string;
     archivedSoftOk: string;
     restoredOk: string;
@@ -1452,6 +1458,11 @@ export type Dictionary = {
     addToSystem: string;
     alreadyInSystem: string;
     inSystem: string;
+    selectedCount: string;
+    selectAll: string;
+    clearSelection: string;
+    deactivateSelected: string;
+    addSelected: string;
   };
   exchangeRates: {
     add: string;

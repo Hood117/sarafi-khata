@@ -73,6 +73,10 @@ import {
   technicalErrorText,
   userFacingError,
 } from "@desktop/lib/app-error";
+import {
+  currencySearchHaystack,
+  localizedCurrencyName,
+} from "@desktop/lib/currency-labels";
 import { searchWorldCurrencies, type WorldCurrency } from "@desktop/lib/world-currencies";
 import { CurrencyCodeWithFlag, CurrencyFlag } from "@desktop/ui/currency-flag";
 import { APP_LOCALES, type AppLocale } from "@/lib/i18n/locale";
@@ -223,6 +227,14 @@ export function SettingsPage() {
   const [inactiveByCode, setInactiveByCode] = useState<
     Record<string, CurrencyListItem>
   >({});
+  /** Multi-select for catalog (active) currencies — keyed by id. */
+  const [selectedCatalog, setSelectedCatalog] = useState<
+    Record<string, CurrencyListItem>
+  >({});
+  /** Multi-select for world currencies to add — keyed by code. */
+  const [selectedWorld, setSelectedWorld] = useState<Record<string, WorldCurrency>>(
+    {},
+  );
 
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
@@ -520,34 +532,112 @@ export function SettingsPage() {
     }
   }
 
+  function clearCurrencySelection() {
+    setSelectedCatalog({});
+    setSelectedWorld({});
+  }
+
+  function toggleCatalogSelected(row: CurrencyListItem) {
+    setSelectedCatalog((prev) => {
+      const next = { ...prev };
+      if (next[row.id]) delete next[row.id];
+      else next[row.id] = row;
+      return next;
+    });
+  }
+
+  function toggleWorldSelected(row: WorldCurrency) {
+    const code = (row.code || "").trim().toUpperCase();
+    if (!code || activeCurrencyCodes[code]) return;
+    setSelectedWorld((prev) => {
+      const next = { ...prev };
+      if (next[code]) delete next[code];
+      else next[code] = { ...row, code };
+      return next;
+    });
+  }
+
+  function setCatalogPageSelected(select: boolean) {
+    setSelectedCatalog((prev) => {
+      const next = { ...prev };
+      for (const row of currencies) {
+        if (select) next[row.id] = row;
+        else delete next[row.id];
+      }
+      return next;
+    });
+  }
+
+  function setWorldPageSelected(rows: WorldCurrency[], select: boolean) {
+    setSelectedWorld((prev) => {
+      const next = { ...prev };
+      for (const row of rows) {
+        const code = (row.code || "").trim().toUpperCase();
+        if (!code || activeCurrencyCodes[code]) continue;
+        if (select) next[code] = { ...row, code };
+        else delete next[code];
+      }
+      return next;
+    });
+  }
+
+  async function activateWorldCurrency(row: WorldCurrency) {
+    const code = row.code.toUpperCase();
+    if (activeCurrencyCodes[code]) return;
+    const inactive = inactiveByCode[code];
+    if (inactive) {
+      await updateCurrency({
+        id: inactive.id,
+        name: inactive.name,
+        symbol: inactive.symbol,
+        decimalPlaces: inactive.decimalPlaces,
+        isActive: true,
+      });
+    } else {
+      await createCurrency({
+        code: row.code,
+        name: row.name,
+        symbol: row.symbol || null,
+        decimalPlaces: row.decimalPlaces,
+        isActive: true,
+      });
+    }
+  }
+
   async function handleAddWorldCurrency(row: WorldCurrency) {
     const code = row.code.toUpperCase();
     if (activeCurrencyCodes[code]) return;
     setCurrencyBusy(true);
     setCurrencyError(null);
     try {
-      const inactive = inactiveByCode[code];
-      if (inactive) {
-        await updateCurrency({
-          id: inactive.id,
-          name: inactive.name,
-          symbol: inactive.symbol,
-          decimalPlaces: inactive.decimalPlaces,
-          isActive: true,
-        });
-      } else {
-        await createCurrency({
-          code: row.code,
-          name: row.name,
-          symbol: row.symbol || null,
-          decimalPlaces: row.decimalPlaces,
-          isActive: true,
-        });
-      }
+      await activateWorldCurrency(row);
       showSuccess(t.common.success);
+      clearCurrencySelection();
       refreshCurrencies();
     } catch (err: unknown) {
       setCurrencyError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCurrencyBusy(false);
+    }
+  }
+
+  async function handleAddSelectedWorldCurrencies() {
+    const rows = Object.values(selectedWorld).filter(
+      (row) => !activeCurrencyCodes[(row.code || "").trim().toUpperCase()],
+    );
+    if (rows.length === 0) return;
+    setCurrencyBusy(true);
+    setCurrencyError(null);
+    try {
+      for (const row of rows) {
+        await activateWorldCurrency(row);
+      }
+      showSuccess(t.common.success);
+      clearCurrencySelection();
+      refreshCurrencies();
+    } catch (err: unknown) {
+      setCurrencyError(err instanceof Error ? err.message : String(err));
+      refreshCurrencies();
     } finally {
       setCurrencyBusy(false);
     }
@@ -566,6 +656,7 @@ export function SettingsPage() {
         isActive: false,
       });
       showSuccess(t.common.deactivate);
+      clearCurrencySelection();
       refreshCurrencies();
     } catch (err: unknown) {
       setCurrencyError(err instanceof Error ? err.message : String(err));
@@ -574,8 +665,34 @@ export function SettingsPage() {
     }
   }
 
+  async function handleDeactivateSelectedCurrencies() {
+    const rows = Object.values(selectedCatalog).filter((row) => row.isActive);
+    if (rows.length === 0) return;
+    setCurrencyBusy(true);
+    setCurrencyError(null);
+    try {
+      for (const row of rows) {
+        await updateCurrency({
+          id: row.id,
+          name: row.name,
+          symbol: row.symbol,
+          decimalPlaces: row.decimalPlaces,
+          isActive: false,
+        });
+      }
+      showSuccess(t.common.deactivate);
+      clearCurrencySelection();
+      refreshCurrencies();
+    } catch (err: unknown) {
+      setCurrencyError(err instanceof Error ? err.message : String(err));
+      refreshCurrencies();
+    } finally {
+      setCurrencyBusy(false);
+    }
+  }
+
   const worldRows = useMemo(() => {
-    const base = searchWorldCurrencies(worldSearch);
+    const base = searchWorldCurrencies(worldSearch, locale);
     const q = worldSearch.trim().toLowerCase();
     const seen = new Set(
       base.map((c) => (c.code || "").trim().toUpperCase()).filter(Boolean),
@@ -585,7 +702,7 @@ export function SettingsPage() {
       const code = (row.code || "").trim().toUpperCase();
       if (!code || seen.has(code)) continue;
       if (q) {
-        const hay = `${row.code} ${row.name} ${row.symbol ?? ""}`.toLowerCase();
+        const hay = currencySearchHaystack(row, locale);
         if (!hay.includes(q)) continue;
       }
       extras.push({
@@ -597,7 +714,7 @@ export function SettingsPage() {
     }
     extras.sort((a, b) => a.code.localeCompare(b.code));
     return [...base, ...extras];
-  }, [worldSearch, inactiveByCode]);
+  }, [worldSearch, inactiveByCode, locale]);
 
   const worldPageRows = useMemo(() => {
     const start = (worldPage - 1) * worldPageSize;
@@ -768,7 +885,10 @@ export function SettingsPage() {
               role="tab"
               aria-selected={currencyPanel === "system"}
               className={`settings-tab${currencyPanel === "system" ? " active" : ""}`}
-              onClick={() => setCurrencyPanel("system")}
+              onClick={() => {
+                setCurrencyPanel("system");
+                clearCurrencySelection();
+              }}
             >
               {t.settings.catalog}
             </button>
@@ -780,6 +900,7 @@ export function SettingsPage() {
               onClick={() => {
                 setCurrencyPanel("world");
                 setWorldPage(1);
+                clearCurrencySelection();
               }}
             >
               {t.currencies.worldCatalog}
@@ -790,9 +911,47 @@ export function SettingsPage() {
 
           {currencyPanel === "system" ? (
             <>
-              <table>
+              {Object.keys(selectedCatalog).length > 0 ? (
+                <div className="currency-bulk-bar row" role="status">
+                  <span className="muted">
+                    {t.currencies.selectedCount.replace(
+                      "{count}",
+                      String(Object.keys(selectedCatalog).length),
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={currencyBusy}
+                    onClick={clearCurrencySelection}
+                  >
+                    {t.currencies.clearSelection}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    disabled={currencyBusy}
+                    onClick={() => void handleDeactivateSelectedCurrencies()}
+                  >
+                    {t.currencies.deactivateSelected}
+                  </button>
+                </div>
+              ) : null}
+              <table className="currency-select-table">
                 <thead>
                   <tr>
+                    <th className="currency-select-cell" aria-label={t.currencies.selectAll}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          currencies.length > 0 &&
+                          currencies.every((row) => Boolean(selectedCatalog[row.id]))
+                        }
+                        disabled={currencyBusy || currencies.length === 0}
+                        onChange={(e) => setCatalogPageSelected(e.target.checked)}
+                        aria-label={t.currencies.selectAll}
+                      />
+                    </th>
                     <th>{t.currencies.code}</th>
                     <th>{t.common.name}</th>
                     <th>{t.currencies.symbol}</th>
@@ -804,34 +963,54 @@ export function SettingsPage() {
                 <tbody>
                   {currencies.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="muted">
+                      <td colSpan={7} className="muted">
                         {t.currencies.emptyTitle}
                       </td>
                     </tr>
                   ) : (
-                    currencies.map((row) => (
-                      <tr key={row.id}>
-                        <td>
-                          <CurrencyCodeWithFlag code={row.code} />
-                        </td>
-                        <td>{row.name}</td>
-                        <td>{row.symbol ?? "—"}</td>
-                        <td>{row.decimalPlaces}</td>
-                        <td>
-                          <span className="badge badge-ok">{t.common.active}</span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="secondary"
-                            disabled={currencyBusy}
-                            onClick={() => void toggleCurrencyActive(row)}
-                          >
-                            {t.common.deactivate}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    currencies.map((row) => {
+                      const selected = Boolean(selectedCatalog[row.id]);
+                      return (
+                        <tr
+                          key={row.id}
+                          className={selected ? "is-selected" : undefined}
+                          onClick={() => toggleCatalogSelected(row)}
+                        >
+                          <td className="currency-select-cell">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              disabled={currencyBusy}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={() => toggleCatalogSelected(row)}
+                              aria-label={row.code}
+                            />
+                          </td>
+                          <td>
+                            <CurrencyCodeWithFlag code={row.code} />
+                          </td>
+                          <td>{localizedCurrencyName(row.code, locale, row.name)}</td>
+                          <td>{row.symbol ?? "—"}</td>
+                          <td>{row.decimalPlaces}</td>
+                          <td>
+                            <span className="badge badge-ok">{t.common.active}</span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={currencyBusy}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void toggleCurrencyActive(row);
+                              }}
+                            >
+                              {t.common.deactivate}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -857,9 +1036,67 @@ export function SettingsPage() {
                   onChange={(e) => {
                     setWorldSearch(e.target.value);
                     setWorldPage(1);
+                    setSelectedWorld({});
                   }}
                 />
               </label>
+              {(() => {
+                const selectedCount = Object.keys(selectedWorld).length;
+                const selectablePage = worldPageRows.filter((row) => {
+                  const code = (row.code || "").trim().toUpperCase();
+                  return code && !activeCurrencyCodes[code];
+                });
+                const allPageSelected =
+                  selectablePage.length > 0 &&
+                  selectablePage.every((row) =>
+                    Boolean(selectedWorld[(row.code || "").trim().toUpperCase()]),
+                  );
+                return (
+                  <div className="currency-bulk-bar row" role="status">
+                    {selectedCount > 0 ? (
+                      <>
+                        <span className="muted">
+                          {t.currencies.selectedCount.replace(
+                            "{count}",
+                            String(selectedCount),
+                          )}
+                        </span>
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={currencyBusy}
+                          onClick={clearCurrencySelection}
+                        >
+                          {t.currencies.clearSelection}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn primary"
+                          disabled={currencyBusy}
+                          onClick={() => void handleAddSelectedWorldCurrencies()}
+                        >
+                          {t.currencies.addSelected}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="muted">{t.currencies.selectAll}</span>
+                        <label className="currency-select-all">
+                          <input
+                            type="checkbox"
+                            checked={allPageSelected}
+                            disabled={currencyBusy || selectablePage.length === 0}
+                            onChange={(e) =>
+                              setWorldPageSelected(worldPageRows, e.target.checked)
+                            }
+                            aria-label={t.currencies.selectAll}
+                          />
+                        </label>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="world-currency-list" role="list">
                 {worldPageRows.length === 0 ? (
                   <p className="muted" style={{ margin: "0.75rem" }}>
@@ -869,15 +1106,40 @@ export function SettingsPage() {
                   worldPageRows.map((row) => {
                     const code = (row.code || "").trim().toUpperCase();
                     const inSystem = Boolean(activeCurrencyCodes[code]);
+                    const selected = Boolean(selectedWorld[code]);
                     return (
-                      <div key={code || row.name} className="world-currency-row" role="listitem">
+                      <div
+                        key={code || row.name}
+                        className={[
+                          "world-currency-row",
+                          selected ? "is-selected" : "",
+                          inSystem ? "is-disabled" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        role="listitem"
+                        onClick={() => {
+                          if (!inSystem) toggleWorldSelected(row);
+                        }}
+                      >
+                        <label className="currency-select-cell" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            disabled={currencyBusy || inSystem}
+                            onChange={() => toggleWorldSelected(row)}
+                            aria-label={code}
+                          />
+                        </label>
                         <CurrencyFlag code={code} size="md" />
                         <div className="world-currency-meta">
                           <strong>
                             {code}
                             {row.symbol ? ` · ${row.symbol}` : ""}
                           </strong>
-                          <span className="muted">{row.name}</span>
+                          <span className="muted">
+                            {localizedCurrencyName(code, locale, row.name)}
+                          </span>
                         </div>
                         <span className="muted" style={{ fontSize: "0.8rem" }}>
                           {row.decimalPlaces} {t.currencies.decimals}
@@ -889,7 +1151,10 @@ export function SettingsPage() {
                             type="button"
                             className="btn primary"
                             disabled={currencyBusy}
-                            onClick={() => void handleAddWorldCurrency(row)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleAddWorldCurrency(row);
+                            }}
                           >
                             {t.currencies.addToSystem}
                           </button>

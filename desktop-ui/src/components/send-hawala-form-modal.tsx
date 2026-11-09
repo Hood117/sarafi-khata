@@ -19,7 +19,7 @@ import {
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
@@ -33,6 +33,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { buildHawalaDescription } from "@desktop/lib/movement-description";
 import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import {
@@ -112,6 +113,7 @@ export function SendHawalaFormModal({
   editTransactionId = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const amountRef = useRef<HTMLInputElement>(null);
   const senderSearchRef = useRef<HTMLLabelElement>(null);
@@ -570,10 +572,29 @@ export function SendHawalaFormModal({
         commissionN > 0
           ? String(form.commission).replace(/,/g, "").trim()
           : null;
+      const senderDisplay = isSend
+        ? form.senderMode === "customer"
+          ? form.senderLabel.trim() || form.senderName.trim()
+          : form.senderName.trim()
+        : form.senderName.trim();
+      const receiverDisplay = isSend
+        ? form.receiverName.trim() || form.receiverLabel.trim()
+        : form.receiverMode === "customer"
+          ? form.receiverLabel.trim() || form.receiverName.trim()
+          : form.receiverName.trim();
+      const amountMajor = form.amount.replace(/,/g, "").trim();
+      const description = buildHawalaDescription(t.hawala, {
+        senderName: senderDisplay,
+        receiverName: receiverDisplay,
+        amount: amountMajor,
+        currency: form.currencyCode,
+        viaAccount: isSend ? form.receiverLabel.trim() || null : null,
+        locale,
+      });
       const payload = {
         reference: hawalaNumber,
         currencyCode: form.currencyCode,
-        amount: form.amount.replace(/,/g, "").trim(),
+        amount: amountMajor,
         valueDate: form.valueDate || todayIso(),
         createdById: session.userId,
         originCity: form.originCity || "Kabul",
@@ -602,6 +623,7 @@ export function SendHawalaFormModal({
             : null,
         customerNotes: null,
         receivingAccount: isSend ? form.receiverLabel.trim() || null : null,
+        description,
         notes:
           appendEmployeeLine(undefined, employeeName, t.employees.employee) ||
           null,

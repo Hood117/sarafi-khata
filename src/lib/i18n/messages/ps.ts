@@ -804,6 +804,11 @@ export const ps: Dictionary = {
     partnerCommissionAmount: "د شریک کمیشن",
     ownCommissionAmount: "زما کمیشن",
     postedSuccess: "{direction} ثبت شو: {reference}",
+    descVia:
+      "{sender} {amount} {currency} {receiver} ته د {account} له لارې ولیږل.",
+    descFrom:
+      "{sender} {amount} {currency} {receiver} ته د {from} له خوا ولیږل.",
+    descSimple: "{sender} {amount} {currency} {receiver} ته ولیږل.",
     archivedOk: "حواله آرشیف شوه.",
     archivedSoftOk: "حواله آرشیف شوه (نرم حذف).",
     restoredOk: "حواله بېرته راغله.",
@@ -1511,6 +1516,11 @@ export const ps: Dictionary = {
     addToSystem: "زیاتول",
     alreadyInSystem: "زیات شوی",
     inSystem: "په سیستم کې",
+    selectedCount: "{count} ټاکل شوي",
+    selectAll: "ټول وټاکئ",
+    clearSelection: "پاکول",
+    deactivateSelected: "ټاکل شوي غیر فعال کړئ",
+    addSelected: "ټاکل شوي زیات کړئ",
   },
   exchangeRates: {
     add: "نرخ زیاتول",

@@ -21,7 +21,7 @@ import {
   type PartnerListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
@@ -34,6 +34,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { buildHawalaDescription } from "@desktop/lib/movement-description";
 import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { resolveCommission } from "@desktop/pages/hawala-helpers";
@@ -134,6 +135,7 @@ export function HawalaFormModal({
   editTransactionId = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const amountRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLLabelElement>(null);
@@ -636,11 +638,29 @@ export function HawalaFormModal({
     setSaving(true);
     setError(null);
     try {
+      const amountMajor = sendAmount.replace(/,/g, "");
+      const partnerName =
+        partners.find((p) => p.id === form.partnerId)?.name?.trim() || "";
+      const otherName = form.otherPartyName.trim();
+      const senderDisplay = isSend
+        ? localName || "—"
+        : otherName || partnerName || "—";
+      const receiverDisplay = isSend
+        ? otherName || partnerName || "—"
+        : localName || "—";
+      const description = buildHawalaDescription(t.hawala, {
+        senderName: senderDisplay,
+        receiverName: receiverDisplay,
+        amount: amountMajor,
+        currency: form.sendCurrency,
+        viaAccount: isSend ? partnerName || null : null,
+        locale,
+      });
       const payload = {
         reference: hawalaNumber,
         partnerSarafiId: form.partnerId,
         currencyCode: form.sendCurrency,
-        amount: sendAmount.replace(/,/g, ""),
+        amount: amountMajor,
         valueDate: form.valueDate || todayIso(),
         createdById: session.userId,
         originCity,
@@ -661,6 +681,7 @@ export function HawalaFormModal({
             : localName
           : form.otherPartyName.trim() || null,
         receiverPhone: !isSend ? localPhone : null,
+        description,
         notes: appendEmployeeLine(
           form.notes.trim() || undefined,
           employeeName,

@@ -18,7 +18,7 @@ import {
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { MovementFxAmountFields } from "@desktop/components/movement-fx-amount-fields";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
@@ -89,6 +89,7 @@ export function WithdrawFormModal({
   initialCustomer = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const searchWrapRef = useRef<HTMLLabelElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -295,6 +296,7 @@ export function WithdrawFormModal({
       cashAmount: form.cashAmount,
       cashCurrency: form.cashCurrencyCode,
       actedByName: actedBy,
+      locale,
     });
     setForm((prev) =>
       prev.description === next ? prev : { ...prev, description: next },
@@ -309,6 +311,7 @@ export function WithdrawFormModal({
     form.customerLabel,
     form.receiverType,
     form.receiverName,
+    locale,
     t.desk,
   ]);
 

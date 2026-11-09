@@ -49,7 +49,10 @@ import {
 import { WithdrawFormModal } from "@desktop/components/withdraw-form-modal";
 import { useLocale, useT } from "@desktop/i18n";
 import { endSubmit, errorMessage, tryBeginSubmit } from "@desktop/lib/datetime";
-import { moneyToneClass } from "@desktop/lib/currency-labels";
+import {
+  localizeCurrencyCodesInText,
+  moneyToneClass,
+} from "@desktop/lib/currency-labels";
 import {
   EMPTY_JOURNAL_FILTER_TOTALS,
   journalFilterTotals,
@@ -293,6 +296,8 @@ export function CustomerDetailPage() {
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [ledgerType, setLedgerType] = useState<LedgerTypeFilter>("ALL");
   const [ledgerCurrency, setLedgerCurrency] = useState("ALL");
+  const [ledgerSearchInput, setLedgerSearchInput] = useState("");
+  const [ledgerSearch, setLedgerSearch] = useState("");
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [printBusy, setPrintBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -481,6 +486,7 @@ export function CustomerDetailPage() {
         dateTo: ledgerDateTo || undefined,
         txType: ledgerType === "ALL" ? undefined : ledgerType,
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
+        search: ledgerSearch || undefined,
       });
       if (currentId.current !== id) return;
       setHistory(hist.items);
@@ -497,6 +503,7 @@ export function CustomerDetailPage() {
     ledgerDateTo,
     ledgerType,
     ledgerCurrency,
+    ledgerSearch,
     t.errors.loadCustomerHistory,
   ]);
 
@@ -525,6 +532,8 @@ export function CustomerDetailPage() {
     setLedgerDateTo("");
     setLedgerType("ALL");
     setLedgerCurrency("ALL");
+    setLedgerSearchInput("");
+    setLedgerSearch("");
     setDraftOpen(false);
     setDepositOpen(false);
   }, [id]);
@@ -545,6 +554,14 @@ export function CustomerDetailPage() {
     window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
   }, [load, loadLedger]);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setLedgerSearch(ledgerSearchInput.trim());
+      setHistoryPage(1);
+    }, 280);
+    return () => window.clearTimeout(handle);
+  }, [ledgerSearchInput]);
 
   useEffect(() => {
     setHistoryPage(1);
@@ -576,6 +593,7 @@ export function CustomerDetailPage() {
     }
     if (ledgerType !== "ALL") parts.push(ledgerTypeLabel(ledgerType));
     if (ledgerCurrency !== "ALL") parts.push(ledgerCurrency);
+    if (ledgerSearch) parts.push(`“${ledgerSearch}”`);
     return parts.length ? parts.join(" · ") : t.customers.customerHistory;
   }
 
@@ -593,6 +611,7 @@ export function CustomerDetailPage() {
         dateTo: ledgerDateTo || undefined,
         txType: ledgerType === "ALL" ? undefined : ledgerType,
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
+        search: ledgerSearch || undefined,
       });
       all.push(...hist.items);
       if (all.length >= hist.total || hist.items.length === 0) break;
@@ -600,7 +619,7 @@ export function CustomerDetailPage() {
       if (page > 200) break;
     }
     return all;
-  }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
+  }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency, ledgerSearch]);
 
   const loadHistoryTotals = useCallback(async () => {
     try {
@@ -640,8 +659,10 @@ export function CustomerDetailPage() {
         { key: "balance", header: t.common.balance, kind: "amount" },
       ];
       const rows: ExportRow[] = rowsSource.map((row) => {
-        const description =
-          (row.description ?? "").trim() || row.activity || "—";
+        const description = localizeCurrencyCodesInText(
+          (row.description ?? "").trim() || row.activity || "—",
+          locale,
+        );
         return {
           date: String(row.valueDate).slice(0, 10),
           description,
@@ -847,6 +868,18 @@ export function CustomerDetailPage() {
               </table>
             <div className="customer-detail-tools customer-history-toolbar no-print">
               <div className="customer-history-filters">
+                <label className="customer-ledger-search-field">
+                  <span className="visually-hidden">{t.common.search}</span>
+                  <input
+                    type="search"
+                    className="customer-ledger-search"
+                    value={ledgerSearchInput}
+                    placeholder={`${t.common.search}…`}
+                    aria-label={t.common.search}
+                    autoComplete="off"
+                    onChange={(e) => setLedgerSearchInput(e.target.value)}
+                  />
+                </label>
                 <label>
                   <span className="visually-hidden">{t.common.from}</span>
                   <input
@@ -887,7 +920,8 @@ export function CustomerDetailPage() {
                 {ledgerDateFrom ||
                 ledgerDateTo ||
                 ledgerType !== "ALL" ||
-                ledgerCurrency !== "ALL" ? (
+                ledgerCurrency !== "ALL" ||
+                ledgerSearchInput.trim() ? (
                   <button
                     type="button"
                     className="secondary"
@@ -896,6 +930,8 @@ export function CustomerDetailPage() {
                       setLedgerDateTo("");
                       setLedgerType("ALL");
                       setLedgerCurrency("ALL");
+                      setLedgerSearchInput("");
+                      setLedgerSearch("");
                     }}
                   >
                     {t.common.clear}
@@ -993,8 +1029,10 @@ export function CustomerDetailPage() {
                     </thead>
                     <tbody>
                       {history.map((row) => {
-                        const description =
-                          (row.description ?? "").trim() || row.activity || "—";
+                        const description = localizeCurrencyCodesInText(
+                          (row.description ?? "").trim() || row.activity || "—",
+                          locale,
+                        );
                         return (
                           <tr
                             key={`${row.id}-${row.currencyCode}`}

@@ -19,7 +19,7 @@ import {
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { MovementFxAmountFields } from "@desktop/components/movement-fx-amount-fields";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
@@ -90,6 +90,7 @@ export function DepositFormModal({
   initialCustomer = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const searchWrapRef = useRef<HTMLLabelElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
@@ -324,6 +325,7 @@ export function DepositFormModal({
       cashCurrency: form.cashCurrencyCode,
       actedByName: actedBy,
       isDebtRepayment,
+      locale,
     });
     setForm((prev) =>
       prev.description === next ? prev : { ...prev, description: next },
@@ -339,6 +341,7 @@ export function DepositFormModal({
     form.payerType,
     form.payerName,
     balanceByCurrency,
+    locale,
     t.desk,
   ]);
 

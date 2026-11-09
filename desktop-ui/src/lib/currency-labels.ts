@@ -6,6 +6,7 @@ const CURRENCY_I18N: Record<
   { en: string; fa: string; ps: string; symbol: string }
 > = {
   AFN: { en: "Afghani", fa: "افغانی", ps: "افغانۍ", symbol: "؋" },
+  AF: { en: "Afghani", fa: "افغانی", ps: "افغانۍ", symbol: "؋" },
   PKR: { en: "Pakistani Rupee", fa: "روپیه پاکستان", ps: "پاکستانۍ کلداره", symbol: "Rs" },
   IRR: { en: "Iranian Rial", fa: "ریال ایران", ps: "ایراني ریال", symbol: "Rl" },
   INR: { en: "Indian Rupee", fa: "روپیه هند", ps: "هندي کلداره", symbol: "₹" },
@@ -15,6 +16,10 @@ const CURRENCY_I18N: Record<
   QAR: { en: "Qatari Riyal", fa: "ریال قطر", ps: "قطري ریال", symbol: "QR" },
   OMR: { en: "Omani Rial", fa: "ریال عمان", ps: "عماني ریال", symbol: "OR" },
   KWD: { en: "Kuwaiti Dinar", fa: "دینار کویت", ps: "کويتي دينار", symbol: "KD" },
+  BHD: { en: "Bahraini Dinar", fa: "دینار بحرین", ps: "بحريني دينار", symbol: "BD" },
+  JOD: { en: "Jordanian Dinar", fa: "دینار اردن", ps: "اردني دينار", symbol: "JD" },
+  IQD: { en: "Iraqi Dinar", fa: "دینار عراق", ps: "عراقي دينار", symbol: "ID" },
+  EGP: { en: "Egyptian Pound", fa: "پوند مصر", ps: "مصري پونډ", symbol: "E£" },
   USD: { en: "US Dollar", fa: "دالر آمریکا", ps: "امریکایي ډالر", symbol: "$" },
   EUR: { en: "Euro", fa: "یورو", ps: "یورو", symbol: "€" },
   GBP: { en: "British Pound", fa: "پوند انگلیس", ps: "برتاني پونډ", symbol: "£" },
@@ -26,6 +31,20 @@ const CURRENCY_I18N: Record<
   RUB: { en: "Russian Ruble", fa: "روبل روسیه", ps: "روسي روبل", symbol: "₽" },
   SGD: { en: "Singapore Dollar", fa: "دالر سنگاپور", ps: "سنګاپوري ډالر", symbol: "S$" },
   MYR: { en: "Malaysian Ringgit", fa: "رینگیت مالیزیا", ps: "مالیزیایي رینګټ", symbol: "RM" },
+  THB: { en: "Thai Baht", fa: "بات تایلند", ps: "تایلنډي بات", symbol: "฿" },
+  HKD: { en: "Hong Kong Dollar", fa: "دالر هنگ‌کنگ", ps: "هانګ کانګ ډالر", symbol: "HK$" },
+  NZD: { en: "New Zealand Dollar", fa: "دالر نیوزیلند", ps: "نیوزیلنډي ډالر", symbol: "NZ$" },
+  KRW: { en: "South Korean Won", fa: "وون کره جنوبی", ps: "کوریایي ون", symbol: "₩" },
+  SEK: { en: "Swedish Krona", fa: "کرون سوئد", ps: "سویډني کرون", symbol: "kr" },
+  NOK: { en: "Norwegian Krone", fa: "کرون نروژ", ps: "نارویژي کرون", symbol: "kr" },
+  DKK: { en: "Danish Krone", fa: "کرون دانمارک", ps: "ډنمارکي کرون", symbol: "kr" },
+  PLN: { en: "Polish Zloty", fa: "زلوتی لهستان", ps: "پولنډي زلوټي", symbol: "zł" },
+  BRL: { en: "Brazilian Real", fa: "رئال برزیل", ps: "برازیلي ریال", symbol: "R$" },
+  ZAR: { en: "South African Rand", fa: "رند آفریقای جنوبی", ps: "جنوبي افریقایي رینډ", symbol: "R" },
+  TJS: { en: "Tajikistani Somoni", fa: "سامانی تاجیکستان", ps: "تاجکستاني سوموني", symbol: "SM" },
+  UZS: { en: "Uzbekistani Som", fa: "سوم ازبکستان", ps: "ازبکستاني سوم", symbol: "soʻm" },
+  TMT: { en: "Turkmenistani Manat", fa: "منات ترکمنستان", ps: "ترکمنستاني منات", symbol: "m" },
+  KZT: { en: "Kazakhstani Tenge", fa: "تنگه قزاقستان", ps: "قزاقي تنګه", symbol: "₸" },
 };
 
 export { currencyFlagSrc } from "@desktop/lib/currency-flags";
@@ -48,6 +67,20 @@ export function localizedCurrencyName(
     return row.en;
   }
   return (fallbackName ?? "").trim() || code.toUpperCase();
+}
+
+/** Replace ISO currency codes in journal text with localized currency names. */
+export function localizeCurrencyCodesInText(
+  text: string,
+  locale: AppLocale,
+): string {
+  const raw = (text ?? "").trim();
+  if (!raw) return raw;
+  return raw.replace(/\b([A-Z]{2,3})\b/g, (code) => {
+    const row = CURRENCY_I18N[code];
+    if (!row) return code;
+    return localizedCurrencyName(code, locale, code);
+  });
 }
 
 export function currencyDisplaySymbol(

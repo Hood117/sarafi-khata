@@ -523,11 +523,17 @@ pub fn exchange_funds(
     crate::util::format_amount_commas(&to_amount),
     to_code,
   );
-  // Canonical Daybook wording — ignore free-form UI drafts.
-  let description = match walk_in_name.as_deref() {
-    Some(name) => format!("{name} — {exchange_core}"),
-    None => exchange_core,
-  };
+  // Prefer localized UI description when provided; otherwise English fallback.
+  let description = input
+    .description
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_string())
+    .unwrap_or_else(|| match walk_in_name.as_deref() {
+      Some(name) => format!("{name} — {exchange_core}"),
+      None => exchange_core,
+    });
 
   let customer_id_for_trade = customer_id.clone();
   let walk_in_for_trade = walk_in_name.clone();

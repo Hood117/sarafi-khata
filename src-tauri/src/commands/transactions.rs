@@ -218,6 +218,8 @@ pub struct ListCustomerLedgerInput {
   pub tx_type: Option<String>,
   /// Currency code filter (e.g. AFN). Empty / ALL = all currencies.
   pub currency_code: Option<String>,
+  /// Free-text match on description / reference / type / currency / amounts.
+  pub search: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -350,6 +352,32 @@ fn format_balance_display(v: f64) -> String {
   format_amount_commas(&format_f64(v))
 }
 
+fn customer_ledger_row_matches_search(
+  q: &str,
+  description: Option<&str>,
+  reference: &str,
+  display_ref: &str,
+  tx_type: &str,
+  currency_code: &str,
+  debit: f64,
+  credit: f64,
+) -> bool {
+  let hay = [
+    description.unwrap_or(""),
+    reference,
+    display_ref,
+    tx_type,
+    currency_code,
+    &format_f64(debit),
+    &format_f64(credit),
+    &format_ledger_money(debit),
+    &format_ledger_money(credit),
+  ]
+  .join(" ")
+  .to_lowercase();
+  hay.contains(q)
+}
+
 #[tauri::command]
 pub fn list_customer_ledger(
   state: State<'_, AppState>,
@@ -406,6 +434,12 @@ pub fn list_customer_ledger(
     .map(str::trim)
     .map(|s| s.to_ascii_uppercase())
     .filter(|s| !s.is_empty() && s != "ALL");
+  let search_filter = input
+    .search
+    .as_deref()
+    .map(str::trim)
+    .filter(|s| !s.is_empty())
+    .map(|s| s.to_lowercase());
 
   // Opening balance per currency immediately before the date range (index-friendly).
   let mut running: std::collections::BTreeMap<String, f64> = std::collections::BTreeMap::new();
@@ -520,6 +554,20 @@ pub fn list_customer_ledger(
     if !type_ok {
       continue;
     }
+    if let Some(ref q) = search_filter {
+      if !customer_ledger_row_matches_search(
+        q,
+        description.as_deref(),
+        &reference,
+        &display_ref,
+        &tx_type,
+        &code,
+        debit,
+        credit,
+      ) {
+        continue;
+      }
+    }
     display.push(RawLine {
       id,
       reference,
@@ -617,6 +665,20 @@ pub fn list_customer_ledger(
       .unwrap_or(true);
     if !type_ok {
       continue;
+    }
+    if let Some(ref q) = search_filter {
+      if !customer_ledger_row_matches_search(
+        q,
+        description.as_deref(),
+        &reference,
+        &display_ref,
+        &tx_type,
+        &code,
+        0.0,
+        payout_amount,
+      ) {
+        continue;
+      }
     }
     if display.iter().any(|l| l.id == id && l.currency_code == code) {
       continue;

@@ -7209,6 +7209,43 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   min-width: 0;
 }
 
+.currency-bulk-bar {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0.15rem;
+}
+
+.currency-select-table tbody tr {
+  cursor: pointer;
+}
+
+.currency-select-table tbody tr.is-selected td {
+  background: color-mix(in srgb, var(--brand, #1f6b4a) 10%, transparent);
+}
+
+.currency-select-cell {
+  width: 2rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.currency-select-cell input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--brand, #1f6b4a);
+}
+
+.currency-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
 .world-currency-list {
   max-height: 22rem;
   overflow: auto;
@@ -7218,11 +7255,20 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 
 .world-currency-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  grid-template-columns: auto auto 1fr auto auto;
   gap: 0.65rem;
   align-items: center;
   padding: 0.55rem 0.75rem;
   border-bottom: 1px solid color-mix(in srgb, var(--ink, #12201a) 8%, transparent);
+  cursor: pointer;
+}
+
+.world-currency-row.is-selected {
+  background: color-mix(in srgb, var(--brand, #1f6b4a) 10%, transparent);
+}
+
+.world-currency-row.is-disabled {
+  cursor: default;
 }
 
 .world-currency-row:last-child {
@@ -7913,6 +7959,17 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   height: 26px;
   padding: 0 0.4rem;
   font-size: 0.75rem;
+}
+
+.customer-history-filters .customer-ledger-search-field {
+  flex: 1 1 8.5rem;
+  min-width: 7.5rem;
+  max-width: 11rem;
+}
+
+.customer-history-filters input.customer-ledger-search {
+  width: 100%;
+  border: 2px solid color-mix(in srgb, var(--ink) 38%, var(--line-strong));
 }
 
 .customer-history-filters input[type="date"] {

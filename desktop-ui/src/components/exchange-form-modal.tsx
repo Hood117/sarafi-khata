@@ -22,7 +22,8 @@ import {
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import {
   pickDefaultCurrency,
   pickSecondaryCurrency,
@@ -112,6 +113,7 @@ export function ExchangeFormModal({
   editTransactionId = null,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const amountRef = useRef<HTMLInputElement>(null);
   const searchWrapRef = useRef<HTMLLabelElement>(null);
@@ -140,21 +142,37 @@ export function ExchangeFormModal({
   const autoDescription = useMemo(() => {
     const buyAmt = form.buyAmount.trim() || "0";
     const sellAmt = form.sellAmount.trim() || "0";
-    const buyCcy = form.buyCurrency || "—";
-    const sellCcy = form.sellCurrency || "—";
+    const buyCcy = form.buyCurrency
+      ? localizedCurrencyName(form.buyCurrency, locale, form.buyCurrency)
+      : "—";
+    const sellCcy = form.sellCurrency
+      ? localizedCurrencyName(form.sellCurrency, locale, form.sellCurrency)
+      : "—";
     const rate = form.rate.trim() || "—";
-    return t.exchange.autoDescription
+    const party =
+      form.partyMode === "customer"
+        ? form.customerLabel.trim()
+        : form.partyMode === "partner"
+          ? form.partnerLabel.trim()
+          : form.walkInName.trim();
+    const core = t.exchange.autoDescription
       .replace("{buyAmount}", buyAmt)
       .replace("{buyCurrency}", buyCcy)
       .replace("{sellAmount}", sellAmt)
       .replace("{sellCurrency}", sellCcy)
       .replace("{rate}", rate);
+    return party ? `${party} — ${core}` : core;
   }, [
     form.buyAmount,
     form.buyCurrency,
     form.sellAmount,
     form.sellCurrency,
     form.rate,
+    form.partyMode,
+    form.customerLabel,
+    form.partnerLabel,
+    form.walkInName,
+    locale,
     t.exchange.autoDescription,
   ]);
 

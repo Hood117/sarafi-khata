@@ -804,6 +804,11 @@ export const en: Dictionary = {
     partnerCommissionAmount: "Partner commission",
     ownCommissionAmount: "My commission",
     postedSuccess: "{direction} posted: {reference}",
+    descVia:
+      "{sender} sent {amount} {currency} to {receiver} via {account}.",
+    descFrom:
+      "{sender} sent {amount} {currency} to {receiver} from {from}.",
+    descSimple: "{sender} sent {amount} {currency} to {receiver}.",
     archivedOk: "Hawala archived.",
     archivedSoftOk: "Hawala archived (soft-delete).",
     restoredOk: "Hawala restored.",
@@ -1514,6 +1519,11 @@ Your current data was not changed.`,
     addToSystem: "Add",
     alreadyInSystem: "Added",
     inSystem: "In system",
+    selectedCount: "{count} selected",
+    selectAll: "Select all",
+    clearSelection: "Clear",
+    deactivateSelected: "Deactivate selected",
+    addSelected: "Add selected",
   },
   exchangeRates: {
     add: "Add rate",

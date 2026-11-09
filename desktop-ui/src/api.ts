@@ -758,6 +758,7 @@ export function listCustomerLedger(input: {
   dateTo?: string;
   txType?: string;
   currencyCode?: string;
+  search?: string;
 }) {
   return invoke<CustomerLedgerPage>("list_customer_ledger", { input });
 }
@@ -1671,6 +1672,8 @@ export type HawalaPostInput = {
   /** Send Hawala receiving account / sarafi name (journal text only). */
   receivingAccount?: string | null;
   privateNotes?: string | null;
+  /** Localized journal description from the UI. */
+  description?: string | null;
   valueDate?: string;
   createdById: string;
   replaceTransactionId?: string | null;

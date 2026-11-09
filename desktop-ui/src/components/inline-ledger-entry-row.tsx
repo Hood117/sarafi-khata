@@ -8,7 +8,7 @@ import {
   type CustomerBalanceRow,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage, nowTime, todayIso } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import {
@@ -41,6 +41,7 @@ export function InlineLedgerEntryRow({
   onCancel,
 }: Props) {
   const t = useT();
+  const { locale } = useLocale();
   const { session } = useAuth();
   const rowRef = useRef<HTMLTableRowElement>(null);
   const creditRef = useRef<HTMLInputElement>(null);
@@ -83,6 +84,7 @@ export function InlineLedgerEntryRow({
       currency: ledgerCurrency,
       cashAmount: fxRate > 0 ? nextAmount : null,
       cashCurrency: fxRate > 0 ? nextCurrency : null,
+      locale,
     };
     if (nextSide === "debit") return buildWithdrawDescription(t.desk, opts);
     const bal = balances.find((b) => b.currencyCode.toUpperCase() === ledgerCurrency.toUpperCase());

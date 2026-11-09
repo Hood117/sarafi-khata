@@ -8,7 +8,8 @@ import {
   type CurrencyListItem,
   type MarketRatesSnapshot,
 } from "@desktop/api";
-import { useT } from "@desktop/i18n";
+import { useLocale, useT } from "@desktop/i18n";
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 /**
@@ -36,6 +37,7 @@ function parseRate(raw: string): number | null {
 
 export function RatesPage() {
   const t = useT();
+  const { locale } = useLocale();
   const { showSuccess, successModal } = useSuccessModal();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -234,10 +236,10 @@ export function RatesPage() {
                     {marketCodes.map((code) => {
                       const c = currencyByCode.get(code);
                       const mark = currencyMark(c, code);
-                      const name = c?.name;
+                      const name = localizedCurrencyName(code, locale, c?.name);
                       return (
                         <option key={code} value={code}>
-                          {name ? `${code} — ${name} (${mark})` : `${code} (${mark})`}
+                          {`${code} — ${name} (${mark})`}
                         </option>
                       );
                     })}
@@ -301,7 +303,13 @@ export function RatesPage() {
                       <td>
                         <strong>{row.label}</strong>
                       </td>
-                      <td>{currencyByCode.get(row.to)?.name ?? "—"}</td>
+                      <td>
+                        {localizedCurrencyName(
+                          row.to,
+                          locale,
+                          currencyByCode.get(row.to)?.name,
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

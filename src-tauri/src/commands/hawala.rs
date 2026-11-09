@@ -427,6 +427,9 @@ pub struct HawalaPostInput {
   pub created_by_id: String,
   /// Soft-delete this prior HAWALA transaction (and linked transfer) before posting.
   pub replace_transaction_id: Option<String>,
+  /// Optional localized journal text from the UI. When set, replaces English fallback.
+  #[serde(default)]
+  pub description: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -964,14 +967,16 @@ fn post_hawala(
   }
 
   let on_behalf_of = trim_opt(input.customer_notes.clone());
-  let hawala_description = hawala_party_description(
-    &sender_name,
-    &amount_major,
-    &currency_code,
-    &receiver_name,
-    receiving_account.as_deref(),
-    on_behalf_of.as_deref(),
-  );
+  let hawala_description = trim_opt(input.description.clone()).unwrap_or_else(|| {
+    hawala_party_description(
+      &sender_name,
+      &amount_major,
+      &currency_code,
+      &receiver_name,
+      receiving_account.as_deref(),
+      on_behalf_of.as_deref(),
+    )
+  });
 
   conn.execute_batch("BEGIN IMMEDIATE;")?;
   let result = (|| -> Result<HawalaPostResult, AppError> {
@@ -1773,6 +1778,7 @@ mod tests {
       customer_notes: None,
       receiving_account: None,
       private_notes: None,
+      description: None,
       value_date: None,
       created_by_id: "u1".into(),
       replace_transaction_id: None,
