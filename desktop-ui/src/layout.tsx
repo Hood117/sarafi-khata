@@ -10,6 +10,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { getBusinessName } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { GlobalFingerprintListener } from "@desktop/components/global-fingerprint-listener";
 import { WrongFingerprintToast } from "@desktop/components/wrong-fingerprint-toast";
 import { GlobalSearchOverlay } from "@desktop/components/global-search-overlay";
@@ -61,6 +62,7 @@ type NavGroup = {
 
 export function AppLayout() {
   const { session } = useAuth();
+  const { cashTrackingEnabled } = useCashTracking();
   const t = useT();
   const location = useLocation();
   const screenId = pathToScreenId(location.pathname);
@@ -110,7 +112,12 @@ export function AppLayout() {
       .catch(() => undefined);
   }, [refreshKey]);
 
-  const canSee = (to: string) => canAccessPath(session, to);
+  const canSee = (to: string) => {
+    if (!cashTrackingEnabled && (to === "/cash" || to.startsWith("/vaults"))) {
+      return false;
+    }
+    return canAccessPath(session, to);
+  };
 
   const groups: NavGroup[] = [
     {
@@ -136,18 +143,22 @@ export function AppLayout() {
           label: t.nav.customers,
           icon: <Users className="nav-icon" size={18} />,
         },
-        {
-          to: "/cash",
-          screen: "cash",
-          label: t.nav.cash,
-          icon: <Banknote className="nav-icon" size={18} />,
-        },
-        {
-          to: "/vaults",
-          screen: "vaults",
-          label: t.nav.vaults,
-          icon: <Landmark className="nav-icon" size={18} />,
-        },
+        ...(cashTrackingEnabled
+          ? ([
+              {
+                to: "/cash",
+                screen: "cash",
+                label: t.nav.cash,
+                icon: <Banknote className="nav-icon" size={18} />,
+              },
+              {
+                to: "/vaults",
+                screen: "vaults",
+                label: t.nav.vaults,
+                icon: <Landmark className="nav-icon" size={18} />,
+              },
+            ] satisfies NavItem[])
+          : []),
         {
           to: "/debtors-creditors",
           screen: "debtorsCreditors",

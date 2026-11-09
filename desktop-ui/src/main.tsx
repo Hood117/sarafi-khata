@@ -3,6 +3,7 @@ import { HashRouter } from "react-router-dom";
 
 import { App } from "@desktop/App";
 import { AuthProvider } from "@desktop/auth";
+import { CashTrackingProvider } from "@desktop/cash-tracking";
 import { DesktopLocaleProvider } from "@desktop/i18n";
 import { logAppError } from "@desktop/lib/app-error";
 import { AppErrorBoundary } from "@desktop/ui/error-boundary";
@@ -52,9 +53,11 @@ createRoot(root).render(
     <DesktopLocaleProvider>
       <DesktopUiTextPrefsProvider>
         <AuthProvider>
-          <AppErrorBoundary>
-            <App />
-          </AppErrorBoundary>
+          <CashTrackingProvider>
+            <AppErrorBoundary>
+              <App />
+            </AppErrorBoundary>
+          </CashTrackingProvider>
         </AuthProvider>
       </DesktopUiTextPrefsProvider>
     </DesktopLocaleProvider>

@@ -1109,6 +1109,9 @@ export function CustomerDetailPage() {
                               <span className="customer-history-closing-code">
                                 {localizedCurrencyName(row.code, locale, row.code)}
                               </span>
+                              <span className="customer-history-closing-amount">
+                                {row.amount}
+                              </span>
                               {sideLabel ? (
                                 <span className="customer-money-side">{sideLabel}</span>
                               ) : null}

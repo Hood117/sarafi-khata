@@ -596,8 +596,9 @@ html[data-ui="web"] .customer-detail-page .report-ledger td.col-currency {
 }
 
 html[data-ui="web"] .customer-history-closing-chip {
-  padding: 3px 8px;
-  border-radius: 999px;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 8px;
   background: var(--surface-muted);
   border: 1px solid var(--border);
 }

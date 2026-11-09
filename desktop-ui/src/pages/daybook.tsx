@@ -12,6 +12,7 @@ import {
   type DaybookJournalLine,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { DepositFormModal } from "@desktop/components/deposit-form-modal";
 import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
 import {
@@ -172,6 +173,7 @@ export function DaybookPage() {
   const { locale, dir } = useLocale();
   const rtl = dir === "rtl";
   const { session } = useAuth();
+  const { cashTrackingEnabled } = useCashTracking();
   const [dateFrom, setDateFrom] = useState(todayIso);
   const [dateTo, setDateTo] = useState(todayIso);
   const [journal, setJournal] = useState<DaybookJournalLine[]>([]);
@@ -383,6 +385,7 @@ export function DaybookPage() {
   function handleEditMovement(id: string, type: string, reference?: string | null) {
     const cashDir = vaultCashDirectionFromTx(type, reference);
     if (cashDir) {
+      if (!cashTrackingEnabled) return;
       setCashDirection(cashDir);
       setEditCashId(id);
       setCashOpen(true);
@@ -526,7 +529,10 @@ export function DaybookPage() {
   }
 
   function journalContextItems(line: DaybookJournalLine) {
-    const editable = isEditableMovement(line.transactionType, line.reference);
+    const vaultCash = isVaultCashMovement(line.transactionType, line.reference);
+    const editable =
+      isEditableMovement(line.transactionType, line.reference) &&
+      !(vaultCash && !cashTrackingEnabled);
     const isHawala = line.transactionType.toUpperCase() === "HAWALA";
     return [
       {
@@ -1088,18 +1094,20 @@ export function DaybookPage() {
           refreshJournal();
         }}
       />
-      <VaultCashFormModal
-        open={cashOpen}
-        direction={cashDirection}
-        editTransactionId={editCashId}
-        onClose={() => {
-          setCashOpen(false);
-          setEditCashId(null);
-        }}
-        onSaved={() => {
-          refreshJournal();
-        }}
-      />
+      {cashTrackingEnabled ? (
+        <VaultCashFormModal
+          open={cashOpen}
+          direction={cashDirection}
+          editTransactionId={editCashId}
+          onClose={() => {
+            setCashOpen(false);
+            setEditCashId(null);
+          }}
+          onSaved={() => {
+            refreshJournal();
+          }}
+        />
+      ) : null}
       <OpeningBalanceFormModal
         open={openingOpen}
         editTransactionId={editOpeningId}

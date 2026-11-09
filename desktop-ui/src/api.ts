@@ -1786,6 +1786,21 @@ export function setBusinessName(businessName: string) {
   });
 }
 
+export type CashTrackingSetting = {
+  /** `"on"` | `"off"` — default on when unset. */
+  cashTracking: string;
+};
+
+export function getCashTracking() {
+  return invoke<CashTrackingSetting>("get_cash_tracking");
+}
+
+export function setCashTracking(cashTracking: "on" | "off") {
+  return invoke<CashTrackingSetting>("set_cash_tracking", {
+    input: { cashTracking },
+  });
+}
+
 export type UiTextPrefs = {
   fontSize: string;
   fontFamily: string;

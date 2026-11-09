@@ -1,4 +1,4 @@
-//! App settings — locale, business name, and UI text prefs (SystemSetting keys).
+//! App settings — locale, business name, UI text prefs, and cash tracking (SystemSetting keys).
 
 use chrono::Utc;
 use rusqlite::OptionalExtension;
@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::commands::authorize::{require_auth, require_settings};
 use crate::error::AppError;
+use crate::ledger::{is_cash_tracking_enabled, normalize_cash_tracking, CASH_TRACKING_KEY};
 use crate::state::AppState;
 
 const LOCALE_KEY: &str = "app.locale";
@@ -290,5 +291,42 @@ pub fn set_ui_text_prefs(
     font_family,
     bold_text,
     theme,
+  })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashTrackingSetting {
+  /// `"on"` | `"off"` — default on when unset.
+  pub cash_tracking: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetCashTrackingInput {
+  pub cash_tracking: String,
+}
+
+#[tauri::command]
+pub fn get_cash_tracking(state: State<'_, AppState>) -> Result<CashTrackingSetting, AppError> {
+  let conn = state.db.lock();
+  let _actor = require_auth(&state, &conn)?;
+  let enabled = is_cash_tracking_enabled(&conn)?;
+  Ok(CashTrackingSetting {
+    cash_tracking: if enabled { "on".into() } else { "off".into() },
+  })
+}
+
+#[tauri::command]
+pub fn set_cash_tracking(
+  state: State<'_, AppState>,
+  input: SetCashTrackingInput,
+) -> Result<CashTrackingSetting, AppError> {
+  let value = normalize_cash_tracking(&input.cash_tracking)?;
+  let conn = state.db.lock();
+  let _actor = require_settings(&state, &conn)?;
+  upsert_setting(&conn, CASH_TRACKING_KEY, value)?;
+  Ok(CashTrackingSetting {
+    cash_tracking: value.into(),
   })
 }

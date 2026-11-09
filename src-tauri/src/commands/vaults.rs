@@ -6,9 +6,9 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string,
-  post_transaction_in_tx, resolve_shop_cash_wallet_id, wallet_currency_balance_minor,
-  PostTransactionInput, PostedTransaction, PostingLineDto,
+  find_currency_by_code, is_cash_tracking_enabled, money_from_major_units,
+  money_to_major_unit_string, post_transaction_in_tx, resolve_shop_cash_wallet_id,
+  wallet_currency_balance_minor, PostTransactionInput, PostedTransaction, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{now_sqlite, today_local, format_f64};
@@ -761,6 +761,11 @@ pub fn post_main_vault_cash_move(
   let conn = state.db.lock();
   let actor = require_any_screen(&state, &conn, &["vaults", "daybook"])?;
   let created_by = actor.id.clone();
+  if !is_cash_tracking_enabled(&conn)? {
+    return Err(AppError::Validation(
+      "Shop cash tracking is off. Vault cash in/out is not available.".into(),
+    ));
+  }
   let cash_id = resolve_shop_cash_wallet_id(&conn, None)?;
   let equity_id = ensure_opening_equity_wallet(&conn)?;
   let (currency_id, code, places) = find_currency_by_code(&conn, &input.currency_code)?;

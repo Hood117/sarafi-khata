@@ -7,10 +7,10 @@ use tauri::State;
 use crate::commands::trading::util::soft_delete_desk_transaction;
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string, signed_balance_to_display,
-  post_transaction_in_tx, resolve_shop_cash_wallet_id, wallet_currency_balance_minor,
-  restore_temporary_customers_for_movement_edit,
-  PostTransactionInput, PostedTransaction, PostingLineDto,
+  find_currency_by_code, is_cash_tracking_enabled, money_from_major_units,
+  money_to_major_unit_string, signed_balance_to_display, post_transaction_in_tx,
+  resolve_shop_cash_wallet_id, restore_temporary_customers_for_movement_edit,
+  wallet_currency_balance_minor, PostTransactionInput, PostedTransaction, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{format_amount_commas, now_sqlite};
@@ -197,7 +197,7 @@ fn insert_exchange_deal(
 }
 
 /// Live deposit: customer↑ and Main Vault↑, balanced via Opening Equity (×2).
-/// Distinct from Opening Kata, which records a claim only and does not move cash.
+/// When cash tracking is off: claim-only (customer↑ + equity), like Opening Kata.
 fn post_customer_give(
   conn: &Connection,
   reference: String,
@@ -212,9 +212,57 @@ fn post_customer_give(
   created_by_id: String,
 ) -> Result<PostedTransaction, AppError> {
   let equity_id = ensure_opening_equity(conn)?;
-  let equity_minor = minor
-    .checked_mul(2)
-    .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+  let track_cash = is_cash_tracking_enabled(conn)?;
+  let entries = if track_cash {
+    let equity_minor = minor
+      .checked_mul(2)
+      .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+    vec![
+      PostingLineDto {
+        wallet_id: customer_wallet_id,
+        currency: currency_code.clone(),
+        direction: "DEBIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Customer deposit".into()),
+      },
+      PostingLineDto {
+        wallet_id: cash_wallet_id,
+        currency: currency_code.clone(),
+        direction: "DEBIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Main Vault — cash in".into()),
+      },
+      PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code,
+        direction: "CREDIT".into(),
+        amount_minor: equity_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      },
+    ]
+  } else {
+    vec![
+      PostingLineDto {
+        wallet_id: customer_wallet_id,
+        currency: currency_code.clone(),
+        direction: "DEBIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Customer deposit".into()),
+      },
+      PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code,
+        direction: "CREDIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      },
+    ]
+  };
   post_transaction_in_tx(
     conn,
     PostTransactionInput {
@@ -226,37 +274,13 @@ fn post_customer_give(
       walk_in_phone: None,
       description,
       created_by_id: Some(created_by_id),
-      entries: vec![
-        PostingLineDto {
-          wallet_id: customer_wallet_id,
-          currency: currency_code.clone(),
-          direction: "DEBIT".into(),
-          amount_minor: minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Customer deposit".into()),
-        },
-        PostingLineDto {
-          wallet_id: cash_wallet_id,
-          currency: currency_code.clone(),
-          direction: "DEBIT".into(),
-          amount_minor: minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Main Vault — cash in".into()),
-        },
-        PostingLineDto {
-          wallet_id: equity_id,
-          currency: currency_code,
-          direction: "CREDIT".into(),
-          amount_minor: equity_minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Balancing equity leg".into()),
-        },
-      ],
+      entries,
     },
   )
 }
 
 /// Live withdrawal: customer↓ and Main Vault↓, balanced via Opening Equity (×2).
+/// When cash tracking is off: claim-only (customer↓ + equity).
 fn post_customer_take(
   conn: &Connection,
   reference: String,
@@ -271,9 +295,57 @@ fn post_customer_take(
   created_by_id: String,
 ) -> Result<PostedTransaction, AppError> {
   let equity_id = ensure_opening_equity(conn)?;
-  let equity_minor = minor
-    .checked_mul(2)
-    .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+  let track_cash = is_cash_tracking_enabled(conn)?;
+  let entries = if track_cash {
+    let equity_minor = minor
+      .checked_mul(2)
+      .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
+    vec![
+      PostingLineDto {
+        wallet_id: customer_wallet_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Customer withdrawal".into()),
+      },
+      PostingLineDto {
+        wallet_id: cash_wallet_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Main Vault — cash out".into()),
+      },
+      PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code,
+        direction: "DEBIT".into(),
+        amount_minor: equity_minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      },
+    ]
+  } else {
+    vec![
+      PostingLineDto {
+        wallet_id: customer_wallet_id,
+        currency: currency_code.clone(),
+        direction: "CREDIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Customer withdrawal".into()),
+      },
+      PostingLineDto {
+        wallet_id: equity_id,
+        currency: currency_code,
+        direction: "DEBIT".into(),
+        amount_minor: minor.to_string(),
+        exchange_rate_id: None,
+        memo: Some("Balancing equity leg".into()),
+      },
+    ]
+  };
   post_transaction_in_tx(
     conn,
     PostTransactionInput {
@@ -285,32 +357,7 @@ fn post_customer_take(
       walk_in_phone: None,
       description,
       created_by_id: Some(created_by_id),
-      entries: vec![
-        PostingLineDto {
-          wallet_id: customer_wallet_id,
-          currency: currency_code.clone(),
-          direction: "CREDIT".into(),
-          amount_minor: minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Customer withdrawal".into()),
-        },
-        PostingLineDto {
-          wallet_id: cash_wallet_id,
-          currency: currency_code.clone(),
-          direction: "CREDIT".into(),
-          amount_minor: minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Main Vault — cash out".into()),
-        },
-        PostingLineDto {
-          wallet_id: equity_id,
-          currency: currency_code,
-          direction: "DEBIT".into(),
-          amount_minor: equity_minor.to_string(),
-          exchange_rate_id: None,
-          memo: Some("Balancing equity leg".into()),
-        },
-      ],
+      entries,
     },
   )
 }
@@ -335,6 +382,51 @@ fn post_customer_fx(
   let customer_direction = if is_deposit { "DEBIT" } else { "CREDIT" };
   let cash_direction = if is_deposit { "DEBIT" } else { "CREDIT" };
   let diff_direction = if is_deposit { "CREDIT" } else { "DEBIT" };
+  let track_cash = is_cash_tracking_enabled(conn)?;
+  let mut entries = vec![PostingLineDto {
+    wallet_id: customer_wallet_id,
+    currency: account_currency.1.into(),
+    direction: customer_direction.into(),
+    amount_minor: account_currency.2.to_string(),
+    exchange_rate_id: None,
+    memo: Some(format!("Customer {tx_type} account leg")),
+  }];
+  if track_cash {
+    entries.push(PostingLineDto {
+      wallet_id: cash_wallet_id,
+      currency: cash_currency.1.into(),
+      direction: cash_direction.into(),
+      amount_minor: cash_currency.2.to_string(),
+      exchange_rate_id: None,
+      memo: Some(format!("Main Vault — {tx_type} cash leg")),
+    });
+    entries.push(PostingLineDto {
+      wallet_id: diff_id.clone(),
+      currency: account_currency.1.into(),
+      direction: diff_direction.into(),
+      amount_minor: account_currency.2.to_string(),
+      exchange_rate_id: None,
+      memo: Some("FX balancing leg".into()),
+    });
+    entries.push(PostingLineDto {
+      wallet_id: diff_id,
+      currency: cash_currency.1.into(),
+      direction: diff_direction.into(),
+      amount_minor: cash_currency.2.to_string(),
+      exchange_rate_id: None,
+      memo: Some("FX balancing leg".into()),
+    });
+  } else {
+    // Ledger-only: keep the account claim; skip Main Vault + cash-currency legs.
+    entries.push(PostingLineDto {
+      wallet_id: diff_id,
+      currency: account_currency.1.into(),
+      direction: diff_direction.into(),
+      amount_minor: account_currency.2.to_string(),
+      exchange_rate_id: None,
+      memo: Some("FX balancing leg".into()),
+    });
+  }
   let transaction = post_transaction_in_tx(
     conn,
     PostTransactionInput {
@@ -346,28 +438,7 @@ fn post_customer_fx(
       walk_in_phone: None,
       description: Some(description),
       created_by_id: Some(created_by_id.clone()),
-      entries: vec![
-        PostingLineDto {
-          wallet_id: customer_wallet_id, currency: account_currency.1.into(),
-          direction: customer_direction.into(), amount_minor: account_currency.2.to_string(),
-          exchange_rate_id: None, memo: Some(format!("Customer {tx_type} account leg")),
-        },
-        PostingLineDto {
-          wallet_id: cash_wallet_id, currency: cash_currency.1.into(),
-          direction: cash_direction.into(), amount_minor: cash_currency.2.to_string(),
-          exchange_rate_id: None, memo: Some(format!("Main Vault — {tx_type} cash leg")),
-        },
-        PostingLineDto {
-          wallet_id: diff_id.clone(), currency: account_currency.1.into(),
-          direction: diff_direction.into(), amount_minor: account_currency.2.to_string(),
-          exchange_rate_id: None, memo: Some("FX balancing leg".into()),
-        },
-        PostingLineDto {
-          wallet_id: diff_id, currency: cash_currency.1.into(),
-          direction: diff_direction.into(), amount_minor: cash_currency.2.to_string(),
-          exchange_rate_id: None, memo: Some("FX balancing leg".into()),
-        },
-      ],
+      entries,
     },
   )?;
   // The customer gives cash on a deposit, and receives cash on a withdrawal.
@@ -496,11 +567,13 @@ pub fn withdraw_funds(
     return Err(AppError::Validation("Amount must be positive.".into()));
   }
 
-  let cash_bal = wallet_currency_balance_minor(&conn, &cash_id, &currency_id, places)?;
-  if cash_bal < minor {
-    return Err(AppError::Validation(format!(
-      "Insufficient {currency_code} cash available."
-    )));
+  if is_cash_tracking_enabled(&conn)? {
+    let cash_bal = wallet_currency_balance_minor(&conn, &cash_id, &currency_id, places)?;
+    if cash_bal < minor {
+      return Err(AppError::Validation(format!(
+        "Insufficient {currency_code} cash available."
+      )));
+    }
   }
   // Customer overdraft allowed (ADR-046) — no customer-wallet insufficient-balance check.
 
@@ -904,20 +977,22 @@ pub fn customer_take_money(
   };
 
   let previous = wallet_currency_balance_minor(&conn, &cw_id, &currency_id, places)?;
-  let (cash_check_id, cash_check_places, cash_check_minor, cash_check_code) = cash_fx
-    .as_ref()
-    .map(|(id, code, cash_minor, _)| (id.as_str(), 0_i64, *cash_minor, code.as_str()))
-    .unwrap_or((&currency_id, places, minor, currency_code.as_str()));
-  let cash_check_places = if cash_fx.is_some() {
-    find_currency_by_code(&conn, cash_check_code)?.2
-  } else {
-    cash_check_places
-  };
-  let cash_bal = wallet_currency_balance_minor(&conn, &cash_id, cash_check_id, cash_check_places)?;
-  if cash_bal < cash_check_minor {
-    return Err(AppError::Validation(format!(
-      "Insufficient {cash_check_code} cash available."
-    )));
+  if is_cash_tracking_enabled(&conn)? {
+    let (cash_check_id, cash_check_places, cash_check_minor, cash_check_code) = cash_fx
+      .as_ref()
+      .map(|(id, code, cash_minor, _)| (id.as_str(), 0_i64, *cash_minor, code.as_str()))
+      .unwrap_or((&currency_id, places, minor, currency_code.as_str()));
+    let cash_check_places = if cash_fx.is_some() {
+      find_currency_by_code(&conn, cash_check_code)?.2
+    } else {
+      cash_check_places
+    };
+    let cash_bal = wallet_currency_balance_minor(&conn, &cash_id, cash_check_id, cash_check_places)?;
+    if cash_bal < cash_check_minor {
+      return Err(AppError::Validation(format!(
+        "Insufficient {cash_check_code} cash available."
+      )));
+    }
   }
 
   // Customer overdraft allowed (ADR-046): negative wallet balance = customer owes Sarafi.

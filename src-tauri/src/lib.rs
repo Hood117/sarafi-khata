@@ -504,6 +504,8 @@ pub fn run() {
       commands::set_app_locale,
       commands::get_business_name,
       commands::set_business_name,
+      commands::get_cash_tracking,
+      commands::set_cash_tracking,
       commands::get_ui_text_prefs,
       commands::set_ui_text_prefs,
       commands::get_owner_capital_snapshot,

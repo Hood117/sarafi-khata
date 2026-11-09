@@ -1596,6 +1596,11 @@ export const ps: Dictionary = {
     themeDark: "تیاره",
     boldText: "غلیظ متن",
     boldTextHint: "د میز متن لږ غلیظ کړئ ترڅو لوستل اسانه شي.",
+    trackShopCash: "د دوکان نغدي / خزانه تعقیب",
+    trackShopCashHint:
+      "روښانه: جمع، اخیستل، تبادله او حواله اصلي خزانه هم تازه کوي. بند: یوازې د پیرودونکي دفتر (پور / طلب) — پرته له د دوکان نغدي موقعیت.",
+    trackShopCashOn: "روښانه",
+    trackShopCashOff: "بند",
     keyboardShortcuts: "د کیبورډ میانبرونه",
     keyboardShortcutsHint:
       "دا میانبرونه په ټول میز کار کوي. که کومه عمل شتون ونلري، میانبر هیڅ نه کوي.",

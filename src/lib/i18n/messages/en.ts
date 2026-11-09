@@ -1599,6 +1599,11 @@ Your current data was not changed.`,
     themeDark: "Dark",
     boldText: "Bold text",
     boldTextHint: "Make desk text slightly bolder for easier reading.",
+    trackShopCash: "Track shop cash / vault",
+    trackShopCashHint:
+      "On: deposit, withdraw, exchange, and hawala also update Main Vault cash. Off: customer ledger only (who owes whom) — no shop cash position.",
+    trackShopCashOn: "On",
+    trackShopCashOff: "Off",
     keyboardShortcuts: "Keyboard shortcuts",
     keyboardShortcutsHint:
       "These shortcuts work across the desk. If an action is not available, the shortcut does nothing.",

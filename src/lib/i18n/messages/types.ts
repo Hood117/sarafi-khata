@@ -1538,6 +1538,10 @@ export type Dictionary = {
     themeDark: string;
     boldText: string;
     boldTextHint: string;
+    trackShopCash: string;
+    trackShopCashHint: string;
+    trackShopCashOn: string;
+    trackShopCashOff: string;
     keyboardShortcuts: string;
     keyboardShortcutsHint: string;
     shortcutOk: string;

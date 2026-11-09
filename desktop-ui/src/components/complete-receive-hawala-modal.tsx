@@ -8,6 +8,7 @@ import {
   type HawalaDetail,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import {
@@ -101,13 +102,15 @@ export function CompleteReceiveHawalaModal({
 }) {
   const t = useT();
   const { session } = useAuth();
+  const { cashTrackingEnabled } = useCashTracking();
   const submittingRef = useRef(false);
   const pay = payoutAmount(detail);
   const payN = parseMoney(pay);
   const toCustomer = Boolean(detail.receiverCustomerId);
+  const needsVaultCheck = !toCustomer && cashTrackingEnabled;
   const [vaultAvailable, setVaultAvailable] = useState<number | null>(null);
   const [cashStatus, setCashStatus] = useState<"idle" | "loading" | "ready" | "error">(
-    toCustomer ? "idle" : "loading",
+    needsVaultCheck ? "loading" : "idle",
   );
   const [collectorPhone, setCollectorPhone] = useState(
     () => detail.receiverPhone ?? "",
@@ -149,7 +152,7 @@ export function CompleteReceiveHawalaModal({
   }, []);
 
   useEffect(() => {
-    if (toCustomer) {
+    if (!needsVaultCheck) {
       setVaultAvailable(null);
       setCashStatus("idle");
       return;
@@ -175,15 +178,15 @@ export function CompleteReceiveHawalaModal({
     return () => {
       cancelled = true;
     };
-  }, [detail.currencyCode, toCustomer]);
+  }, [detail.currencyCode, needsVaultCheck]);
 
   const shortage =
-    !toCustomer && cashStatus === "ready" && vaultAvailable != null && payN > vaultAvailable
+    needsVaultCheck && cashStatus === "ready" && vaultAvailable != null && payN > vaultAvailable
       ? payN - vaultAvailable
       : 0;
   const resultingVault =
     cashStatus === "ready" && vaultAvailable != null ? vaultAvailable - payN : null;
-  const waitingForCash = !toCustomer && cashStatus === "loading";
+  const waitingForCash = needsVaultCheck && cashStatus === "loading";
   const confirmLabel = shortage > 0 ? t.hawala.completeAnyway : t.hawala.completeHawala;
 
   async function verifyFingerprint() {

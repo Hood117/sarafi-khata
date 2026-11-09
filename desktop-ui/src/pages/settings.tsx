@@ -12,6 +12,7 @@ import {
   enrollUserFingerprint,
   getAdminAuthPinStatus,
   getBusinessName,
+  getCashTracking,
   listCurrenciesPage,
   listDbBackups,
   listDeskScreens,
@@ -53,6 +54,7 @@ import {
   type FingerprintScanStatus,
 } from "@desktop/components/fingerprint-scan-stage";
 import { useAuth } from "@desktop/auth";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { useLocale, useT } from "@desktop/i18n";
 import { canAccessScreen, isAdminRole, isSystemAdminUsername } from "@desktop/lib/permissions";
 import { useDeskAction } from "@desktop/lib/use-desk-action";
@@ -189,8 +191,12 @@ export function SettingsPage() {
     [setSearchParams],
   );
 
+  const { cashTrackingEnabled, setCashTrackingEnabled, refresh: refreshCashTracking } =
+    useCashTracking();
   const [businessNameDraft, setBusinessNameDraft] = useState("");
   const [businessNameBusy, setBusinessNameBusy] = useState(false);
+  const [cashTrackingDraft, setCashTrackingDraft] = useState<"on" | "off">("on");
+  const [cashTrackingBusy, setCashTrackingBusy] = useState(false);
   const [backups, setBackups] = useState<BackupListItem[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [currenciesTotal, setCurrenciesTotal] = useState(0);
@@ -322,6 +328,9 @@ export function SettingsPage() {
     void getBusinessName()
       .then((row) => setBusinessNameDraft(row.businessName))
       .catch(() => undefined);
+    void getCashTracking()
+      .then((row) => setCashTrackingDraft(row.cashTracking === "off" ? "off" : "on"))
+      .catch(() => undefined);
   }, [tab, refreshCurrencies, refreshUsers, refreshBackups]);
 
   useDeskAction("refresh", refreshActiveTab);
@@ -330,10 +339,17 @@ export function SettingsPage() {
     void getBusinessName()
       .then((row) => setBusinessNameDraft(row.businessName))
       .catch(() => undefined);
+    void getCashTracking()
+      .then((row) => setCashTrackingDraft(row.cashTracking === "off" ? "off" : "on"))
+      .catch(() => undefined);
     refreshBackups();
     refreshCurrencies();
     refreshUsers();
   }, [refreshBackups, refreshCurrencies, refreshUsers]);
+
+  useEffect(() => {
+    setCashTrackingDraft(cashTrackingEnabled ? "on" : "off");
+  }, [cashTrackingEnabled]);
 
   async function handleSaveBusinessName() {
     setBusinessNameBusy(true);
@@ -346,6 +362,22 @@ export function SettingsPage() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusinessNameBusy(false);
+    }
+  }
+
+  async function handleCashTrackingChange(next: "on" | "off") {
+    if (next === cashTrackingDraft) return;
+    setCashTrackingBusy(true);
+    setError(null);
+    try {
+      await setCashTrackingEnabled(next === "on");
+      setCashTrackingDraft(next);
+      await refreshCashTracking();
+      showSuccess(t.common.success);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCashTrackingBusy(false);
     }
   }
 
@@ -798,7 +830,26 @@ export function SettingsPage() {
                   <option value="on">{t.common.yes}</option>
                 </select>
               </label>
+
+              <label className="settings-general-field">
+                <span>{t.settings.trackShopCash}</span>
+                <select
+                  className="settings-general-select"
+                  value={cashTrackingDraft}
+                  disabled={cashTrackingBusy}
+                  title={t.settings.trackShopCashHint}
+                  onChange={(e) =>
+                    void handleCashTrackingChange(e.target.value === "off" ? "off" : "on")
+                  }
+                >
+                  <option value="on">{t.settings.trackShopCashOn}</option>
+                  <option value="off">{t.settings.trackShopCashOff}</option>
+                </select>
+              </label>
             </div>
+            <p className="muted" style={{ marginTop: 0 }}>
+              {t.settings.trackShopCashHint}
+            </p>
 
             <form
               className="settings-general-business"

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import type { CashBalanceRow, DashboardSnapshot } from "@desktop/api";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { animateDashboard, useGSAP } from "@desktop/lib/motion";
@@ -238,6 +239,7 @@ export function DashboardBoard({
   baseCurrency,
 }: Props) {
   const t = useT();
+  const { cashTrackingEnabled } = useCashTracking();
   const rootRef = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -404,7 +406,7 @@ export function DashboardBoard({
         })}
       </div>
 
-      <BusinessCashCards cash={data.cash} />
+      {cashTrackingEnabled ? <BusinessCashCards cash={data.cash} /> : null}
     </div>
   );
 }

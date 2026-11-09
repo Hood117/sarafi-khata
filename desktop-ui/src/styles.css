@@ -8106,34 +8106,40 @@ html[dir="rtl"] .customer-ledger-fab {
 .customer-history-closing-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.32rem;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: none;
+  gap: 0.4rem;
+  min-height: 1.85rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--line, var(--border));
+  border-radius: 8px;
+  background: var(--surface-muted, transparent);
   color: var(--ink);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: 1.15;
 }
 
 .customer-history-closing-chip .currency-flag--sm {
-  width: 1.15rem;
-  height: 0.78rem;
+  width: 1.35rem;
+  height: 0.92rem;
   border-radius: 2px;
   box-shadow: none;
 }
 
 .customer-history-closing-amount {
-  /* Kept for print/export titles; chips no longer render amounts. */
-  display: none !important;
-  font-size: 0.92rem;
+  display: inline;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .customer-history-closing-code {
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+}
+
+.customer-history-closing-chip .customer-money-side {
+  font-size: 0.78rem;
 }
 
 /* ── Reports hub ─────────────────────────────────────────────── */

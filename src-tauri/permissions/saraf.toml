@@ -118,6 +118,8 @@ commands.allow = [
   "set_app_locale",
   "get_business_name",
   "set_business_name",
+  "get_cash_tracking",
+  "set_cash_tracking",
   "get_owner_capital_snapshot",
   "post_owner_capital_move",
   "list_owner_capital_events",

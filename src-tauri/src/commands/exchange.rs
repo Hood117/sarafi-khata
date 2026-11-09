@@ -6,9 +6,10 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction_in_tx,
-  resolve_main_vault_id, restore_temporary_customers_for_movement_edit, PostTransactionInput,
-  PostedTransaction, PostingLineDto,
+  find_currency_by_code, is_cash_tracking_enabled, money_from_major_units,
+  money_to_major_unit_string, post_transaction_in_tx, resolve_main_vault_id,
+  restore_temporary_customers_for_movement_edit, PostTransactionInput, PostedTransaction,
+  PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{now_sqlite, today_local};
@@ -313,6 +314,13 @@ pub fn exchange_funds(
   let conn = state.db.lock();
   let actor = require_any_screen(&state, &conn, &["cash", "customers"])?;
   let created_by_id = actor.id.clone();
+  let track_cash = is_cash_tracking_enabled(&conn)?;
+  if is_walk_in && !track_cash {
+    return Err(AppError::Validation(
+      "Shop cash tracking is off. Walk-in exchange is not available — use a customer account."
+        .into(),
+    ));
+  }
 
   let replace_id = input
     .replace_transaction_id
@@ -473,6 +481,11 @@ pub fn exchange_funds(
   // Shop gives `to`: cash CREDIT (asset↓) / customer DEBIT (liability↑).
   let from_is_cash = from_type == "VAULT" || from_type == "TILL";
   let to_is_cash = to_type == "VAULT" || to_type == "TILL";
+  if !track_cash && (from_is_cash || to_is_cash) {
+    return Err(AppError::Validation(
+      "Shop cash tracking is off. Exchange must use customer account wallets only.".into(),
+    ));
+  }
   let econ_from = if from_is_cash { "DEBIT" } else { "CREDIT" };
   let econ_to = if to_is_cash { "CREDIT" } else { "DEBIT" };
   let diff_from = if econ_from == "DEBIT" {

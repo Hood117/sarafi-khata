@@ -7,8 +7,9 @@ use tauri::State;
 use crate::commands::hawala_desk::record_hawala_event;
 use crate::error::AppError;
 use crate::ledger::{
-  find_currency_by_code, money_from_major_units, money_to_major_unit_string, post_transaction_in_tx,
-  resolve_shop_cash_wallet_id, PostTransactionInput, PostingLineDto,
+  find_currency_by_code, is_cash_tracking_enabled, money_from_major_units,
+  money_to_major_unit_string, post_transaction_in_tx, resolve_shop_cash_wallet_id,
+  PostTransactionInput, PostingLineDto,
 };
 use crate::state::AppState;
 use crate::util::{format_amount_commas, now_sqlite};
@@ -482,13 +483,14 @@ fn post_hawala(
   let mut destination_city = require_nonempty(&input.destination_city, "destinationCity")?;
   let mut destination_country = require_nonempty(&input.destination_country, "destinationCountry")?;
 
+  let track_cash = is_cash_tracking_enabled(conn)?;
   let cash_wallet_id = resolve_shop_cash_wallet_id(conn, input.cash_wallet_id.as_deref())?;
 
   let clearing_wallet_id = match input.clearing_wallet_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
     Some(id) => id.to_string(),
     None => ensure_system_wallet(conn, HAWALA_CLEARING)?,
   };
-  if clearing_wallet_id == cash_wallet_id {
+  if track_cash && clearing_wallet_id == cash_wallet_id {
     return Err(AppError::Validation(
       "Cash wallet and clearing wallet must be different.".into(),
     ));
@@ -718,14 +720,16 @@ fn post_hawala(
     if sender_customer_id.is_none() {
       walk_in_name_for_tx = Some(sender_name.clone());
       walk_in_phone_for_tx = sender_phone.clone();
-      entries.push(PostingLineDto {
-        wallet_id: cash_wallet_id.clone(),
-        currency: currency_code.clone(),
-        direction: "DEBIT".into(),
-        amount_minor: principal_minor.to_string(),
-        exchange_rate_id: None,
-        memo: Some("Hawala — cash in".into()),
-      });
+      if track_cash {
+        entries.push(PostingLineDto {
+          wallet_id: cash_wallet_id.clone(),
+          currency: currency_code.clone(),
+          direction: "DEBIT".into(),
+          amount_minor: principal_minor.to_string(),
+          exchange_rate_id: None,
+          memo: Some("Hawala — cash in".into()),
+        });
+      }
       entries.push(PostingLineDto {
         wallet_id: dest_wallet,
         currency: currency_code.clone(),
@@ -746,18 +750,27 @@ fn post_hawala(
         });
       }
       let equity_id = ensure_opening_equity(conn)?;
-      let equity_minor = principal_minor
-        .checked_add(net_minor)
-        .and_then(|v| v.checked_sub(own_minor))
-        .ok_or_else(|| AppError::Validation("Amount too large.".into()))?;
-      entries.push(PostingLineDto {
-        wallet_id: equity_id,
-        currency: currency_code.clone(),
-        direction: "CREDIT".into(),
-        amount_minor: equity_minor.to_string(),
-        exchange_rate_id: None,
-        memo: Some("Balancing equity leg".into()),
-      });
+      // Cash on: balance vault + dest against equity. Cash off: dest (+ commission) only.
+      let equity_minor = if track_cash {
+        principal_minor
+          .checked_add(net_minor)
+          .and_then(|v| v.checked_sub(own_minor))
+          .ok_or_else(|| AppError::Validation("Amount too large.".into()))?
+      } else {
+        net_minor
+          .checked_sub(own_minor)
+          .ok_or_else(|| AppError::Validation("Amount too large.".into()))?
+      };
+      if equity_minor > 0 {
+        entries.push(PostingLineDto {
+          wallet_id: equity_id,
+          currency: currency_code.clone(),
+          direction: "CREDIT".into(),
+          amount_minor: equity_minor.to_string(),
+          exchange_rate_id: None,
+          memo: Some("Balancing equity leg".into()),
+        });
+      }
     } else {
       let sid = sender_customer_id.as_ref().expect("validated above");
       let src_wallet = resolve_sole_customer_wallet(conn, sid)?;
@@ -899,6 +912,11 @@ fn post_hawala(
       });
     } else {
       // Walk-in pays cash now: cash into Main Vault (visible in daybook) + clearing.
+      if !track_cash {
+        return Err(AppError::Validation(
+          "Shop cash tracking is off. Walk-in hawala send requires a customer account.".into(),
+        ));
+      }
       walk_in_name_for_tx = Some(sender_name.clone());
       walk_in_phone_for_tx = sender_phone.clone();
       entries.push(PostingLineDto {
@@ -919,6 +937,12 @@ fn post_hawala(
       });
     }
   } else {
+    if !track_cash {
+      return Err(AppError::Validation(
+        "Shop cash tracking is off. Walk-in hawala receive is not available — use customer accounts."
+          .into(),
+      ));
+    }
     if sender_customer_id.is_none() && receiver_customer_id.is_none() {
       walk_in_name_for_tx = Some(receiver_name.clone());
       walk_in_phone_for_tx = receiver_phone.clone();
@@ -947,8 +971,13 @@ fn post_hawala(
     if !simple_desk && !source_receive_payout {
       let own_minor = money_from_major_units(own_major, commission_places)?;
       let income_id = ensure_system_wallet(conn, HAWALA_COMMISSION_INCOME)?;
+      let commission_contra = if track_cash {
+        cash_wallet_id.clone()
+      } else {
+        ensure_opening_equity(conn)?
+      };
       entries.push(PostingLineDto {
-        wallet_id: cash_wallet_id.clone(),
+        wallet_id: commission_contra,
         currency: commission_currency_code.clone(),
         direction: "DEBIT".into(),
         amount_minor: own_minor.to_string(),
@@ -1363,6 +1392,12 @@ pub(crate) fn complete_receive_hawala_conn(
         reference
       )
     } else {
+      if !is_cash_tracking_enabled(conn)? {
+        return Err(AppError::Validation(
+          "Shop cash tracking is off. Walk-in hawala payout is not available — credit a customer account."
+            .into(),
+        ));
+      }
       walk_in_name = Some(receiver_name.clone());
       walk_in_phone = phone_to_save.clone();
       entries.push(PostingLineDto {

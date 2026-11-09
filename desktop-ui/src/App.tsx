@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { getLicenseStatus } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { useCashTracking } from "@desktop/cash-tracking";
 import { useT } from "@desktop/i18n";
 import { AppLayout } from "@desktop/layout";
 import { LicenseActivatePage } from "@desktop/pages/license-activate";
@@ -205,6 +206,22 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
+/** Hide Cash / Vaults screens when shop cash tracking is off. */
+function RequireCashTracking({ children }: { children: ReactNode }) {
+  const { cashTrackingEnabled, ready } = useCashTracking();
+  if (!ready) {
+    return (
+      <div className="app-shell">
+        <p className="muted">…</p>
+      </div>
+    );
+  }
+  if (!cashTrackingEnabled) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+}
+
 /** Unknown paths: license first, then login, then home. */
 function FallbackRedirect() {
   const t = useT();
@@ -274,9 +291,11 @@ export function App() {
         <Route
           path="cash"
           element={
-            <Lazy>
-              <CashPage />
-            </Lazy>
+            <RequireCashTracking>
+              <Lazy>
+                <CashPage />
+              </Lazy>
+            </RequireCashTracking>
           }
         />
         <Route
@@ -314,9 +333,11 @@ export function App() {
         <Route
           path="movements"
           element={
-            <Lazy>
-              <MovementsPage />
-            </Lazy>
+            <RequireCashTracking>
+              <Lazy>
+                <MovementsPage />
+              </Lazy>
+            </RequireCashTracking>
           }
         />
         <Route path="exchange" element={<Navigate to="/" replace />} />
@@ -452,17 +473,21 @@ export function App() {
         <Route
           path="vaults"
           element={
-            <Lazy>
-              <VaultsPage />
-            </Lazy>
+            <RequireCashTracking>
+              <Lazy>
+                <VaultsPage />
+              </Lazy>
+            </RequireCashTracking>
           }
         />
         <Route
           path="vaults/:id"
           element={
-            <Lazy>
-              <VaultDetailPage />
-            </Lazy>
+            <RequireCashTracking>
+              <Lazy>
+                <VaultDetailPage />
+              </Lazy>
+            </RequireCashTracking>
           }
         />
         <Route
