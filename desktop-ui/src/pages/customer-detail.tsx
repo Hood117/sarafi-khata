@@ -128,6 +128,12 @@ function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
+    setQuery("");
+    setOpen(false);
+    setItems([]);
+  }, [customer.id]);
+
+  useEffect(() => {
     if (!open) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -159,26 +165,27 @@ function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!wrapRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+        setItems([]);
+      }
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  function close() {
+  function pick(id: string) {
     setOpen(false);
     setQuery("");
     setItems([]);
-  }
-
-  function pick(id: string) {
-    close();
     navigate(`/customers/${id}`);
   }
 
   function onKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      setOpen(true);
       setHighlight((h) => Math.min(h + 1, Math.max(0, items.length - 1)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -189,38 +196,33 @@ function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
       if (row) pick(row.id);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      close();
+      setOpen(false);
+      setQuery("");
+      setItems([]);
     }
   }
 
   return (
     <div ref={wrapRef} className="customer-search-wrap customer-name-switcher">
-      <h1
-        className="customer-detail-name"
-        style={open ? { visibility: "hidden" } : undefined}
-      >
-        <button
-          type="button"
-          className="customer-name-switcher-trigger"
-          aria-haspopup="listbox"
-          title={t.customers.searchPlaceholder}
-          onClick={() => setOpen(true)}
-        >
-          {customer.fullName}
-          <span className="customer-name-switcher-caret" aria-hidden="true">▾</span>
-        </button>
-      </h1>
-      {open ? (
+      <h1 className="customer-detail-name">{customer.fullName}</h1>
+      <label className="customer-name-switcher-search">
+        <span className="visually-hidden">{t.customers.searchPlaceholder}</span>
         <input
-          autoFocus
+          type="search"
           value={query}
-          placeholder={customer.fullName}
+          placeholder={t.customers.searchPlaceholder}
           aria-label={t.customers.searchPlaceholder}
+          aria-expanded={open}
+          aria-haspopup="listbox"
           autoComplete="off"
-          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
           onKeyDown={onKeyDown}
         />
-      ) : null}
+      </label>
       {open ? (
         <ul className="customer-suggest" role="listbox">
           {items.length === 0 ? (
@@ -296,8 +298,6 @@ export function CustomerDetailPage() {
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [ledgerType, setLedgerType] = useState<LedgerTypeFilter>("ALL");
   const [ledgerCurrency, setLedgerCurrency] = useState("ALL");
-  const [ledgerSearchInput, setLedgerSearchInput] = useState("");
-  const [ledgerSearch, setLedgerSearch] = useState("");
   const [ledgerBusy, setLedgerBusy] = useState(false);
   const [printBusy, setPrintBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -486,7 +486,6 @@ export function CustomerDetailPage() {
         dateTo: ledgerDateTo || undefined,
         txType: ledgerType === "ALL" ? undefined : ledgerType,
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
-        search: ledgerSearch || undefined,
       });
       if (currentId.current !== id) return;
       setHistory(hist.items);
@@ -503,7 +502,6 @@ export function CustomerDetailPage() {
     ledgerDateTo,
     ledgerType,
     ledgerCurrency,
-    ledgerSearch,
     t.errors.loadCustomerHistory,
   ]);
 
@@ -532,8 +530,6 @@ export function CustomerDetailPage() {
     setLedgerDateTo("");
     setLedgerType("ALL");
     setLedgerCurrency("ALL");
-    setLedgerSearchInput("");
-    setLedgerSearch("");
     setDraftOpen(false);
     setDepositOpen(false);
   }, [id]);
@@ -554,14 +550,6 @@ export function CustomerDetailPage() {
     window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
     return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
   }, [load, loadLedger]);
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      setLedgerSearch(ledgerSearchInput.trim());
-      setHistoryPage(1);
-    }, 280);
-    return () => window.clearTimeout(handle);
-  }, [ledgerSearchInput]);
 
   useEffect(() => {
     setHistoryPage(1);
@@ -593,7 +581,6 @@ export function CustomerDetailPage() {
     }
     if (ledgerType !== "ALL") parts.push(ledgerTypeLabel(ledgerType));
     if (ledgerCurrency !== "ALL") parts.push(ledgerCurrency);
-    if (ledgerSearch) parts.push(`“${ledgerSearch}”`);
     return parts.length ? parts.join(" · ") : t.customers.customerHistory;
   }
 
@@ -611,7 +598,6 @@ export function CustomerDetailPage() {
         dateTo: ledgerDateTo || undefined,
         txType: ledgerType === "ALL" ? undefined : ledgerType,
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
-        search: ledgerSearch || undefined,
       });
       all.push(...hist.items);
       if (all.length >= hist.total || hist.items.length === 0) break;
@@ -619,7 +605,7 @@ export function CustomerDetailPage() {
       if (page > 200) break;
     }
     return all;
-  }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency, ledgerSearch]);
+  }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
 
   const loadHistoryTotals = useCallback(async () => {
     try {
@@ -868,18 +854,6 @@ export function CustomerDetailPage() {
               </table>
             <div className="customer-detail-tools customer-history-toolbar no-print">
               <div className="customer-history-filters">
-                <label className="customer-ledger-search-field">
-                  <span className="visually-hidden">{t.common.search}</span>
-                  <input
-                    type="search"
-                    className="customer-ledger-search"
-                    value={ledgerSearchInput}
-                    placeholder={`${t.common.search}…`}
-                    aria-label={t.common.search}
-                    autoComplete="off"
-                    onChange={(e) => setLedgerSearchInput(e.target.value)}
-                  />
-                </label>
                 <label>
                   <span className="visually-hidden">{t.common.from}</span>
                   <input
@@ -920,8 +894,7 @@ export function CustomerDetailPage() {
                 {ledgerDateFrom ||
                 ledgerDateTo ||
                 ledgerType !== "ALL" ||
-                ledgerCurrency !== "ALL" ||
-                ledgerSearchInput.trim() ? (
+                ledgerCurrency !== "ALL" ? (
                   <button
                     type="button"
                     className="secondary"
@@ -930,8 +903,6 @@ export function CustomerDetailPage() {
                       setLedgerDateTo("");
                       setLedgerType("ALL");
                       setLedgerCurrency("ALL");
-                      setLedgerSearchInput("");
-                      setLedgerSearch("");
                     }}
                   >
                     {t.common.clear}

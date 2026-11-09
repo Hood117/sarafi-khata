@@ -7825,47 +7825,32 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   line-height: 1.15;
 }
 
-.customer-name-switcher > input {
-  position: absolute;
-  z-index: 41;
-  inset-inline-start: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: max(100%, 16rem);
-  height: 28px;
-  min-height: 0;
+.customer-name-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.customer-name-switcher-search {
+  width: min(100%, 16rem);
   margin: 0;
-  padding: 0 0.45rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+  gap: 0;
+}
+
+.customer-name-switcher-search input {
+  width: 100%;
+  min-height: 22px;
+  height: 22px;
+  padding: 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
 .customer-name-switcher > .customer-suggest {
   min-width: 16rem;
-}
-
-.customer-name-switcher-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: inherit !important;
-  font: inherit !important;
-  letter-spacing: inherit;
-  cursor: pointer;
-}
-
-.customer-name-switcher-trigger:hover {
-  text-decoration: underline;
-  transform: none !important;
-}
-
-.customer-name-switcher-caret {
-  font-size: 0.85rem;
-  opacity: 0.6;
 }
 
 .customer-detail-meta {
@@ -7959,17 +7944,6 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   height: 26px;
   padding: 0 0.4rem;
   font-size: 0.75rem;
-}
-
-.customer-history-filters .customer-ledger-search-field {
-  flex: 1 1 8.5rem;
-  min-width: 7.5rem;
-  max-width: 11rem;
-}
-
-.customer-history-filters input.customer-ledger-search {
-  width: 100%;
-  border: 2px solid color-mix(in srgb, var(--ink) 38%, var(--line-strong));
 }
 
 .customer-history-filters input[type="date"] {

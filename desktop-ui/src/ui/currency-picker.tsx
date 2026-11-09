@@ -36,7 +36,8 @@ type Props = {
   className?: string;
   /**
    * Allow adding world currencies / activating inactive ones from the dropdown
-   * (same catalog as Settings → Currencies). Default true.
+   * (same catalog as Settings → Currencies). Default false — desk pickers only
+   * list active currencies; manage in Settings.
    */
   allowManage?: boolean;
   /** Called after a currency is created or activated so parents can refresh lists. */
@@ -73,7 +74,7 @@ export function CurrencyPicker({
   required,
   hideLabel = false,
   className,
-  allowManage = true,
+  allowManage = false,
   onCurrenciesChange,
   menuPlacement = "bottom",
 }: Props) {
@@ -125,15 +126,16 @@ export function CurrencyPicker({
       })),
     ];
 
-    if (!allowManage) return out;
+    if (!allowManage || !q) return out;
 
+    // Manage mode: only when searching — never dump all inactive into the list.
     const activeCodes = new Set(active.map((c) => c.code.toUpperCase()));
     const inactive = catalog.filter(
       (c) => !c.isActive && !activeCodes.has(c.code.toUpperCase()),
     );
-    const inactiveFiltered = !q
-      ? inactive
-      : inactive.filter((c) => currencySearchHaystack(c, locale).includes(q));
+    const inactiveFiltered = inactive.filter((c) =>
+      currencySearchHaystack(c, locale).includes(q),
+    );
     for (const item of sortCodes(inactiveFiltered)) {
       out.push({ kind: "inactive", item });
     }
@@ -141,7 +143,6 @@ export function CurrencyPicker({
     const systemCodes = new Set(known.map((c) => c.code.toUpperCase()));
     const worldFiltered = WORLD_CURRENCIES.filter((w) => {
       if (systemCodes.has(w.code.toUpperCase())) return false;
-      if (!q) return false; // only suggest world adds when searching
       return currencySearchHaystack(w, locale).includes(q);
     }).slice(0, 12);
     for (const item of sortCodes(worldFiltered)) {

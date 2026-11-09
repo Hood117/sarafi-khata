@@ -9,6 +9,7 @@ import {
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
 import { useLocale, useT } from "@desktop/i18n";
+import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import { errorMessage, nowTime, todayIso } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import {
@@ -189,7 +190,7 @@ export function InlineLedgerEntryRow({
             >
               {currencies.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.code}
+                  {localizedCurrencyName(c.code, locale, c.name)}
                 </option>
               ))}
             </select>
@@ -209,7 +210,7 @@ export function InlineLedgerEntryRow({
           ) : null}
           {afnAmount ? (
             <small className="ledger-draft-preview">
-              = {afnAmount} {afnCode}
+              = {afnAmount} {localizedCurrencyName(afnCode, locale, afnCode)}
             </small>
           ) : null}
         </td>
