@@ -441,6 +441,8 @@ export const ps: Dictionary = {
     addWalletMoney: "حساب ته پیسې زیاتې کړئ",
     noCurrencies: "اسعار نه دي تنظیم شوي",
     currentBalances: "اوسنۍ موجودي",
+    balanceJama: "جمع",
+    balanceBanam: "بنام",
     customerHistory: "د پیرودونکي تاریخچه",
     backToList: "بیرته لیست ته",
     balances: "موجودي",

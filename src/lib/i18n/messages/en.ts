@@ -441,6 +441,8 @@ export const en: Dictionary = {
     addWalletMoney: "Add wallet money",
     noCurrencies: "No currencies configured",
     currentBalances: "Current balances",
+    balanceJama: "Credit",
+    balanceBanam: "Debit",
     customerHistory: "Customer history",
     backToList: "Back to customers",
     balances: "Balances",

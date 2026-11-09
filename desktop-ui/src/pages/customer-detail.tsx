@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { Pencil, Printer, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -53,6 +54,18 @@ import {
   localizeCurrencyCodesInText,
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
+
+function signedMoney(amount: number | string | null | undefined): number {
+  const n =
+    typeof amount === "number"
+      ? amount
+      : Number.parseFloat(
+          String(amount ?? "")
+            .replace(/,/g, "")
+            .replace(/−/g, "-"),
+        );
+  return Number.isFinite(n) ? n : 0;
+}
 import {
   EMPTY_JOURNAL_FILTER_TOTALS,
   journalFilterTotals,
@@ -117,7 +130,13 @@ function customerStatusLabel(
   return t.common.inactive;
 }
 
-function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
+function CustomerNameSwitcher({
+  customer,
+  meta,
+}: {
+  customer: CustomerDetail;
+  meta?: ReactNode;
+}) {
   const t = useT();
   const navigate = useNavigate();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -204,7 +223,10 @@ function CustomerNameSwitcher({ customer }: { customer: CustomerDetail }) {
 
   return (
     <div ref={wrapRef} className="customer-search-wrap customer-name-switcher">
-      <h1 className="customer-detail-name">{customer.fullName}</h1>
+      <div className="customer-name-switcher-heading">
+        <h1 className="customer-detail-name">{customer.fullName}</h1>
+        {meta}
+      </div>
       <label className="customer-name-switcher-search">
         <span className="visually-hidden">{t.customers.searchPlaceholder}</span>
         <input
@@ -757,33 +779,37 @@ export function CustomerDetailPage() {
               )}
             </div>
             <div className="customer-detail-title-row">
-                <CustomerNameSwitcher customer={customer} />
-                <p className="customer-detail-meta">
-                  <span
-                    className={
-                      customer.customerType?.toUpperCase() === "TEMPORARY"
-                        ? "customer-detail-type is-temporary"
-                        : "customer-detail-type"
-                    }
-                  >
-                    {customer.customerType?.toUpperCase() === "TEMPORARY"
-                      ? t.customers.temporary
-                      : t.customers.permanent}
-                  </span>
-                  {statusLabel ? (
-                    <strong
-                      className={
-                        customer.isArchived
-                          ? "customer-detail-status is-archived"
-                          : customer.isActive
-                            ? "customer-detail-status is-active"
-                            : "customer-detail-status is-inactive"
-                      }
-                    >
-                      {statusLabel}
-                    </strong>
-                  ) : null}
-                </p>
+                <CustomerNameSwitcher
+                  customer={customer}
+                  meta={
+                    <p className="customer-detail-meta">
+                      <span
+                        className={
+                          customer.customerType?.toUpperCase() === "TEMPORARY"
+                            ? "customer-detail-type is-temporary"
+                            : "customer-detail-type"
+                        }
+                      >
+                        {customer.customerType?.toUpperCase() === "TEMPORARY"
+                          ? t.customers.temporary
+                          : t.customers.permanent}
+                      </span>
+                      {statusLabel ? (
+                        <strong
+                          className={
+                            customer.isArchived
+                              ? "customer-detail-status is-archived"
+                              : customer.isActive
+                                ? "customer-detail-status is-active"
+                                : "customer-detail-status is-inactive"
+                          }
+                        >
+                          {statusLabel}
+                        </strong>
+                      ) : null}
+                    </p>
+                  }
+                />
                 <div className="customer-detail-actions">
                   {customer.isArchived ? (
                     <button type="button" className="btn" onClick={() => void onRestore()}>
@@ -934,7 +960,15 @@ export function CustomerDetailPage() {
                   {balances.length === 0 ? (
                     <p className="muted" style={{ margin: 0 }}>{t.common.noData}</p>
                   ) : (
-                    balances.map((b) => (
+                    balances.map((b) => {
+                      const side = signedMoney(b.balanceDisplay);
+                      const sideLabel =
+                        side > 0
+                          ? t.customers.balanceJama
+                          : side < 0
+                            ? t.customers.balanceBanam
+                            : null;
+                      return (
                         <button
                           type="button"
                           key={b.currencyCode}
@@ -964,8 +998,12 @@ export function CustomerDetailPage() {
                             {b.balanceDisplay}
                           </span>
                           <span className="customer-money-code">{b.currencyCode}</span>
+                          {sideLabel ? (
+                            <span className="customer-money-side">{sideLabel}</span>
+                          ) : null}
                         </button>
-                      ))
+                      );
+                    })
                   )}
                 </div>
                 {customer.isArchived ? null : (
@@ -1063,18 +1101,30 @@ export function CustomerDetailPage() {
                   label={
                     historyTotals.closing.length > 0 ? (
                       <div className="customer-history-closing-list">
-                        {historyTotals.closing.map((row) => (
-                          <span
-                            key={row.code}
-                            className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
-                          >
-                            <CurrencyFlag code={row.code} size="sm" />
-                            <span className="customer-history-closing-amount" dir="ltr">
-                              {row.amount}
+                        {historyTotals.closing.map((row) => {
+                          const side = signedMoney(row.amount);
+                          const sideLabel =
+                            side > 0
+                              ? t.customers.balanceJama
+                              : side < 0
+                                ? t.customers.balanceBanam
+                                : null;
+                          return (
+                            <span
+                              key={row.code}
+                              className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
+                            >
+                              <CurrencyFlag code={row.code} size="sm" />
+                              <span className="customer-history-closing-amount" dir="ltr">
+                                {row.amount}
+                              </span>
+                              <span className="customer-history-closing-code">{row.code}</span>
+                              {sideLabel ? (
+                                <span className="customer-money-side">{sideLabel}</span>
+                              ) : null}
                             </span>
-                            <span className="customer-history-closing-code">{row.code}</span>
-                          </span>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : null
                   }

@@ -7523,6 +7523,20 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   height: 26px;
 }
 
+/*
+ * Keep balances on the physical left and actions on the right in Dari/Pashto.
+ * Without this, RTL flex reverses the English layout the desk expects.
+ */
+html[dir="rtl"] .customer-money-row,
+html[dir="rtl"] .customer-history-pager {
+  direction: ltr;
+}
+
+html[dir="rtl"] .customer-money-add,
+html[dir="rtl"] .customer-ledger-fab {
+  direction: rtl;
+}
+
 .customer-money-currencies {
   display: flex;
   flex: 1 1 auto;
@@ -7585,9 +7599,28 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   line-height: 1;
 }
 
+.customer-money-side {
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+}
+
+.customer-money-cell.money-in .customer-money-side,
+.customer-history-closing-chip.money-in .customer-money-side {
+  color: var(--money-in, #1a7a45);
+}
+
+.customer-money-cell.money-out .customer-money-side,
+.customer-history-closing-chip.money-out .customer-money-side {
+  color: var(--money-out, #b42318);
+}
+
 .customer-money-add {
   flex: 0 0 auto;
-  margin-inline-start: auto;
+  margin-left: auto;
+  margin-inline-start: unset;
   height: 26px;
   min-height: 26px;
   padding: 0 0.5rem;
@@ -7660,6 +7693,7 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   gap: 0.5rem;
   min-width: 0;
   flex: 0 0 auto;
+  flex-wrap: nowrap;
   position: relative;
   z-index: 4;
   margin-top: 0.35rem;
@@ -7668,7 +7702,8 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   background: var(--surface-solid, var(--surface));
 }
 
-.customer-history-pager > .row {
+.customer-history-pager > .row,
+.customer-history-pager > .muted {
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -7676,8 +7711,10 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 .customer-ledger-fab {
   position: static;
   flex: 0 0 auto;
+  margin-left: auto;
   z-index: 1;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 /* !important: beats the zebra / hover td backgrounds of every theme. */
@@ -7831,22 +7868,61 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
   align-items: flex-start;
   gap: 0.18rem;
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.customer-name-switcher-heading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.customer-name-switcher-heading .customer-detail-name {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: max-content;
+}
+
+.customer-name-switcher-heading .customer-detail-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .customer-name-switcher-search {
-  width: min(100%, 16rem);
+  width: min(100%, 14rem);
   margin: 0;
   gap: 0;
 }
 
-.customer-name-switcher-search input {
+.customer-name-switcher .customer-name-switcher-search input[type="search"] {
+  box-sizing: border-box;
   width: 100%;
-  min-height: 22px;
-  height: 22px;
-  padding: 0 0.4rem;
-  font-size: 0.72rem;
+  height: 2.3rem;
+  min-height: 2.3rem;
+  max-height: 2.3rem;
+  margin: 0;
+  padding: 0 0.45rem;
+  border-width: 1px;
+  border-radius: 4px;
+  font-size: 0.78rem;
   font-weight: 500;
-  line-height: 1.1;
+  line-height: 2.3rem;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.customer-name-switcher .customer-name-switcher-search input[type="search"]::-webkit-search-decoration,
+.customer-name-switcher .customer-name-switcher-search input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .customer-name-switcher > .customer-suggest {

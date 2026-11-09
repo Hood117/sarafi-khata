@@ -436,6 +436,10 @@ export type Dictionary = {
     addWalletMoney: string;
     noCurrencies: string;
     currentBalances: string;
+    /** Positive balance — customer owns / Sarafi holds (جمع). */
+    balanceJama: string;
+    /** Negative balance — customer owes Sarafi (بنام). */
+    balanceBanam: string;
     customerHistory: string;
     backToList: string;
     balances: string;

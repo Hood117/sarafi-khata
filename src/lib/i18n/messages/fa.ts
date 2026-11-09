@@ -441,6 +441,8 @@ export const fa: Dictionary = {
     addWalletMoney: "افزودن پول به حساب",
     noCurrencies: "اسعاری تنظیم نشده",
     currentBalances: "موجودی فعلی",
+    balanceJama: "جمع",
+    balanceBanam: "بنام",
     customerHistory: "تاریخچه مشتری",
     backToList: "بازگشت به لیست",
     balances: "موجودی‌ها",
