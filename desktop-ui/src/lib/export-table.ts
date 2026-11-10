@@ -9,9 +9,12 @@ import autoTable from "jspdf-autotable";
 
 import { printPage, saveBytesExport, saveTextExport } from "@desktop/api";
 import {
+  drawPdfMixedText,
   ensurePdfArabicFont,
   hasArabicScript,
-  PDF_ARABIC_FONT,
+  patchPdfTextForShapedArabic,
+  pdfAutoTableTextY,
+  pdfFontForText,
   shapePdfText,
 } from "@desktop/lib/pdf-arabic";
 
@@ -569,9 +572,6 @@ export async function savePdfReportSheet(input: {
   const emptyLabel = input.emptyLabel ?? "No rows.";
   const generatedAt = meta.generatedAt ?? new Date().toLocaleString();
   const filename = input.filename ?? safePdfFilename(meta.title);
-  const rtl = Boolean(meta.rtl);
-  // In RTL, reverse columns so the table reads the same way as the on-screen ledger.
-  const columns = rtl ? [...input.columns].reverse() : input.columns;
 
   const doc = new jsPDF({
     orientation: "landscape",
@@ -591,42 +591,52 @@ export async function savePdfReportSheet(input: {
     meta.title,
     meta.periodLabel ?? "",
     emptyLabel,
-    ...columns.map((c) => c.header),
-    ...rows.flatMap((row) => columns.map((c) => cellValue(row[c.key]))),
+    ...input.columns.map((c) => c.header),
+    ...rows.flatMap((row) => input.columns.map((c) => cellValue(row[c.key]))),
   ].join(" ");
-  const needsArabic =
-    rtl || hasArabicScript(sampleText);
-  let bodyFont = "helvetica";
-  if (needsArabic) {
+  // RTL whenever the UI asked for it, or the sheet contains Arabic-script text.
+  const rtl = Boolean(meta.rtl) || hasArabicScript(sampleText);
+  // In RTL, reverse columns so the table reads the same way as the on-screen ledger.
+  const columns = rtl ? [...input.columns].reverse() : input.columns;
+
+  let arabicReady = false;
+  if (rtl || hasArabicScript(sampleText)) {
     try {
-      if (await ensurePdfArabicFont(doc)) bodyFont = PDF_ARABIC_FONT;
+      if (await ensurePdfArabicFont(doc)) {
+        arabicReady = true;
+        // Prevent jsPDF from re-bidi'ing already-visual shaped strings.
+        patchPdfTextForShapedArabic(doc);
+      }
     } catch {
-      bodyFont = "helvetica";
+      arabicReady = false;
     }
   }
-  const t = (value: string) =>
-    bodyFont === PDF_ARABIC_FONT ? shapePdfText(value) : value;
+
+  const textDir = rtl ? "rtl" : "ltr";
 
   doc.setTextColor(navy);
-  doc.setFont(bodyFont, "bold");
-  doc.setFontSize(16);
   const brand = (meta.businessName ?? "Radefy Sarafi Offline").toUpperCase();
-  doc.text(t(brand), rtl ? pageW - margin : margin, 14, {
+  drawPdfMixedText(doc, brand, rtl ? pageW - margin : margin, 14, {
+    arabicFontReady: arabicReady,
     align: rtl ? "right" : "left",
+    fontStyle: "bold",
+    fontSize: 16,
+    direction: textDir,
   });
 
   doc.setTextColor(titleBlue);
-  doc.setFontSize(12);
-  doc.text(t(meta.title), rtl ? pageW - margin : margin, 21, {
+  drawPdfMixedText(doc, meta.title, rtl ? pageW - margin : margin, 21, {
+    arabicFontReady: arabicReady,
     align: rtl ? "right" : "left",
+    fontStyle: "bold",
+    fontSize: 12,
+    direction: textDir,
   });
 
   doc.setDrawColor(navy);
   doc.setLineWidth(0.6);
   doc.line(margin, 24, pageW - margin, 24);
 
-  doc.setFont(bodyFont, "normal");
-  doc.setFontSize(9);
   doc.setTextColor(muted);
   const metaLines = [
     meta.periodLabel,
@@ -635,62 +645,142 @@ export async function savePdfReportSheet(input: {
     `Rows: ${rows.length}`,
   ].filter(Boolean) as string[];
   metaLines.forEach((line, i) => {
-    doc.text(t(line), rtl ? margin : pageW - margin, 12 + i * 4.2, {
+    drawPdfMixedText(doc, line, rtl ? margin : pageW - margin, 12 + i * 4.2, {
+      arabicFontReady: arabicReady,
       align: rtl ? "left" : "right",
+      fontStyle: "normal",
+      fontSize: 9,
+      direction: textDir,
     });
   });
 
   if (rows.length === 0) {
     doc.setTextColor(muted);
-    doc.setFontSize(11);
-    doc.text(t(emptyLabel), pageW / 2, 50, { align: "center" });
+    drawPdfMixedText(doc, emptyLabel, pageW / 2, 50, {
+      arabicFontReady: arabicReady,
+      align: "center",
+      fontStyle: "normal",
+      fontSize: 11,
+      direction: textDir,
+    });
   } else {
-    const head = [columns.map((c) => t(c.header))];
+    // Keep logical strings in the table; paint every cell ourselves so
+    // baselines, padding, and RTL/Latin fonts stay consistent.
+    const head = [columns.map((c) => c.header)];
     const body = rows.map((row) =>
-      columns.map((c) => t(cellValue(row[c.key]))),
+      columns.map((c) => cellValue(row[c.key])),
     );
+    type CellExtra = { _pdfLogical?: string; _pdfPaint?: boolean };
+    const cellPad = 2.4;
     autoTable(doc, {
       startY: 28,
       head,
       body,
       theme: "grid",
       styles: {
-        font: bodyFont,
+        font: "helvetica",
         fontStyle: "normal",
         fontSize: 8,
-        cellPadding: 1.6,
+        cellPadding: cellPad,
         textColor: ink,
         lineColor: [195, 207, 223],
         lineWidth: 0.2,
         overflow: "linebreak",
-        valign: "top",
+        valign: "middle",
+        // Ledger data always follows sheet direction (RTL for FA/PS).
         halign: rtl ? "right" : "left",
       },
       headStyles: {
         fillColor: [2, 16, 36],
         textColor: [255, 255, 255],
         fontStyle: "bold",
-        font: bodyFont,
+        font: "helvetica",
         lineColor: [2, 16, 36],
         halign: rtl ? "right" : "left",
+        valign: "middle",
       },
       alternateRowStyles: { fillColor: [242, 246, 251] },
       margin: { left: margin, right: margin },
       didParseCell: (data) => {
-        data.cell.styles.font = bodyFont;
-        if (data.section !== "body") return;
+        const logical = (data.cell.text ?? []).join(" ");
         const col = columns[data.column.index];
-        if (!col) return;
-        if (col.kind === "amount" || col.kind === "count") {
-          // Keep amounts LTR-aligned for readability in both locales.
-          data.cell.styles.halign = rtl ? "left" : "right";
-          data.cell.styles.fontStyle = "bold";
+        const kind = col?.kind;
+        const isAmount = kind === "amount" || kind === "count";
+        const isCurrency = kind === "text" && col?.key === "currency";
+        const isDate = kind === "date";
+
+        // Amounts + currency sit centered so they don't hug a cell edge.
+        if (isAmount || isCurrency) {
+          data.cell.styles.halign = "center";
+        } else if (isDate) {
+          data.cell.styles.halign = "center";
+        } else {
+          data.cell.styles.halign = rtl ? "right" : "left";
         }
+        if (isAmount) data.cell.styles.fontStyle = "bold";
+
+        const extra = data.cell as unknown as CellExtra;
+        extra._pdfLogical = logical;
+        extra._pdfPaint = true;
+        // Stand-in text for row-height measurement only (cleared before draw).
+        data.cell.styles.font = isAmount
+          ? "helvetica"
+          : pdfFontForText(logical, arabicReady);
+        data.cell.text = [
+          arabicReady && hasArabicScript(logical)
+            ? shapePdfText(logical, textDir)
+            : logical,
+        ];
+
+        if (data.section !== "body" || !col) return;
         const row = rows[data.row.index];
         if (!row) return;
         const tone = amountTone(row, col);
         if (tone === "in") data.cell.styles.textColor = moneyIn;
         if (tone === "out") data.cell.styles.textColor = moneyOut;
+      },
+      willDrawCell: (data) => {
+        const extra = data.cell as unknown as CellExtra;
+        if (!extra._pdfPaint) return;
+        // Suppress autotable's own text; we draw in didDrawCell.
+        data.cell.text = [""];
+      },
+      didDrawCell: (data) => {
+        const extra = data.cell as unknown as CellExtra;
+        if (!extra._pdfPaint) return;
+        const logical = extra._pdfLogical ?? "";
+        if (!logical) return;
+
+        const align =
+          (data.cell.styles.halign as "left" | "right" | "center") ||
+          (rtl ? "right" : "left");
+        const padL = data.cell.padding("left");
+        const padR = data.cell.padding("right");
+        const contentW = Math.max(0, data.cell.width - padL - padR);
+        const pos = data.cell.getTextPos();
+        const x =
+          align === "right"
+            ? data.cell.x + data.cell.width - padR
+            : align === "center"
+              ? data.cell.x + data.cell.width / 2
+              : data.cell.x + padL;
+        const fontSize = data.cell.styles.fontSize ?? 8;
+        // Same baseline shift autotable applies in autoTableText().
+        const y = pdfAutoTableTextY(doc, pos.y, 0, fontSize);
+
+        const tc = data.cell.styles.textColor;
+        if (Array.isArray(tc)) doc.setTextColor(tc[0]!, tc[1]!, tc[2]!);
+        else if (typeof tc === "number") doc.setTextColor(tc);
+        else if (typeof tc === "string") doc.setTextColor(tc);
+
+        drawPdfMixedText(doc, logical, x, y, {
+          arabicFontReady: arabicReady,
+          align,
+          fontStyle: data.cell.styles.fontStyle === "bold" ? "bold" : "normal",
+          fontSize,
+          direction: textDir,
+          maxWidth: contentW,
+        });
       },
     });
   }
@@ -702,17 +792,32 @@ export async function savePdfReportSheet(input: {
     doc.setDrawColor(195, 207, 223);
     doc.setLineWidth(0.3);
     doc.line(margin, y - 3, pageW - margin, y - 3);
-    doc.setFont(bodyFont, "normal");
-    doc.setFontSize(8);
     doc.setTextColor(muted);
-    doc.text(t("Radefy Sarafi Offline · Reports"), rtl ? pageW - margin : margin, y, {
-      align: rtl ? "right" : "left",
-    });
-    doc.text(
-      t(`Confidential · ${i}/${pageCount}`),
+    drawPdfMixedText(
+      doc,
+      "Radefy Sarafi Offline · Reports",
+      rtl ? pageW - margin : margin,
+      y,
+      {
+        arabicFontReady: arabicReady,
+        align: rtl ? "right" : "left",
+        fontStyle: "normal",
+        fontSize: 8,
+        direction: textDir,
+      },
+    );
+    drawPdfMixedText(
+      doc,
+      `Confidential · ${i}/${pageCount}`,
       rtl ? margin : pageW - margin,
       y,
-      { align: rtl ? "left" : "right" },
+      {
+        arabicFontReady: arabicReady,
+        align: rtl ? "left" : "right",
+        fontStyle: "normal",
+        fontSize: 8,
+        direction: textDir,
+      },
     );
   }
 

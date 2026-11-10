@@ -31,13 +31,18 @@ export function colorizeAmountsInText(
   return parts.length ? <>{parts}</> : raw;
 }
 
+/**
+ * Tone for daybook description amounts.
+ * Expects Sarafi journal columns (Credit/جمع = money in, Debit = money out),
+ * i.e. values already mapped with `toSarafiJournalAmounts`.
+ */
 export function descriptionToneFromJournalRow(row: {
   debit?: string | null;
   credit?: string | null;
   transactionType?: string | null;
 }): "in" | "out" | "neutral" {
-  if (row.debit && String(row.debit).trim()) return "in";
-  if (row.credit && String(row.credit).trim()) return "out";
+  if (row.credit && String(row.credit).trim()) return "in";
+  if (row.debit && String(row.debit).trim()) return "out";
   const t = (row.transactionType ?? "").toUpperCase();
   if (t === "DEPOSIT" || t === "RECEIVE") return "in";
   if (t === "WITHDRAWAL" || t === "SEND") return "out";

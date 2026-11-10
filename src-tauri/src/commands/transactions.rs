@@ -242,12 +242,15 @@ pub struct CustomerLedgerRow {
   pub flow: String,
   pub sender_name: Option<String>,
   pub receiver_name: Option<String>,
-  /// Customer-wallet debit for this currency (empty when none).
+  /// Asset-convention CUSTOMER-wallet DEBIT (empty when none). Deposits /
+  /// money-in land here. Sarafi statement UI maps this to Credit / جمع via
+  /// `toCustomerStatementAmounts` — do not treat as the Debit column.
   pub debit: String,
-  /// Customer-wallet credit for this currency (empty when none).
+  /// Asset-convention CUSTOMER-wallet CREDIT (empty when none). Withdrawals /
+  /// money-out land here. Sarafi statement UI maps this to the Debit column.
   pub credit: String,
   pub currency_code: String,
-  /// Running customer balance in this currency after this line.
+  /// Running customer balance after this line (asset: +debit − credit).
   pub balance_after: String,
 }
 
@@ -350,6 +353,18 @@ fn format_ledger_money(v: f64) -> String {
 
 fn format_balance_display(v: f64) -> String {
   format_amount_commas(&format_f64(v))
+}
+
+/// Calendar day key for ledger ordering (YYYY-MM-DD). Ignores time-of-day so
+/// date-only and datetime valueDates on the same day share one bucket; within
+/// the day, callers should order by createdAt (posting order).
+fn ledger_business_day(value_date: &str) -> &str {
+  let t = value_date.trim();
+  if t.len() >= 10 {
+    &t[..10]
+  } else {
+    t
+  }
 }
 
 fn customer_ledger_row_matches_search(
@@ -466,7 +481,7 @@ pub fn list_customer_ledger(
     }
   }
 
-  // Customer-wallet lines in the date window (chrono ASC) — running balances for the page only.
+  // Customer-wallet lines in the date window (valueDate ASC for running balances).
   let mut all_sql = String::from(
     r#"SELECT t.id, t.reference, IFNULL(t.displayRef,''), t.type, t.status, t.description, t.valueDate, t.createdAt, c.code,
               COALESCE(SUM(CASE WHEN le.direction='DEBIT' THEN CAST(le.amount AS REAL) ELSE 0 END), 0),
@@ -491,11 +506,14 @@ pub fn list_customer_ledger(
     all_sql.push_str(" AND c.code = ?");
     all_params.push(Box::new(cf.clone()));
   }
-  all_sql.push_str(&format!(
+  // Business-date chronology (must match the newest-first flip below).
+  // Sort by calendar day (date prefix), then posting time — not the raw
+  // valueDate string. Date-only values like "2026-11-10" otherwise sort
+  // before/after "2026-11-10 15:00:00" and land in the middle of the day.
+  all_sql.push_str(
     " GROUP BY t.id, t.reference, t.displayRef, t.type, t.status, t.description, t.valueDate, t.createdAt, t.displaySeq, c.code
-      ORDER BY {}, c.code ASC",
-    crate::ledger::TX_CHRONO_ASC
-  ));
+      ORDER BY substr(t.valueDate, 1, 10) ASC, t.createdAt ASC, t.id ASC, c.code ASC",
+  );
   let all_refs: Vec<&dyn rusqlite::types::ToSql> =
     all_params.iter().map(|p| p.as_ref()).collect();
   let mut all_stmt = conn.prepare(&all_sql)?;
@@ -512,11 +530,13 @@ pub fn list_customer_ledger(
     currency_code: String,
     debit: f64,
     credit: f64,
+    /// False for Account Order linked payouts (history only; no customer wallet delta).
+    affects_running: bool,
     balance_after: f64,
   }
 
-  // Stream chrono ASC; type/currency filters subset rows without reordering.
-  let mut display: Vec<RawLine> = Vec::new();
+  // Collect first, assign running in valueDate order, then flip newest-first.
+  let mut collected: Vec<RawLine> = Vec::new();
   for row in all_stmt.query_map(all_refs.as_slice(), |row| {
     Ok((
       row.get::<_, String>(0)?,
@@ -545,30 +565,7 @@ pub fn list_customer_ledger(
       debit,
       credit,
     ) = row?;
-    let entry = running.entry(code.clone()).or_insert(0.0);
-    *entry += debit - credit;
-    let type_ok = type_filter
-      .as_ref()
-      .map(|tf| tx_type.eq_ignore_ascii_case(tf))
-      .unwrap_or(true);
-    if !type_ok {
-      continue;
-    }
-    if let Some(ref q) = search_filter {
-      if !customer_ledger_row_matches_search(
-        q,
-        description.as_deref(),
-        &reference,
-        &display_ref,
-        &tx_type,
-        &code,
-        debit,
-        credit,
-      ) {
-        continue;
-      }
-    }
-    display.push(RawLine {
+    collected.push(RawLine {
       id,
       reference,
       display_ref,
@@ -580,7 +577,8 @@ pub fn list_customer_ledger(
       currency_code: code,
       debit,
       credit,
-      balance_after: *entry,
+      affects_running: true,
+      balance_after: 0.0,
     });
   }
 
@@ -659,32 +657,13 @@ pub fn list_customer_ledger(
       code,
       payout_amount,
     ) = row?;
-    let type_ok = type_filter
-      .as_ref()
-      .map(|tf| tx_type.eq_ignore_ascii_case(tf))
-      .unwrap_or(true);
-    if !type_ok {
+    if collected
+      .iter()
+      .any(|l| l.id == id && l.currency_code == code)
+    {
       continue;
     }
-    if let Some(ref q) = search_filter {
-      if !customer_ledger_row_matches_search(
-        q,
-        description.as_deref(),
-        &reference,
-        &display_ref,
-        &tx_type,
-        &code,
-        0.0,
-        payout_amount,
-      ) {
-        continue;
-      }
-    }
-    if display.iter().any(|l| l.id == id && l.currency_code == code) {
-      continue;
-    }
-    let balance_after = running.get(&code).copied().unwrap_or(0.0);
-    display.push(RawLine {
+    collected.push(RawLine {
       id,
       reference,
       display_ref,
@@ -696,20 +675,69 @@ pub fn list_customer_ledger(
       currency_code: code,
       debit: 0.0,
       credit: payout_amount,
-      balance_after,
+      affects_running: false,
+      balance_after: 0.0,
     });
   }
-  // Running balances above require chrono ASC. Present newest-first so page 1
-  // shows the latest entry (filters still apply; only the page order flips).
-  display.sort_by(|a, b| {
+
+  collected.sort_by(|a, b| {
     (
-      a.value_date.as_str(),
+      ledger_business_day(&a.value_date),
       a.created_at.as_str(),
       a.id.as_str(),
       a.currency_code.as_str(),
     )
       .cmp(&(
-        b.value_date.as_str(),
+        ledger_business_day(&b.value_date),
+        b.created_at.as_str(),
+        b.id.as_str(),
+        b.currency_code.as_str(),
+      ))
+  });
+
+  let mut display: Vec<RawLine> = Vec::with_capacity(collected.len());
+  for mut line in collected {
+    if line.affects_running {
+      let entry = running.entry(line.currency_code.clone()).or_insert(0.0);
+      *entry += line.debit - line.credit;
+    }
+    line.balance_after = running.get(&line.currency_code).copied().unwrap_or(0.0);
+    let type_ok = type_filter
+      .as_ref()
+      .map(|tf| line.tx_type.eq_ignore_ascii_case(tf))
+      .unwrap_or(true);
+    if !type_ok {
+      continue;
+    }
+    if let Some(ref q) = search_filter {
+      if !customer_ledger_row_matches_search(
+        q,
+        line.description.as_deref(),
+        &line.reference,
+        &line.display_ref,
+        &line.tx_type,
+        &line.currency_code,
+        line.debit,
+        line.credit,
+      ) {
+        continue;
+      }
+    }
+    display.push(line);
+  }
+
+  // Present newest-first so page 1 shows the latest business-date entry.
+  // Within a day, newest createdAt first (matches daybook posting order).
+  // balanceAfter was assigned in matching ASC order above — do not recompute.
+  display.sort_by(|a, b| {
+    (
+      ledger_business_day(&a.value_date),
+      a.created_at.as_str(),
+      a.id.as_str(),
+      a.currency_code.as_str(),
+    )
+      .cmp(&(
+        ledger_business_day(&b.value_date),
         b.created_at.as_str(),
         b.id.as_str(),
         b.currency_code.as_str(),
@@ -796,6 +824,8 @@ pub fn list_customer_ledger(
       .map(|p| (p.sender_name.clone(), p.receiver_name.clone()))
       .unwrap_or((None, None));
 
+    // Keep asset-convention fields here (DEBIT = money in). Desktop customer
+    // history maps them to Sarafi Credit/جمع and Debit columns in the UI.
     items.push(CustomerLedgerRow {
       activity,
       id: line.id,
@@ -1031,4 +1061,86 @@ pub fn preview_display_ref(
   crate::ledger::ensure_display_seq_schema(&conn)?;
   let seq = crate::ledger::peek_display_seq(&conn)?;
   Ok(crate::ledger::format_display_ref(seq, &tx_type, ""))
+}
+
+#[cfg(test)]
+mod customer_ledger_balance_tests {
+  use super::ledger_business_day;
+
+  /// Regression: posting order / displaySeq must not drive running balances.
+  /// A future-dated early post used to sit on top with a stale mid-run
+  /// balanceAfter while live wallet chips stayed correct.
+  #[test]
+  fn running_balance_follows_business_day_then_newest_first() {
+    struct Line {
+      value_date: &'static str,
+      created_at: &'static str,
+      id: &'static str,
+      /// Customer-wallet delta (debit − credit in asset convention).
+      delta: f64,
+      balance_after: f64,
+    }
+
+    // Posted first (displaySeq 1) but business date later — the old bug
+    // assigned balanceAfter as if this were first chronologically.
+    let mut lines = vec![
+      Line {
+        value_date: "2026-11-15",
+        created_at: "2026-11-01T08:00:00",
+        id: "early-post-future-date",
+        delta: 5_000.0, // credit to customer → −5000 on asset wallet? use signed delta directly
+        balance_after: 0.0,
+      },
+      Line {
+        value_date: "2026-11-10",
+        created_at: "2026-11-10T12:00:00",
+        id: "later-post-earlier-date",
+        delta: 85_000.0,
+        balance_after: 0.0,
+      },
+    ];
+
+    // ASC by business day (same as list_customer_ledger), then assign running.
+    lines.sort_by(|a, b| {
+      (ledger_business_day(a.value_date), a.created_at, a.id).cmp(&(
+        ledger_business_day(b.value_date),
+        b.created_at,
+        b.id,
+      ))
+    });
+    let mut running = 0.0_f64;
+    for line in &mut lines {
+      running += line.delta;
+      line.balance_after = running;
+    }
+
+    assert_eq!(lines[0].id, "later-post-earlier-date");
+    assert_eq!(lines[0].balance_after, 85_000.0);
+    assert_eq!(lines[1].id, "early-post-future-date");
+    assert_eq!(lines[1].balance_after, 90_000.0);
+
+    // Newest business day first for page 1 — top row must carry final balance.
+    lines.sort_by(|a, b| {
+      (ledger_business_day(a.value_date), a.created_at, a.id)
+        .cmp(&(
+          ledger_business_day(b.value_date),
+          b.created_at,
+          b.id,
+        ))
+        .reverse()
+    });
+    assert_eq!(lines[0].id, "early-post-future-date");
+    assert_eq!(
+      lines[0].balance_after, 90_000.0,
+      "top row must not keep a stale mid-run balanceAfter"
+    );
+    assert_eq!(lines[1].balance_after, 85_000.0);
+  }
+
+  #[test]
+  fn business_day_ignores_time_suffix() {
+    assert_eq!(ledger_business_day("2026-11-10"), "2026-11-10");
+    assert_eq!(ledger_business_day("2026-11-10 15:00:00"), "2026-11-10");
+    assert_eq!(ledger_business_day("2026-11-10T15:00:00Z"), "2026-11-10");
+  }
 }

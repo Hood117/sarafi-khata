@@ -255,12 +255,20 @@ export type CustomerLedgerRow = {
   flow: "IN" | "OUT" | "MIXED" | "NONE" | string;
   senderName?: string | null;
   receiverName?: string | null;
-  /** Customer-wallet debit for this currency (empty when none). */
+  /**
+   * Asset-convention ledger DEBIT on the customer wallet (empty when none).
+   * Deposits land here. For Sarafi statement columns (Credit / جمع), map with
+   * `toCustomerStatementAmounts` — do not bind this field to the Debit column.
+   */
   debit: string;
-  /** Customer-wallet credit for this currency (empty when none). */
+  /**
+   * Asset-convention ledger CREDIT on the customer wallet (empty when none).
+   * Withdrawals land here. For Sarafi statement columns (Debit), map with
+   * `toCustomerStatementAmounts`.
+   */
   credit: string;
   currencyCode: string;
-  /** Running balance in this currency after the line. */
+  /** Running balance in this currency after the line (asset: +debit −credit). */
   balanceAfter: string;
 };
 

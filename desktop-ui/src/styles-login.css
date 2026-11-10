@@ -44,10 +44,6 @@ html .auth-page.radefy-login .radefy-aside {
   width: min(188px, 48vw);
   height: auto;
   object-fit: contain;
-  padding: 8px 10px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px #00000014;
 }
 .radefy-company strong {
   display: block;

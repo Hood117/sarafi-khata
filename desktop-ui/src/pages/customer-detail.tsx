@@ -56,9 +56,9 @@ import {
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
 import {
-  EMPTY_JOURNAL_FILTER_TOTALS,
-  journalFilterTotals,
-} from "@desktop/lib/daybook-journal-totals";
+  customerStatementAmountTones,
+  toCustomerStatementAmounts,
+} from "@desktop/lib/customer-statement-amounts";
 import {
   visibleLedgerLines,
   type AmountPart,
@@ -79,6 +79,7 @@ import {
   type ExportColumn,
   type ExportRow,
 } from "@desktop/lib/export-table";
+import { CustomerHistoryClosingChip } from "@desktop/components/customer-history-closing-chip";
 import { DepositFormModal } from "@desktop/components/deposit-form-modal";
 import { InlineLedgerEntryRow } from "@desktop/components/inline-ledger-entry-row";
 import { isSimpleDeskHawala } from "@desktop/pages/hawala-helpers";
@@ -314,7 +315,6 @@ export function CustomerDetailPage() {
   const [balances, setBalances] = useState<CustomerBalanceRow[]>([]);
   const [history, setHistory] = useState<CustomerLedgerRow[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
-  const [historyTotals, setHistoryTotals] = useState(EMPTY_JOURNAL_FILTER_TOTALS);
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 25;
   const [ledgerDateFrom, setLedgerDateFrom] = useState("");
@@ -630,29 +630,6 @@ export function CustomerDetailPage() {
     return all;
   }, [id, ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
 
-  const loadHistoryTotals = useCallback(async () => {
-    try {
-      const rows = await fetchAllFilteredHistory();
-      if (currentId.current !== id) return;
-      // Ledger pages are newest-first; closing needs chrono ASC (last balanceAfter wins).
-      setHistoryTotals(journalFilterTotals([...rows].reverse()));
-    } catch {
-      setHistoryTotals(EMPTY_JOURNAL_FILTER_TOTALS);
-    }
-  }, [fetchAllFilteredHistory, id]);
-
-  useEffect(() => {
-    void loadHistoryTotals();
-  }, [loadHistoryTotals]);
-
-  useEffect(() => {
-    const onSaved = () => {
-      void loadHistoryTotals();
-    };
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [loadHistoryTotals]);
-
   async function exportCustomerHistory(mode: "print" | "pdf") {
     if (!customer || printBusy) return;
     setPrintBusy(true);
@@ -672,13 +649,17 @@ export function CustomerDetailPage() {
           (row.description ?? "").trim() || row.activity || "—",
           locale,
         );
+        // API debit/credit are asset-convention ledger sides; statement columns
+        // use Sarafi Credit/جمع (money in) and Debit (money out).
+        const amounts = toCustomerStatementAmounts(row);
+        const tones = customerStatementAmountTones(amounts);
         return {
           date: String(row.valueDate).slice(0, 10),
           description,
-          debit: row.debit || "—",
-          _debitTone: "out",
-          credit: row.credit || "—",
-          _creditTone: "in",
+          debit: amounts.debit || "—",
+          _debitTone: tones.debitTone ?? "out",
+          credit: amounts.credit || "—",
+          _creditTone: tones.creditTone ?? "in",
           currency: row.currencyCode,
           balance: `${row.balanceAfter} ${row.currencyCode}`,
         };
@@ -1032,6 +1013,9 @@ export function CustomerDetailPage() {
                           (row.description ?? "").trim() || row.activity || "—",
                           locale,
                         );
+                        // Ledger DEBIT (deposit) → Credit/جمع; ledger CREDIT → Debit.
+                        const amounts = toCustomerStatementAmounts(row);
+                        const tones = customerStatementAmountTones(amounts);
                         return (
                           <tr
                             key={`${row.id}-${row.currencyCode}`}
@@ -1042,22 +1026,26 @@ export function CustomerDetailPage() {
                               setHistoryMenu({ x: e.clientX, y: e.clientY, row });
                             }}
                           >
-                            <td className="col-when">{String(row.valueDate).slice(0, 10)}</td>
+                            <td className="col-when ltr-text">{String(row.valueDate).slice(0, 10)}</td>
                             <td className="col-description">{description}</td>
-                            <td className={`col-amount col-credit ${row.credit ? "money-in" : ""}`}>
-                              {row.credit || "—"}
+                            <td
+                              className={`col-amount col-credit ${tones.creditTone === "in" ? "money-in" : ""}`}
+                            >
+                              <span className="ltr-text">{amounts.credit || "—"}</span>
                             </td>
-                            <td className={`col-amount col-debit ${row.debit ? "money-out" : ""}`}>
-                              {row.debit || "—"}
+                            <td
+                              className={`col-amount col-debit ${tones.debitTone === "out" ? "money-out" : ""}`}
+                            >
+                              <span className="ltr-text">{amounts.debit || "—"}</span>
                             </td>
                             <td className="col-currency">
-                              <span className="ledger-currency-cell">
+                              <span className="ledger-currency-cell ltr-text">
                                 <CurrencyFlag code={row.currencyCode} size="sm" />
                                 {row.currencyCode}
                               </span>
                             </td>
                             <td className={`col-amount col-balance ${moneyToneClass(row.balanceAfter)}`}>
-                              <span className="amount-emphasis">
+                              <span className="amount-emphasis ltr-text">
                                 {row.balanceAfter} {row.currencyCode}
                               </span>
                             </td>
@@ -1089,37 +1077,41 @@ export function CustomerDetailPage() {
                   busy={ledgerBusy}
                   onPageChange={setHistoryPage}
                   label={
-                    historyTotals.closing.length > 0 ? (
-                      <div className="customer-history-closing-list">
-                        {historyTotals.closing.map((row) => {
-                          const side = signedMoney(row.amount);
-                          const sideLabel =
-                            side > 0
-                              ? t.customers.balanceJama
-                              : side < 0
-                                ? t.customers.balanceBanam
-                                : null;
-                          return (
-                            <span
-                              key={row.code}
-                              className={`customer-history-closing-chip ${moneyToneClass(row.amount)}`}
-                              title={`${row.amount} ${row.code}`}
-                            >
-                              <CurrencyFlag code={row.code} size="sm" />
-                              <span className="customer-history-closing-code">
-                                {localizedCurrencyName(row.code, locale, row.code)}
-                              </span>
-                              <span className="customer-history-closing-amount">
-                                {row.amount}
-                              </span>
-                              {sideLabel ? (
-                                <span className="customer-money-side">{sideLabel}</span>
-                              ) : null}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : null
+                    (() => {
+                      const footerBalances =
+                        ledgerCurrency === "ALL"
+                          ? balances
+                          : balances.filter(
+                              (b) =>
+                                b.currencyCode.toUpperCase() ===
+                                ledgerCurrency.toUpperCase(),
+                            );
+                      if (footerBalances.length === 0) return null;
+                      return (
+                        <div
+                          className="customer-history-closing-list"
+                          aria-label={t.customers.currentBalances}
+                        >
+                          {footerBalances.map((row) => {
+                            const side = signedMoney(row.balanceDisplay);
+                            const sideLabel =
+                              side > 0
+                                ? t.customers.balanceJama
+                                : side < 0
+                                  ? t.customers.balanceBanam
+                                  : null;
+                            return (
+                              <CustomerHistoryClosingChip
+                                key={row.currencyCode}
+                                currencyCode={row.currencyCode}
+                                balanceDisplay={row.balanceDisplay}
+                                sideLabel={sideLabel}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
                   }
                 />
                 {!customer.isArchived && !draftOpen ? (

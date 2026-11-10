@@ -363,10 +363,10 @@ export function printDaybookLedger(input: {
       text-align: start;
     }
     .daybook-print-root td.col-debit {
-      background: rgba(26, 122, 69, 0.05);
+      background: rgba(180, 35, 24, 0.04);
     }
     .daybook-print-root td.col-credit {
-      background: rgba(180, 35, 24, 0.04);
+      background: rgba(26, 122, 69, 0.05);
     }
     .daybook-print-root td.money-in {
       color: #1a7a45 !important;

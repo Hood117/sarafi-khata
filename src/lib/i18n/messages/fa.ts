@@ -126,7 +126,7 @@ export const fa: Dictionary = {
     export: "صادر کردن",
     print: "چاپ",
     details: "جزئیات",
-    description: "توضیحات",
+    description: "تشریح",
     type: "نوع",
     from: "از",
     to: "به",

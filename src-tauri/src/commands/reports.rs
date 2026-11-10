@@ -2138,8 +2138,11 @@ pub fn get_movement_sum_report(
   let conn = state.db.lock();
   let _actor = require_screen(&state, &conn, "reports")?;
 
-  let deposit = customer_tx_type_totals(&conn, &from, &to, "DEPOSIT", "CREDIT")?;
-  let withdrawal = customer_tx_type_totals(&conn, &from, &to, "WITHDRAWAL", "DEBIT")?;
+  // CUSTOMER wallets use asset convention: deposits are DEBIT (balance ↑),
+  // withdrawals are CREDIT (balance ↓). Filter by that structured direction —
+  // not by Sarafi Credit/جمع column labels.
+  let deposit = customer_tx_type_totals(&conn, &from, &to, "DEPOSIT", "DEBIT")?;
+  let withdrawal = customer_tx_type_totals(&conn, &from, &to, "WITHDRAWAL", "CREDIT")?;
   let transfer = customer_tx_type_totals(&conn, &from, &to, "TRANSFER", "DEBIT")?;
   let (exchange_given, exchange_received, exchange_profit) =
     exchange_deal_side_totals(&conn, &from, &to)?;

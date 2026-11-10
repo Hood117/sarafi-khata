@@ -7524,17 +7524,45 @@ button.daybook-wa-icon-btn .daybook-wa-icon,
 }
 
 /*
- * Keep balances on the physical left and actions on the right in Dari/Pashto.
- * Without this, RTL flex reverses the English layout the desk expects.
+ * Customer ledger stays RTL with the page (Dari/Pashto).
+ * Only money / dates / currency codes stay LTR isolates so digits never reverse
+ * and balances don't look "stuck" or scrambled.
  */
-html[dir="rtl"] .customer-money-row,
-html[dir="rtl"] .customer-history-pager {
+html[dir="rtl"] .customer-history-scroll .report-ledger .col-when,
+html[dir="rtl"] .customer-history-scroll .report-ledger .col-amount,
+html[dir="rtl"] .customer-history-scroll .report-ledger .col-currency,
+html[dir="rtl"] .customer-history-scroll .report-ledger .ledger-draft-amount,
+html[dir="rtl"] .customer-history-scroll .report-ledger .ledger-draft-rate,
+html[dir="rtl"] .customer-history-scroll .report-ledger .ledger-draft-preview,
+html[dir="rtl"] .customer-history-closing-money,
+html[dir="rtl"] .customer-history-closing-amount,
+html[dir="rtl"] .customer-history-closing-code,
+html[dir="rtl"] .customer-money-code,
+html[dir="rtl"] .ledger-currency-cell {
   direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
 }
 
-html[dir="rtl"] .customer-money-add,
-html[dir="rtl"] .customer-ledger-fab {
+/* Description / تشریح stays RTL even when the line starts with digits or Latin. */
+html[dir="rtl"] .customer-history-scroll .report-ledger th.col-description,
+html[dir="rtl"] .customer-history-scroll .report-ledger td.col-description,
+html[dir="rtl"] .customer-history-scroll .report-ledger td.col-description input,
+html[dir="rtl"] .daybook-journal-table th.col-description,
+html[dir="rtl"] .daybook-journal-table td.col-description,
+html[dir="rtl"] .daybook-journal-table td.col-description .col-description-text {
   direction: rtl;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
+html[dir="rtl"] .daybook-journal-table td.col-description .daybook-type-cell {
+  direction: rtl;
+}
+
+html[dir="rtl"] .customer-history-scroll .report-ledger .col-amount,
+html[dir="rtl"] .customer-history-scroll .report-ledger .ledger-draft-amount {
+  text-align: end;
 }
 
 .customer-money-currencies {
@@ -7616,8 +7644,7 @@ html[dir="rtl"] .customer-ledger-fab {
 
 .customer-money-add {
   flex: 0 0 auto;
-  margin-left: auto;
-  margin-inline-start: unset;
+  margin-inline-start: auto;
   height: 26px;
   min-height: 26px;
   padding: 0 0.5rem;
@@ -7684,8 +7711,12 @@ html[dir="rtl"] .customer-ledger-fab {
   border-radius: 8px;
 }
 
+/* Physical placement always: totals/pager on the left, Add ledger on the right.
+   Page RTL stays elsewhere; only this bar is direction:ltr so flex doesn't flip. */
 .customer-history-pager {
   display: flex;
+  flex-direction: row;
+  direction: ltr;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
@@ -7705,10 +7736,14 @@ html[dir="rtl"] .customer-ledger-fab {
   min-width: 0;
 }
 
+html[dir="rtl"] .customer-history-closing-list {
+  direction: rtl;
+}
+
 .customer-ledger-fab {
   position: static;
   flex: 0 0 auto;
-  margin-left: auto;
+  margin-inline-start: auto;
   z-index: 1;
   box-shadow: none;
   white-space: nowrap;
@@ -7861,9 +7896,10 @@ html[dir="rtl"] .customer-ledger-fab {
 
 .customer-name-switcher {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.18rem;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -7875,7 +7911,8 @@ html[dir="rtl"] .customer-ledger-fab {
   flex-wrap: nowrap;
   gap: 0.35rem 0.55rem;
   min-width: 0;
-  width: 100%;
+  flex: 0 1 auto;
+  width: auto;
 }
 
 .customer-name-switcher-heading .customer-detail-name {
@@ -7895,6 +7932,7 @@ html[dir="rtl"] .customer-ledger-fab {
 
 .customer-name-switcher-search {
   width: min(100%, 14rem);
+  flex: 0 0 auto;
   margin: 0;
   gap: 0;
 }
@@ -8093,8 +8131,8 @@ html[dir="rtl"] .customer-ledger-fab {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.28rem;
-  width: auto;
+  gap: 0.35rem;
+  max-width: min(100%, 42rem);
 }
 
 .ledger-currency-cell {
@@ -8116,6 +8154,7 @@ html[dir="rtl"] .customer-ledger-fab {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1.15;
+  transform-origin: center center;
 }
 
 .customer-history-closing-chip .currency-flag--sm {
@@ -8125,17 +8164,35 @@ html[dir="rtl"] .customer-ledger-fab {
   box-shadow: none;
 }
 
+.customer-history-closing-money {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .customer-history-closing-amount {
   display: inline;
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 .customer-history-closing-code {
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.82rem;
+  font-weight: 800;
   letter-spacing: 0.04em;
+}
+
+.customer-history-closing-chip.money-in .customer-history-closing-amount,
+.customer-history-closing-chip.money-in .customer-history-closing-code {
+  color: var(--money-in, #1a7a45);
+}
+
+.customer-history-closing-chip.money-out .customer-history-closing-amount,
+.customer-history-closing-chip.money-out .customer-history-closing-code {
+  color: var(--money-out, #b42318);
 }
 
 .customer-history-closing-chip .customer-money-side {
@@ -9176,7 +9233,7 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 }
 
 .daybook-journal-table td.col-debit {
-  background: var(--money-in-bg);
+  background: var(--money-out-bg);
 }
 
 .daybook-journal-table .col-description {
@@ -9190,11 +9247,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 }
 
 .daybook-journal-table td.col-credit {
-  background: var(--money-out-bg);
+  background: var(--money-in-bg);
 }
 
-.daybook-journal-table td.col-debit.money-in,
-.daybook-journal-table td.col-credit.money-out {
+.daybook-journal-table td.col-debit.money-out,
+.daybook-journal-table td.col-credit.money-in {
   font-weight: 650;
 }
 
@@ -9207,11 +9264,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 }
 
 .daybook-journal-table tbody tr.is-clickable:hover > td.col-debit {
-  background-color: color-mix(in srgb, var(--money-in-bg) 50%, var(--table-row-hover));
+  background-color: color-mix(in srgb, var(--money-out-bg) 50%, var(--table-row-hover));
 }
 
 .daybook-journal-table tbody tr.is-clickable:hover > td.col-credit {
-  background-color: color-mix(in srgb, var(--money-out-bg) 50%, var(--table-row-hover));
+  background-color: color-mix(in srgb, var(--money-in-bg) 50%, var(--table-row-hover));
 }
 
 .daybook-journal-table tbody tr.is-clickable:focus-visible {
@@ -9237,11 +9294,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
 }
 
 .daybook-journal-scroll tfoot td.col-debit {
-  background: color-mix(in srgb, var(--money-in-bg) 62%, transparent);
+  background: color-mix(in srgb, var(--money-out-bg) 62%, transparent);
 }
 
 .daybook-journal-scroll tfoot td.col-credit {
-  background: color-mix(in srgb, var(--money-out-bg) 62%, transparent);
+  background: color-mix(in srgb, var(--money-in-bg) 62%, transparent);
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -9250,11 +9307,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
   }
 
   .daybook-journal-scroll tfoot td.col-debit {
-    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface));
+    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface));
   }
 
   .daybook-journal-scroll tfoot td.col-credit {
-    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface));
+    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface));
   }
 }
 
@@ -9266,11 +9323,11 @@ html[data-bold-text="true"] .report-ledger.customer-balance-table td.customer-ba
   }
 
   .daybook-journal-scroll tfoot td.col-debit {
-    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface-solid, var(--surface)));
+    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface-solid, var(--surface)));
   }
 
   .daybook-journal-scroll tfoot td.col-credit {
-    background: color-mix(in srgb, var(--money-out-bg) 85%, var(--surface-solid, var(--surface)));
+    background: color-mix(in srgb, var(--money-in-bg) 85%, var(--surface-solid, var(--surface)));
   }
 }
 

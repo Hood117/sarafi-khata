@@ -188,7 +188,7 @@ export function InlineLedgerEntryRow({
       <td className={`col-amount col-${cellSide}`}>
         <input
           ref={cellSide === "credit" ? creditRef : undefined}
-          className={`ledger-draft-amount is-${cellSide}${active ? " is-active" : ""}`}
+          className={`ledger-draft-amount ltr-text is-${cellSide}${active ? " is-active" : ""}`}
           inputMode="decimal"
           placeholder={label}
           aria-label={label}
@@ -214,7 +214,7 @@ export function InlineLedgerEntryRow({
           }
         }}
       >
-        <td className="col-when muted">{todayIso()}</td>
+        <td className="col-when muted ltr-text">{todayIso()}</td>
         <td className="col-description">
           <input
             value={note}
@@ -225,7 +225,7 @@ export function InlineLedgerEntryRow({
         {amountCell("credit")}
         {amountCell("debit")}
         <td className="col-currency">
-          <span className="ledger-currency-cell">
+          <span className="ledger-currency-cell ltr-text">
             {currency ? <CurrencyFlag code={currency} size="sm" /> : null}
             <select
               aria-label={t.common.currency}
@@ -247,7 +247,7 @@ export function InlineLedgerEntryRow({
           </span>
           {foreign ? (
             <input
-              className="ledger-draft-rate"
+              className="ledger-draft-rate ltr-text"
               inputMode="decimal"
               placeholder={t.customers.ledgerRateToAfn}
               title={t.customers.ledgerRateToAfn}
@@ -261,7 +261,7 @@ export function InlineLedgerEntryRow({
             />
           ) : null}
           {converting && accountAmount ? (
-            <small className="ledger-draft-preview">
+            <small className="ledger-draft-preview ltr-text">
               = {accountAmount}{" "}
               {localizedCurrencyName(shopDefaultCode, locale, shopDefaultCode)}
             </small>

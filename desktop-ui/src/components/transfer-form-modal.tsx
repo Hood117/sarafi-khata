@@ -24,6 +24,7 @@ import { useLocale, useT } from "@desktop/i18n";
 import {
   endSubmit,
   errorMessage,
+  nowTime,
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
@@ -70,6 +71,12 @@ function emptyForm(defaultCurrency = "") {
     valueDate: todayIso(),
     description: "",
   };
+}
+
+function extractTimeSuffix(valueDate: string): string | null {
+  const m = valueDate.match(/\d{2}:\d{2}(?::\d{2})?/);
+  if (!m) return null;
+  return m[0].length === 5 ? `${m[0]}:00` : m[0];
 }
 
 function CustomerPicker({
@@ -174,6 +181,7 @@ export function TransferFormModal({
   const [form, setForm] = useState(() => emptyForm());
   const [voucherNo, setVoucherNo] = useState("");
   const [replaceId, setReplaceId] = useState<string | null>(null);
+  const [editTimeSuffix, setEditTimeSuffix] = useState<string | null>(null);
   const [fromSuggestions, setFromSuggestions] = useState<CustomerListItem[]>([]);
   const [toSuggestions, setToSuggestions] = useState<CustomerListItem[]>([]);
   const [showFromSuggestions, setShowFromSuggestions] = useState(false);
@@ -202,9 +210,11 @@ export function TransferFormModal({
   function applySnapshot(snap: MovementEditSnapshot, mode: "edit" | "template") {
     if (mode === "edit") {
       setReplaceId(snap.id);
+      setEditTimeSuffix(extractTimeSuffix(snap.valueDate));
       templateCursorRef.current = null;
     } else {
       setReplaceId(null);
+      setEditTimeSuffix(null);
       templateCursorRef.current = snap.id;
     }
     setForm({
@@ -258,6 +268,7 @@ export function TransferFormModal({
         } else {
           templateCursorRef.current = null;
           setReplaceId(null);
+          setEditTimeSuffix(null);
           setForm(emptyForm(defaultCcy));
           setVoucherNo("");
           setDescriptionDirty(false);
@@ -436,6 +447,7 @@ export function TransferFormModal({
     const defaultCcy = pickDefaultCurrency(currencies) || form.currencyCode;
     templateCursorRef.current = null;
     setReplaceId(null);
+    setEditTimeSuffix(null);
     setForm(emptyForm(defaultCcy));
     setVoucherNo("");
     if (keepOpen) {
@@ -593,6 +605,9 @@ export function TransferFormModal({
     if (!tryBeginSubmit(submittingRef)) return;
     setSaving(true);
     setError(null);
+    const datePart = form.valueDate || todayIso();
+    const timePart =
+      replaceId && editTimeSuffix ? editTimeSuffix : `${nowTime()}:00`;
     try {
       const posted = await transferFunds({
         reference: replaceId
@@ -610,7 +625,8 @@ export function TransferFormModal({
             ? form.currencyCode
             : form.receiveCurrencyCode
           : undefined,
-        valueDate: form.valueDate || todayIso(),
+        // Include time so same-day ledger sort matches daybook (posting order).
+        valueDate: `${datePart} ${timePart}`,
         description: appendEmployeeLine(
           form.description.trim() || undefined,
           employeeName,

@@ -37,6 +37,108 @@ export function countUp(el: HTMLElement, value: number, suffix = "") {
   });
 }
 
+function parseMoneyDisplay(value: string): number {
+  const n = Number.parseFloat(
+    String(value ?? "")
+      .replace(/,/g, "")
+      .replace(/−/g, "-")
+      .trim(),
+  );
+  return Number.isFinite(n) ? n : 0;
+}
+
+function decimalPlacesOf(value: string): number {
+  const raw = String(value ?? "")
+    .replace(/,/g, "")
+    .replace(/−/g, "-")
+    .trim();
+  const dot = raw.indexOf(".");
+  if (dot < 0) return 0;
+  return Math.min(6, raw.length - dot - 1);
+}
+
+/** Grouped money text matching ledger balance display (e.g. -1,010,500.5). */
+export function formatMoneyDisplay(n: number, decimals: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const negative = n < 0;
+  const abs = Math.abs(n);
+  if (decimals <= 0) {
+    const whole = Math.round(abs).toString();
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return negative ? `-${grouped}` : grouped;
+  }
+  const fixed = abs.toFixed(decimals);
+  const [whole, fracRaw = ""] = fixed.split(".");
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const frac = fracRaw.replace(/0+$/, "");
+  const body = frac ? `${grouped}.${frac}` : grouped;
+  return negative ? `-${body}` : body;
+}
+
+const moneyAnimState = new WeakMap<HTMLElement, { n: number }>();
+
+/**
+ * Smooth “typing” count of a currency amount, plus a slight jump/zoom on the chip.
+ * Snaps to the server display string when finished so formatting stays exact.
+ */
+export function animateClosingBalanceChange(opts: {
+  chip: HTMLElement | null;
+  amountEl: HTMLElement;
+  fromDisplay: string;
+  toDisplay: string;
+}) {
+  const live = opts.amountEl.textContent?.trim();
+  const from = parseMoneyDisplay(live || opts.fromDisplay);
+  const to = parseMoneyDisplay(opts.toDisplay);
+  const decimals = Math.max(
+    decimalPlacesOf(opts.fromDisplay),
+    decimalPlacesOf(opts.toDisplay),
+    decimalPlacesOf(live || ""),
+  );
+  const delta = Math.abs(to - from);
+  const duration = Math.min(0.85, 0.42 + Math.min(0.4, Math.log10(delta + 1) * 0.18));
+
+  let proxy = moneyAnimState.get(opts.amountEl);
+  if (!proxy) {
+    proxy = { n: from };
+    moneyAnimState.set(opts.amountEl, proxy);
+  } else {
+    gsap.killTweensOf(proxy);
+    proxy.n = from;
+  }
+
+  gsap.to(proxy, {
+    n: to,
+    duration,
+    ease: "power2.out",
+    overwrite: "auto",
+    onUpdate: () => {
+      opts.amountEl.textContent = formatMoneyDisplay(proxy!.n, decimals);
+    },
+    onComplete: () => {
+      opts.amountEl.textContent = opts.toDisplay;
+    },
+  });
+
+  if (!opts.chip || !motionOk()) return;
+  lockMotion([opts.chip]);
+  gsap.killTweensOf(opts.chip);
+  gsap.fromTo(
+    opts.chip,
+    { scale: 1, y: 0 },
+    {
+      keyframes: [
+        { scale: 1.08, y: -3, duration: 0.16, ease: "power2.out" },
+        { scale: 0.97, y: 1, duration: 0.12, ease: "power1.inOut" },
+        { scale: 1, y: 0, duration: 0.16, ease: "power2.out" },
+      ],
+      overwrite: "auto",
+      clearProps: "transform",
+      onComplete: () => unlockMotion([opts.chip!]),
+    },
+  );
+}
+
 /** Dialog and search panel: fade the scrim, lift the sheet. */
 export function animateOverlayIn(backdrop: HTMLElement, panel: HTMLElement) {
   if (!motionOk()) return;

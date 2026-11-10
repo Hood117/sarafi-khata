@@ -46,6 +46,10 @@ import {
   localizeCurrencyCodesInText,
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
+import {
+  customerStatementAmountTones,
+  toSarafiJournalAmounts,
+} from "@desktop/lib/customer-statement-amounts";
 import { errorMessage, endSubmit, todayIso, tryBeginSubmit } from "@desktop/lib/datetime";
 import { journalTxRef } from "@desktop/lib/tx-ref";
 import {
@@ -119,22 +123,20 @@ function formatOppositeAccount(line: DaybookJournalLine): string {
   return name || "—";
 }
 
-function journalDebitClass(line: DaybookJournalLine): string {
-  if (!line.debit) return "col-amount col-debit";
-  const type = line.transactionType.toUpperCase();
-  if (type === "WITHDRAWAL" || type === "EXPENSE") {
-    return "col-amount col-debit money-out";
-  }
-  return "col-amount col-debit money-in";
+/** Sarafi Debit column: money removed → red. */
+function journalDebitClass(hasAmount: boolean): string {
+  return hasAmount ? "col-amount col-debit money-out" : "col-amount col-debit";
 }
 
-function journalCreditClass(line: DaybookJournalLine): string {
-  if (!line.credit) return "col-amount col-credit";
-  const type = line.transactionType.toUpperCase();
-  if (type === "DEPOSIT") {
-    return "col-amount col-credit money-in";
-  }
-  return "col-amount col-credit money-out";
+/** Sarafi Credit / جمع column: money added → green. */
+function journalCreditClass(hasAmount: boolean): string {
+  return hasAmount ? "col-amount col-credit money-in" : "col-amount col-credit";
+}
+
+/** Map asset-convention API debit/credit onto Sarafi journal columns. */
+function sarafiJournalLine(line: DaybookJournalLine): DaybookJournalLine {
+  const amounts = toSarafiJournalAmounts(line);
+  return { ...line, debit: amounts.debit, credit: amounts.credit };
 }
 
 function JournalTotalsStack({
@@ -319,7 +321,8 @@ export function DaybookPage() {
   const loadDayTotals = useCallback(async () => {
     try {
       const lines = await fetchAllJournalLines();
-      setDayTotals(journalFilterTotals(lines));
+      // Totals use Sarafi columns (Credit/جمع = money in, Debit = money out).
+      setDayTotals(journalFilterTotals(lines.map(sarafiJournalLine)));
     } catch {
       setDayTotals(EMPTY_JOURNAL_FILTER_TOTALS);
     }
@@ -605,18 +608,8 @@ export function DaybookPage() {
 
   function toExportRows(lines: DaybookJournalLine[]): ExportRow[] {
     return lines.map((r) => {
-      const debitCls = journalDebitClass(r);
-      const creditCls = journalCreditClass(r);
-      const debitTone = debitCls.includes("money-in")
-        ? "in"
-        : debitCls.includes("money-out")
-          ? "out"
-          : "";
-      const creditTone = creditCls.includes("money-in")
-        ? "in"
-        : creditCls.includes("money-out")
-          ? "out"
-          : "";
+      const amounts = toSarafiJournalAmounts(r);
+      const tones = customerStatementAmountTones(amounts);
       const balTone = moneyToneClass(r.balanceAfter);
       return {
         rowNo: String(r.rowNo),
@@ -625,15 +618,15 @@ export function DaybookPage() {
         accountName: r.accountName || "",
         oppositeAccount: formatOppositeAccount(r),
         description: r.description || "",
-        debit: r.debit || "",
-        credit: r.credit || "",
+        debit: amounts.debit || "",
+        credit: amounts.credit || "",
         balanceAfter: r.balanceAfter
           ? `${r.balanceAfter} ${r.currencyCode}`.trim()
           : "",
         currencyCode: r.currencyCode || "",
         reference: journalTxRef(r) || "",
-        _debitTone: debitTone,
-        _creditTone: creditTone,
+        _debitTone: tones.debitTone ?? "",
+        _creditTone: tones.creditTone ?? "",
         _balanceTone: balTone.includes("money-in")
           ? "in"
           : balTone.includes("money-out")
@@ -860,6 +853,13 @@ export function DaybookPage() {
                       const balanceLabel = line.balanceAfter
                         ? `${line.balanceAfter} ${line.currencyCode}`.trim()
                         : "";
+                      // Same Sarafi Credit/جمع ↔ Debit mapping as customer history.
+                      const amounts = toSarafiJournalAmounts(line);
+                      const displayLine = {
+                        ...line,
+                        debit: amounts.debit,
+                        credit: amounts.credit,
+                      };
                       return (
                         <tr
                           key={`${line.transactionId}-${line.rowNo}`}
@@ -904,16 +904,22 @@ export function DaybookPage() {
                                     line.description || "",
                                     locale,
                                   ),
-                                  descriptionToneFromJournalRow(line),
+                                  descriptionToneFromJournalRow(displayLine),
                                 )}
                               </span>
                             </span>
                           </td>
-                          <td className={journalDebitClass(line)} style={{ fontWeight: 700 }}>
-                            {line.debit || ""}
+                          <td
+                            className={journalDebitClass(Boolean(amounts.debit))}
+                            style={{ fontWeight: 700 }}
+                          >
+                            {amounts.debit || ""}
                           </td>
-                          <td className={journalCreditClass(line)} style={{ fontWeight: 700 }}>
-                            {line.credit || ""}
+                          <td
+                            className={journalCreditClass(Boolean(amounts.credit))}
+                            style={{ fontWeight: 700 }}
+                          >
+                            {amounts.credit || ""}
                           </td>
                           <td className={`col-amount col-balance ${moneyToneClass(line.balanceAfter)}`}>
                             {balanceLabel ? (
@@ -961,13 +967,13 @@ export function DaybookPage() {
                           <div className="muted daybook-journal-total-caption">
                             {t.dailyBook.totalDebit}
                           </div>
-                          <JournalTotalsStack rows={journalTotals.debit} />
+                          <JournalTotalsStack rows={journalTotals.debit} tone="out" />
                         </td>
                         <td className="col-amount col-credit">
                           <div className="muted daybook-journal-total-caption">
                             {t.dailyBook.totalCredit}
                           </div>
-                          <JournalTotalsStack rows={journalTotals.credit} tone="out" />
+                          <JournalTotalsStack rows={journalTotals.credit} tone="in" />
                         </td>
                         <td className="col-amount col-balance">
                           <div className="muted daybook-journal-total-caption">
