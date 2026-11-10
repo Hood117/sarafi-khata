@@ -4,8 +4,13 @@ import { ArabicShaper } from "arabic-persian-reshaper";
 import bidiFactory from "bidi-js";
 import type { jsPDF } from "jspdf";
 
-import boldUrl from "@desktop/assets/fonts/NotoSansArabic-Bold.ttf?url";
-import regularUrl from "@desktop/assets/fonts/NotoSansArabic-Regular.ttf?url";
+/**
+ * Embed fonts in the JS bundle (Vite `?inline` → data URL).
+ * Do NOT fetch `?url` assets at runtime — packaged Tauri WebViews often fail
+ * that fetch offline, leaving Helvetica-only PDFs with broken Pashto/Dari.
+ */
+import boldDataUrl from "@desktop/assets/fonts/NotoSansArabic-Bold.ttf?inline";
+import regularDataUrl from "@desktop/assets/fonts/NotoSansArabic-Regular.ttf?inline";
 
 export const PDF_ARABIC_FONT = "NotoSansArabic";
 
@@ -16,45 +21,27 @@ const bidi = bidiFactory();
 
 type FontCache = { regular: string; bold: string };
 let fontCache: FontCache | null = null;
-let fontLoading: Promise<FontCache> | null = null;
 
-function bytesToBase64(bytes: Uint8Array): string {
-  const chunk = 0x8000;
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+function dataUrlToBase64(dataUrl: string): string {
+  const comma = dataUrl.indexOf(",");
+  if (comma < 0) {
+    throw new Error("PDF Arabic font data URL is missing a payload.");
   }
-  return btoa(binary);
+  return dataUrl.slice(comma + 1);
 }
 
-async function loadFontBase64(url: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Cannot load font: ${url}`);
-  return bytesToBase64(new Uint8Array(await res.arrayBuffer()));
-}
-
-async function loadFontCache(): Promise<FontCache> {
+function loadFontCache(): FontCache {
   if (fontCache) return fontCache;
-  if (!fontLoading) {
-    fontLoading = Promise.all([
-      loadFontBase64(regularUrl),
-      loadFontBase64(boldUrl),
-    ]).then(([regular, bold]) => {
-      fontCache = { regular, bold };
-      return fontCache;
-    });
-  }
-  try {
-    return await fontLoading;
-  } catch (err) {
-    fontLoading = null;
-    throw err;
-  }
+  fontCache = {
+    regular: dataUrlToBase64(regularDataUrl),
+    bold: dataUrlToBase64(boldDataUrl),
+  };
+  return fontCache;
 }
 
-/** Register Noto Sans Arabic on the document (cached bytes). */
+/** Register Noto Sans Arabic on the document (bundled bytes — works offline). */
 export async function ensurePdfArabicFont(doc: jsPDF): Promise<boolean> {
-  const cache = await loadFontCache();
+  const cache = loadFontCache();
   const fonts = (
     doc as unknown as { getFontList: () => Record<string, string[]> }
   ).getFontList();

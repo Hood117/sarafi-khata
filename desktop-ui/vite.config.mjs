@@ -59,6 +59,8 @@ export default defineConfig({
     target: "esnext",
     minify: false,
     cssMinify: false,
+    // Keep room for Noto Sans Arabic PDF embeds (`*.ttf?inline`).
+    assetsInlineLimit: 320_000,
   },
   optimizeDeps: {
     /**

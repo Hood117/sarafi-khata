@@ -601,15 +601,15 @@ export async function savePdfReportSheet(input: {
 
   let arabicReady = false;
   if (rtl || hasArabicScript(sampleText)) {
-    try {
-      if (await ensurePdfArabicFont(doc)) {
-        arabicReady = true;
-        // Prevent jsPDF from re-bidi'ing already-visual shaped strings.
-        patchPdfTextForShapedArabic(doc);
-      }
-    } catch {
-      arabicReady = false;
+    // Fonts are bundled into the SPA — must succeed for Pashto/Dari PDFs.
+    // Never silently fall back to Helvetica (that produced cipher text on
+    // client PCs when asset fetch failed).
+    if (!(await ensurePdfArabicFont(doc))) {
+      throw new Error("Arabic PDF font failed to load.");
     }
+    arabicReady = true;
+    // Prevent jsPDF from re-bidi'ing already-visual shaped strings.
+    patchPdfTextForShapedArabic(doc);
   }
 
   const textDir = rtl ? "rtl" : "ltr";
