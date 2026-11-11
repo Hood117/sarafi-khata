@@ -176,19 +176,30 @@ export function ExchangeFormModal({
     t.exchange.autoDescription,
   ]);
 
-  const rateOpHint = useMemo(() => {
+  const rateOpHints = useMemo(() => {
     const buy = form.buyCurrency || "—";
     const sell = form.sellCurrency || "—";
-    if (form.rateBase === "buy") {
-      return t.exchange.rateOpMultiplyHint
-        .replace("{buy}", buy)
-        .replace("{sell}", sell);
+    // In sell-first mode the × button bases on sell, so phrase from that side.
+    if (form.dealSide === "sell") {
+      return {
+        multiply: t.exchange.rateOpMultiplyHint
+          .replace("{buy}", sell)
+          .replace("{sell}", buy),
+        divide: t.exchange.rateOpDivideHint
+          .replace("{buy}", sell)
+          .replace("{sell}", buy),
+      };
     }
-    return t.exchange.rateOpDivideHint
-      .replace("{buy}", buy)
-      .replace("{sell}", sell);
+    return {
+      multiply: t.exchange.rateOpMultiplyHint
+        .replace("{buy}", buy)
+        .replace("{sell}", sell),
+      divide: t.exchange.rateOpDivideHint
+        .replace("{buy}", buy)
+        .replace("{sell}", sell),
+    };
   }, [
-    form.rateBase,
+    form.dealSide,
     form.buyCurrency,
     form.sellCurrency,
     t.exchange.rateOpDivideHint,
@@ -494,8 +505,9 @@ export function ExchangeFormModal({
   }
 
   function setDealSide(side: DealSide) {
+    // Only reorder fields — keep lastEdited so a manually typed secondary
+    // amount is not wiped by the auto-calc effect.
     setForm((prev) => ({ ...prev, dealSide: side }));
-    setLastEdited(side);
     setError(null);
   }
 
@@ -605,13 +617,22 @@ export function ExchangeFormModal({
     const sellAmount = form.sellAmount.trim();
     const rate = form.rate.trim();
 
-    if (!parseNum(buyAmount) || !parseNum(sellAmount) || !parseNum(rate)) {
+    if (!parseNum(buyAmount) || !parseNum(sellAmount)) {
       setError(t.desk.enterAmount);
       amountRef.current?.focus();
       return;
     }
-    if (!form.buyCurrency || !form.sellCurrency) {
+    if (!parseNum(rate)) {
+      setError(t.exchange.rateRequired);
+      return;
+    }
+    if (!form.buyCurrency) {
       setError(t.exchange.selectBuyCurrency);
+      amountRef.current?.focus();
+      return;
+    }
+    if (!form.sellCurrency) {
+      setError(t.exchange.selectSellCurrency);
       amountRef.current?.focus();
       return;
     }
@@ -691,6 +712,11 @@ export function ExchangeFormModal({
 
       onSaved?.();
       if (action === "save") {
+        const pnlN = parseNum(result.profitAmount);
+        const pnl =
+          pnlN != null && Math.abs(pnlN) > 1e-9
+            ? ` · ${result.isProfit ? t.desk.profit : t.desk.loss} ${result.profitAmount} ${result.profitCurrencyCode}`
+            : "";
         setSuccessMessage(
           t.exchange.postedOk
             .replace("{fromAmount}", result.fromAmount)
@@ -698,7 +724,7 @@ export function ExchangeFormModal({
             .replace("{toAmount}", result.toAmount)
             .replace("{toCurrency}", result.toCurrencyCode)
             .replace("{dealRate}", result.dealRate)
-            .replace("{pnl}", ""),
+            .replace("{pnl}", pnl),
         );
         resetForm(false);
       } else {
@@ -801,7 +827,7 @@ export function ExchangeFormModal({
             type="button"
             className={form.rateBase === multiplySetsBase ? "hawala-mode active" : "hawala-mode"}
             aria-pressed={form.rateBase === multiplySetsBase}
-            title={rateOpHint}
+            title={rateOpHints.multiply}
             onClick={() => {
               setLastEdited("rate");
               setForm((prev) => ({ ...prev, rateBase: multiplySetsBase }));
@@ -814,7 +840,7 @@ export function ExchangeFormModal({
             type="button"
             className={form.rateBase === divideSetsBase ? "hawala-mode active" : "hawala-mode"}
             aria-pressed={form.rateBase === divideSetsBase}
-            title={rateOpHint}
+            title={rateOpHints.divide}
             onClick={() => {
               setLastEdited("rate");
               setForm((prev) => ({ ...prev, rateBase: divideSetsBase }));

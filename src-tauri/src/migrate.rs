@@ -881,7 +881,10 @@ fn ensure_single_main_vault_cash(conn: &Connection) -> Result<(), AppError> {
   Ok(())
 }
 
-/// Keep the shop catalog at the standard currencies (insert missing / reactivate).
+/// Ensure the standard shop currencies exist.
+///
+/// Inserts any missing default codes. Never reactivates or undeletes currencies
+/// the operator has turned off — that must survive app restart.
 fn ensure_default_currencies(conn: &Connection) -> Result<(), AppError> {
   if !table_exists(conn, "Currency")? {
     return Ok(());
@@ -916,27 +919,16 @@ fn ensure_default_currencies(conn: &Connection) -> Result<(), AppError> {
     .to_string();
 
   for &(code, name, symbol, places) in DEFAULTS {
-    let existing: Option<(String, i64, Option<String>)> = conn
+    let exists: bool = conn
       .query_row(
-        "SELECT id, isActive, deletedAt FROM Currency WHERE code = ?1 LIMIT 1",
+        "SELECT EXISTS(SELECT 1 FROM Currency WHERE code = ?1 LIMIT 1)",
         [code],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        |row| row.get(0),
       )
-      .optional()
       .map_err(|e| AppError::Db(format!("currency lookup {code}: {e}")))?;
 
-    if let Some((id, is_active, deleted_at)) = existing {
-      let inactive = is_active == 0 || deleted_at.is_some();
-      if inactive {
-        conn
-          .execute(
-            r#"UPDATE Currency
-               SET isActive = 1, deletedAt = NULL, updatedAt = ?2
-               WHERE id = ?1"#,
-            rusqlite::params![id, now],
-          )
-          .map_err(|e| AppError::Db(format!("currency reactivate {code}: {e}")))?;
-      }
+    if exists {
+      // Preserve operator isActive / deletedAt choices across restarts.
       continue;
     }
 
@@ -1593,5 +1585,76 @@ fn ensure_employee_tables(conn: &Connection) -> Result<(), AppError> {
   )?;
 
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use rusqlite::Connection;
+
+  fn currency_table(conn: &Connection) {
+    conn
+      .execute_batch(
+        r#"
+        CREATE TABLE Currency (
+          id TEXT PRIMARY KEY,
+          code TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          symbol TEXT,
+          decimalPlaces INTEGER NOT NULL DEFAULT 2,
+          isActive INTEGER NOT NULL DEFAULT 1,
+          deletedAt TEXT,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL
+        );
+        "#,
+      )
+      .unwrap();
+  }
+
+  #[test]
+  fn ensure_default_currencies_does_not_reactivate_deactivated() {
+    let conn = Connection::open_in_memory().unwrap();
+    currency_table(&conn);
+    conn
+      .execute(
+        r#"INSERT INTO Currency
+           (id, code, name, symbol, decimalPlaces, isActive, deletedAt, createdAt, updatedAt)
+           VALUES ('usd1', 'USD', 'US Dollar', '$', 2, 0, NULL, '2026-01-01', '2026-01-01')"#,
+        [],
+      )
+      .unwrap();
+    conn
+      .execute(
+        r#"INSERT INTO Currency
+           (id, code, name, symbol, decimalPlaces, isActive, deletedAt, createdAt, updatedAt)
+           VALUES ('eur1', 'EUR', 'Euro', '€', 2, 0, NULL, '2026-01-01', '2026-01-01')"#,
+        [],
+      )
+      .unwrap();
+
+    ensure_default_currencies(&conn).unwrap();
+
+    let usd_active: i64 = conn
+      .query_row("SELECT isActive FROM Currency WHERE code='USD'", [], |r| {
+        r.get(0)
+      })
+      .unwrap();
+    let eur_active: i64 = conn
+      .query_row("SELECT isActive FROM Currency WHERE code='EUR'", [], |r| {
+        r.get(0)
+      })
+      .unwrap();
+    assert_eq!(usd_active, 0, "USD must stay deactivated after migrate");
+    assert_eq!(eur_active, 0, "EUR must stay deactivated after migrate");
+
+    // Missing defaults are still seeded as active.
+    let afn_active: i64 = conn
+      .query_row("SELECT isActive FROM Currency WHERE code='AFN'", [], |r| {
+        r.get(0)
+      })
+      .unwrap();
+    assert_eq!(afn_active, 1);
+  }
 }
 

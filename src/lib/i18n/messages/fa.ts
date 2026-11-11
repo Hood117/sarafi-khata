@@ -373,7 +373,7 @@ export const fa: Dictionary = {
     depositHint: "دریافت پول نقد مشتری",
     withdrawalHint: "پرداخت به مشتری",
     exchangeHint: "تبدیل اسعار",
-    exchangeBuySell: "خرید او فروش",
+    exchangeBuySell: "خرید و فروش",
     hawalaHint: "ارسال یا دریافت حواله",
     transferHint: "انتقال بین مشتریان",
     postedFxDeals: "معاملات تبدیل ثبت‌شده",
