@@ -1431,18 +1431,22 @@ h3 {
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border: 1px solid var(--line, var(--border));
+  border: 1.5px solid color-mix(in srgb, var(--brand) 42%, var(--line, var(--border)));
   border-radius: 8px;
   background: var(--surface-solid, var(--surface));
   color: var(--ink-muted, var(--muted));
   cursor: pointer;
   flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 55%, transparent);
 }
 
 .app-header-refresh:hover {
   color: var(--ink);
-  border-color: color-mix(in srgb, var(--brand) 35%, var(--line, var(--border)));
+  border-color: color-mix(in srgb, var(--brand) 62%, var(--line, var(--border)));
   background: color-mix(in srgb, var(--brand) 8%, var(--surface-solid, #fff));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 55%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--brand) 18%, transparent);
 }
 
 .app-header-refresh:active {

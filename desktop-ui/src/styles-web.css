@@ -495,15 +495,19 @@ html .app-header-bar .app-header-refresh{
   display:inline-flex;
   width:2rem;
   height:2rem;
-  border:1px solid var(--border);
+  border:1.5px solid color-mix(in srgb,var(--brand) 42%,var(--border));
   border-radius:8px;
   background:var(--surface);
   color:var(--muted);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,#fff 55%,transparent);
 }
 html .app-header-bar .app-header-refresh:hover{
   color:var(--ink);
-  border-color:color-mix(in srgb,var(--brand) 35%,var(--border));
+  border-color:color-mix(in srgb,var(--brand) 62%,var(--border));
   background:color-mix(in srgb,var(--brand) 8%,var(--surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb,#fff 55%,transparent),
+    0 0 0 2px color-mix(in srgb,var(--brand) 18%,transparent);
 }
 html .app-main.stack.main-content{min-width:0;flex:1 1 auto;overflow:auto;padding:10px 16px 18px;gap:10px;max-width:1600px;width:100%;margin:0 auto;box-sizing:border-box;-webkit-overflow-scrolling:touch}
 html .app-shell[data-screen="customers"] .app-main.stack.main-content{

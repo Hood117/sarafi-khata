@@ -29,6 +29,7 @@
         "default-src": "'self' customprotocol: asset:",
         "connect-src": "ipc: http://ipc.localhost https://open.er-api.com",
         "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "media-src": "'self' asset: http://asset.localhost blob: data:",
         "style-src": "'unsafe-inline' 'self' https://fonts.googleapis.com",
         "font-src": "'self' data: https://fonts.gstatic.com"
       }
