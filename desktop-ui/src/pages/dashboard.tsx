@@ -5,9 +5,9 @@ import {
   getDaybookSnapshot,
   type DashboardSnapshot,
 } from "@desktop/api";
-import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { DashboardBoard } from "@desktop/pages/dashboard-board";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 
@@ -63,11 +63,7 @@ export function DashboardPage() {
     };
   }, [applySnapshots, t.errors.loadGeneric]);
 
-  useEffect(() => {
-    const onSaved = () => reloadDashboard();
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [reloadDashboard]);
+  useDeskDataRefresh(reloadDashboard);
 
   return (
     <div className="dashboard-page page-column workspace-page is-dashboard">

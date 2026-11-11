@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { optionalPhoneSchema, positiveAmountSchema } from "@/lib/validation";
+
 function optionalText(maxLength = 2000) {
   return z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
@@ -31,16 +33,7 @@ const currencyCodeSchema = z
   });
 
 /** Major-unit decimal string, e.g. "100.50". */
-const amountSchema = z
-  .string()
-  .trim()
-  .min(1, { error: "Amount is required." })
-  .refine((value) => /^\d+(\.\d+)?$/.test(value), {
-    error: "Amount must be a positive number.",
-  })
-  .refine((value) => Number(value) > 0, {
-    error: "Amount must be greater than zero.",
-  });
+const amountSchema = positiveAmountSchema;
 
 const valueDateSchema = z.preprocess((value) => {
   if (value instanceof Date) {
@@ -143,7 +136,7 @@ export const exchangeSchema = z
         .nullable(),
     ),
     walkInName: optionalText(200),
-    walkInPhone: optionalText(50),
+    walkInPhone: optionalPhoneSchema,
     fromWalletId: walletIdSchema,
     toWalletId: walletIdSchema,
     fromCurrencyCode: currencyCodeSchema,

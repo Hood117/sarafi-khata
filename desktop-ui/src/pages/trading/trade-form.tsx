@@ -11,6 +11,7 @@ import {
   type PartnerListItem,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { useT } from "@desktop/i18n";
 import {
   endSubmit,
@@ -22,7 +23,15 @@ import {
   pickSecondaryCurrency,
 } from "@desktop/lib/default-currency";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { requirePositiveAmount } from "@desktop/lib/validation/amount";
+import { validatePhone } from "@desktop/lib/validation/phone";
+import {
+  normalizeAmountInput,
+  parseAmountNumber,
+} from "@desktop/lib/western-digits";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
+import { PhoneInput } from "@desktop/ui/phone-input";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { COUNTERPARTIES, CP_LABELS } from "./constants";
 
@@ -73,8 +82,8 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   }, []);
 
   const suggestedPayment = useMemo(() => {
-    const q = Number(qty);
-    const r = Number(rate);
+    const q = parseAmountNumber(qty);
+    const r = parseAmountNumber(rate);
     if (!Number.isFinite(q) || !Number.isFinite(r) || q <= 0 || r <= 0) return "";
     return (q * r).toFixed(4).replace(/\.?0+$/, "");
   }, [qty, rate]);
@@ -82,13 +91,32 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
+    const qtyCheck = requirePositiveAmount(qty);
+    if (!qtyCheck.ok) {
+      setError(t.common.invalidAmount);
+      return;
+    }
+    const rateCheck = requirePositiveAmount(rate);
+    if (!rateCheck.ok) {
+      setError(t.common.invalidAmount);
+      return;
+    }
+    let walkInPhoneValue: string | null = null;
+    if (cpType === "WALK_IN") {
+      const phoneCheck = validatePhone(walkInPhone, { required: false });
+      if (!phoneCheck.ok) {
+        setError(t.common.invalidPhone);
+        return;
+      }
+      walkInPhoneValue = phoneCheck.value;
+    }
     if (!tryBeginSubmit(submittingRef)) return;
     setBusy(true);
     setError(null);
     const input = {
       inventoryCurrencyCode: invCcy,
-      quantity: qty,
-      rate,
+      quantity: qtyCheck.value,
+      rate: rateCheck.value,
       paymentCurrencyCode: payCcy,
       paymentAmount: paymentAmount || suggestedPayment || undefined,
       counterpartyType: cpType,
@@ -96,12 +124,13 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
       partnerSarafiId: cpType === "PARTNER" ? partnerId : null,
       counterpartyName:
         cpType === "CUSTOMER" || cpType === "PARTNER" ? null : cpName || null,
-      walkInPhone: cpType === "WALK_IN" ? walkInPhone || null : null,
+      walkInPhone: walkInPhoneValue,
       notes: notes || null,
       createdById: session.userId,
     };
     try {
       const res = mode === "buy" ? await tradeBuy(input) : await tradeSell(input);
+      notifyMovementSaved();
       showSuccess(
         `${t.desk.tradePosted.replace("{reference}", res.reference)} · ${t.desk.inventoryAfter.replace("{quantity}", res.inventoryQtyAfter)}${
           res.grossProfit
@@ -155,11 +184,19 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
           </label>
           <label>
             {t.desk.quantity}
-            <input value={qty} onChange={(e) => setQty(e.target.value)} required />
+            <AmountInput
+              value={qty}
+              required
+              onValueChange={(v) => setQty(normalizeAmountInput(v))}
+            />
           </label>
           <label>
             {t.desk.rate}
-            <input value={rate} onChange={(e) => setRate(e.target.value)} required />
+            <AmountInput
+              value={rate}
+              required
+              onValueChange={(v) => setRate(normalizeAmountInput(v))}
+            />
           </label>
         </div>
         <div className="row">
@@ -175,10 +212,10 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
           </label>
           <label>
             {t.desk.paymentAmount}
-            <input
+            <AmountInput
               value={paymentAmount}
-              onChange={(e) => setPaymentAmount(e.target.value)}
               placeholder={suggestedPayment || t.desk.automatic}
+              onValueChange={(v) => setPaymentAmount(normalizeAmountInput(v))}
             />
           </label>
         </div>
@@ -228,9 +265,9 @@ export function TradingTradeFormPage({ mode }: { mode: Mode }) {
               </label>
               <label style={{ flex: 1, minWidth: 140 }}>
                 {t.common.phone}
-                <input
+                <PhoneInput
                   value={walkInPhone}
-                  onChange={(e) => setWalkInPhone(e.target.value)}
+                  onValueChange={setWalkInPhone}
                   placeholder={t.common.optional}
                 />
               </label>

@@ -22,7 +22,7 @@ import {
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
 import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { OpeningBalanceFormModal, isOpeningBalanceMovement } from "@desktop/components/opening-balance-form-modal";
-import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { TransactionTypeIcon } from "@desktop/components/transaction-type-icon";
 import {
   TransactionDetailModal,
@@ -78,6 +78,7 @@ import {
   type AmountPart,
 } from "@desktop/lib/format-transaction-line";
 import { printDaybookLedger } from "@desktop/lib/print-daybook";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
@@ -176,6 +177,7 @@ export function DaybookPage() {
   const rtl = dir === "rtl";
   const { session } = useAuth();
   const { cashTrackingEnabled } = useCashTracking();
+  const { confirm, alert } = useConfirmDialog();
   const [dateFrom, setDateFrom] = useState(todayIso);
   const [dateTo, setDateTo] = useState(todayIso);
   const [journal, setJournal] = useState<DaybookJournalLine[]>([]);
@@ -366,15 +368,11 @@ export function DaybookPage() {
     return () => window.cancelAnimationFrame(id);
   }, [journal, busy]);
 
-  useEffect(() => {
-    const onSaved = () => {
-      preferLatestPageRef.current = true;
-      stickJournalBottomRef.current = true;
-      refreshJournal();
-    };
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [refreshJournal]);
+  useDeskDataRefresh(() => {
+    preferLatestPageRef.current = true;
+    stickJournalBottomRef.current = true;
+    refreshJournal();
+  });
 
   function openTxOrDeal(id: string, type: string) {
     if (type.toUpperCase() === "EXCHANGE") void dealModal.open(id);
@@ -450,9 +448,10 @@ export function DaybookPage() {
 
   async function handleDeleteMovement(id: string, reference: string) {
     if (!session) return;
-    const ok = window.confirm(
-      t.desk.deleteTxConfirm.replace("{reference}", reference),
-    );
+    const ok = await confirm({
+      title: t.common.delete,
+      message: t.desk.deleteTxConfirm.replace("{reference}", reference),
+    });
     if (!ok) return;
     if (!tryBeginSubmit(deleteSubmittingRef)) return;
     setError(null);
@@ -662,7 +661,7 @@ export function DaybookPage() {
         },
       );
       if (path) {
-        window.alert(`${t.desk.exportCsv}\n${path}`);
+        await alert({ title: t.desk.exportCsv, message: path });
       }
     } catch (err: unknown) {
       setError(errorMessage(err));

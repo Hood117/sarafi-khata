@@ -521,10 +521,7 @@ pub fn exchange_funds(
     None
   };
   let walk_in_phone = if is_walk_in {
-    input
-      .walk_in_phone
-      .map(|s| s.trim().to_string())
-      .filter(|s| !s.is_empty())
+    crate::validation::validate_phone_optional(input.walk_in_phone.as_deref())?
   } else {
     None
   };

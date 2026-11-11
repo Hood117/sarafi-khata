@@ -1,5 +1,7 @@
 /** Shared Hawala desk UI helpers. */
 
+import { parseAmountNumber } from "@desktop/lib/western-digits";
+
 export { todayIso } from "@desktop/lib/datetime";
 
 export function statusBadgeClass(status: string): string {
@@ -23,7 +25,7 @@ export function statusBadgeClass(status: string): string {
 }
 
 export function parseMoney(value: string): number {
-  const n = Number.parseFloat(String(value).replace(/,/g, "").trim());
+  const n = parseAmountNumber(value);
   return Number.isFinite(n) ? n : 0;
 }
 

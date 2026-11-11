@@ -16,9 +16,13 @@ import {
 } from "@desktop/components/complete-receive-hawala-modal";
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { sendHawalaWhatsAppToPartner } from "@desktop/lib/hawala-whatsapp";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { statusLabel } from "@desktop/lib/i18n-labels";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import {
   formatAmountDisplay,
@@ -54,6 +58,7 @@ export function HawalaDetailPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
   const [whatsappBusy, setWhatsappBusy] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [completeBusy, setCompleteBusy] = useState(false);
@@ -81,6 +86,12 @@ export function HawalaDetailPage() {
     };
   }, []);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
+
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
@@ -102,7 +113,7 @@ export function HawalaDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
   async function handleWhatsApp() {
     if (!detail) return;
@@ -127,7 +138,11 @@ export function HawalaDetailPage() {
 
   async function handleArchive() {
     if (!session || !detail) return;
-    if (!window.confirm(t.hawala.archiveConfirmSoft)) return;
+    const ok = await confirm({
+      title: t.common.archive,
+      message: t.hawala.archiveConfirmSoft,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
@@ -137,6 +152,7 @@ export function HawalaDetailPage() {
         reason: null,
       });
       setDetail(updated);
+      notifyDeskDataChanged();
       showSuccess(t.hawala.archivedSoftOk);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -155,6 +171,7 @@ export function HawalaDetailPage() {
         actorUserId: session.userId,
       });
       setDetail(updated);
+      notifyDeskDataChanged();
       showSuccess(t.hawala.restoredOk);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -184,9 +201,7 @@ export function HawalaDetailPage() {
 
   function handlePrint() {
     if (!detail) return;
-    document.body.classList.add("tx-printing");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   const printSummary = detail

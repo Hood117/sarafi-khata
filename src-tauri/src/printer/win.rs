@@ -284,6 +284,7 @@ fn classify_form_factor(paper_names: &[String], sizes_mm10: &[(i32, i32)]) -> St
   let name_thermal = paper_names.iter().any(|n| {
     let l = n.to_ascii_lowercase();
     l.contains("80mm")
+      || l.contains("60mm")
       || l.contains("58mm")
       || l.contains("thermal")
       || l.contains("receipt")

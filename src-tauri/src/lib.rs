@@ -14,6 +14,7 @@ mod license_config;
 mod migrate;
 mod state;
 mod util;
+mod validation;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};

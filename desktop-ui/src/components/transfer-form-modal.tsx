@@ -28,6 +28,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { buildTransferDescription } from "@desktop/lib/movement-description";
 import {
@@ -45,6 +46,10 @@ import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
 import { loadDeskVoucher, newInternalRef, txDisplayRef } from "@desktop/lib/tx-ref";
+import {
+  parseAmountNumber,
+  parsePositiveAmount,
+} from "@desktop/lib/western-digits";
 
 type Props = {
   open: boolean;
@@ -389,8 +394,8 @@ export function TransferFormModal({
       return;
     }
     if (resultDirty) return;
-    const amount = Number(form.amount.replace(/,/g, ""));
-    const rate = Number(form.rate.replace(/,/g, ""));
+    const amount = parseAmountNumber(form.amount);
+    const rate = parseAmountNumber(form.rate);
     const next = leftToRight(amount, rate, form.rateBase);
     if (next == null) return;
     const formatted = formatFxAmount(next);
@@ -571,18 +576,18 @@ export function TransferFormModal({
   async function submit(action: "save" | "new") {
     if (!session) return;
     const amount = form.amount.trim();
-    if (!amount || Number(amount.replace(/,/g, "")) <= 0) {
+    if (parsePositiveAmount(amount) == null) {
       setError(t.desk.enterAmount);
       amountRef.current?.focus();
       return;
     }
     const converting = currenciesDiffer(form.currencyCode, form.receiveCurrencyCode);
     const receiveAmount = form.receiveAmount.trim();
-    if (converting && (!form.rate.trim() || Number(form.rate.replace(/,/g, "")) <= 0)) {
+    if (converting && parsePositiveAmount(form.rate) == null) {
       setError(t.desk.rateRequired);
       return;
     }
-    if (!receiveAmount || Number(receiveAmount.replace(/,/g, "")) <= 0) {
+    if (parsePositiveAmount(receiveAmount) == null) {
       setError(converting ? t.desk.rateRequired : t.desk.enterAmount);
       amountRef.current?.focus();
       return;
@@ -635,6 +640,7 @@ export function TransferFormModal({
         createdById: session.userId,
         replaceTransactionId: replaceId || undefined,
       });
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         setSuccessMessage(

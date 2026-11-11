@@ -29,6 +29,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import {
   handleDeskFormKeyDown,
@@ -36,12 +37,20 @@ import {
 } from "@desktop/lib/form-keyboard";
 import { buildHawalaDescription } from "@desktop/lib/movement-description";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
+import { requirePositiveAmount } from "@desktop/lib/validation/amount";
+import { validatePhone } from "@desktop/lib/validation/phone";
+import {
+  normalizeAmountInput,
+  parseAmountNumber,
+  parsePositiveAmount,
+} from "@desktop/lib/western-digits";
 import { resolveCommission } from "@desktop/pages/hawala-helpers";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
 import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
+import { PhoneInput } from "@desktop/ui/phone-input";
 import { SearchableSelect } from "@desktop/ui/searchable-select";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
@@ -61,8 +70,7 @@ type Props = {
 };
 
 function parseNum(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, "").trim());
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return parsePositiveAmount(raw);
 }
 
 /** Round money and add thousand separators when the integer part has 4+ digits. */
@@ -344,10 +352,11 @@ export function HawalaFormModal({
         const fee = detail.commissionFeeAmount || "";
         const per = detail.commissionPerAmount;
         let value = fee || prev.partnerCommission;
-        if (!fee && per && Number(per) > 0) {
+        const perN = parseAmountNumber(per);
+        if (!fee && Number.isFinite(perN) && perN > 0) {
           const principal = parseNum(prev.sendAmount);
           if (principal != null) {
-            value = formatAmount((principal * Number(per)) / 100);
+            value = formatAmount((principal * perN) / 100);
           }
         }
         return {
@@ -468,7 +477,10 @@ export function HawalaFormModal({
     const next = sendToReceive(sendN, rateN, form.rateBase);
     if (next == null) return;
     const formatted = formatAmount(next);
-    if (formatted.replace(/,/g, "") !== form.receiveAmount.replace(/,/g, "")) {
+    if (
+      normalizeAmountInput(formatted) !==
+      normalizeAmountInput(form.receiveAmount)
+    ) {
       setForm((prev) => ({ ...prev, receiveAmount: formatted }));
     }
   }, [
@@ -560,12 +572,17 @@ export function HawalaFormModal({
   async function submit(action: "save" | "new") {
     if (!session) return;
 
-    const sendAmount = form.sendAmount.trim();
-    if (!sendAmount || parseNum(sendAmount) == null) {
-      setError(t.hawala.amountRequired);
+    const amountCheck = requirePositiveAmount(form.sendAmount);
+    if (!amountCheck.ok) {
+      setError(
+        amountCheck.error === "required"
+          ? t.hawala.amountRequired
+          : t.common.invalidAmount,
+      );
       amountRef.current?.focus();
       return;
     }
+    const sendAmount = amountCheck.value;
     if (!form.sendCurrency) {
       setError(t.hawala.currencyRequired);
       amountRef.current?.focus();
@@ -593,6 +610,19 @@ export function HawalaFormModal({
         isSend ? t.hawala.senderNameRequired : t.hawala.receiverNameRequired,
       );
       return;
+    }
+
+    let localPhoneValue: string | null = null;
+    if (form.partyMode === "walkin") {
+      const phoneCheck = validatePhone(form.walkInPhone, { required: false });
+      if (!phoneCheck.ok) {
+        setError(t.common.invalidPhone);
+        return;
+      }
+      localPhoneValue = phoneCheck.value;
+    } else {
+      // Existing customer: phone comes from the linked record; do not re-validate legacy values.
+      localPhoneValue = form.walkInPhone.trim() || null;
     }
 
     if (isSend && !form.otherPartyName.trim()) {
@@ -630,7 +660,7 @@ export function HawalaFormModal({
       form.partyMode === "customer"
         ? form.customerLabel.trim() || null
         : form.walkInName.trim() || null;
-    const localPhone = form.walkInPhone.trim() || null;
+    const localPhone = localPhoneValue;
     const localCustomerId =
       form.partyMode === "customer" ? form.customerId || null : null;
 
@@ -638,7 +668,7 @@ export function HawalaFormModal({
     setSaving(true);
     setError(null);
     try {
-      const amountMajor = sendAmount.replace(/,/g, "");
+      const amountMajor = normalizeAmountInput(sendAmount);
       const partnerName =
         partners.find((p) => p.id === form.partnerId)?.name?.trim() || "";
       const otherName = form.otherPartyName.trim();
@@ -689,9 +719,11 @@ export function HawalaFormModal({
         ) || null,
         receiveCurrencyCode: converting ? form.receiveCurrency : null,
         receiveAmount: converting
-          ? form.receiveAmount.trim().replace(/,/g, "")
+          ? normalizeAmountInput(form.receiveAmount.trim())
           : null,
-        exchangeRate: converting ? form.rate.trim().replace(/,/g, "") : null,
+        exchangeRate: converting
+          ? normalizeAmountInput(form.rate.trim())
+          : null,
         replaceTransactionId: replaceId || undefined,
         ownCommissionAmount: ownCommissionResolved,
         ownCommissionMode: "FIXED",
@@ -705,6 +737,7 @@ export function HawalaFormModal({
         ? await sendHawala(payload)
         : await receiveHawala(payload);
 
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         setSuccessMessage(
@@ -986,22 +1019,35 @@ export function HawalaFormModal({
 
             <div className="hawala-compact-grid">
               {form.partyMode === "walkin" ? (
-                <label>
-                  <span>
-                    {isSend ? t.hawala.senderName : t.hawala.receiverName} *
-                  </span>
-                  <input
-                    value={form.walkInName}
-                    placeholder={t.exchange.walkInName}
-                    onChange={(e) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        walkInName: e.target.value,
-                      }));
-                      setError(null);
-                    }}
-                  />
-                </label>
+                <>
+                  <label>
+                    <span>
+                      {isSend ? t.hawala.senderName : t.hawala.receiverName} *
+                    </span>
+                    <input
+                      value={form.walkInName}
+                      placeholder={t.exchange.walkInName}
+                      onChange={(e) => {
+                        setForm((prev) => ({
+                          ...prev,
+                          walkInName: e.target.value,
+                        }));
+                        setError(null);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>{t.common.phone}</span>
+                    <PhoneInput
+                      value={form.walkInPhone}
+                      placeholder={t.common.optional}
+                      onValueChange={(value) => {
+                        setForm((prev) => ({ ...prev, walkInPhone: value }));
+                        setError(null);
+                      }}
+                    />
+                  </label>
+                </>
               ) : (
                 <label ref={searchWrapRef} className="customer-search-wrap">
                   <span>{t.common.customer} *</span>

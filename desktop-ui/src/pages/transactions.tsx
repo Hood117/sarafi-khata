@@ -19,6 +19,7 @@ import { LedgerAmount } from "@desktop/components/ledger-amount";
 import { useT } from "@desktop/i18n";
 import { amountPartsFromRow } from "@desktop/lib/format-transaction-line";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 
 const TX_TYPES = [
   { value: "ALL", label: "All" },
@@ -43,8 +44,13 @@ export function TransactionsPage() {
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const txModal = useTransactionDetailModal();
   const dealModal = useExchangeDealDetailModal();
+
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
 
   function openTxOrDeal(id: string, type: string) {
     if (type.toUpperCase() === "EXCHANGE") void dealModal.open(id);
@@ -94,7 +100,7 @@ export function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, search, txType, dateFrom, dateTo]);
+  }, [page, search, txType, dateFrom, dateTo, reloadKey]);
 
   const totalPages = pageData
     ? Math.max(1, Math.ceil(pageData.total / pageData.pageSize))

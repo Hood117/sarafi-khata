@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  optionalPhoneSchema,
+  optionalPositiveAmountSchema,
+} from "@/lib/validation";
+
 function optionalText(maxLength = 500) {
   return z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
@@ -18,22 +23,6 @@ function optionalFatherName() {
       .max(200, { error: "Father name must be at most 200 characters." })
       .transform((value) => (value === "" ? null : value)),
   );
-}
-
-function optionalOpeningAmount() {
-  return z.preprocess((value) => {
-    if (typeof value !== "string") {
-      return null;
-    }
-    const trimmed = value.trim();
-    return trimmed === "" ? null : trimmed;
-  }, z
-    .string()
-    .regex(/^\d+(\.\d+)?$/, { error: "Amount must be a positive number." })
-    .refine((value) => Number(value) > 0, {
-      error: "Amount must be greater than zero.",
-    })
-    .nullable());
 }
 
 function optionalOpeningCurrency() {
@@ -56,11 +45,8 @@ const customerProfileFields = {
     .min(1, { error: "Name is required." })
     .max(200, { error: "Name must be at most 200 characters." }),
   fatherName: optionalFatherName(),
-  phone: z
-    .string()
-    .trim()
-    .min(1, { error: "Phone is required." })
-    .max(50, { error: "Phone must be at most 50 characters." }),
+  /** Optional; when set must pass loose phone format. */
+  phone: optionalPhoneSchema,
   address: optionalText(500),
   nationalId: optionalText(100),
   notes: optionalText(2000),
@@ -69,7 +55,7 @@ const customerProfileFields = {
 export const createCustomerSchema = z
   .object({
     ...customerProfileFields,
-    openingBalanceAmount: optionalOpeningAmount(),
+    openingBalanceAmount: optionalPositiveAmountSchema,
     openingBalanceCurrencyCode: optionalOpeningCurrency(),
   })
   .superRefine((data, ctx) => {

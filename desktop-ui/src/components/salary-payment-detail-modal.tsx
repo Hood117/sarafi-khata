@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import { getAppInfo, type EmployeeSalaryPaymentRow } from "@desktop/api";
 import { useT } from "@desktop/i18n";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { cashWalletLabelT } from "@desktop/lib/user-facing-wallets";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
@@ -71,9 +72,7 @@ export function SalaryPaymentDetailModal({ detail, onClose }: ModalProps) {
   const summary = `${t.desk.salary} · ${detail.employeeName} · ${amountLabel}`;
 
   function handlePrint() {
-    document.body.classList.add("tx-printing");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   return (

@@ -15,7 +15,12 @@ import {
   errorMessage,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import {
+  normalizeAmountInput,
+  parsePositiveAmount,
+} from "@desktop/lib/western-digits";
 import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
@@ -35,8 +40,7 @@ type PendingCash = {
 };
 
 function parseAmount(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, "").trim());
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return parsePositiveAmount(raw);
 }
 
 /** Notes stored as "Cash in X Y to Main Vault — note" */
@@ -156,7 +160,9 @@ export function VaultCashFormModal({
                 : l.direction.toUpperCase() === "CREDIT",
             ) ??
             detail.lines[0];
-          setAmount(cashLine?.amount?.replace(/,/g, "") ?? "");
+          setAmount(
+            normalizeAmountInput(cashLine?.amount ?? ""),
+          );
           setCurrencyCode(
             cashLine?.currencyCode || pickDefaultCurrency(active),
           );
@@ -199,7 +205,7 @@ export function VaultCashFormModal({
       setError(t.errors.vaultSave);
       return;
     }
-    const rateTrim = costRate.trim().replace(/,/g, "");
+    const rateTrim = normalizeAmountInput(costRate.trim());
     if (showCostRate && rateTrim && !parseAmount(rateTrim)) {
       setError(t.desk.cashInCostRateHint);
       return;
@@ -209,7 +215,7 @@ export function VaultCashFormModal({
     setPendingCash({
       direction,
       currencyCode,
-      amount,
+      amount: normalizeAmountInput(amount),
       costRate: showCostRate && rateTrim ? rateTrim : undefined,
       reference: reference.trim() || undefined,
       notes: appendEmployeeLine(notes, employeeName, t.employees.employee),
@@ -238,6 +244,7 @@ export function VaultCashFormModal({
         replaceTransactionId: pendingCash.replaceTransactionId,
       });
       setPendingCash(null);
+      notifyMovementSaved();
       onSaved?.();
       onClose();
     } catch (err: unknown) {

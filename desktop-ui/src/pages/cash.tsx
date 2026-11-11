@@ -5,6 +5,7 @@ import { getCashBalances, type CashBalanceRow } from "@desktop/api";
 import { Banknote, Landmark } from "lucide-react";
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { CurrencyCodeWithFlag, CurrencyFlag } from "@desktop/ui/currency-flag";
 import {
@@ -12,6 +13,7 @@ import {
   localizedCurrencyName,
   moneyToneClass,
 } from "@desktop/lib/currency-labels";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 
 function currencyAccent(code: string): string {
   const map: Record<string, string> = {
@@ -41,7 +43,7 @@ export function CashBalanceCards({
   const t = useT();
   const visible = rows
     .filter((row) => {
-      const n = Number.parseFloat(String(row.balanceDisplay).replace(/,/g, ""));
+      const n = parseSignedAmountNumber(row.balanceDisplay);
       return Number.isFinite(n) && n !== 0;
     })
     .sort((a, b) => {
@@ -112,6 +114,10 @@ export function CashPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDeskDataRefresh(() => {
+    void load();
+  });
 
   return (
     <div className="stack cash-page workspace-page is-cash">

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { getAppInfo, type ExpenseRow } from "@desktop/api";
 import { useLocale, useT } from "@desktop/i18n";
 import { localizedCurrencyName } from "@desktop/lib/currency-labels";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 
@@ -92,9 +93,7 @@ export function ExpenseDetailModal({ detail, onClose }: ModalProps) {
   const summary = `${category} · ${detail.amount} ${detail.currencyCode}`;
 
   function handlePrint() {
-    document.body.classList.add("tx-printing");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   return (

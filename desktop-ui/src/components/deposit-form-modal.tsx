@@ -27,6 +27,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { buildDepositDescription } from "@desktop/lib/movement-description";
 import {
@@ -44,6 +45,10 @@ import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
 import { newInternalRef } from "@desktop/lib/tx-ref";
+import {
+  parseAmountNumber,
+  parsePositiveAmount,
+} from "@desktop/lib/western-digits";
 
 type PayerType = "self" | "other";
 
@@ -268,8 +273,8 @@ export function DepositFormModal({
       return;
     }
     if (resultDirty) return;
-    const rate = Number(form.rate.replace(/,/g, ""));
-    const cashAmount = Number(form.cashAmount.replace(/,/g, ""));
+    const rate = parseAmountNumber(form.rate);
+    const cashAmount = parseAmountNumber(form.cashAmount);
     const next = leftToRight(cashAmount, rate, form.rateBase);
     if (next == null) return;
     const formatted = formatFxAmount(next);
@@ -315,7 +320,7 @@ export function DepositFormModal({
     const actedBy =
       form.payerType === "other" ? form.payerName.trim() || null : null;
     const balRaw = balanceByCurrency[form.currencyCode.trim().toUpperCase()];
-    const balNum = balRaw != null ? Number(String(balRaw).replace(/,/g, "")) : NaN;
+    const balNum = balRaw != null ? parseAmountNumber(balRaw) : NaN;
     const isDebtRepayment = Number.isFinite(balNum) && balNum < 0;
     const next = buildDepositDescription(t.desk, {
       customerName: form.customerLabel,
@@ -435,17 +440,17 @@ export function DepositFormModal({
     if (!session) return;
     const amount = form.amount.trim();
     const cashAmount = form.cashAmount.trim();
-    if (!cashAmount || Number(cashAmount.replace(/,/g, "")) <= 0) {
+    if (parsePositiveAmount(cashAmount) == null) {
       setError(t.desk.enterAmount);
       amountRef.current?.focus();
       return;
     }
     const converting = currenciesDiffer(form.cashCurrencyCode, form.currencyCode);
-    if (converting && (!form.rate.trim() || Number(form.rate.replace(/,/g, "")) <= 0)) {
+    if (converting && parsePositiveAmount(form.rate) == null) {
       setError(t.desk.rateRequired);
       return;
     }
-    if (!amount || Number(amount.replace(/,/g, "")) <= 0) {
+    if (parsePositiveAmount(amount) == null) {
       setError(converting ? t.desk.rateRequired : t.desk.enterAmount);
       amountRef.current?.focus();
       return;
@@ -495,6 +500,7 @@ export function DepositFormModal({
         createdById: session.userId,
         replaceTransactionId: replaceId || undefined,
       });
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         setSuccessMessage(

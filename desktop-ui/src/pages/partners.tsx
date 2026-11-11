@@ -7,9 +7,10 @@ import {
   type PartnerListItem,
   type PartnerListPage,
 } from "@desktop/api";
-import { DESK_PARTNER_CREATED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { PartnerCreateForm } from "@desktop/pages/partner-forms";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
@@ -18,6 +19,7 @@ import { useSuccessModal } from "@desktop/ui/use-success-modal";
 export function PartnersPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { confirm } = useConfirmDialog();
   const [pageData, setPageData] = useState<PartnerListPage | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -34,11 +36,9 @@ export function PartnersPage() {
     partner: PartnerListItem;
   } | null>(null);
 
-  useEffect(() => {
-    const onCreated = () => setReloadKey((k) => k + 1);
-    window.addEventListener(DESK_PARTNER_CREATED_EVENT, onCreated);
-    return () => window.removeEventListener(DESK_PARTNER_CREATED_EVENT, onCreated);
-  }, []);
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -79,7 +79,11 @@ export function PartnersPage() {
   }, [search, page, reloadKey]);
 
   async function handleArchive(partnerId: string, partnerName: string) {
-    if (!window.confirm(`${t.common.archive} “${partnerName}”?`)) return;
+    const ok = await confirm({
+      title: t.common.archive,
+      message: `${t.common.archive} “${partnerName}”?`,
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

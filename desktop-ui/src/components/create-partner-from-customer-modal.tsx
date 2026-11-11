@@ -8,6 +8,7 @@ import {
   type PartnerDetail,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyDeskDataChanged, notifyPartnerCreated } from "@desktop/lib/desk-events";
 import { useT } from "@desktop/i18n";
 import {
   endSubmit,
@@ -123,6 +124,8 @@ export function CreatePartnerFromCustomerModal({
         openingKata: openingKata.length ? openingKata : null,
         actorUserId: session.userId,
       });
+      notifyPartnerCreated(created.id);
+      notifyDeskDataChanged();
       onCreated(created);
     } catch (err: unknown) {
       setError(errorMessage(err, t.customers.addAsPartnerError));

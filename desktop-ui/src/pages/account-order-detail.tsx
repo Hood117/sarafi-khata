@@ -36,9 +36,15 @@ import {
 import { useAuth } from "@desktop/auth";
 import { useT } from "@desktop/i18n";
 import { errorMessage, todayIso } from "@desktop/lib/datetime";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
+import { requirePositiveAmount } from "@desktop/lib/validation/amount";
+import { validatePhone } from "@desktop/lib/validation/phone";
 import { canWritePath } from "@desktop/lib/permissions";
+import { PhoneInput } from "@desktop/ui/phone-input";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { formatAmountDisplay } from "@desktop/pages/hawala-helpers";
 import { AmountInput } from "@desktop/ui/amount-input";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { Modal } from "@desktop/ui/modal";
@@ -68,6 +74,7 @@ export function AccountOrderDetailPage() {
   const navigate = useNavigate();
   const canWrite = canWritePath(session, "/account-orders");
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
 
   const [detail, setDetail] = useState<AccountOrderDetail | null>(null);
   const [orderList, setOrderList] = useState<AccountOrderListItem[]>([]);
@@ -141,6 +148,10 @@ export function AccountOrderDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDeskDataRefresh(() => {
+    void load();
+  });
 
   function applyOrderFields(order: AccountOrderDetail) {
     setName(order.name);
@@ -237,6 +248,7 @@ export function AccountOrderDetailPage() {
       setDetail(updated);
       applyOrderFields(updated);
       setEditingOrder(false);
+      notifyDeskDataChanged();
       showSuccess(t.common.success);
       void listCustomersPage({ archiveFilter: "active", pageSize: 200 }).then(
         (res) => setCustomers(res.items),
@@ -258,11 +270,26 @@ export function AccountOrderDetailPage() {
       setFormError(t.accountOrders.customerRequired);
       return;
     }
-    if (
-      recipientMode === "new" &&
-      (!newCustomerName.trim() || !newCustomerPhone.trim())
-    ) {
+    if (recipientMode === "new" && !newCustomerName.trim()) {
       setFormError(t.accountOrders.customerRequired);
+      return;
+    }
+    let newPhone: string | null = null;
+    if (recipientMode === "new") {
+      const phoneCheck = validatePhone(newCustomerPhone, { required: true });
+      if (!phoneCheck.ok) {
+        setFormError(
+          phoneCheck.error === "required"
+            ? t.accountOrders.customerRequired
+            : t.common.invalidPhone,
+        );
+        return;
+      }
+      newPhone = phoneCheck.value;
+    }
+    const amountCheck = requirePositiveAmount(recipientAmount);
+    if (!amountCheck.ok) {
+      setFormError(t.common.invalidAmount);
       return;
     }
     setSavingRecipient(true);
@@ -278,12 +305,12 @@ export function AccountOrderDetailPage() {
           recipientMode === "new"
             ? {
                 fullName: newCustomerName.trim(),
-                phone: newCustomerPhone.trim(),
+                phone: newPhone as string,
               }
             : null,
         detail: recipientDetail.trim() || null,
         recipientDate,
-        amount: recipientAmount.trim(),
+        amount: amountCheck.value,
         distributionFeePercent: recipientFeePercent.trim() || "0",
       });
       setDetail(updated);
@@ -294,6 +321,7 @@ export function AccountOrderDetailPage() {
         detail: updated.customerName ?? updated.name,
         date: String(updated.orderDate).slice(0, 10),
       });
+      notifyDeskDataChanged();
       showSuccess(t.common.success);
     } catch (err) {
       setFormError(errorMessage(err, t.accountOrders.overDistribution));
@@ -304,9 +332,11 @@ export function AccountOrderDetailPage() {
 
   async function onDeleteRecipient(row: AccountOrderRecipientRow) {
     if (!canWrite) return;
-    if (!window.confirm(`${t.accountOrders.deleteRecipient} “${row.name}”?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.delete,
+      message: `${t.accountOrders.deleteRecipient} “${row.name}”?`,
+    });
+    if (!ok) return;
     try {
       const updated = await deleteAccountOrderRecipient(row.id);
       setDetail(updated);
@@ -316,6 +346,7 @@ export function AccountOrderDetailPage() {
           date: String(updated.orderDate).slice(0, 10),
         });
       }
+      notifyDeskDataChanged();
       showSuccess(t.common.success);
     } catch (err) {
       setFormError(errorMessage(err, t.errors.genericTryAgain));
@@ -324,11 +355,14 @@ export function AccountOrderDetailPage() {
 
   async function onArchive() {
     if (!detail || !canWrite) return;
-    if (!window.confirm(`${t.accountOrders.archiveOrder} “${detail.name}”?`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.archive,
+      message: `${t.accountOrders.archiveOrder} “${detail.name}”?`,
+    });
+    if (!ok) return;
     try {
       await archiveAccountOrder(detail.id);
+      notifyDeskDataChanged();
       showSuccess(t.common.success);
       navigate("/account-orders");
     } catch (err) {
@@ -560,11 +594,10 @@ export function AccountOrderDetailPage() {
                   </label>
                   <label className="field">
                     <span>{t.common.phone}</span>
-                    <input
+                    <PhoneInput
                       value={newCustomerPhone}
-                      onChange={(e) => setNewCustomerPhone(e.target.value)}
+                      onValueChange={setNewCustomerPhone}
                       disabled={!canWrite}
-                      dir="ltr"
                       required
                     />
                   </label>

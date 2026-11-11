@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { positiveAmountSchema } from "@/lib/validation";
+
 function optionalText(maxLength = 2000) {
   return z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
@@ -19,16 +21,7 @@ const currencyCodeSchema = z
     error: "Currency code is invalid.",
   });
 
-const amountSchema = z
-  .string()
-  .trim()
-  .min(1, { error: "Amount is required." })
-  .refine((value) => /^\d+(\.\d+)?$/.test(value), {
-    error: "Amount must be a positive number.",
-  })
-  .refine((value) => Number(value) > 0, {
-    error: "Amount must be greater than zero.",
-  });
+const amountSchema = positiveAmountSchema;
 
 export const addExternalMoneySchema = z.object({
   currencyCode: currencyCodeSchema,

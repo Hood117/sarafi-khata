@@ -38,7 +38,8 @@ import {
 import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
 import { OpeningBalanceFormModal, isOpeningBalanceMovement } from "@desktop/components/opening-balance-form-modal";
-import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { TransferFormModal } from "@desktop/components/transfer-form-modal";
 import {
@@ -72,6 +73,7 @@ import {
   type TransactionReceiptLabels,
 } from "@desktop/lib/print-transaction-receipt";
 import { journalTxRef } from "@desktop/lib/tx-ref";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
 import {
   printReportSheet,
@@ -84,6 +86,7 @@ import { DepositFormModal } from "@desktop/components/deposit-form-modal";
 import { InlineLedgerEntryRow } from "@desktop/components/inline-ledger-entry-row";
 import { isSimpleDeskHawala } from "@desktop/pages/hawala-helpers";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
@@ -91,14 +94,7 @@ import { PageLoadError } from "@desktop/ui/page-load-error";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
 function signedMoney(amount: number | string | null | undefined): number {
-  const n =
-    typeof amount === "number"
-      ? amount
-      : Number.parseFloat(
-          String(amount ?? "")
-            .replace(/,/g, "")
-            .replace(/−/g, "-"),
-        );
+  const n = parseSignedAmountNumber(amount);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -229,50 +225,52 @@ function CustomerNameSwitcher({
         <h1 className="customer-detail-name">{customer.fullName}</h1>
         {meta}
       </div>
-      <label className="customer-name-switcher-search">
-        <span className="visually-hidden">{t.customers.searchPlaceholder}</span>
-        <input
-          type="search"
-          value={query}
-          placeholder={t.customers.searchPlaceholder}
-          aria-label={t.customers.searchPlaceholder}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-          autoComplete="off"
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onKeyDown={onKeyDown}
-        />
-      </label>
-      {open ? (
-        <ul className="customer-suggest" role="listbox">
-          {items.length === 0 ? (
-            <li className="customer-suggest-empty muted">
-              {searching ? t.common.loading : t.customers.emptyFiltered}
-            </li>
-          ) : (
-            items.map((c, idx) => (
-              <li key={c.id} role="option" aria-selected={idx === highlight}>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
-                  onMouseEnter={() => setHighlight(idx)}
-                  onClick={() => pick(c.id)}
-                >
-                  <span className="customer-suggest-name">{c.fullName}</span>
-                  <span className="customer-suggest-meta muted">
-                    {[c.code, c.fatherName, c.phone].filter(Boolean).join(" · ")}
-                  </span>
-                </button>
+      <div className="customer-name-switcher-search-wrap">
+        <label className="customer-name-switcher-search">
+          <span className="visually-hidden">{t.customers.searchPlaceholder}</span>
+          <input
+            type="search"
+            value={query}
+            placeholder={t.customers.searchPlaceholder}
+            aria-label={t.customers.searchPlaceholder}
+            aria-expanded={open}
+            aria-haspopup="listbox"
+            autoComplete="off"
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={onKeyDown}
+          />
+        </label>
+        {open ? (
+          <ul className="customer-suggest" role="listbox">
+            {items.length === 0 ? (
+              <li className="customer-suggest-empty muted">
+                {searching ? t.common.loading : t.customers.emptyFiltered}
               </li>
-            ))
-          )}
-        </ul>
-      ) : null}
+            ) : (
+              items.map((c, idx) => (
+                <li key={c.id} role="option" aria-selected={idx === highlight}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className={`customer-suggest-item${idx === highlight ? " is-active" : ""}`}
+                    onMouseEnter={() => setHighlight(idx)}
+                    onClick={() => pick(c.id)}
+                  >
+                    <span className="customer-suggest-name">{c.fullName}</span>
+                    <span className="customer-suggest-meta muted">
+                      {[c.code, c.fatherName, c.phone].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -283,9 +281,9 @@ export function CustomerDetailPage() {
   const { session } = useAuth();
   const { locale, dir } = useLocale();
   const rtl = dir === "rtl";
+  const { confirm } = useConfirmDialog();
 
   const [showEdit, setShowEdit] = useState(false);
-  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [editDepositId, setEditDepositId] = useState<string | null>(null);
@@ -317,6 +315,9 @@ export function CustomerDetailPage() {
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(1);
   const historyPageSize = 25;
+  /** After open/filter/save, jump to the last page so latest rows are at the bottom. */
+  const pinLedgerToLatestRef = useRef(true);
+  const historyScrollRef = useRef<HTMLDivElement>(null);
   const [ledgerDateFrom, setLedgerDateFrom] = useState("");
   const [ledgerDateTo, setLedgerDateTo] = useState("");
   const [ledgerType, setLedgerType] = useState<LedgerTypeFilter>("ALL");
@@ -337,7 +338,7 @@ export function CustomerDetailPage() {
   }
 
   function refreshAfterMovement() {
-    window.dispatchEvent(new CustomEvent(DESK_MOVEMENT_SAVED_EVENT));
+    notifyMovementSaved();
   }
 
   function handleEditHistoryRow(row: CustomerLedgerRow) {
@@ -407,9 +408,10 @@ export function CustomerDetailPage() {
   async function handleDeleteHistoryRow(row: CustomerLedgerRow) {
     if (!session) return;
     const reference = journalTxRef(row) || row.reference || row.id;
-    const ok = window.confirm(
-      t.desk.deleteTxConfirm.replace("{reference}", reference),
-    );
+    const ok = await confirm({
+      title: t.common.delete,
+      message: t.desk.deleteTxConfirm.replace("{reference}", reference),
+    });
     if (!ok) return;
     if (!tryBeginSubmit(deleteSubmittingRef)) return;
     setError(null);
@@ -511,8 +513,24 @@ export function CustomerDetailPage() {
         currencyCode: ledgerCurrency === "ALL" ? undefined : ledgerCurrency,
       });
       if (currentId.current !== id) return;
-      setHistory(hist.items);
       setHistoryTotal(hist.total);
+      // Oldest→newest list: open on the last page so the latest row is at the bottom.
+      if (pinLedgerToLatestRef.current) {
+        const lastPage = Math.max(
+          1,
+          Math.ceil(hist.total / Math.max(1, historyPageSize)),
+        );
+        pinLedgerToLatestRef.current = false;
+        if (lastPage !== historyPage) {
+          setHistoryPage(lastPage);
+          return;
+        }
+      }
+      setHistory(hist.items);
+      window.requestAnimationFrame(() => {
+        const el = historyScrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
     } catch (err) {
       setError(errorMessage(err, t.errors.loadCustomerHistory));
     } finally {
@@ -528,9 +546,10 @@ export function CustomerDetailPage() {
     t.errors.loadCustomerHistory,
   ]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
     if (!id) return;
-    setBusy(true);
+    const soft = Boolean(opts?.soft);
+    if (!soft) setBusy(true);
     try {
       const [c, bals] = await Promise.all([
         getCustomer(id),
@@ -543,11 +562,12 @@ export function CustomerDetailPage() {
     } catch (err) {
       setError(errorMessage(err, t.errors.loadCustomerHistory));
     } finally {
-      setBusy(false);
+      if (!soft) setBusy(false);
     }
   }, [id, t.errors.loadCustomerHistory]);
 
   useEffect(() => {
+    pinLedgerToLatestRef.current = true;
     setHistoryPage(1);
     setLedgerDateFrom("");
     setLedgerDateTo("");
@@ -565,16 +585,14 @@ export function CustomerDetailPage() {
     void loadLedger();
   }, [loadLedger]);
 
-  useEffect(() => {
-    const onSaved = () => {
-      void load();
-      void loadLedger();
-    };
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, [load, loadLedger]);
+  useDeskDataRefresh(() => {
+    pinLedgerToLatestRef.current = true;
+    void load({ soft: true });
+    void loadLedger();
+  });
 
   useEffect(() => {
+    pinLedgerToLatestRef.current = true;
     setHistoryPage(1);
   }, [ledgerDateFrom, ledgerDateTo, ledgerType, ledgerCurrency]);
 
@@ -697,11 +715,15 @@ export function CustomerDetailPage() {
     }
   }
 
-  async function confirmArchive() {
+  async function handleArchiveCustomer() {
     if (!customer) return;
+    const ok = await confirm({
+      title: t.customers.archiveCustomer,
+      message: `${t.customers.archiveCustomer} — ${customer.fullName}`,
+    });
+    if (!ok) return;
     try {
       await archiveCustomer(customer.id);
-      setArchiveConfirmOpen(false);
       await load();
       setSuccessMessage(t.common.success);
     } catch (err) {
@@ -814,7 +836,7 @@ export function CustomerDetailPage() {
                         type="button"
                         className="btn danger"
                         data-desk-action="delete"
-                        onClick={() => setArchiveConfirmOpen(true)}
+                        onClick={() => void handleArchiveCustomer()}
                       >
                         {t.common.archive}
                       </button>
@@ -995,7 +1017,7 @@ export function CustomerDetailPage() {
               ) : history.length === 0 && !draftOpen ? (
                 <p className="muted">{t.common.noEntries}</p>
               ) : (
-                <div className="customer-history-scroll">
+                <div className="customer-history-scroll" ref={historyScrollRef}>
                   <table className="report-ledger daybook-journal-table">
                     <thead>
                       <tr>
@@ -1039,9 +1061,13 @@ export function CustomerDetailPage() {
                               <span className="ltr-text">{amounts.debit || "—"}</span>
                             </td>
                             <td className="col-currency">
-                              <span className="ledger-currency-cell ltr-text">
+                              <span className="ledger-currency-cell">
                                 <CurrencyFlag code={row.currencyCode} size="sm" />
-                                {row.currencyCode}
+                                {localizedCurrencyName(
+                                  row.currencyCode,
+                                  locale,
+                                  row.currencyCode,
+                                )}
                               </span>
                             </td>
                             <td className={`col-amount col-balance ${moneyToneClass(row.balanceAfter)}`}>
@@ -1060,8 +1086,12 @@ export function CustomerDetailPage() {
                           onCancel={() => setDraftOpen(false)}
                           onSaved={() => {
                             setDraftOpen(false);
-                            setHistoryPage(1);
-                            window.dispatchEvent(new CustomEvent(DESK_MOVEMENT_SAVED_EVENT));
+                            pinLedgerToLatestRef.current = true;
+                            // Reload locally so the new row + footer chips update
+                            // immediately (and chip instances stay mounted for animation).
+                            // Inline row already broadcasts notifyMovementSaved().
+                            void load({ soft: true });
+                            void loadLedger();
                           }}
                         />
                       ) : null}
@@ -1075,7 +1105,10 @@ export function CustomerDetailPage() {
                   pageSize={historyPageSize}
                   total={historyTotal}
                   busy={ledgerBusy}
-                  onPageChange={setHistoryPage}
+                  onPageChange={(page) => {
+                    pinLedgerToLatestRef.current = false;
+                    setHistoryPage(page);
+                  }}
                   label={
                     (() => {
                       const footerBalances =
@@ -1261,25 +1294,6 @@ export function CustomerDetailPage() {
         error={dealModal.error}
         onClose={dealModal.close}
       />
-
-      {archiveConfirmOpen && customer ? (
-        <Modal
-          title={t.customers.archiveCustomer}
-          onClose={() => setArchiveConfirmOpen(false)}
-        >
-          <p>
-            {t.customers.archiveCustomer} — {customer.fullName}
-          </p>
-          <div className="customer-archive-confirm-actions">
-            <button type="button" className="btn" onClick={() => setArchiveConfirmOpen(false)}>
-              {t.common.cancel}
-            </button>
-            <button type="button" className="btn danger" onClick={() => void confirmArchive()}>
-              {t.common.confirm}
-            </button>
-          </div>
-        </Modal>
-      ) : null}
 
       {showEdit && customer ? (
         <Modal

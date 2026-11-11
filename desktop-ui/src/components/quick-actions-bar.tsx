@@ -28,22 +28,21 @@ import {
   canAccessScreen,
   canWriteScreen,
 } from "@desktop/lib/permissions";
+import {
+  notifyCustomerCreated,
+  notifyMovementSaved,
+} from "@desktop/lib/desk-events";
 import { CustomerCreateForm } from "@desktop/pages/customer-forms";
 import { SuccessModal } from "@desktop/ui/success-modal";
 
-export const DESK_MOVEMENT_SAVED_EVENT = "desk:movement-saved";
-export const DESK_CUSTOMER_CREATED_EVENT = "desk:customer-created";
-export const DESK_PARTNER_CREATED_EVENT = "desk:partner-created";
-
-function notifyMovementSaved() {
-  window.dispatchEvent(new CustomEvent(DESK_MOVEMENT_SAVED_EVENT));
-}
-
-function notifyCustomerCreated(customerId: string) {
-  window.dispatchEvent(
-    new CustomEvent(DESK_CUSTOMER_CREATED_EVENT, { detail: { customerId } }),
-  );
-}
+export {
+  DESK_CUSTOMER_CREATED_EVENT,
+  DESK_MOVEMENT_SAVED_EVENT,
+  DESK_PARTNER_CREATED_EVENT,
+  notifyCustomerCreated,
+  notifyMovementSaved,
+  notifyPartnerCreated,
+} from "@desktop/lib/desk-events";
 
 type ActionId = DeskQuickActionId;
 

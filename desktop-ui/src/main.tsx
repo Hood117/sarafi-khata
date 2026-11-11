@@ -6,6 +6,7 @@ import { AuthProvider } from "@desktop/auth";
 import { CashTrackingProvider } from "@desktop/cash-tracking";
 import { DesktopLocaleProvider } from "@desktop/i18n";
 import { logAppError } from "@desktop/lib/app-error";
+import { ConfirmDialogProvider } from "@desktop/ui/confirm-dialog";
 import { AppErrorBoundary } from "@desktop/ui/error-boundary";
 import { DesktopUiTextPrefsProvider } from "@desktop/ui-text-prefs";
 import { DESKTOP_UI_SKIN } from "@desktop/ui-skin";
@@ -54,9 +55,11 @@ createRoot(root).render(
       <DesktopUiTextPrefsProvider>
         <AuthProvider>
           <CashTrackingProvider>
-            <AppErrorBoundary>
-              <App />
-            </AppErrorBoundary>
+            <ConfirmDialogProvider>
+              <AppErrorBoundary>
+                <App />
+              </AppErrorBoundary>
+            </ConfirmDialogProvider>
           </CashTrackingProvider>
         </AuthProvider>
       </DesktopUiTextPrefsProvider>

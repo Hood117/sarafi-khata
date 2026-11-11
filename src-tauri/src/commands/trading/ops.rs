@@ -118,7 +118,7 @@ pub fn trade_buy(state: State<'_, AppState>, input: TradeBuyInput) -> Result<Tra
     None
   };
   let walk_in_phone = if ct == "WALK_IN" {
-    trim_opt(input.walk_in_phone)
+    crate::validation::validate_phone_optional(input.walk_in_phone.as_deref())?
   } else {
     None
   };
@@ -320,7 +320,7 @@ pub fn trade_sell(
     None
   };
   let walk_in_phone = if ct == "WALK_IN" {
-    trim_opt(input.walk_in_phone)
+    crate::validation::validate_phone_optional(input.walk_in_phone.as_deref())?
   } else {
     None
   };

@@ -24,7 +24,9 @@ import {
   pickDefaultCurrency,
 } from "@desktop/lib/default-currency";
 import { statusLabel } from "@desktop/lib/i18n-labels";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { canWritePath } from "@desktop/lib/permissions";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import {
   formatAmountDisplay,
   statusBadgeClass,
@@ -118,6 +120,10 @@ export function AccountOrdersPage() {
     void load();
   }, [load]);
 
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
       setSearch(searchInput.trim());
@@ -167,6 +173,7 @@ export function AccountOrdersPage() {
         purchaseDeductionPercent: purchaseDeductionPercent.trim() || "0",
       });
       setShowCreate(false);
+      notifyDeskDataChanged();
       showSuccess(t.common.success);
       navigate(`/account-orders/${created.id}`);
     } catch (err) {

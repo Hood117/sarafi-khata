@@ -21,6 +21,7 @@ import {
 } from "@desktop/lib/datetime";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import {
   formatAmountDisplay,
   statusBadgeClass,
@@ -48,6 +49,10 @@ export function CommissionTrackingPage() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
 
   const [periodPreset, setPeriodPreset] = useState<DatePeriodPreset>("today");
   const [dateFrom, setDateFrom] = useState(defaultRange.from);

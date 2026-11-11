@@ -19,7 +19,7 @@ import {
   isPendingReceiveHawala,
 } from "@desktop/components/complete-receive-hawala-modal";
 import { HawalaFormModal } from "@desktop/components/hawala-form-modal";
-import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { SendHawalaFormModal } from "@desktop/components/send-hawala-form-modal";
 import { clickableTxRowProps } from "@desktop/components/transaction-detail-modal";
 import { useT } from "@desktop/i18n";
@@ -33,6 +33,7 @@ import {
   HAWALA_FINGERPRINT_MATCH_EVENT,
   type HawalaFingerprintMatchDetail,
 } from "@desktop/lib/hawala-fingerprint-match";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Pagination } from "@desktop/ui/pagination";
@@ -134,6 +135,7 @@ export function HawalaPage() {
     row: HawalaListItem;
   } | null>(null);
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
   const [editOpen, setEditOpen] = useState(false);
   const [simpleEditOpen, setSimpleEditOpen] = useState(false);
   const [editHawalaId, setEditHawalaId] = useState<string | null>(null);
@@ -309,11 +311,9 @@ export function HawalaPage() {
     setPage(1);
   }, [dateFrom, dateTo, direction, statusFilter, currencyFilter]);
 
-  useEffect(() => {
-    const onSaved = () => setReloadKey((k) => k + 1);
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, []);
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
 
   useEffect(() => {
     const onMatch = (event: Event) => {
@@ -379,9 +379,11 @@ export function HawalaPage() {
 
   async function handleArchive(id: string) {
     if (!session) return;
-    if (!window.confirm(t.hawala.archiveConfirmSoft)) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.archive,
+      message: t.hawala.archiveConfirmSoft,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await archiveHawala({ id, actorUserId: session.userId });

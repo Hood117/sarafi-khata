@@ -26,6 +26,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { buildWithdrawDescription } from "@desktop/lib/movement-description";
 import {
@@ -43,6 +44,10 @@ import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
 import { SuccessModal } from "@desktop/ui/success-modal";
 import { newInternalRef } from "@desktop/lib/tx-ref";
+import {
+  parseAmountNumber,
+  parsePositiveAmount,
+} from "@desktop/lib/western-digits";
 
 type ReceiverType = "self" | "other";
 
@@ -265,9 +270,9 @@ export function WithdrawFormModal({
       return;
     }
     if (resultDirty) return;
-    const rateN = Number(String(form.rate).replace(/,/g, ""));
+    const rateN = parseAmountNumber(form.rate);
     if (!Number.isFinite(rateN) || rateN <= 0) return;
-    const cashN = Number(String(form.cashAmount).replace(/,/g, ""));
+    const cashN = parseAmountNumber(form.cashAmount);
     const next = leftToRight(cashN, rateN, form.rateBase);
     if (next == null) return;
     const formatted = formatFxAmount(next);
@@ -404,17 +409,17 @@ export function WithdrawFormModal({
     if (!session) return;
     const amount = form.amount.trim();
     const cashAmount = form.cashAmount.trim();
-    if (!cashAmount || Number(cashAmount) <= 0) {
+    if (parsePositiveAmount(cashAmount) == null) {
       setError(t.desk.enterAmount);
       amountRef.current?.focus();
       return;
     }
     const converting = currenciesDiffer(form.cashCurrencyCode, form.currencyCode);
-    if (converting && (!form.rate.trim() || Number(form.rate.replace(/,/g, "")) <= 0)) {
+    if (converting && parsePositiveAmount(form.rate) == null) {
       setError(t.desk.rateRequired);
       return;
     }
-    if (!amount || Number(amount) <= 0) {
+    if (parsePositiveAmount(amount) == null) {
       setError(converting ? t.desk.rateRequired : t.desk.enterAmount);
       amountRef.current?.focus();
       return;
@@ -464,6 +469,7 @@ export function WithdrawFormModal({
         createdById: session.userId,
         replaceTransactionId: replaceId || undefined,
       });
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         const fxNote = converting

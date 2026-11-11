@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isKnownCountry, isValidLocationPair } from "@/lib/locations";
+import { optionalPhoneSchema, positiveAmountSchema } from "@/lib/validation";
 
 function requiredText(label: string, maxLength = 200) {
   return z
@@ -36,16 +37,6 @@ function optionalText(maxLength = 2000) {
   );
 }
 
-function optionalPhone() {
-  return z.preprocess(
-    (value) => (typeof value === "string" ? value.trim() : ""),
-    z
-      .string()
-      .max(40, { error: "Phone must be at most 40 characters." })
-      .transform((value) => (value === "" ? null : value)),
-  );
-}
-
 const referenceSchema = z
   .string()
   .trim()
@@ -66,16 +57,7 @@ const currencyCodeSchema = z
     error: "Currency code is invalid.",
   });
 
-const amountSchema = z
-  .string()
-  .trim()
-  .min(1, { error: "Amount is required." })
-  .refine((value) => /^\d+(\.\d+)?$/.test(value), {
-    error: "Amount must be a positive number.",
-  })
-  .refine((value) => Number(value) > 0, {
-    error: "Amount must be greater than zero.",
-  });
+const amountSchema = positiveAmountSchema;
 
 const valueDateSchema = z.preprocess((value) => {
   if (value instanceof Date) {
@@ -133,9 +115,9 @@ const hawalaCommissionFields = {
 export const hawalaPartySchema = z
   .object({
     senderName: z.string().trim().max(200).optional().default(""),
-    senderPhone: optionalPhone(),
+    senderPhone: optionalPhoneSchema,
     receiverName: z.string().trim().max(200).optional().default(""),
-    receiverPhone: optionalPhone(),
+    receiverPhone: optionalPhoneSchema,
     senderCustomerId: optionalCustomerIdSchema.optional(),
     receiverCustomerId: optionalCustomerIdSchema.optional(),
     partnerSarafiId: z
@@ -222,9 +204,9 @@ export const updateHawalaSchema = z
       .trim()
       .min(1, { error: "Hawala transfer id is required." }),
     senderName: z.string().trim().max(200).optional().default(""),
-    senderPhone: optionalPhone(),
+    senderPhone: optionalPhoneSchema,
     receiverName: z.string().trim().max(200).optional().default(""),
-    receiverPhone: optionalPhone(),
+    receiverPhone: optionalPhoneSchema,
     senderCustomerId: optionalCustomerIdSchema.optional(),
     receiverCustomerId: optionalCustomerIdSchema.optional(),
     partnerSarafiId: z

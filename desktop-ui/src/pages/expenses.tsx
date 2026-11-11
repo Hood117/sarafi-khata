@@ -12,6 +12,8 @@ import {
   type ExpenseSummary,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import {
   ExpenseDetailModal,
   clickableExpenseRowProps,
@@ -121,6 +123,10 @@ export function ExpensesPage() {
     void load();
   }, [load]);
 
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
       setSearch(searchInput.trim());
@@ -167,6 +173,7 @@ export function ExpensesPage() {
       setShowAdd(false);
       setAmount("");
       setNotes("");
+      notifyDeskDataChanged();
       showSuccess(t.expenses.postedOk.replace("{reference}", txDisplayRef(posted)));
       setPage(1);
       setReloadKey((k) => k + 1);

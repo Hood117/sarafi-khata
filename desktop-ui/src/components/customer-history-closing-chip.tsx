@@ -5,15 +5,11 @@ import {
   animateClosingBalanceChange,
   motionOk,
 } from "@desktop/lib/motion";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 import { CurrencyFlag } from "@desktop/ui/currency-flag";
 
 function parseMoneyDisplay(value: string): number {
-  const n = Number.parseFloat(
-    String(value ?? "")
-      .replace(/,/g, "")
-      .replace(/−/g, "-")
-      .trim(),
-  );
+  const n = parseSignedAmountNumber(value);
   return Number.isFinite(n) ? n : 0;
 }
 

@@ -413,16 +413,7 @@ pub fn create_customer(
   if full_name.is_empty() || full_name.len() > 200 {
     return Err(AppError::Validation("fullName is required (1–200).".into()));
   }
-  let phone = {
-    let p = input.phone.trim().to_string();
-    if p.is_empty() {
-      None
-    } else if p.len() > 50 {
-      return Err(AppError::Validation("phone must be at most 50 characters.".into()));
-    } else {
-      Some(p)
-    }
-  };
+  let phone = crate::validation::validate_phone_optional_str(&input.phone)?;
   let father_name = trim_opt(input.father_name, 200)?;
   let address = trim_opt(input.address, 500)?;
   let national_id = trim_opt(input.national_id, 100)?;
@@ -638,16 +629,7 @@ pub fn update_customer(
   if full_name.is_empty() || full_name.len() > 200 {
     return Err(AppError::Validation("fullName is required (1–200).".into()));
   }
-  let phone = {
-    let p = input.phone.trim().to_string();
-    if p.is_empty() {
-      None
-    } else if p.len() > 50 {
-      return Err(AppError::Validation("phone must be at most 50 characters.".into()));
-    } else {
-      Some(p)
-    }
-  };
+  let phone = crate::validation::validate_phone_optional_str(&input.phone)?;
   let father_name = trim_opt(input.father_name, 200)?;
   let address = trim_opt(input.address, 500)?;
   let national_id = trim_opt(input.national_id, 100)?;

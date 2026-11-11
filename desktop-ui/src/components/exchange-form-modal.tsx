@@ -34,11 +34,13 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { useDeskFormDraftRetain } from "@desktop/lib/desk-form-draft";
 import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
+import { parsePositiveAmount } from "@desktop/lib/western-digits";
 import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
@@ -61,8 +63,7 @@ type PartyMode = "walkin" | "customer" | "partner";
 type DealSide = "buy" | "sell";
 
 function parseNum(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, "").trim());
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return parsePositiveAmount(raw);
 }
 
 function formatAmount(n: number, places = 6): string {
@@ -710,6 +711,7 @@ export function ExchangeFormModal({
         replaceTransactionId: replaceId || undefined,
       });
 
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         const pnlN = parseNum(result.profitAmount);

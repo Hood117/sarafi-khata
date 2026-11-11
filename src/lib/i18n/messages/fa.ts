@@ -152,6 +152,8 @@ export const fa: Dictionary = {
     next: "بعدی",
     page: "صفحه {page}",
     correctHighlightedFields: "لطفاً خانه‌های مشخص‌شده را تصحیح کنید.",
+    invalidPhone: "شماره تلفن معتبر وارد کنید (ارقام، فاصله، + یا -).",
+    invalidAmount: "مبلغ معتبر بزرگ‌تر از صفر وارد کنید.",
     selectLocalCustomer: "یک مشتری محلی انتخاب کنید.",
     customerName: "نام مشتری",
     saved: "ذخیره شد",

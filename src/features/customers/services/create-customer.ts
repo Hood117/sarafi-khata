@@ -74,14 +74,15 @@ export async function createCustomerRecord(
   }
 
   const data: CreateCustomerInput = parsed.data;
-  const existingPhone = await findCustomerByPhone(data.phone);
-
-  if (existingPhone) {
-    throw new CustomerError(
-      "DUPLICATE_PHONE",
-      "A customer with this phone number already exists.",
-      { phone: "A customer with this phone number already exists." },
-    );
+  if (data.phone) {
+    const existingPhone = await findCustomerByPhone(data.phone);
+    if (existingPhone) {
+      throw new CustomerError(
+        "DUPLICATE_PHONE",
+        "A customer with this phone number already exists.",
+        { phone: "A customer with this phone number already exists." },
+      );
+    }
   }
 
   const openingAmount =

@@ -13,6 +13,7 @@ import {
   type AmountPart,
 } from "@desktop/lib/format-transaction-line";
 import { statusLabel, transactionTypeLabel } from "@desktop/lib/i18n-labels";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { journalTxRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 
@@ -163,10 +164,7 @@ export function TransactionDetailModal({
 
   function handlePrint() {
     if (!detail) return;
-    document.body.classList.add("tx-printing");
-    window.print();
-    // Fallback if afterprint does not fire (some WebViews).
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   return (

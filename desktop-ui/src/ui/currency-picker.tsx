@@ -303,10 +303,13 @@ export function CurrencyPicker({
     ? query
     : selected?.code === "ALL"
       ? selected.name
-      : selected?.code ?? value;
+      : selected
+        ? localizedCurrencyName(selected.code, locale, selected.name)
+        : value;
   const selectedMeta = selected
     ? formatCurrencyLabel(selected, locale)
     : "";
+  const showFieldFlag = !!value && value !== "ALL";
 
   return (
     <label
@@ -318,147 +321,173 @@ export function CurrencyPicker({
       ) : (
         <>{required ? `${label} *` : label}</>
       )}
-      <div className="currency-picker-field">
-        {!open && value && value !== "ALL" ? <CurrencyFlag code={value} /> : null}
-        <input
-          className="currency-picker-input"
-          value={display}
-          placeholder={selected?.code || searchPlaceholder}
-          title={selectedMeta || undefined}
-          autoComplete="off"
-          aria-autocomplete="list"
-          aria-expanded={open}
-          aria-controls="currency-picker-list"
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => {
-            setOpen(true);
-            setQuery("");
-          }}
-          onKeyDown={onKeyDown}
-        />
-      </div>
-      {open ? (
-        <ul
-          id="currency-picker-list"
-          className={
-            menuPlacement === "top"
-              ? "currency-suggest is-open-up"
-              : "currency-suggest"
-          }
-          role="listbox"
+      <div className="currency-picker-control">
+        <div
+          className={[
+            "currency-picker-field",
+            open ? "is-open" : "",
+            showFieldFlag ? "has-flag" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
         >
-          {rows.length === 0 ? (
-            <li className="customer-suggest-empty muted">
-              {allowManage && query.trim()
-                ? emptyLabel
-                : emptyLabel}
-            </li>
-          ) : null}
-          {rows.map((row, idx) => {
-            if (row.kind === "active") {
-              const c = row.item;
-              const name = localizedCurrencyName(c.code, locale, c.name);
-              const sym = currencyDisplaySymbol(c.code, c.symbol);
+          {showFieldFlag ? <CurrencyFlag code={value} /> : null}
+          <input
+            className="currency-picker-input"
+            value={display}
+            placeholder={
+              selected
+                ? localizedCurrencyName(selected.code, locale, selected.name)
+                : searchPlaceholder
+            }
+            title={selectedMeta || undefined}
+            autoComplete="off"
+            aria-autocomplete="list"
+            aria-expanded={open}
+            aria-controls="currency-picker-list"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => {
+              setOpen(true);
+              setQuery("");
+            }}
+            onKeyDown={onKeyDown}
+          />
+        </div>
+        {open ? (
+          <ul
+            id="currency-picker-list"
+            className={
+              menuPlacement === "top"
+                ? "currency-suggest is-open-up"
+                : "currency-suggest"
+            }
+            role="listbox"
+          >
+            {rows.length === 0 ? (
+              <li className="currency-suggest-empty muted">{emptyLabel}</li>
+            ) : null}
+            {rows.map((row, idx) => {
+              const active = idx === highlight;
+              if (row.kind === "active") {
+                const c = row.item;
+                const name = localizedCurrencyName(c.code, locale, c.name);
+                const sym = currencyDisplaySymbol(c.code, c.symbol);
+                const selectedRow = active || c.code === value;
+                return (
+                  <li
+                    key={`a-${c.id}`}
+                    role="option"
+                    aria-selected={selectedRow}
+                    className={selectedRow ? "is-active" : undefined}
+                    onMouseEnter={() => setHighlight(idx)}
+                  >
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="currency-suggest-item"
+                      onClick={() => pick(c)}
+                    >
+                      <span className="currency-suggest-name">
+                        {c.code !== "ALL" ? <CurrencyFlag code={c.code} /> : null}
+                        <span>{c.code === "ALL" ? c.name : name}</span>
+                      </span>
+                      <span className="currency-suggest-meta muted">
+                        {c.code === "ALL"
+                          ? ""
+                          : `${c.code}${sym ? ` ${sym}` : ""}`}
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
+              if (row.kind === "inactive") {
+                const c = row.item;
+                const name = localizedCurrencyName(c.code, locale, c.name);
+                return (
+                  <li
+                    key={`i-${c.id}`}
+                    role="option"
+                    aria-selected={active}
+                    className={active ? "is-active" : undefined}
+                    onMouseEnter={() => setHighlight(idx)}
+                  >
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="currency-suggest-item currency-suggest-manage"
+                      disabled={manageBusy}
+                      onClick={() => void activateInactive(c)}
+                    >
+                      <span className="currency-suggest-name">
+                        <CurrencyFlag code={c.code} />
+                        <span>{name}</span>
+                      </span>
+                      <span className="currency-suggest-meta">
+                        <span className="muted">{c.code}</span>
+                        <span className="currency-suggest-action">
+                          {t.common.activate}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              }
+              const w = row.item;
               return (
                 <li
-                  key={`a-${c.id}`}
+                  key={`w-${w.code}`}
                   role="option"
-                  aria-selected={idx === highlight || c.code === value}
-                >
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    className={`customer-suggest-item${
-                      idx === highlight || c.code === value ? " is-active" : ""
-                    }`}
-                    onMouseEnter={() => setHighlight(idx)}
-                    onClick={() => pick(c)}
-                  >
-                  <span className="customer-suggest-name currency-suggest-name">
-                    {c.code !== "ALL" ? <CurrencyFlag code={c.code} /> : null}
-                    <span>
-                      {c.code === "ALL" ? c.name : c.code}
-                      {c.code !== "ALL" && sym ? ` ${sym}` : ""}
-                    </span>
-                  </span>
-                  <span className="customer-suggest-meta muted">
-                    {c.code === "ALL" ? "" : name}
-                  </span>
-                  </button>
-                </li>
-              );
-            }
-            if (row.kind === "inactive") {
-              const c = row.item;
-              const name = localizedCurrencyName(c.code, locale, c.name);
-              return (
-                <li key={`i-${c.id}`} role="option" aria-selected={idx === highlight}>
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    className={`customer-suggest-item currency-suggest-manage${
-                      idx === highlight ? " is-active" : ""
-                    }`}
-                    disabled={manageBusy}
-                    onMouseEnter={() => setHighlight(idx)}
-                    onClick={() => void activateInactive(c)}
-                  >
-                    <span className="customer-suggest-name currency-suggest-name">
-                      <CurrencyFlag code={c.code} />
-                      <span>{c.code}</span>
-                    </span>
-                    <span className="customer-suggest-meta">
-                      <span className="muted">{name}</span>
-                      <span className="currency-suggest-action">{t.common.activate}</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            }
-            const w = row.item;
-            return (
-              <li key={`w-${w.code}`} role="option" aria-selected={idx === highlight}>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  className={`customer-suggest-item currency-suggest-manage${
-                    idx === highlight ? " is-active" : ""
-                  }`}
-                  disabled={manageBusy}
+                  aria-selected={active}
+                  className={active ? "is-active" : undefined}
                   onMouseEnter={() => setHighlight(idx)}
-                  onClick={() => void addWorld(w)}
                 >
-                  <span className="customer-suggest-name currency-suggest-name">
-                    <CurrencyFlag code={w.code} />
-                    <span>{w.code}</span>
-                  </span>
-                  <span className="customer-suggest-meta">
-                    <span className="muted">
-                      {localizedCurrencyName(w.code, locale, w.name)}
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="currency-suggest-item currency-suggest-manage"
+                    disabled={manageBusy}
+                    onClick={() => void addWorld(w)}
+                  >
+                    <span className="currency-suggest-name">
+                      <CurrencyFlag code={w.code} />
+                      <span>
+                        {localizedCurrencyName(w.code, locale, w.name)}
+                      </span>
                     </span>
-                    <span className="currency-suggest-action">
-                      {t.currencies.addToSystem}
+                    <span className="currency-suggest-meta">
+                      <span className="muted">{w.code}</span>
+                      <span className="currency-suggest-action">
+                        {t.currencies.addToSystem}
+                      </span>
                     </span>
-                  </span>
-                </button>
+                  </button>
+                </li>
+              );
+            })}
+            {manageError ? (
+              <li
+                className="currency-suggest-empty"
+                style={{ color: "var(--danger, #b42318)" }}
+              >
+                {manageError}
               </li>
-            );
-          })}
-          {manageError ? (
-            <li className="customer-suggest-empty" style={{ color: "var(--danger, #b42318)" }}>
-              {manageError}
-            </li>
-          ) : null}
-          {allowManage && !query.trim() && rows.every((r) => r.kind === "active") ? (
-            <li className="customer-suggest-empty muted" style={{ fontSize: "0.8rem" }}>
-              {t.currencies.searchWorld}
-            </li>
-          ) : null}
-        </ul>
-      ) : null}
+            ) : null}
+            {allowManage &&
+            !query.trim() &&
+            rows.every((r) => r.kind === "active") ? (
+              <li
+                className="currency-suggest-empty muted"
+                style={{ fontSize: "0.8rem" }}
+              >
+                {t.currencies.searchWorld}
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
+      </div>
     </label>
   );
 }

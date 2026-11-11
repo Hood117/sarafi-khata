@@ -9,6 +9,7 @@ import {
 } from "@desktop/api";
 import { useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 import { Pagination } from "@desktop/ui/pagination";
@@ -93,6 +94,8 @@ export function DebtorsCreditorsPage() {
   function refresh() {
     setReloadKey((k) => k + 1);
   }
+
+  useDeskDataRefresh(refresh);
 
   function selectTab(next: TabId) {
     setPage(1);

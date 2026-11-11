@@ -152,6 +152,8 @@ export const ps: Dictionary = {
     next: "بل",
     page: "پاڼه {page}",
     correctHighlightedFields: "مهرباني وکړئ په نښه شوي ځایونه سم کړئ.",
+    invalidPhone: "سم تلیفون شمېره ولیکئ (شمېرې، فاصله، + یا -).",
+    invalidAmount: "له صفر څخه لوی سم مبلغ ولیکئ.",
     selectLocalCustomer: "یو محلي پیرودونکی وټاکئ.",
     customerName: "د پیرودونکي نوم",
     saved: "خوندي شو",

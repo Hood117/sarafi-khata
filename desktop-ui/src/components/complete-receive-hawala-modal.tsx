@@ -8,6 +8,7 @@ import {
   type HawalaDetail,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { useCashTracking } from "@desktop/cash-tracking";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
@@ -28,12 +29,14 @@ import {
 import { getPreferredPrinterName } from "@desktop/lib/preferred-printer";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { endSubmit, errorMessage, tryBeginSubmit } from "@desktop/lib/datetime";
+import { validatePhone } from "@desktop/lib/validation/phone";
 import {
   formatAmountDisplay,
   formatMoney,
   parseMoney,
   statusBadgeClass,
 } from "@desktop/pages/hawala-helpers";
+import { PhoneInput } from "@desktop/ui/phone-input";
 import {
   FingerprintScanStage,
   type FingerprintScanStatus,
@@ -192,7 +195,14 @@ export function CompleteReceiveHawalaModal({
   async function verifyFingerprint() {
     if (busy || fpState === "scanning") return;
     const nationalId = collectorNationalId.trim();
-    const phone = collectorPhone.trim();
+    const phoneCheck = validatePhone(collectorPhone, { required: false });
+    if (!phoneCheck.ok) {
+      setFpState("failed");
+      setFpScore(null);
+      setFpMessage(t.common.invalidPhone);
+      return;
+    }
+    const phone = phoneCheck.value;
     if (!nationalId && !phone) {
       setFpState("failed");
       setFpScore(null);
@@ -206,7 +216,7 @@ export function CompleteReceiveHawalaModal({
     try {
       const result = await verifyHawalaCollectorFingerprint(detail.id, {
         receiverNationalId: nationalId || null,
-        receiverPhone: phone || null,
+        receiverPhone: phone,
       });
       if (result.ok) {
         playFingerprintSound("success");
@@ -261,19 +271,26 @@ export function CompleteReceiveHawalaModal({
   }
 
   async function confirm() {
-    if (!session || busy || waitingForCash || fpState === "scanning" || !tryBeginSubmit(submittingRef)) return;
+    if (!session || busy || waitingForCash || fpState === "scanning") return;
+    const phoneCheck = validatePhone(collectorPhone, { required: false });
+    if (!phoneCheck.ok) {
+      onError(t.common.invalidPhone);
+      return;
+    }
+    if (!tryBeginSubmit(submittingRef)) return;
     onBusy(true);
     onError("");
     try {
       const updated = await completeReceiveHawala({
         id: detail.id,
         actorUserId: session.userId,
-        receiverPhone: collectorPhone.trim() || null,
+        receiverPhone: phoneCheck.value,
         receiverNationalId: collectorNationalId.trim() || null,
         collectorFingerprintTemplate: fpTemplateBase64,
       });
       // Keep the receipt on screen — do not auto-print.
       setCompleted(updated);
+      notifyMovementSaved();
       setPrintError(null);
       setPrintOk(null);
     } catch (err: unknown) {
@@ -549,12 +566,10 @@ export function CompleteReceiveHawalaModal({
                   </label>
                   <label>
                     {t.common.phone}
-                    <input
+                    <PhoneInput
                       value={collectorPhone}
-                      onChange={(e) => setCollectorPhone(e.target.value)}
+                      onValueChange={setCollectorPhone}
                       disabled={busy || fpState === "scanning"}
-                      autoComplete="tel"
-                      inputMode="tel"
                       placeholder={t.common.phone}
                     />
                   </label>

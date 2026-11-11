@@ -27,6 +27,7 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { useDeskFormDraftRetain } from "@desktop/lib/desk-form-draft";
 import {
@@ -35,6 +36,8 @@ import {
 } from "@desktop/lib/form-keyboard";
 import { buildHawalaDescription } from "@desktop/lib/movement-description";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
+import { requirePositiveAmount } from "@desktop/lib/validation/amount";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import {
   formatMoney,
   isSimpleDeskHawala,
@@ -497,8 +500,13 @@ export function SendHawalaFormModal({
       return;
     }
 
-    if (!form.amount.trim() || amountN <= 0) {
-      setError(t.hawala.amountRequired);
+    const amountCheck = requirePositiveAmount(form.amount);
+    if (!amountCheck.ok) {
+      setError(
+        amountCheck.error === "required"
+          ? t.hawala.amountRequired
+          : t.common.invalidAmount,
+      );
       amountRef.current?.focus();
       return;
     }
@@ -570,7 +578,7 @@ export function SendHawalaFormModal({
     try {
       const ownCommission =
         commissionN > 0
-          ? String(form.commission).replace(/,/g, "").trim()
+          ? normalizeAmountInput(form.commission).trim()
           : null;
       const senderDisplay = isSend
         ? form.senderMode === "customer"
@@ -582,7 +590,7 @@ export function SendHawalaFormModal({
         : form.receiverMode === "customer"
           ? form.receiverLabel.trim() || form.receiverName.trim()
           : form.receiverName.trim();
-      const amountMajor = form.amount.replace(/,/g, "").trim();
+      const amountMajor = amountCheck.value;
       const description = buildHawalaDescription(t.hawala, {
         senderName: senderDisplay,
         receiverName: receiverDisplay,
@@ -637,6 +645,7 @@ export function SendHawalaFormModal({
         ? await sendHawala(payload)
         : await receiveHawala(payload);
 
+      notifyMovementSaved();
       onSaved?.();
       if (action === "save") {
         setSuccessMessage(

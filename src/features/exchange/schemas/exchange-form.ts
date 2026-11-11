@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isPositiveRateString } from "@/features/exchange-rates/domain/rate";
+import { optionalPhoneSchema, positiveAmountSchema } from "@/lib/validation";
 
 const walletIdSchema = z
   .string()
@@ -16,16 +17,7 @@ const currencyCodeSchema = z
     error: "Currency code is invalid.",
   });
 
-const amountSchema = z
-  .string()
-  .trim()
-  .min(1, { error: "Amount is required." })
-  .refine((value) => /^\d+(\.\d+)?$/.test(value), {
-    error: "Amount must be a positive number.",
-  })
-  .refine((value) => Number(value) > 0, {
-    error: "Amount must be greater than zero.",
-  });
+const amountSchema = positiveAmountSchema;
 
 const exchangeRateSchema = z
   .string()
@@ -76,7 +68,7 @@ export const exchangeFormSchema = z
       z.string().trim().min(1).nullable(),
     ),
     walkInName: optionalPartyText(200),
-    walkInPhone: optionalPartyText(50),
+    walkInPhone: optionalPhoneSchema,
     fromWalletId: walletIdSchema,
     toWalletId: walletIdSchema,
     fromCurrencyCode: currencyCodeSchema,

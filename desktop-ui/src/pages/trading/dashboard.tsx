@@ -16,6 +16,7 @@ import { ExchangeFormModal } from "@desktop/components/exchange-form-modal";
 import { useT } from "@desktop/i18n";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import type { TradingOutletContext } from "@desktop/pages/trading/outlet-context";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Pagination } from "@desktop/ui/pagination";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
@@ -31,6 +32,7 @@ export function TradingDashboardPage() {
   const navigate = useNavigate();
   const { reloadKey: layoutReload } = useOutletContext<TradingOutletContext>();
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
   const dealModal = useExchangeDealDetailModal();
   const [data, setData] = useState<TradingDashboard | null>(null);
   const [trades, setTrades] = useState<TradingTradeRow[]>([]);
@@ -112,9 +114,11 @@ export function TradingDashboardPage() {
   }, [direction, search, t]);
 
   async function handleArchive(id: string, reference: string) {
-    if (!window.confirm(t.desk.archiveTradeConfirm.replace("{reference}", reference))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.archive,
+      message: t.desk.archiveTradeConfirm.replace("{reference}", reference),
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await archiveTrade(id);

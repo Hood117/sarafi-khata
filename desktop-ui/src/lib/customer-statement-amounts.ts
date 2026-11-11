@@ -1,3 +1,5 @@
+import { parseAmountNumber } from "@desktop/lib/western-digits";
+
 /**
  * Sarafi Credit/Debit columns vs ledger directions.
  *
@@ -73,8 +75,8 @@ export function applyCustomerStatementBalance(
   balanceBefore: number,
   amounts: CustomerStatementAmounts,
 ): number {
-  const credit = amounts.credit ? Number(amounts.credit.replace(/,/g, "")) : 0;
-  const debit = amounts.debit ? Number(amounts.debit.replace(/,/g, "")) : 0;
+  const credit = amounts.credit ? parseAmountNumber(amounts.credit) : 0;
+  const debit = amounts.debit ? parseAmountNumber(amounts.debit) : 0;
   const c = Number.isFinite(credit) ? credit : 0;
   const d = Number.isFinite(debit) ? debit : 0;
   return balanceBefore + c - d;

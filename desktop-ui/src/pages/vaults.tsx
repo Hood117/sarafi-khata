@@ -21,7 +21,10 @@ import {
   errorMessage,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { Pagination } from "@desktop/ui/pagination";
@@ -39,6 +42,7 @@ export function VaultsPage() {
 function VaultsPageInner() {
   const t = useT();
   const { session } = useAuth();
+  const { confirm } = useConfirmDialog();
   const [main, setMain] = useState<VaultListItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
@@ -106,10 +110,14 @@ function VaultsPageInner() {
     void loadHistory(main.id);
   }, [main?.id, historyPage, loadHistory]);
 
-  async function refreshAll() {
+  const refreshAll = useCallback(async () => {
     const vault = await loadDash();
     if (vault) await loadHistory(vault.id, historyPage);
-  }
+  }, [historyPage, loadDash, loadHistory]);
+
+  useDeskDataRefresh(() => {
+    void refreshAll();
+  });
 
   function openCash(mode: VaultCashDirection) {
     setEditCashId(null);
@@ -126,18 +134,17 @@ function VaultsPageInner() {
 
   async function handleDelete(row: VaultMovementRow) {
     if (!session?.userId) return;
-    if (
-      !window.confirm(
-        t.desk.deleteTxConfirm.replace("{reference}", txDisplayRef(row)),
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.delete,
+      message: t.desk.deleteTxConfirm.replace("{reference}", txDisplayRef(row)),
+    });
+    if (!ok) return;
     if (!tryBeginSubmit(deleteRef)) return;
     setBusy(true);
     setError(null);
     try {
       await softDeleteMovement({ id: row.transactionId, createdById: session.userId });
+      notifyDeskDataChanged();
       setSuccessMessage(t.common.success);
       await refreshAll();
     } catch (err) {

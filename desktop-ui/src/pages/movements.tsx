@@ -16,6 +16,7 @@ import { useAuth } from "@desktop/auth";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
@@ -131,6 +132,7 @@ export function MovementsPage() {
         });
         showSuccess(`${t.txLine.typeTransfer}: ${txDisplayRef(posted)}`);
       }
+      notifyMovementSaved();
       setReference(`REF-${Date.now()}`);
       setAmount("");
     } catch (err: unknown) {

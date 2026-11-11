@@ -48,7 +48,8 @@ function formatWhen(value: string | null | undefined): string {
 }
 
 function lineWidth(formFactor: string): number {
-  return formFactor === "thermal" ? 42 : 64;
+  /* ~60mm thermal ≈ 32 cols; A4/other keep a wider monospace layout. */
+  return formFactor === "thermal" ? 32 : 64;
 }
 
 function rule(width: number): string {

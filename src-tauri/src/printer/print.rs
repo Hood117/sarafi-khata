@@ -47,18 +47,19 @@ pub fn print_plain_text(
     let page_h = unsafe { GetDeviceCaps(Some(hdc), VERTRES) }.max(1);
 
     let thermal = form_factor.eq_ignore_ascii_case("thermal");
+    // Target ~60mm thermal: denser type, small side margins, single continuous page.
     let font_px = if thermal {
-      (page_w / 28).clamp(18, 36)
+      (page_w / 32).clamp(16, 30)
     } else {
       (page_w / 55).clamp(22, 42)
     };
     let margin_x = if thermal {
-      (page_w / 20).max(8)
+      (page_w / 28).max(4)
     } else {
       (page_w / 12).max(24)
     };
     let margin_y = if thermal {
-      (page_h / 40).max(8)
+      (page_h / 50).max(4)
     } else {
       (page_h / 18).max(36)
     };

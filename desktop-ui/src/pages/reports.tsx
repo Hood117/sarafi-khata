@@ -45,6 +45,7 @@ import {
 } from "@desktop/components/exchange-deal-detail-modal";
 import { TransactionLine } from "@desktop/components/transaction-line";
 import { AmountInput } from "@desktop/ui/amount-input";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { CurrencyFilter } from "@desktop/ui/currency-filter";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import {
@@ -66,6 +67,7 @@ import {
 import { useLocale, useT } from "@desktop/i18n";
 import { errorMessage } from "@desktop/lib/datetime";
 import { addCalendarDays, todayIso } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import {
   exportTable,
   printReportSheet,
@@ -77,6 +79,7 @@ import { formatTransactionLine } from "@desktop/lib/format-transaction-line";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 import { Pagination } from "@desktop/ui/pagination";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
@@ -241,7 +244,7 @@ function AmountList({
 }
 
 function amountFlow(amount: string, fallback: MoneyFlow = "neutral"): MoneyFlow {
-  const n = Number(String(amount).replace(/,/g, "").trim());
+  const n = parseSignedAmountNumber(amount);
   if (!Number.isFinite(n) || n === 0) return fallback === "neutral" ? "neutral" : fallback;
   if (n < 0) return "out";
   if (fallback === "out") return "out";
@@ -574,6 +577,7 @@ export function ReportsPage() {
   const { locale, dir } = useLocale();
   const navigate = useNavigate();
   const rtl = dir === "rtl";
+  const { alert } = useConfirmDialog();
   const [params, setParams] = useSearchParams();
   const reportParam = params.get("r") ?? "overview";
   const reportId = (
@@ -1066,6 +1070,10 @@ export function ReportsPage() {
     void load();
   }, [load]);
 
+  useDeskDataRefresh(() => {
+    void load();
+  });
+
   useEffect(() => {
     if (reportId !== "customer-statement") return;
     const onDoc = (e: MouseEvent) => {
@@ -1199,9 +1207,9 @@ export function ReportsPage() {
         generatedAt: new Date().toLocaleString(locale === "en" ? "en" : locale),
         rtl,
       });
-      if (path) window.alert(`${t.desk.exportCsv}\n${path}`);
+      if (path) await alert({ title: t.desk.exportCsv, message: path });
     },
-    [locale, rtl, t.desk.exportCsv],
+    [alert, locale, rtl, t.desk.exportCsv],
   );
 
   const buildExportPayload = useCallback((): ExportPayload | null => {
@@ -1798,8 +1806,8 @@ export function ReportsPage() {
         ? payload.filename
         : `${payload.filename.replace(/\.(csv|xls)$/i, "")}.pdf`,
     });
-    if (path) window.alert(`PDF\n${path}`);
-  }, [buildExportPayload, locale, rtl, t.reports.noDataPeriod]);
+    if (path) await alert({ title: "PDF", message: path });
+  }, [alert, buildExportPayload, locale, rtl, t.reports.noDataPeriod]);
 
   return (
     <div className="stack report-page page-column workspace-page">

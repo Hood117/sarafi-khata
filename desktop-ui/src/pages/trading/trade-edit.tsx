@@ -22,7 +22,11 @@ import {
   errorMessage,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyDeskDataChanged, notifyMovementSaved } from "@desktop/lib/desk-events";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { normalizeAmountInput } from "@desktop/lib/western-digits";
+import { AmountInput } from "@desktop/ui/amount-input";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 import { COUNTERPARTIES, CP_LABELS } from "./constants";
@@ -32,6 +36,7 @@ export function TradingTradeEditPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const t = useT();
+  const { confirm } = useConfirmDialog();
   const [trade, setTrade] = useState<TradeDetail | null>(null);
   const [currencies, setCurrencies] = useState<CurrencyListItem[]>([]);
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
@@ -124,11 +129,11 @@ export function TradingTradeEditPage() {
     setError(null);
     try {
       if (financialChanged) {
-        if (
-          !window.confirm(
-            t.desk.replaceTradeConfirm,
-          )
-        ) {
+        const ok = await confirm({
+          title: t.common.confirm,
+          message: t.desk.replaceTradeConfirm,
+        });
+        if (!ok) {
           endSubmit(submittingRef);
           setBusy(false);
           return;
@@ -152,6 +157,7 @@ export function TradingTradeEditPage() {
         };
         const posted =
           trade.direction === "SELL" ? await tradeSell(input) : await tradeBuy(input);
+        notifyMovementSaved();
         showSuccess(t.desk.replacedWith.replace("{reference}", posted.reference));
         navigate(`/trading/trades/${posted.id}`, { replace: true });
         return;
@@ -168,6 +174,7 @@ export function TradingTradeEditPage() {
           cpType === "CUSTOMER" || cpType === "PARTNER" ? null : cpName || cpType,
       });
       setTrade(updated);
+      notifyDeskDataChanged();
       showSuccess(t.common.saved);
     } catch (err: unknown) {
       setError(errorMessage(err, t.errors.tradingSave));
@@ -179,17 +186,16 @@ export function TradingTradeEditPage() {
 
   async function onArchive() {
     if (!trade) return;
-    if (
-      !window.confirm(
-        t.desk.archiveTradeConfirm.replace("{reference}", trade.reference),
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.archive,
+      message: t.desk.archiveTradeConfirm.replace("{reference}", trade.reference),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {
       await archiveTrade(trade.id);
+      notifyDeskDataChanged();
       navigate("/trading/history");
     } catch (err: unknown) {
       setError(errorMessage(err, t.errors.tradingSave));
@@ -240,11 +246,19 @@ export function TradingTradeEditPage() {
             </label>
             <label>
               {t.desk.quantity}
-              <input value={qty} onChange={(e) => setQty(e.target.value)} required />
+              <AmountInput
+                value={qty}
+                required
+                onValueChange={(v) => setQty(normalizeAmountInput(v))}
+              />
             </label>
             <label>
               {t.desk.rate}
-              <input value={rate} onChange={(e) => setRate(e.target.value)} required />
+              <AmountInput
+                value={rate}
+                required
+                onValueChange={(v) => setRate(normalizeAmountInput(v))}
+              />
             </label>
           </div>
           <div className="row">
@@ -260,9 +274,9 @@ export function TradingTradeEditPage() {
             </label>
             <label>
               {t.desk.paymentAmount}
-              <input
+              <AmountInput
                 value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
+                onValueChange={(v) => setPaymentAmount(normalizeAmountInput(v))}
               />
             </label>
           </div>

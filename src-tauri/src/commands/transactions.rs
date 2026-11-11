@@ -726,25 +726,8 @@ pub fn list_customer_ledger(
     display.push(line);
   }
 
-  // Present newest-first so page 1 shows the latest business-date entry.
-  // Within a day, newest createdAt first (matches daybook posting order).
-  // balanceAfter was assigned in matching ASC order above — do not recompute.
-  display.sort_by(|a, b| {
-    (
-      ledger_business_day(&a.value_date),
-      a.created_at.as_str(),
-      a.id.as_str(),
-      a.currency_code.as_str(),
-    )
-      .cmp(&(
-        ledger_business_day(&b.value_date),
-        b.created_at.as_str(),
-        b.id.as_str(),
-        b.currency_code.as_str(),
-      ))
-      .reverse()
-  });
-
+  // Keep oldest → newest (same as daybook): latest rows sit at the bottom.
+  // balanceAfter was assigned in this ASC order above — do not recompute.
   let total = display.len() as i64;
   let total_pages = if total == 0 {
     1
@@ -1068,10 +1051,10 @@ mod customer_ledger_balance_tests {
   use super::ledger_business_day;
 
   /// Regression: posting order / displaySeq must not drive running balances.
-  /// A future-dated early post used to sit on top with a stale mid-run
-  /// balanceAfter while live wallet chips stayed correct.
+  /// Display stays oldest→newest (daybook-style); bottom row carries the
+  /// final wallet balance for that currency.
   #[test]
-  fn running_balance_follows_business_day_then_newest_first() {
+  fn running_balance_follows_business_day_oldest_first() {
     struct Line {
       value_date: &'static str,
       created_at: &'static str,
@@ -1081,14 +1064,14 @@ mod customer_ledger_balance_tests {
       balance_after: f64,
     }
 
-    // Posted first (displaySeq 1) but business date later — the old bug
-    // assigned balanceAfter as if this were first chronologically.
+    // Posted first (displaySeq 1) but business date later — must not get a
+    // stale mid-run balanceAfter when sorted by business day.
     let mut lines = vec![
       Line {
         value_date: "2026-11-15",
         created_at: "2026-11-01T08:00:00",
         id: "early-post-future-date",
-        delta: 5_000.0, // credit to customer → −5000 on asset wallet? use signed delta directly
+        delta: 5_000.0,
         balance_after: 0.0,
       },
       Line {
@@ -1117,24 +1100,10 @@ mod customer_ledger_balance_tests {
     assert_eq!(lines[0].id, "later-post-earlier-date");
     assert_eq!(lines[0].balance_after, 85_000.0);
     assert_eq!(lines[1].id, "early-post-future-date");
-    assert_eq!(lines[1].balance_after, 90_000.0);
-
-    // Newest business day first for page 1 — top row must carry final balance.
-    lines.sort_by(|a, b| {
-      (ledger_business_day(a.value_date), a.created_at, a.id)
-        .cmp(&(
-          ledger_business_day(b.value_date),
-          b.created_at,
-          b.id,
-        ))
-        .reverse()
-    });
-    assert_eq!(lines[0].id, "early-post-future-date");
     assert_eq!(
-      lines[0].balance_after, 90_000.0,
-      "top row must not keep a stale mid-run balanceAfter"
+      lines[1].balance_after, 90_000.0,
+      "latest (bottom) row must carry the final running balance"
     );
-    assert_eq!(lines[1].balance_after, 85_000.0);
   }
 
   #[test]

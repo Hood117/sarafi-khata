@@ -151,6 +151,8 @@ export const en: Dictionary = {
     next: "Next",
     page: "Page {page}",
     correctHighlightedFields: "Please correct the highlighted fields.",
+    invalidPhone: "Enter a valid phone (digits, spaces, + or -).",
+    invalidAmount: "Enter a valid amount greater than zero.",
     selectLocalCustomer: "Select a local customer.",
     customerName: "Customer name",
     saved: "Saved",

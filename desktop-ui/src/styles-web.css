@@ -485,7 +485,26 @@ html[data-theme="dark"] .app-header-bar .quick-action-chip.is-hot{
   background:linear-gradient(135deg,var(--qa-accent) 0%,var(--qa-accent-deep) 100%);
   color:#fff;
 }
-html .app-header-bar .app-header-tools{display:none}
+html .app-header-bar .app-header-tools{
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  margin-inline-start:0.25rem;
+}
+html .app-header-bar .app-header-refresh{
+  display:inline-flex;
+  width:2rem;
+  height:2rem;
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:var(--surface);
+  color:var(--muted);
+}
+html .app-header-bar .app-header-refresh:hover{
+  color:var(--ink);
+  border-color:color-mix(in srgb,var(--brand) 35%,var(--border));
+  background:color-mix(in srgb,var(--brand) 8%,var(--surface));
+}
 html .app-main.stack.main-content{min-width:0;flex:1 1 auto;overflow:auto;padding:10px 16px 18px;gap:10px;max-width:1600px;width:100%;margin:0 auto;box-sizing:border-box;-webkit-overflow-scrolling:touch}
 html .app-shell[data-screen="customers"] .app-main.stack.main-content{
   max-width:none;width:100%;margin:0;padding:10px 16px 0;overflow:hidden;

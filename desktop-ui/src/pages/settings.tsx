@@ -64,6 +64,7 @@ import {
   type UiFontSize,
   type UiTheme,
 } from "@desktop/ui-text-prefs";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { Modal } from "@desktop/ui/modal";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import { Pagination } from "@desktop/ui/pagination";
@@ -181,6 +182,7 @@ export function SettingsPage() {
     setTheme,
   } = useUiTextPrefs();
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseSettingsTab(searchParams.get("tab"));
 
@@ -452,7 +454,11 @@ export function SettingsPage() {
 
   async function handleResetBusinessData() {
     if (resetTyped !== "RESET") return;
-    if (!window.confirm(t.settings.resetFinalConfirm)) return;
+    const ok = await confirm({
+      title: t.common.reset,
+      message: t.settings.resetFinalConfirm,
+    });
+    if (!ok) return;
     setResetBusy(true);
     setResetError(null);
     try {
@@ -470,9 +476,8 @@ export function SettingsPage() {
   async function handleRestore(stamp: string) {
     const title = t.backup.restoreConfirmTitle.replace("{stamp}", stamp);
     const body = t.backup.restoreConfirmBody;
-    if (!window.confirm(`${title}\n\n${body}`)) {
-      return;
-    }
+    const ok = await confirm({ title, message: body });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     // Let React paint the busy state before the restore IPC starts.
@@ -539,9 +544,8 @@ export function SettingsPage() {
 
     const title = t.backup.restoreFromFileConfirmTitle;
     const body = t.backup.restoreFromFileConfirmBody.replace("{path}", info.path);
-    if (!window.confirm(`${title}\n\n${body}`)) {
-      return;
-    }
+    const ok = await confirm({ title, message: body });
+    if (!ok) return;
 
     setBusy(true);
     setFileRestorePhase("restore");
@@ -1349,29 +1353,29 @@ export function SettingsPage() {
                             className="secondary danger"
                             disabled={userBusy}
                             onClick={() => {
-                              if (
-                                !window.confirm(
-                                  t.users.deleteConfirm.replace(
+                              void (async () => {
+                                const ok = await confirm({
+                                  title: t.common.delete,
+                                  message: t.users.deleteConfirm.replace(
                                     "{name}",
                                     user.fullName || user.username,
                                   ),
-                                )
-                              ) {
-                                return;
-                              }
-                              setUserBusy(true);
-                              setUserError(null);
-                              void deleteUser(user.id)
-                                .then(() => {
+                                });
+                                if (!ok) return;
+                                setUserBusy(true);
+                                setUserError(null);
+                                try {
+                                  await deleteUser(user.id);
                                   showSuccess(t.common.success);
-                                  return refreshUsers();
-                                })
-                                .catch((err: unknown) => {
+                                  await refreshUsers();
+                                } catch (err: unknown) {
                                   setUserError(
                                     err instanceof Error ? err.message : String(err),
                                   );
-                                })
-                                .finally(() => setUserBusy(false));
+                                } finally {
+                                  setUserBusy(false);
+                                }
+                              })();
                             }}
                           >
                             {t.common.delete}
@@ -2088,6 +2092,7 @@ function UserFingerprintEnrollBlock({
   onCleared: () => void;
 }) {
   const t = useT();
+  const { confirm } = useConfirmDialog();
   const [enrollPhase, setEnrollPhase] = useState<UserEnrollUiPhase>("ready");
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
@@ -2149,7 +2154,11 @@ function UserFingerprintEnrollBlock({
 
   async function handleClearFingerprint() {
     if (!userId.trim() || clearBusy || enrollBusy || disabled) return;
-    if (!window.confirm(t.users.fingerprintClearConfirm)) return;
+    const ok = await confirm({
+      title: t.common.confirm,
+      message: t.users.fingerprintClearConfirm,
+    });
+    if (!ok) return;
     setClearBusy(true);
     setEnrollMessage(null);
     try {

@@ -215,8 +215,21 @@ html[data-theme="dark"] [data-desk-form] label:not(.hawala-whatsapp-check) > spa
   color: var(--ink);
 }
 
-html[data-theme="dark"] .success-modal-message {
+html[data-theme="dark"] .success-modal-message,
+html[data-theme="dark"] .confirm-modal-message {
   color: var(--ink);
+}
+
+html[data-theme="dark"] .confirm-modal-icon--danger {
+  background: color-mix(in srgb, #f87171 16%, var(--panel, #1e293b));
+}
+
+html[data-theme="dark"] .confirm-modal-icon--default {
+  background: color-mix(in srgb, #f59e0b 16%, var(--panel, #1e293b));
+}
+
+html[data-theme="dark"] .confirm-modal-icon--info {
+  background: color-mix(in srgb, #60a5fa 16%, var(--panel, #1e293b));
 }
 
 html[data-theme="dark"] [data-desk-form] .movement-fx-result-ccy > .muted {
@@ -791,10 +804,15 @@ html[data-theme="dark"] .currency-suggest-item {
 
 html[data-theme="dark"] .customer-suggest-item:hover,
 html[data-theme="dark"] .customer-suggest-item.is-active,
-html[data-theme="dark"] .currency-suggest-item:hover,
-html[data-theme="dark"] .currency-suggest-item.is-active {
+html[data-theme="dark"] .currency-suggest > li.is-active,
+html[data-theme="dark"] .currency-suggest > li:hover {
   background: color-mix(in srgb, var(--brand-soft) 55%, var(--surface-solid)) !important;
   color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .currency-suggest-item:hover,
+html[data-theme="dark"] .currency-suggest-item:focus {
+  background: transparent !important;
 }
 
 html[data-theme="dark"] .ledger-description {

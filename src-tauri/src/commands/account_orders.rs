@@ -999,7 +999,7 @@ fn create_customer_for_recipient(
   phone: &str,
 ) -> Result<String, AppError> {
   let full_name = require_nonempty(full_name, "New customer full name")?;
-  let phone = require_nonempty(phone, "New customer phone")?;
+  let phone = crate::validation::validate_phone_required_str(phone)?;
 
   let phone_taken: bool = conn.query_row(
     "SELECT EXISTS(

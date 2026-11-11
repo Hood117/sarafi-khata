@@ -17,6 +17,7 @@ import {
   pdfFontForText,
   shapePdfText,
 } from "@desktop/lib/pdf-arabic";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 
 export type ExportColumn = {
   key: string;
@@ -340,11 +341,7 @@ export function printReportSheet(input: {
                 : "";
           let toneClass = "";
           if (c.kind === "amount") {
-            const raw = String(row[c.key] ?? "")
-              .replace(/,/g, "")
-              .replace(/−/g, "-")
-              .trim();
-            const n = Number.parseFloat(raw);
+            const n = parseSignedAmountNumber(row[c.key]);
             if (Number.isFinite(n) && n > 0) toneClass = " money-in";
             else if (Number.isFinite(n) && n < 0) toneClass = " money-out";
             // Daybook-style explicit tones (when provided)
@@ -548,11 +545,7 @@ function amountTone(
   const explicit = String(row[`_${column.key}Tone`] ?? "");
   if (explicit === "in") return "in";
   if (explicit === "out") return "out";
-  const raw = String(row[column.key] ?? "")
-    .replace(/,/g, "")
-    .replace(/−/g, "-")
-    .trim();
-  const n = Number.parseFloat(raw);
+  const n = parseSignedAmountNumber(row[column.key]);
   if (!Number.isFinite(n) || n === 0) return null;
   return n > 0 ? "in" : "out";
 }

@@ -17,6 +17,7 @@ import { useCashTracking } from "@desktop/cash-tracking";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { animateDashboard, useGSAP } from "@desktop/lib/motion";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 import { CurrencyCodeWithFlag } from "@desktop/ui/currency-flag";
 
 type Tone = "blue" | "green" | "rose" | "amber" | "slate" | "teal" | "violet";
@@ -57,7 +58,7 @@ function currencyAccent(code: string): string {
 }
 
 function cashNumber(balance: string): number {
-  const n = Number.parseFloat(String(balance).replace(/,/g, ""));
+  const n = parseSignedAmountNumber(balance);
   return Number.isFinite(n) ? n : 0;
 }
 

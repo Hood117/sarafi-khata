@@ -14,6 +14,7 @@ import {
   type FingerprintEnrollProgress,
 } from "@desktop/api";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
+import { notifyCustomerCreated, notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { CustomerPhotoField } from "@desktop/components/customer-photo-field";
 import {
   FingerprintScanStage,
@@ -40,6 +41,7 @@ import {
   focusFirstIncompleteDeskField,
   handleDeskFormKeyDown,
 } from "@desktop/lib/form-keyboard";
+import { validatePhone } from "@desktop/lib/validation/phone";
 import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import {
   emptyOpeningLine,
@@ -47,6 +49,7 @@ import {
   type OpeningLine,
 } from "@desktop/ui/opening-kata-fields";
 import { Modal } from "@desktop/ui/modal";
+import { PhoneInput } from "@desktop/ui/phone-input";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 
 function mapOpeningKata(lines: OpeningLine[]) {
@@ -155,14 +158,10 @@ function CustomerFormFields({
       </label>
       <label>
         {t.common.phone}
-        <input
-          className="ltr-text phone-ltr"
-          dir="ltr"
-          inputMode="tel"
-          autoComplete="tel"
+        <PhoneInput
           value={phone}
           disabled={disabled}
-          onChange={(e) => onChange("phone", e.target.value)}
+          onValueChange={(value) => onChange("phone", value)}
         />
       </label>
       <label className="customer-form-span">
@@ -375,12 +374,17 @@ export function CustomerCreateForm({
       });
       return null;
     }
+    const phoneResult = validatePhone(phone, { required: false });
+    if (!phoneResult.ok) {
+      setError(t.common.invalidPhone);
+      return null;
+    }
     if (!tryBeginSubmit(submittingRef)) return null;
     setBusy(true);
     setError(null);
     try {
       const openingKata = mapOpeningKata(openingLines);
-      const phoneValue = phone.trim();
+      const phoneValue = phoneResult.value ?? "";
       if (editing) {
         const updated = await updateCustomer({
           id: editing.id,
@@ -395,6 +399,7 @@ export function CustomerCreateForm({
           openingKata,
           photo: photo ?? "",
         });
+        notifyDeskDataChanged();
         setEditing(updated);
         onSaved?.(updated);
         onCreated(updated);
@@ -412,6 +417,8 @@ export function CustomerCreateForm({
         actorUserId: session.userId,
         photo,
       });
+      notifyCustomerCreated(created.id);
+      if (openingKata.length) notifyDeskDataChanged();
       onCreated(created);
       return created;
     } catch (err: unknown) {
@@ -974,6 +981,11 @@ export function CustomerEditForm({
       setError(`${t.common.fullName} *`);
       return;
     }
+    const phoneResult = validatePhone(phone, { required: false });
+    if (!phoneResult.ok) {
+      setError(t.common.invalidPhone);
+      return;
+    }
     if (!tryBeginSubmit(submittingRef)) return;
     setBusy(true);
     setError(null);
@@ -982,7 +994,7 @@ export function CustomerEditForm({
         id: customer.id,
         fullName: fullName.trim(),
         fatherName: fatherName.trim() || null,
-        phone: phone.trim(),
+        phone: phoneResult.value ?? "",
         address: address.trim() || null,
         nationalId: nationalId.trim() || null,
         notes: notes.trim() || null,

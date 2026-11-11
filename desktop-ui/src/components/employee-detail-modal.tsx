@@ -11,6 +11,7 @@ import {
 import { clickableSalaryPaymentRowProps } from "@desktop/components/salary-payment-detail-modal";
 import { useT } from "@desktop/i18n";
 import { todayIso } from "@desktop/lib/datetime";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 import { Pagination } from "@desktop/ui/pagination";
@@ -159,9 +160,7 @@ export function EmployeeDetailModal({
   const periodHint = `${dateFrom} → ${dateTo}`;
 
   function handlePrint() {
-    document.body.classList.add("tx-printing");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   return (

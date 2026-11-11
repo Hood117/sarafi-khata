@@ -35,22 +35,13 @@ fn trim_opt(value: Option<String>, max: usize) -> Result<Option<String>, AppErro
 }
 
 fn require_phone(phone: Option<String>) -> Result<String, AppError> {
-  let trimmed = phone
-    .as_deref()
-    .map(str::trim)
-    .filter(|s| !s.is_empty())
-    .map(str::to_string);
-  let Some(value) = trimmed else {
-    return Err(AppError::Validation(
-      "Partner WhatsApp phone number is required.".into(),
-    ));
-  };
-  if value.chars().count() > 40 {
-    return Err(AppError::Validation(
-      "Phone exceeds maximum length of 40.".into(),
-    ));
+  match crate::validation::validate_phone_required(phone.as_deref()) {
+    Ok(value) => Ok(value),
+    Err(_) => Err(AppError::Validation(
+      "Partner WhatsApp phone number is required and must be valid (digits, spaces, + or -)."
+        .into(),
+    )),
   }
-  Ok(value)
 }
 
 fn require_name(name: &str) -> Result<String, AppError> {

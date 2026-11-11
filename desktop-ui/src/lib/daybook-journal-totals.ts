@@ -1,5 +1,7 @@
 /** Day Total helpers — sums the full filtered journal set (not a pagination page). */
 
+import { parseAmountNumber } from "@desktop/lib/western-digits";
+
 export type DaybookTotalLine = {
   debit?: string | null;
   credit?: string | null;
@@ -16,7 +18,7 @@ export type JournalFilterTotals = {
 };
 
 function parseMoney(value: string): number {
-  const n = Number.parseFloat(String(value).replace(/,/g, "").trim());
+  const n = parseAmountNumber(value);
   return Number.isFinite(n) ? n : 0;
 }
 

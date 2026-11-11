@@ -152,6 +152,8 @@ export type Dictionary = {
     next: string;
     page: string;
     correctHighlightedFields: string;
+    invalidPhone: string;
+    invalidAmount: string;
     selectLocalCustomer: string;
     customerName: string;
     saved: string;

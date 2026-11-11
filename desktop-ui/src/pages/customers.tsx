@@ -18,11 +18,12 @@ import {
   type CustomerListItem,
   type CustomerListPage,
 } from "@desktop/api";
-import { DESK_CUSTOMER_CREATED_EVENT } from "@desktop/components/quick-actions-bar";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
 import { errorMessage } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { CustomerEditForm } from "@desktop/pages/customer-forms";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
 import { PageLoadError } from "@desktop/ui/page-load-error";
@@ -50,6 +51,7 @@ function BalanceChips({ rows }: { rows: CustomerBalanceRow[] | undefined }) {
 export function CustomersPage() {
   const t = useT();
   const navigate = useNavigate();
+  const { confirm } = useConfirmDialog();
   const [customers, setCustomers] = useState<CustomerListPage | null>(null);
   const [balancesById, setBalancesById] = useState<Record<string, CustomerBalanceRow[]>>({});
   const [searchDraft, setSearchDraft] = useState("");
@@ -76,11 +78,7 @@ export function CustomersPage() {
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  useEffect(() => {
-    const onCreated = () => reload();
-    window.addEventListener(DESK_CUSTOMER_CREATED_EVENT, onCreated);
-    return () => window.removeEventListener(DESK_CUSTOMER_CREATED_EVENT, onCreated);
-  }, [reload]);
+  useDeskDataRefresh(reload);
 
   // Live-filter the customer table as the user types.
   useEffect(() => {
@@ -209,7 +207,11 @@ export function CustomersPage() {
   }
 
   async function handleArchive(id: string, name: string) {
-    if (!window.confirm(`${t.customers.archiveCustomer} “${name}”?`)) return;
+    const ok = await confirm({
+      title: t.common.archive,
+      message: `${t.customers.archiveCustomer} “${name}”?`,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await archiveCustomer(id);

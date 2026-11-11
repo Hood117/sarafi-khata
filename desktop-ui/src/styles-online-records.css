@@ -1008,11 +1008,18 @@ html[data-ui="web"] .daybook-journal-currency .currency-picker-wrap {
   margin: 0;
 }
 
-html[data-ui="web"] .daybook-journal-currency .currency-picker-input {
+html[data-ui="web"] .daybook-journal-currency .currency-picker-field {
   box-sizing: border-box;
   height: 34px;
   min-height: 34px;
   background: color-mix(in srgb, #fff 92%, transparent);
+}
+
+html[data-ui="web"] .daybook-journal-currency .currency-picker-input {
+  height: auto;
+  min-height: 0;
+  padding-block: 0;
+  background: transparent;
 }
 
 html[data-ui="web"] .daybook-records-chrome .records-title-actions {
@@ -1206,7 +1213,7 @@ html[data-theme="dark"][data-ui="web"] .daybook-journal-toolbar {
 html[data-theme="dark"][data-ui="web"] .daybook-journal-search,
 html[data-theme="dark"][data-ui="web"] .daybook-journal-date input,
 html[data-theme="dark"][data-ui="web"] .daybook-journal-limit input,
-html[data-theme="dark"][data-ui="web"] .daybook-journal-currency .currency-picker-input,
+html[data-theme="dark"][data-ui="web"] .daybook-journal-currency .currency-picker-field,
 html[data-theme="dark"][data-ui="web"] .hawala-desk-filters .search-field-emphasized {
   background: var(--input, var(--control-bg, #1a2420));
   border-color: var(--input-border, var(--border));

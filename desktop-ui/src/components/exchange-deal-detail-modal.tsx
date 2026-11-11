@@ -11,6 +11,7 @@ import {
   localizedCurrencyName,
 } from "@desktop/lib/currency-labels";
 import { statusLabel } from "@desktop/lib/i18n-labels";
+import { printTxReceiptFromDom } from "@desktop/lib/print-transaction-receipt";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
 import { Modal } from "@desktop/ui/modal";
 
@@ -131,9 +132,7 @@ export function ExchangeDealDetailModal({
 
   function handlePrint() {
     if (!detail) return;
-    document.body.classList.add("tx-printing");
-    window.print();
-    window.setTimeout(() => document.body.classList.remove("tx-printing"), 1000);
+    printTxReceiptFromDom();
   }
 
   return (

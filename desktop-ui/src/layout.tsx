@@ -32,6 +32,7 @@ import {
   LayoutDashboard,
   Percent,
   Receipt,
+  RefreshCw,
   Scale,
   Send,
   ShieldCheck,
@@ -39,6 +40,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useT } from "@desktop/i18n";
+import { triggerDeskAction } from "@desktop/lib/desk-actions";
 import { canAccessPath, pathToScreenId } from "@desktop/lib/permissions";
 import { useBackspaceNavigate } from "@desktop/lib/use-backspace-navigate";
 import { useDeskAction } from "@desktop/lib/use-desk-action";
@@ -312,6 +314,20 @@ export function AppLayout() {
               aria-label={t.dashboard.quickActions}
             >
               <QuickActionsBar />
+            </div>
+            <div className="app-header-tools">
+              <button
+                type="button"
+                className="app-header-refresh"
+                title={`${t.desk.refresh} (F5)`}
+                aria-label={t.desk.refresh}
+                onClick={() => {
+                  // Prefer page soft-refresh; layout remount is already registered.
+                  triggerDeskAction("refresh");
+                }}
+              >
+                <RefreshCw size={16} aria-hidden />
+              </button>
             </div>
           </header>
           <main

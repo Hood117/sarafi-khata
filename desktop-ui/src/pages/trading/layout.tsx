@@ -1,20 +1,18 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { DESK_MOVEMENT_SAVED_EVENT } from "@desktop/components/quick-actions-bar";
 import { History, LayoutDashboard, Package } from "lucide-react";
 import { useT } from "@desktop/i18n";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import type { TradingOutletContext } from "@desktop/pages/trading/outlet-context";
 
 export function TradingLayout() {
   const t = useT();
   const [reloadKey, setReloadKey] = useState(0);
 
-  useEffect(() => {
-    const onSaved = () => setReloadKey((k) => k + 1);
-    window.addEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-    return () => window.removeEventListener(DESK_MOVEMENT_SAVED_EVENT, onSaved);
-  }, []);
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+  });
 
   const links = [
     { to: "/trading", label: t.dashboard.overview, end: true, icon: <LayoutDashboard className="nav-icon" size={18} /> },

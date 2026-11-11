@@ -25,11 +25,18 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import { statusLabel } from "@desktop/lib/i18n-labels";
 import { hawalaNumberRef, txDisplayRef } from "@desktop/lib/tx-ref";
+import {
+  normalizeAmountInput,
+  parseAmountNumber,
+} from "@desktop/lib/western-digits";
 import { PartnerForm } from "@desktop/pages/partner-forms";
 import { statusBadgeClass } from "@desktop/pages/hawala-helpers";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { AmountInput } from "@desktop/ui/amount-input";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
@@ -142,8 +149,8 @@ function BalanceTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const payable = Number.parseFloat(row.payable) || 0;
-            const receivable = Number.parseFloat(row.receivable) || 0;
+            const payable = parseAmountNumber(row.payable) || 0;
+            const receivable = parseAmountNumber(row.receivable) || 0;
             const canPay = payable > 1e-9;
             const canCollect = receivable > 1e-9;
             const summary = balancePhrase(payable, receivable, row.currencyCode, t);
@@ -215,13 +222,13 @@ function BalanceTable({
             {
               id: "pay",
               label: t.partner.payHim,
-              disabled: !(Number.parseFloat(rowMenu.row.payable) > 1e-9),
+              disabled: !(parseAmountNumber(rowMenu.row.payable) > 1e-9),
               onSelect: () => onSettle(rowMenu.row, "PAY_PARTNER"),
             },
             {
               id: "collect",
               label: t.partner.collectFromHim,
-              disabled: !(Number.parseFloat(rowMenu.row.receivable) > 1e-9),
+              disabled: !(parseAmountNumber(rowMenu.row.receivable) > 1e-9),
               onSelect: () => onSettle(rowMenu.row, "COLLECT_FROM_PARTNER"),
             },
           ]}
@@ -264,6 +271,7 @@ export function PartnerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<PartnerTab>("overview");
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
 
   const [settleRow, setSettleRow] = useState<PartnerCommissionCurrencyRow | null>(
     null,
@@ -315,14 +323,16 @@ export function PartnerDetailPage() {
 
   async function handleDeleteSettlement(row: PartnerSettlementRow) {
     if (!id) return;
-    const ok = window.confirm(
-      `${t.partner.deleteSettlementConfirm}\n${row.amount} ${row.currencyCode}`,
-    );
+    const ok = await confirm({
+      title: t.common.delete,
+      message: `${t.partner.deleteSettlementConfirm}\n${row.amount} ${row.currencyCode}`,
+    });
     if (!ok) return;
     setDeletingSettlementId(row.id);
     setSettlementsError(null);
     try {
       await deletePartnerSettlement({ id: row.id, partnerSarafiId: id });
+      notifyDeskDataChanged();
       showSuccess(t.partner.deleteSettlementOk);
       await Promise.all([reloadCommission(), reloadSettlements()]);
     } catch (err: unknown) {
@@ -331,6 +341,14 @@ export function PartnerDetailPage() {
       setDeletingSettlementId(null);
     }
   }
+
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useDeskDataRefresh(() => {
+    setReloadKey((k) => k + 1);
+    void reloadCommission();
+    void reloadSettlements();
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -359,7 +377,7 @@ export function PartnerDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, t.errors.loadGeneric]);
+  }, [id, reloadKey, t.errors.loadGeneric]);
 
   useEffect(() => {
     setTransfersPage(1);
@@ -407,8 +425,8 @@ export function PartnerDetailPage() {
   ) {
     const max =
       kind === "PAY_PARTNER"
-        ? Number.parseFloat(row.payable)
-        : Number.parseFloat(row.receivable);
+        ? parseAmountNumber(row.payable)
+        : parseAmountNumber(row.receivable);
     setSettleRow(row);
     setSettleKind(kind);
     setSettleBalanceType(balanceType);
@@ -430,9 +448,9 @@ export function PartnerDetailPage() {
         ? commission?.principalByCurrency
         : commission?.byCurrency;
     const live = liveRows?.find((r) => r.currencyCode === row.currencyCode);
-    const oldAmount = Number.parseFloat(row.amount) || 0;
-    let payable = Number.parseFloat(live?.payable ?? "0") || 0;
-    let receivable = Number.parseFloat(live?.receivable ?? "0") || 0;
+    const oldAmount = parseAmountNumber(row.amount) || 0;
+    let payable = parseAmountNumber(live?.payable ?? "0") || 0;
+    let receivable = parseAmountNumber(live?.receivable ?? "0") || 0;
     if (kind === "PAY_PARTNER") payable += oldAmount;
     else receivable += oldAmount;
     const restored = netPayableReceivable(payable, receivable);
@@ -460,12 +478,12 @@ export function PartnerDetailPage() {
     if (!tryBeginSubmit(settleLockRef)) return;
     setSettleBusy(true);
     setSettleError(null);
-    const paidAmount = settleAmount.trim();
+    const paidAmount = normalizeAmountInput(settleAmount.trim());
     const currency = settleRow.currencyCode;
     const kind = settleKind;
-    const beforePayable = Number.parseFloat(settleRow.payable) || 0;
-    const beforeReceivable = Number.parseFloat(settleRow.receivable) || 0;
-    const amountNum = Number.parseFloat(paidAmount) || 0;
+    const beforePayable = parseAmountNumber(settleRow.payable) || 0;
+    const beforeReceivable = parseAmountNumber(settleRow.receivable) || 0;
+    const amountNum = parseAmountNumber(paidAmount) || 0;
     try {
       const result = await settlePartnerCommission({
         partnerSarafiId: id,
@@ -487,6 +505,7 @@ export function PartnerDetailPage() {
       setSettleRow(null);
       setReplaceSettlementId(null);
       setTab("overview");
+      notifyDeskDataChanged();
       await Promise.all([reloadCommission(), reloadSettlements()]);
       const after = projectAfterSettle(beforePayable, beforeReceivable, kind, amountNum);
       const afterPhrase = balancePhrase(after.payable, after.receivable, currency, t);
@@ -923,9 +942,9 @@ export function PartnerDetailPage() {
             onSubmit={(e) => void handleSettle(e)}
           >
             {(() => {
-              const payable = Number.parseFloat(settleRow.payable) || 0;
-              const receivable = Number.parseFloat(settleRow.receivable) || 0;
-              const amountNum = Number.parseFloat(settleAmount) || 0;
+              const payable = parseAmountNumber(settleRow.payable) || 0;
+              const receivable = parseAmountNumber(settleRow.receivable) || 0;
+              const amountNum = parseAmountNumber(settleAmount) || 0;
               const current = balancePhrase(
                 payable,
                 receivable,

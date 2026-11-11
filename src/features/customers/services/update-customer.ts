@@ -48,14 +48,15 @@ export async function updateCustomerRecord(
   }
 
   const data: UpdateCustomerInput = parsed.data;
-  const phoneOwner = await findCustomerByPhone(data.phone);
-
-  if (phoneOwner && phoneOwner.id !== id) {
-    throw new CustomerError(
-      "DUPLICATE_PHONE",
-      "A customer with this phone number already exists.",
-      { phone: "A customer with this phone number already exists." },
-    );
+  if (data.phone) {
+    const phoneOwner = await findCustomerByPhone(data.phone);
+    if (phoneOwner && phoneOwner.id !== id) {
+      throw new CustomerError(
+        "DUPLICATE_PHONE",
+        "A customer with this phone number already exists.",
+        { phone: "A customer with this phone number already exists." },
+      );
+    }
   }
 
   try {

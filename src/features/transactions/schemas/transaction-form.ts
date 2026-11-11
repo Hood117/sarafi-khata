@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { positiveAmountSchema } from "@/lib/validation";
+
 /**
  * Shared UI form schema for deposit, withdrawal, and manual adjustment.
  * Server actions re-validate with deposit/withdrawal/adjustment schemas —
@@ -50,16 +52,7 @@ export const transactionFormSchema = z
       .refine((value) => /^[A-Z]{3,8}$/.test(value), {
         error: "Currency code is invalid.",
       }),
-    amount: z
-      .string()
-      .trim()
-      .min(1, { error: "Amount is required." })
-      .refine((value) => /^\d+(\.\d+)?$/.test(value), {
-        error: "Amount must be a positive number.",
-      })
-      .refine((value) => Number(value) > 0, {
-        error: "Amount must be greater than zero.",
-      }),
+    amount: positiveAmountSchema,
     reference: z
       .string()
       .trim()

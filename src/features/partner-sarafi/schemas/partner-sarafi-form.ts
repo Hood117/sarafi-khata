@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  optionalPhoneSchema,
+  positiveAmountSchema,
+  requiredPhoneSchema,
+} from "@/lib/validation";
+
 function optionalText(maxLength: number, label: string) {
   return z.preprocess(
     (value) => (typeof value === "string" ? value.trim() : ""),
@@ -18,21 +24,13 @@ const nameSchema = z
   .min(1, { error: "Partner sarafi name is required." })
   .max(200, { error: "Name must be at most 200 characters." });
 
-const positiveAmountSchema = z
-  .string()
-  .trim()
-  .regex(/^\d+(\.\d+)?$/, { error: "Enter a valid amount." })
-  .refine((value) => Number(value) > 0, {
-    error: "Amount must be greater than zero.",
-  });
-
 export const createPartnerSarafiSchema = z
   .object({
     customerId: z.string().trim().min(1, {
       error: "Select an existing customer for this partner sarafi.",
     }),
     name: z.string().trim().optional().default(""),
-    phone: optionalText(40, "Phone"),
+    phone: optionalPhoneSchema,
     city: optionalText(100, "City"),
     country: optionalText(100, "Country"),
     notes: optionalText(2000, "Notes"),
@@ -95,7 +93,7 @@ export const updatePartnerSarafiSchema = z
   .object({
     customerId: z.string().trim().optional().default(""),
     name: nameSchema,
-    phone: optionalText(40, "Phone"),
+    phone: requiredPhoneSchema,
     city: optionalText(100, "City"),
     country: optionalText(100, "Country"),
     notes: optionalText(2000, "Notes"),

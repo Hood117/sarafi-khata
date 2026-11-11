@@ -11,6 +11,8 @@ import { useLocale, useT } from "@desktop/i18n";
 import { formatCurrencyLabel, moneyToneClass } from "@desktop/lib/currency-labels";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { errorMessage, todayIso } from "@desktop/lib/datetime";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import type { AppLocale } from "@/lib/i18n/locale";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
@@ -28,7 +30,8 @@ function currencyTitle(row: CapitalCurrencyBreakdown, locale: AppLocale) {
 }
 
 function parseAmt(s: string): number {
-  return Number.parseFloat(String(s).replace(/,/g, "")) || 0;
+  const n = parseSignedAmountNumber(s);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function formatAmt(n: number): string {
@@ -44,7 +47,7 @@ function formatCustomersOweDisplay(amount: string): string {
   const raw = String(amount ?? "").trim();
   if (!raw) return "0";
   if (raw.startsWith("-") || raw.startsWith("−")) return raw;
-  const n = Number.parseFloat(raw.replace(/,/g, ""));
+  const n = parseSignedAmountNumber(raw);
   if (!Number.isFinite(n) || n === 0) return raw;
   return `−${raw}`;
 }
@@ -93,6 +96,10 @@ export function OwnerCapitalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDeskDataRefresh(() => {
+    void load();
+  });
 
   const comparing = asOfDate !== today;
 
@@ -278,7 +285,7 @@ export function OwnerCapitalPage() {
 function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] }) {
   const t = useT();
   const { locale } = useLocale();
-  const total = rows.reduce((s, r) => s + Math.abs(parseFloat(r.ownerCapital) || 0), 0);
+  const total = rows.reduce((s, r) => s + Math.abs(parseAmt(r.ownerCapital)), 0);
   if (total < 1e-9) {
     return <p className="muted">{t.desk.currencyDistributionUnavailable}</p>;
   }
@@ -288,7 +295,7 @@ function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] 
         {t.desk.currencyDistribution}
       </div>
       {rows.map((r) => {
-        const v = Math.abs(parseFloat(r.ownerCapital) || 0);
+        const v = Math.abs(parseAmt(r.ownerCapital));
         const pct = (v / total) * 100;
         return (
           <div key={r.currencyId} className="stack" style={{ gap: "0.15rem" }}>
@@ -322,8 +329,8 @@ function CurrencyDistributionChart({ rows }: { rows: CapitalCurrencyBreakdown[] 
 function IncomeSourcesChart({ snap }: { snap: OwnerCapitalSnapshot }) {
   const t = useT();
   const sources = [
-    { label: t.nav.trading, value: Math.abs(parseFloat(snap.tradingProfitMonth) || 0) },
-    { label: t.desk.commissionProfit, value: Math.abs(parseFloat(snap.hawalaCommissionMonth) || 0) },
+    { label: t.nav.trading, value: Math.abs(parseAmt(snap.tradingProfitMonth)) },
+    { label: t.desk.commissionProfit, value: Math.abs(parseAmt(snap.hawalaCommissionMonth)) },
   ].filter((s) => s.value > 0);
   const total = sources.reduce((s, r) => s + r.value, 0);
   if (total < 1e-9) {

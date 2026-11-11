@@ -8,6 +8,7 @@ import {
   type CustomerBalanceRow,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { useLocale, useT } from "@desktop/i18n";
 import { localizedCurrencyName } from "@desktop/lib/currency-labels";
 import { errorMessage, nowTime, todayIso } from "@desktop/lib/datetime";
@@ -19,7 +20,8 @@ import {
 import { currenciesDiffer, formatFxAmount } from "@desktop/lib/movement-fx";
 import { newInternalRef } from "@desktop/lib/tx-ref";
 import { normalizeAmountInput } from "@desktop/lib/western-digits";
-import { CurrencyFlag } from "@desktop/ui/currency-flag";
+import { AmountInput } from "@desktop/ui/amount-input";
+import { CurrencyPicker } from "@desktop/ui/currency-picker";
 
 type Side = "debit" | "credit";
 
@@ -173,6 +175,7 @@ export function InlineLedgerEntryRow({
     try {
       if (side === "credit") await customerAddMoney(input);
       else await customerTakeMoney(input);
+      notifyMovementSaved();
       onSaved();
     } catch (err: unknown) {
       setError(errorMessage(err, t.errors.genericTryAgain));
@@ -186,14 +189,13 @@ export function InlineLedgerEntryRow({
     const label = cellSide === "credit" ? t.common.credit : t.common.debit;
     return (
       <td className={`col-amount col-${cellSide}`}>
-        <input
+        <AmountInput
           ref={cellSide === "credit" ? creditRef : undefined}
           className={`ledger-draft-amount ltr-text is-${cellSide}${active ? " is-active" : ""}`}
-          inputMode="decimal"
           placeholder={label}
           aria-label={label}
           value={side === cellSide ? amount : ""}
-          onChange={(e) => typeAmount(cellSide, e.target.value)}
+          onValueChange={(v) => typeAmount(cellSide, v)}
         />
       </td>
     );
@@ -225,35 +227,30 @@ export function InlineLedgerEntryRow({
         {amountCell("credit")}
         {amountCell("debit")}
         <td className="col-currency">
-          <span className="ledger-currency-cell ltr-text">
-            {currency ? <CurrencyFlag code={currency} size="sm" /> : null}
-            <select
-              aria-label={t.common.currency}
+          <span className="ledger-currency-cell">
+            <CurrencyPicker
+              className="ledger-draft-currency"
+              label={t.common.currency}
+              hideLabel
+              currencies={currencies}
               value={currency}
-              onChange={(e) => {
-                const code = e.target.value;
+              onChange={(code) => {
                 setCurrency(code);
                 setRate("");
                 setNote(autoNote(side, amount, code, ""));
                 setError(null);
               }}
-            >
-              {currencies.map((c) => (
-                <option key={c.id || c.code} value={c.code}>
-                  {localizedCurrencyName(c.code, locale, c.name)}
-                </option>
-              ))}
-            </select>
+              emptyLabel={t.common.noData}
+              searchPlaceholder={t.common.search}
+            />
           </span>
           {foreign ? (
-            <input
+            <AmountInput
               className="ledger-draft-rate ltr-text"
-              inputMode="decimal"
               placeholder={t.customers.ledgerRateToAfn}
               title={t.customers.ledgerRateToAfn}
               value={rate}
-              onChange={(e) => {
-                const cleaned = normalizeAmountInput(e.target.value);
+              onValueChange={(cleaned) => {
                 setRate(cleaned);
                 setNote(autoNote(side, amount, currency, cleaned));
                 setError(null);

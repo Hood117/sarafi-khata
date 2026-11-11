@@ -10,6 +10,7 @@ import {
 } from "@desktop/api";
 import { useLocale, useT } from "@desktop/i18n";
 import { localizedCurrencyName } from "@desktop/lib/currency-labels";
+import { parsePositiveAmount } from "@desktop/lib/western-digits";
 import { useSuccessModal } from "@desktop/ui/use-success-modal";
 
 /**
@@ -31,8 +32,7 @@ function formatFxRate(n: number): string {
 }
 
 function parseRate(raw: string): number | null {
-  const n = Number(String(raw).replace(/,/g, "").trim());
-  return Number.isFinite(n) && n > 0 ? n : null;
+  return parsePositiveAmount(raw);
 }
 
 export function RatesPage() {

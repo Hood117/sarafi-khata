@@ -17,6 +17,7 @@ import { useAuth } from "@desktop/auth";
 import { EmployeeDetailModal } from "@desktop/components/employee-detail-modal";
 import { SalaryPaymentDetailModal } from "@desktop/components/salary-payment-detail-modal";
 import { AmountInput } from "@desktop/ui/amount-input";
+import { useConfirmDialog } from "@desktop/ui/confirm-dialog";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { DeskContextMenu } from "@desktop/ui/desk-context-menu";
 import { Modal } from "@desktop/ui/modal";
@@ -29,9 +30,11 @@ import {
   todayIso,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyDeskDataChanged } from "@desktop/lib/desk-events";
 import { PageLoadError } from "@desktop/ui/page-load-error";
 import { useT } from "@desktop/i18n";
 import { txDisplayRef } from "@desktop/lib/tx-ref";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 import {
   DEFAULT_CURRENCY_CODE,
   pickDefaultCurrency,
@@ -63,6 +66,7 @@ export function EmployeesPage() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { showSuccess, successModal } = useSuccessModal();
+  const { confirm } = useConfirmDialog();
 
   const [detailEmployee, setDetailEmployee] = useState<EmployeeRow | null>(null);
   const [ledgerRefreshKey, setLedgerRefreshKey] = useState(0);
@@ -191,6 +195,14 @@ export function EmployeesPage() {
     );
   }, [tab, loadHistory, t.errors.loadGeneric]);
 
+  useDeskDataRefresh(() => {
+    void loadEmployees().catch(() => undefined);
+    if (tab === "history") {
+      void loadHistory().catch(() => undefined);
+    }
+    setLedgerRefreshKey((k) => k + 1);
+  });
+
   function resetEmployeeForm() {
     setFullName("");
     setField("");
@@ -247,9 +259,11 @@ export function EmployeesPage() {
 
   async function onDeleteEmployee(emp: EmployeeRow) {
     if (!isAdmin) return;
-    if (!window.confirm(t.employees.deleteConfirm.replace("{name}", emp.fullName))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t.common.delete,
+      message: t.employees.deleteConfirm.replace("{name}", emp.fullName),
+    });
+    if (!ok) return;
     try {
       await archiveEmployee(emp.id, session?.userId);
       showSuccess(t.employees.deletedOk.replace("{name}", emp.fullName));
@@ -320,6 +334,7 @@ export function EmployeesPage() {
       });
       setShowPay(false);
       setReplacePaymentId(null);
+      notifyDeskDataChanged();
       showSuccess(
         t.employees.paidOk
           .replace("{amount}", result.amount)
@@ -337,10 +352,15 @@ export function EmployeesPage() {
   }
 
   async function onHardDeletePayment(row: EmployeeSalaryPaymentRow) {
-    if (!window.confirm(t.employees.deletePaymentConfirm)) return;
+    const ok = await confirm({
+      title: t.common.delete,
+      message: t.employees.deletePaymentConfirm,
+    });
+    if (!ok) return;
     if (!tryBeginSubmit(deletePayRef)) return;
     try {
       await deleteEmployeeSalaryPayment(row.id, session?.userId);
+      notifyDeskDataChanged();
       showSuccess(t.employees.paymentDeletedOk);
       setPaymentDetail(null);
       setLedgerRefreshKey((k) => k + 1);

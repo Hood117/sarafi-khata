@@ -1,4 +1,5 @@
 import type { AppLocale } from "@/lib/i18n/locale";
+import { parseSignedAmountNumber } from "@desktop/lib/western-digits";
 
 /** Localized currency names + preferred symbols for desk UI. */
 const CURRENCY_I18N: Record<
@@ -125,14 +126,7 @@ export function currencySearchHaystack(
 
 /** CSS class for signed money amounts: in=green, out=red. */
 export function moneyToneClass(amount: number | string | null | undefined): string {
-  const n =
-    typeof amount === "number"
-      ? amount
-      : Number.parseFloat(
-          String(amount ?? "")
-            .replace(/,/g, "")
-            .replace(/−/g, "-"),
-        );
+  const n = parseSignedAmountNumber(amount);
   if (!Number.isFinite(n) || n === 0) return "money-neutral";
   return n > 0 ? "money-in" : "money-out";
 }

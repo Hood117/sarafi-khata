@@ -314,7 +314,8 @@ fn resolve_customer_name_phone(
         "Select a local customer or enter the party name.".into(),
       ));
     }
-    return Ok((name, fallback_phone.map(|s| s.to_string())));
+    let phone = crate::validation::validate_phone_optional(fallback_phone)?;
+    return Ok((name, phone));
   };
   let row: Option<(String, Option<String>, i64, Option<String>)> = conn
     .query_row(
@@ -1323,13 +1324,14 @@ pub(crate) fn complete_receive_hawala_conn(
     }
 
     // Collector contact entered at payout time (optional). Prefer new values; keep existing if blank.
-    let phone_to_save = trim_opt(receiver_phone).or_else(|| {
-      existing_phone
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-    });
+    let phone_to_save = crate::validation::validate_phone_optional(receiver_phone.as_deref())?
+      .or_else(|| {
+        existing_phone
+          .as_deref()
+          .map(str::trim)
+          .filter(|s| !s.is_empty())
+          .map(|s| s.to_string())
+      });
     let national_id_to_save = trim_opt(receiver_national_id).or_else(|| {
       existing_national_id
         .as_deref()

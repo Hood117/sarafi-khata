@@ -8,6 +8,7 @@ import {
   type PartnerDetail,
 } from "@desktop/api";
 import { useAuth } from "@desktop/auth";
+import { notifyDeskDataChanged, notifyPartnerCreated } from "@desktop/lib/desk-events";
 import { useT } from "@desktop/i18n";
 import {
   endSubmit,
@@ -16,12 +17,14 @@ import {
 } from "@desktop/lib/datetime";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
+import { validatePhone } from "@desktop/lib/validation/phone";
 import { ModalErrorBanner } from "@desktop/ui/modal-error-banner";
 import {
   emptyOpeningLine,
   OpeningKataFields,
   type OpeningLine,
 } from "@desktop/ui/opening-kata-fields";
+import { PhoneInput } from "@desktop/ui/phone-input";
 
 function mapOpeningKata(lines: OpeningLine[]) {
   return lines
@@ -142,8 +145,13 @@ export function PartnerForm({
       setError(`${t.common.name} *`);
       return;
     }
-    if (!phone.trim()) {
-      setError(t.partner.phoneRequired);
+    const phoneResult = validatePhone(phone, { required: true });
+    if (!phoneResult.ok) {
+      setError(
+        phoneResult.error === "required"
+          ? t.partner.phoneRequired
+          : t.common.invalidPhone,
+      );
       return;
     }
     if (!tryBeginSubmit(submittingRef)) return;
@@ -151,11 +159,12 @@ export function PartnerForm({
     setError(null);
     try {
       const openingKata = mapOpeningKata(openingLines);
+      const phoneValue = phoneResult.value as string;
       if (isEdit && partner) {
         const updated = await updatePartner({
           id: partner.id,
           name: name.trim(),
-          phone: phone.trim(),
+          phone: phoneValue,
           city: city.trim() || null,
           country: country.trim() || null,
           notes: notes.trim() || null,
@@ -163,17 +172,20 @@ export function PartnerForm({
           openingKata: openingKata.length ? openingKata : null,
           actorUserId: session.userId,
         });
+        notifyDeskDataChanged();
         onUpdated?.(updated);
       } else {
         const created = await createPartner({
           name: name.trim(),
-          phone: phone.trim(),
+          phone: phoneValue,
           city: city.trim() || null,
           country: country.trim() || null,
           notes: notes.trim() || null,
           openingKata: openingKata.length ? openingKata : null,
           actorUserId: session.userId,
         });
+        notifyPartnerCreated(created.id);
+        if (openingKata.length) notifyDeskDataChanged();
         onCreated?.(created);
       }
     } catch (err: unknown) {
@@ -212,10 +224,10 @@ export function PartnerForm({
       <div className="exchange-fields-grid">
         <label>
           {t.common.phone} *
-          <input
+          <PhoneInput
             required
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onValueChange={setPhone}
             placeholder={t.partner.phoneWhatsAppHint}
           />
         </label>

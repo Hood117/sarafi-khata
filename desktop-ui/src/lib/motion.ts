@@ -2,6 +2,8 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
+import { parseSignedAmountNumber, toWesternDigits } from "@desktop/lib/western-digits";
+
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 gsap.defaults({ force3D: false });
 ScrollTrigger.config({ ignoreMobileResize: true });
@@ -38,17 +40,12 @@ export function countUp(el: HTMLElement, value: number, suffix = "") {
 }
 
 function parseMoneyDisplay(value: string): number {
-  const n = Number.parseFloat(
-    String(value ?? "")
-      .replace(/,/g, "")
-      .replace(/−/g, "-")
-      .trim(),
-  );
+  const n = parseSignedAmountNumber(value);
   return Number.isFinite(n) ? n : 0;
 }
 
 function decimalPlacesOf(value: string): number {
-  const raw = String(value ?? "")
+  const raw = toWesternDigits(String(value ?? ""))
     .replace(/,/g, "")
     .replace(/−/g, "-")
     .trim();

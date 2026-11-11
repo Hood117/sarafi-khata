@@ -10,6 +10,7 @@ import { VaultUnlockGate } from "@desktop/components/vault-unlock-gate";
 import { Banknote, LayoutDashboard } from "lucide-react";
 import { useT } from "@desktop/i18n";
 import { moneyToneClass } from "@desktop/lib/currency-labels";
+import { useDeskDataRefresh } from "@desktop/lib/use-desk-data-refresh";
 
 type Tab = "overview" | "balances";
 
@@ -47,6 +48,10 @@ function VaultDetailPageInner() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useDeskDataRefresh(() => {
+    void load();
+  });
 
   const v = detail?.vault;
 

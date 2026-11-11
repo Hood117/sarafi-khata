@@ -22,6 +22,7 @@ import {
   errorMessage,
   tryBeginSubmit,
 } from "@desktop/lib/datetime";
+import { notifyMovementSaved } from "@desktop/lib/desk-events";
 import { handleDeskFormKeyDown } from "@desktop/lib/form-keyboard";
 import { pickDefaultCurrency } from "@desktop/lib/default-currency";
 import { normalizeAmountInput } from "@desktop/lib/western-digits";
@@ -86,7 +87,7 @@ function lineFromTransaction(
   return {
     transactionId: detail.id,
     currencyCode: party?.currencyCode || "AFN",
-    amount: (party?.amount ?? "").replace(/,/g, ""),
+    amount: normalizeAmountInput(party?.amount ?? ""),
     direction: take ? "TAKE" : "GIVE",
     description: (detail.description ?? "").trim() || defaultDescription,
     notes: "",
@@ -288,6 +289,7 @@ export function OpeningBalanceFormModal({
           openingKata: mapOpeningKata([...rest, edited]),
         });
       }
+      notifyMovementSaved();
       onSaved?.();
       onClose();
     } catch (err: unknown) {

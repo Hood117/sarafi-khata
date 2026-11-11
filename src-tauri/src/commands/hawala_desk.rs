@@ -940,7 +940,7 @@ pub fn update_hawala_meta(
        WHERE id = ?20"#,
     params![
       trim_opt(input.receiver_name),
-      trim_opt(input.receiver_phone),
+      crate::validation::validate_phone_optional(input.receiver_phone.as_deref())?,
       trim_opt(input.receiver_national_id),
       trim_opt(input.receiver_address),
       trim_opt(input.receiver_reference),
