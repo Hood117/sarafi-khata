@@ -34,13 +34,13 @@ import {
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
 import { buildHawalaDescription } from "@desktop/lib/movement-description";
-import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import {
   formatMoney,
   isSimpleDeskHawala,
   parseMoney,
 } from "@desktop/pages/hawala-helpers";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
@@ -764,17 +764,12 @@ export function SendHawalaFormModal({
             <div className="money-ccy-row">
               <label className="money-ccy-amount">
                 <span>{t.common.amount} *</span>
-                <input
+                <AmountInput
                   ref={amountRef}
-                  className="deposit-amount-input"
-                  inputMode="decimal"
                   value={form.amount}
                   placeholder={t.common.amountPlaceholder}
-                  onChange={(e) => {
-                    setForm((prev) => ({
-                      ...prev,
-                      amount: normalizeAmountInput(e.target.value),
-                    }));
+                  onValueChange={(v) => {
+                    setForm((prev) => ({ ...prev, amount: v }));
                     setError(null);
                   }}
                 />
@@ -1115,15 +1110,11 @@ export function SendHawalaFormModal({
 
             <label>
               <span>{t.hawala.ourCommission}</span>
-              <input
-                inputMode="decimal"
+              <AmountInput
                 value={form.commission}
                 placeholder="0"
-                onChange={(e) => {
-                  setForm((prev) => ({
-                    ...prev,
-                    commission: normalizeAmountInput(e.target.value),
-                  }));
+                onValueChange={(v) => {
+                  setForm((prev) => ({ ...prev, commission: v }));
                   setError(null);
                 }}
               />

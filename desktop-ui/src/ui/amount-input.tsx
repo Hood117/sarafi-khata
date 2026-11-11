@@ -8,7 +8,10 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { normalizeAmountInput } from "@desktop/lib/western-digits";
+import {
+  isAmountKeyChar,
+  normalizeAmountInput,
+} from "@desktop/lib/western-digits";
 
 type Props = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -18,7 +21,7 @@ type Props = Omit<
   onValueChange: (value: string) => void;
 };
 
-/** Physical key → English digit, independent of Pashto/Dari keyboard layout. */
+/** Physical key → English digit (Pashto/Dari letter layouts on the number row). */
 function digitFromCode(code: string): string | null {
   if (code.startsWith("Digit") && code.length === 6) {
     const d = code.slice(5);
@@ -32,10 +35,12 @@ function digitFromCode(code: string): string | null {
 }
 
 /**
- * Money amount field: only English digits (0-9) and one `.`.
+ * Money amount field: stores English digits (0-9) and one `.` only.
  *
- * Uses physical key codes (Digit0–9) so Pashto/Dari layouts still type 0–9
- * even when those keys would normally insert letters.
+ * Accepts:
+ * - English digits
+ * - Arabic / Pashto / other Eastern digits (converted to 0-9)
+ * - Physical Digit0–9 keys even when a Pashto letter layout is active
  */
 export const AmountInput = forwardRef<HTMLInputElement, Props>(
   function AmountInput(
@@ -48,7 +53,8 @@ export const AmountInput = forwardRef<HTMLInputElement, Props>(
     function commit(nextRaw: string, caret?: number) {
       const next = normalizeAmountInput(nextRaw);
       onValueChange(next);
-      const pos = caret == null ? next.length : Math.max(0, Math.min(next.length, caret));
+      const pos =
+        caret == null ? next.length : Math.max(0, Math.min(next.length, caret));
       requestAnimationFrame(() => {
         try {
           innerRef.current?.setSelectionRange(pos, pos);
@@ -71,11 +77,13 @@ export const AmountInput = forwardRef<HTMLInputElement, Props>(
       if (e.defaultPrevented) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return; // copy/paste/select-all
 
-      const digit = digitFromCode(e.code);
-      if (digit != null) {
+      // Number-row / numpad physical keys → always Western digits.
+      // Handles Pashto layouts where those keys insert letters.
+      const fromCode = digitFromCode(e.code);
+      if (fromCode != null) {
         e.preventDefault();
         e.stopPropagation();
-        insertAtSelection(digit);
+        insertAtSelection(fromCode);
         return;
       }
 
@@ -108,15 +116,29 @@ export const AmountInput = forwardRef<HTMLInputElement, Props>(
         return;
       }
 
-      // Block Pashto/Dari letters and other layout symbols on amount fields.
       if (e.key.length === 1) {
+        // Arabic / Pashto / other digit characters → convert and insert.
+        if (isAmountKeyChar(e.key)) {
+          const normalized = normalizeAmountInput(e.key);
+          if (!normalized) return;
+          if (normalized === "." && value.includes(".")) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          e.preventDefault();
+          e.stopPropagation();
+          insertAtSelection(normalized);
+          return;
+        }
+        // Block letters and other layout symbols on amount fields.
         e.preventDefault();
         e.stopPropagation();
       }
     }
 
     function handleChange(e: ChangeEvent<HTMLInputElement>) {
-      // Fallback for paste / IME / Eastern digits that bypass keydown.
+      // Fallback for paste / IME / mobile keyboards.
       onValueChange(normalizeAmountInput(e.target.value));
     }
 

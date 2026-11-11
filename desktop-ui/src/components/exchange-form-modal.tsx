@@ -39,7 +39,7 @@ import {
   handleDeskFormKeyDown,
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
-import { normalizeAmountInput } from "@desktop/lib/western-digits";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
@@ -745,18 +745,13 @@ export function ExchangeFormModal({
     <div className="money-ccy-row" key="buy">
       <label className="money-ccy-amount">
         {t.exchange.buyAmountLabel} *
-        <input
+        <AmountInput
           ref={buyFirst ? amountRef : undefined}
-          className="deposit-amount-input"
-          inputMode="decimal"
           value={form.buyAmount}
           placeholder={t.common.amountPlaceholder}
-          onChange={(e) => {
+          onValueChange={(v) => {
             setLastEdited("buy");
-            setForm((prev) => ({
-              ...prev,
-              buyAmount: normalizeAmountInput(e.target.value),
-            }));
+            setForm((prev) => ({ ...prev, buyAmount: v }));
             setError(null);
           }}
         />
@@ -780,18 +775,13 @@ export function ExchangeFormModal({
     <div className="money-ccy-row" key="sell">
       <label className="money-ccy-amount">
         {t.exchange.sellAmountLabel} *
-        <input
+        <AmountInput
           ref={!buyFirst ? amountRef : undefined}
-          className="deposit-amount-input"
-          inputMode="decimal"
           value={form.sellAmount}
           placeholder={t.common.amountPlaceholder}
-          onChange={(e) => {
+          onValueChange={(v) => {
             setLastEdited("sell");
-            setForm((prev) => ({
-              ...prev,
-              sellAmount: normalizeAmountInput(e.target.value),
-            }));
+            setForm((prev) => ({ ...prev, sellAmount: v }));
             setError(null);
           }}
         />
@@ -852,16 +842,12 @@ export function ExchangeFormModal({
         </div>
         <label>
           <span>{t.exchange.exchangeRate}</span>
-          <input
-            inputMode="decimal"
+          <AmountInput
             value={form.rate}
             placeholder="0"
-            onChange={(e) => {
+            onValueChange={(v) => {
               setLastEdited("rate");
-              setForm((prev) => ({
-                ...prev,
-                rate: normalizeAmountInput(e.target.value),
-              }));
+              setForm((prev) => ({ ...prev, rate: v }));
               setError(null);
             }}
           />

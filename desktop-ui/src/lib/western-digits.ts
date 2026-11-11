@@ -1,18 +1,29 @@
 /**
  * Money fields always store English digits only (0-9) and at most one `.`.
- * Pashto/Dari keyboards are converted automatically:
- *   ۱۲۲۳۲   → 12232
+ * Digits from any common keyboard / script are converted automatically:
+ *   ۱۲۲۳۲   → 12232   (Persian / Pashto)
+ *   ١٢٢٣٢   → 12232   (Arabic-Indic)
  *   ۲۵٬۰۰۰  → 25000
  *   25,000  → 25000
  *   ۱۲٫۵۰   → 12.50
+ *   １２３    → 123    (fullwidth)
  */
 
-/** Map Eastern digit characters to ASCII 0-9; map Arabic decimal to `.`. */
+/** Map non-Latin digit characters to ASCII 0-9; map Arabic decimals to `.`. */
 export function toWesternDigits(value: string): string {
   return value
+    // Arabic-Indic digits ٠-٩
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    // Extended Arabic-Indic (Persian / Pashto / Urdu) ۰-۹
     .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
-    .replace(/\u066b/g, "."); // Arabic decimal separator
+    // Fullwidth ０-９
+    .replace(/[\uff10-\uff19]/g, (d) => String(d.charCodeAt(0) - 0xff10))
+    // Devanagari ०-९
+    .replace(/[\u0966-\u096f]/g, (d) => String(d.charCodeAt(0) - 0x0966))
+    // Eastern Arabic decimal separator → .
+    .replace(/\u066b/g, ".")
+    // Arabic thousands separator / common separators dropped later by normalize
+    .replace(/\u066c/g, "");
 }
 
 /**
@@ -28,13 +39,21 @@ export function normalizeAmountInput(value: string): string {
       out += ch;
       continue;
     }
-    if (ch === "." && !seenDot) {
+    if ((ch === "." || ch === "٫") && !seenDot) {
       out += ".";
       seenDot = true;
     }
-    // Drop commas, spaces, Pashto letters, and any other junk.
+    // Drop commas, spaces, letters, and any other junk.
   }
   return out;
+}
+
+/** True when `key` is a digit (any supported script) or a decimal separator. */
+export function isAmountKeyChar(key: string): boolean {
+  if (key.length !== 1) return false;
+  if (key === "." || key === "٫" || key === ",") return true;
+  const n = normalizeAmountInput(key);
+  return n.length === 1 && n >= "0" && n <= "9";
 }
 
 export function isNumericTextInput(el: EventTarget | null): el is HTMLInputElement {

@@ -193,21 +193,22 @@ export function printDaybookLedger(input: {
 
   const colgroup = columns
     .map((c) => {
+      // Date needs ~YYYY-MM-DD + padding; too-narrow cols make dates spill into Account.
       const width =
         c.key === "rowNo"
           ? "3%"
           : c.key === "valueDate"
-            ? "7%"
+            ? "10%"
             : c.key === "accountCode" || c.key === "oppositeAccount"
-              ? "5%"
+              ? "6%"
               : c.key === "accountName"
                 ? "9%"
                 : c.key === "description"
-                  ? "28%"
+                  ? "24%"
                   : c.key === "debit" || c.key === "credit"
                     ? "7%"
                     : c.key === "balanceAfter"
-                      ? "9%"
+                      ? "8%"
                       : c.key === "currencyCode"
                         ? "5%"
                         : c.key === "reference"
@@ -297,7 +298,7 @@ export function printDaybookLedger(input: {
     .daybook-print-root th,
     .daybook-print-root td {
       border: 1px solid #c5d0ca;
-      padding: 6px 7px;
+      padding: 5px 6px;
       vertical-align: middle;
       overflow-wrap: anywhere;
       word-break: break-word;
@@ -333,17 +334,42 @@ export function printDaybookLedger(input: {
       white-space: nowrap;
       font-feature-settings: "tnum" 1;
     }
-    .daybook-print-root td.col-row {
+    .daybook-print-root td.col-row,
+    .daybook-print-root th.col-row {
       text-align: center;
       color: #6b7a84;
       font-weight: 600;
+      white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: normal;
     }
-    .daybook-print-root td.col-when,
+    /* Keep YYYY-MM-DD inside its cell — never spill into Account. */
+    .daybook-print-root th.col-when,
+    .daybook-print-root td.col-when {
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: clip;
+      overflow-wrap: normal;
+      word-break: keep-all;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+    .daybook-print-root th.col-code,
+    .daybook-print-root th.col-opp,
+    .daybook-print-root th.col-ccy,
+    .daybook-print-root th.col-ref,
     .daybook-print-root td.col-code,
     .daybook-print-root td.col-opp,
     .daybook-print-root td.col-ccy,
     .daybook-print-root td.col-ref {
       white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: normal;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-variant-numeric: tabular-nums;
     }
     .daybook-print-root td.col-code,

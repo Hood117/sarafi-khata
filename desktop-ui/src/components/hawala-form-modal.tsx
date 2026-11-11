@@ -35,10 +35,10 @@ import {
   handleDeskSearchEnter,
 } from "@desktop/lib/form-keyboard";
 import { buildHawalaDescription } from "@desktop/lib/movement-description";
-import { normalizeAmountInput } from "@desktop/lib/western-digits";
 import { hawalaNumberRef } from "@desktop/lib/tx-ref";
 import { resolveCommission } from "@desktop/pages/hawala-helpers";
 import { ModalFormActions } from "@desktop/components/modal-form-actions";
+import { AmountInput } from "@desktop/ui/amount-input";
 import { CurrencyPicker } from "@desktop/ui/currency-picker";
 import { appendEmployeeLine, EmployeeField } from "@desktop/ui/employee-field";
 import { Modal } from "@desktop/ui/modal";
@@ -797,18 +797,13 @@ export function HawalaFormModal({
                 <div className="money-ccy-row">
                   <label className="money-ccy-amount">
                     <span>{t.hawala.sendAmountLabel} *</span>
-                    <input
+                    <AmountInput
                       ref={amountRef}
-                      className="deposit-amount-input"
-                      inputMode="decimal"
                       value={form.sendAmount}
                       placeholder={t.common.amountPlaceholder}
-                      onChange={(e) => {
+                      onValueChange={(v) => {
                         setLastEdited("send");
-                        setForm((prev) => ({
-                          ...prev,
-                          sendAmount: normalizeAmountInput(e.target.value),
-                        }));
+                        setForm((prev) => ({ ...prev, sendAmount: v }));
                         setError(null);
                       }}
                     />
@@ -844,17 +839,12 @@ export function HawalaFormModal({
                   {converting ? (
                     <label className="money-ccy-amount">
                       <span>{t.hawala.receiveAmountLabel} *</span>
-                      <input
-                        className="deposit-amount-input"
-                        inputMode="decimal"
+                      <AmountInput
                         value={form.receiveAmount}
                         placeholder={t.common.amountPlaceholder}
-                        onChange={(e) => {
+                        onValueChange={(v) => {
                           setLastEdited("receive");
-                          setForm((prev) => ({
-                            ...prev,
-                            receiveAmount: normalizeAmountInput(e.target.value),
-                          }));
+                          setForm((prev) => ({ ...prev, receiveAmount: v }));
                           setError(null);
                         }}
                       />
@@ -943,16 +933,12 @@ export function HawalaFormModal({
                   </div>
                   <label>
                     <span>{t.exchange.exchangeRate}</span>
-                    <input
-                      inputMode="decimal"
+                    <AmountInput
                       value={form.rate}
                       placeholder="0"
-                      onChange={(e) => {
+                      onValueChange={(v) => {
                         setLastEdited("rate");
-                        setForm((prev) => ({
-                          ...prev,
-                          rate: normalizeAmountInput(e.target.value),
-                        }));
+                        setForm((prev) => ({ ...prev, rate: v }));
                         setError(null);
                       }}
                     />
@@ -1143,14 +1129,13 @@ export function HawalaFormModal({
                       form.commissionCurrency || form.sendCurrency || "",
                     )}
                   </span>
-                  <input
-                    inputMode="decimal"
+                  <AmountInput
                     value={form.ownCommission}
                     placeholder="0"
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       setForm((prev) => ({
                         ...prev,
-                        ownCommission: normalizeAmountInput(e.target.value),
+                        ownCommission: v,
                         ownCommissionMode: "FIXED",
                       }))
                     }
@@ -1162,14 +1147,13 @@ export function HawalaFormModal({
                       ? t.hawala.partnerCommissionPayable
                       : t.hawala.partnerCommissionReceivable}
                   </span>
-                  <input
-                    inputMode="decimal"
+                  <AmountInput
                     value={form.partnerCommission}
                     placeholder="0"
-                    onChange={(e) =>
+                    onValueChange={(v) =>
                       setForm((prev) => ({
                         ...prev,
-                        partnerCommission: normalizeAmountInput(e.target.value),
+                        partnerCommission: v,
                         partnerCommissionMode: "FIXED",
                       }))
                     }
