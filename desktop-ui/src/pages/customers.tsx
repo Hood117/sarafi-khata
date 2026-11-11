@@ -395,7 +395,7 @@ export function CustomersPage() {
                     <tr>
                       <td colSpan={5} className="muted">
                         {archiveFilter === "archived"
-                          ? t.customers.emptyArchived
+                          ? `${t.customers.emptyArchived} ${t.customers.archiveRetentionHint}`
                           : search
                             ? t.customers.emptyFiltered
                             : t.customers.emptyTitle}

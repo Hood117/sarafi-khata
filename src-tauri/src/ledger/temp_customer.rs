@@ -147,19 +147,23 @@ fn maybe_auto_restore_temporary_customer_for_edit(
     return Ok(());
   }
 
-  let row: Option<(String, Option<String>, i64)> = conn
+  let row: Option<(String, Option<String>, Option<String>, i64)> = conn
     .query_row(
-      r#"SELECT IFNULL(customerType, 'PERMANENT'), deletedAt, isActive
+      r#"SELECT IFNULL(customerType, 'PERMANENT'), deletedAt, purgedAt, isActive
          FROM Customer WHERE id = ?1 LIMIT 1"#,
       [id],
-      |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+      |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
     )
     .optional()?;
 
-  let Some((ctype, deleted_at, active)) = row else {
+  let Some((ctype, deleted_at, purged_at, active)) = row else {
     return Ok(());
   };
   if normalize_customer_type(&ctype) != "TEMPORARY" {
+    return Ok(());
+  }
+  // Past 30-day archive retention — leave purged; history stays in Daybook.
+  if purged_at.is_some() {
     return Ok(());
   }
   if deleted_at.is_none() && active != 0 {
@@ -169,8 +173,8 @@ fn maybe_auto_restore_temporary_customer_for_edit(
   let now = now_sqlite();
   conn.execute(
     r#"UPDATE Customer
-       SET deletedAt = NULL, isActive = 1, updatedAt = ?1
-       WHERE id = ?2"#,
+       SET deletedAt = NULL, purgedAt = NULL, isActive = 1, updatedAt = ?1
+       WHERE id = ?2 AND purgedAt IS NULL"#,
     params![now, id],
   )?;
   Ok(())

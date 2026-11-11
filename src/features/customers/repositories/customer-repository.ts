@@ -30,8 +30,12 @@ function notDeleted(): Prisma.CustomerWhereInput {
   return { deletedAt: null };
 }
 
-function onlyDeleted(): Prisma.CustomerWhereInput {
-  return { deletedAt: { not: null } };
+function onlyArchivedRestorable(): Prisma.CustomerWhereInput {
+  return { deletedAt: { not: null }, purgedAt: null };
+}
+
+function notPurged(): Prisma.CustomerWhereInput {
+  return { purgedAt: null };
 }
 
 function archiveWhere(
@@ -39,9 +43,9 @@ function archiveWhere(
 ): Prisma.CustomerWhereInput {
   switch (archiveFilter) {
     case "archived":
-      return onlyDeleted();
+      return onlyArchivedRestorable();
     case "all":
-      return {};
+      return notPurged();
     case "active":
     default:
       return notDeleted();

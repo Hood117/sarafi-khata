@@ -455,6 +455,11 @@ export const en: Dictionary = {
     updateError: "Unable to update hawala. Please try again.",
     archiveError: "Unable to archive customer. Please try again.",
     archiveCustomer: "Archive customer",
+    purgedStatus: "Removed from archive",
+    purgedNotice:
+      "This customer was removed from archive after 30 days. Their transactions stay in Daybook and remain searchable.",
+    archiveRetentionHint:
+      "Archived customers stay here for 30 days, then leave the archive list. Daybook history is kept.",
     codePrefix: "Code: {code}",
     addMoneyDescription: "Record money this customer gives to Saraf into their wallet balance.",
     noCustomersDisplay: "No customers to display",

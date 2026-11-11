@@ -65,11 +65,12 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
   let detail = conn
     .query_row(
       "SELECT id, code, fullName, fatherName, phone, address, nationalId, notes,
-              IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt, photo
+              IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, purgedAt, createdAt, updatedAt, photo
        FROM Customer WHERE id = ?1 LIMIT 1",
       [id],
       |row| {
         let deleted_at: Option<String> = row.get(10)?;
+        let purged_at: Option<String> = row.get(11)?;
         Ok((
           row.get::<_, String>(0)?,
           row.get(1)?,
@@ -82,9 +83,10 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
           row.get::<_, String>(8)?,
           row.get::<_, i64>(9)? != 0,
           deleted_at.is_some(),
-          row.get(11)?,
+          purged_at.is_some(),
           row.get(12)?,
           row.get(13)?,
+          row.get(14)?,
         ))
       },
     )
@@ -105,6 +107,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
     customer_type,
     is_active,
     is_archived,
+    is_purged,
     created_at,
     updated_at,
     photo,
@@ -131,6 +134,7 @@ fn load_customer_detail(conn: &Connection, id: &str) -> Result<CustomerDetail, A
     customer_type,
     is_active,
     is_archived,
+    is_purged,
     created_at,
     updated_at,
     opening_kata,
@@ -841,6 +845,12 @@ pub fn restore_customer(
   let conn = state.db.lock();
   let _actor = require_screen_write(&state, &conn, "customers")?;
   let existing = load_customer_detail(&conn, &id)?;
+  if existing.is_purged {
+    return Err(AppError::Validation(
+      "This customer was removed from archive after 30 days. Transaction history remains in Daybook search."
+        .into(),
+    ));
+  }
   if !existing.is_archived {
     return Ok(ArchiveCustomerResult {
       id,
@@ -849,7 +859,7 @@ pub fn restore_customer(
   }
   let now = now_sqlite();
   let updated = conn.execute(
-    "UPDATE Customer SET deletedAt = NULL, isActive = 1, updatedAt = ?1 WHERE id = ?2",
+    "UPDATE Customer SET deletedAt = NULL, purgedAt = NULL, isActive = 1, updatedAt = ?1 WHERE id = ?2",
     params![now, id],
   )?;
   if updated == 0 {

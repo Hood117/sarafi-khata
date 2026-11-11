@@ -3,6 +3,7 @@
 mod account_number;
 mod balance;
 mod cash_tracking;
+mod customer_retention;
 mod display;
 mod display_seq;
 mod main_vault;
@@ -14,6 +15,7 @@ mod wallet_balance_cache;
 pub use account_number::*;
 pub use balance::*;
 pub use cash_tracking::*;
+pub use customer_retention::*;
 pub use display::*;
 pub use display_seq::*;
 pub use main_vault::*;

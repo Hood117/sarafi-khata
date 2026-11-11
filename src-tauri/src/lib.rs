@@ -345,6 +345,9 @@ fn bootstrap_native_db(app: &AppHandle) -> Result<AppState, String> {
     .map_err(|e| e.to_string())?;
   migrate::apply_pending_migrations(&conn, &migrations).map_err(|e| e.to_string())?;
   migrate::ensure_schema_compat(&conn).map_err(|e| e.to_string())?;
+  if let Err(e) = ledger::purge_expired_archived_customers(&conn) {
+    log::warn!("customer archive retention purge failed: {e}");
+  }
   // Re-bind the previous login token into the restored Session table (keep user signed in).
   if let Err(e) = commands::auth::apply_restore_session_bridge(&conn, &db_path) {
     log::warn!("restore session bridge failed: {e}");
@@ -373,6 +376,9 @@ pub(crate) fn reopen_native_db_after_restore(app: &AppHandle, state: &AppState) 
   let migrations = migrate::migrations_dir(&migration_dir_candidates(app))?;
   migrate::apply_pending_migrations(&conn, &migrations)?;
   migrate::ensure_schema_compat(&conn)?;
+  if let Err(e) = ledger::purge_expired_archived_customers(&conn) {
+    log::warn!("customer archive retention purge failed: {e}");
+  }
   if let Err(e) = commands::auth::apply_restore_session_bridge(&conn, &state.db_path) {
     log::warn!("restore session bridge failed: {e}");
   }

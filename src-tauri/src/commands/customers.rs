@@ -97,11 +97,15 @@ pub fn list_customers_page(
   let mut where_sql = String::from("WHERE 1=1");
   let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
+  // Purged (= archived > 30 days) stay out of every customer list; Daybook keeps their txs.
   match archive.as_str() {
-    "archived" => where_sql.push_str(" AND deletedAt IS NOT NULL"),
-    "all" => {}
+    "archived" => where_sql.push_str(" AND deletedAt IS NOT NULL AND purgedAt IS NULL"),
+    "all" => where_sql.push_str(" AND purgedAt IS NULL"),
     _ => where_sql.push_str(" AND deletedAt IS NULL"),
   }
+
+  // Keep archive list current even if the app stayed open past retention.
+  let _ = crate::ledger::purge_expired_archived_customers(&conn);
 
   match type_filter.as_str() {
     "temporary" | "temp" => {
@@ -230,6 +234,8 @@ pub struct CustomerDetail {
   pub customer_type: String,
   pub is_active: bool,
   pub is_archived: bool,
+  /// True after 30-day archive retention — not listed / not restorable; history remains.
+  pub is_purged: bool,
   pub created_at: String,
   pub updated_at: String,
   pub opening_kata: Vec<OpeningKataLineDetail>,
@@ -360,13 +366,14 @@ pub fn get_customer(
   let _actor = require_screen(&state, &conn, "customers")?;
   let row = conn.query_row(
     "SELECT id, code, fullName, fatherName, phone, address, nationalId, notes,
-            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, createdAt, updatedAt, photo
+            IFNULL(customerType, 'PERMANENT'), isActive, deletedAt, purgedAt, createdAt, updatedAt, photo
      FROM Customer
      WHERE id = ?1
      LIMIT 1",
     [id],
     |row| {
       let deleted_at: Option<String> = row.get(10)?;
+      let purged_at: Option<String> = row.get(11)?;
       Ok((
         row.get::<_, String>(0)?,
         row.get(1)?,
@@ -379,9 +386,10 @@ pub fn get_customer(
         row.get::<_, String>(8)?,
         row.get::<_, i64>(9)? != 0,
         deleted_at.is_some(),
-        row.get(11)?,
+        purged_at.is_some(),
         row.get(12)?,
         row.get(13)?,
+        row.get(14)?,
       ))
     },
   );
@@ -399,6 +407,7 @@ pub fn get_customer(
       customer_type,
       is_active,
       is_archived,
+      is_purged,
       created_at,
       updated_at,
       photo,
@@ -425,6 +434,7 @@ pub fn get_customer(
         customer_type,
         is_active,
         is_archived,
+        is_purged,
         created_at,
         updated_at,
         opening_kata,

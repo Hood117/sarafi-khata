@@ -162,6 +162,8 @@ export type CustomerDetail = {
   customerType: string;
   isActive: boolean;
   isArchived: boolean;
+  /** True after 30 days in archive — not listed/restorable; Daybook history remains. */
+  isPurged?: boolean;
   createdAt: string;
   updatedAt: string;
   openingKata: OpeningKataLineDetail[];

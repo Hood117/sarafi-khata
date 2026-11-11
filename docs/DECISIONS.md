@@ -138,6 +138,10 @@ See ADR-004, ADR-014, ADR-015, ADR-019–028, ADR-032–033, ADR-043.
   - Active uniqueness for `phone` / `code` via **partial unique indexes** (`WHERE deletedAt IS NULL`).
   - Archived customers hidden by default; list filter `?status=archived` to view.
   - No hard-delete API for customers.
+- **Customer archive retention (2026-11-11):**
+  - After **30 days** archived, set `purgedAt` (soft purge from customer/archive lists only).
+  - Do **not** soft-delete or wipe the customer’s transactions — Daybook/search keep history via the customer row.
+  - Restore is allowed only while `deletedAt` is set and `purgedAt` is null.
 
 ---
 

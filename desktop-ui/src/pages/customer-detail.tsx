@@ -123,6 +123,7 @@ function customerStatusLabel(
   customer: CustomerDetail,
   t: ReturnType<typeof useT>,
 ): string {
+  if (customer.isPurged) return t.customers.purgedStatus;
   if (customer.isArchived) return t.common.archived;
   if (customer.isActive) return t.common.active;
   return t.common.inactive;
@@ -801,7 +802,7 @@ export function CustomerDetailPage() {
                       {statusLabel ? (
                         <strong
                           className={
-                            customer.isArchived
+                            customer.isPurged || customer.isArchived
                               ? "customer-detail-status is-archived"
                               : customer.isActive
                                 ? "customer-detail-status is-active"
@@ -815,7 +816,11 @@ export function CustomerDetailPage() {
                   }
                 />
                 <div className="customer-detail-actions">
-                  {customer.isArchived ? (
+                  {customer.isPurged ? (
+                    <p className="muted" style={{ margin: 0, maxWidth: "28rem" }}>
+                      {t.customers.purgedNotice}
+                    </p>
+                  ) : customer.isArchived ? (
                     <button type="button" className="btn" onClick={() => void onRestore()}>
                       {t.common.restore}
                     </button>

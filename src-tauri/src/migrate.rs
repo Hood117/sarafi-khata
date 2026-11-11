@@ -266,6 +266,14 @@ pub fn ensure_schema_compat(conn: &Connection) -> Result<(), AppError> {
   )?;
   ensure_column(
     conn,
+    "Customer",
+    "purgedAt",
+    r#"ALTER TABLE "Customer" ADD COLUMN "purgedAt" DATETIME;
+       CREATE INDEX IF NOT EXISTS "Customer_purgedAt_idx" ON "Customer"("purgedAt");
+       CREATE INDEX IF NOT EXISTS "Customer_deletedAt_purgedAt_idx" ON "Customer"("deletedAt", "purgedAt");"#,
+  )?;
+  ensure_column(
+    conn,
     "Transaction",
     "walkInName",
     r#"ALTER TABLE "Transaction" ADD COLUMN "walkInName" TEXT;"#,

@@ -184,6 +184,8 @@ model Customer {
   customerType String   @default("PERMANENT")
   isActive   Boolean   @default(true)
   deletedAt  DateTime?
+  /// Set ~30 days after archive. Hides the customer from archive lists; history stays in Daybook.
+  purgedAt   DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -203,6 +205,8 @@ model Customer {
   @@index([customerType])
   @@index([isActive, deletedAt])
   @@index([deletedAt])
+  @@index([purgedAt])
+  @@index([deletedAt, purgedAt])
 }
 
 model Wallet {

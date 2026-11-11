@@ -452,6 +452,9 @@ export type Dictionary = {
     updateError: string;
     archiveError: string;
     archiveCustomer: string;
+    purgedStatus: string;
+    purgedNotice: string;
+    archiveRetentionHint: string;
     codePrefix: string;
     addMoneyDescription: string;
     noCustomersDisplay: string;
